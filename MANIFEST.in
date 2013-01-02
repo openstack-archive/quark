@@ -1,0 +1,5 @@
+include distribute_setup.py
+include *.txt
+include *.rst
+recursive-include docs *.txt
+prune dist
