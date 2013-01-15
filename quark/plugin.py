@@ -252,7 +252,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         NOTE: this method is optional, as it was not part of the originally
               defined plugin API.
         """
-        retunr 1
+        return 1
 
     def delete_network(self, context, id):
         """
