@@ -18,16 +18,16 @@
 v2 Quantum Plug-in API Quark Implementation
 """
 
+import uuid
+
 from quantum.common import exceptions
 from quantum import quantum_plugin_base_v2
 from quantum.db import db_base_plugin_v2
 
 
 class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
-
-
     def _gen_uuid(self):
-        pass
+        return uuid.uuid1()
 
     def _make_network_dict(self, network, fields=None):
         res = {'id': network.get('id'),
@@ -175,6 +175,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.  All keys will be populated.
         """
+        network = {'id': _gen_uuid()}
+        return _make_network_dict(network)
         pass
 
     def update_network(self, context, id, network):
