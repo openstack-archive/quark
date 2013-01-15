@@ -87,7 +87,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.  All keys will be populated.
         """
-        subnet = {'id' : _gen_uuid()}
+        subnet = {'id' : self._gen_uuid()}
         return _make_subnet_dict(subnet)
 # need to return a dict much like the form from
 # db_base_plugin_v2._make_subnet_dict(subnet)
@@ -175,7 +175,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.  All keys will be populated.
         """
-        network = {'id': _gen_uuid()}
+        network = {'id': self._gen_uuid()}
         return _make_network_dict(network)
         pass
 
