@@ -30,6 +30,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         return uuid.uuid1()
 
     def _make_network_dict(self, network, fields=None):
+        if not network.get('subnets'):
+            network['subnets'] = {}
         res = {'id': network.get('id'),
                'name': network.get('name'),
                'tenant_id': network.get('tenant_id'),
@@ -41,6 +43,12 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         return res
 
     def _make_subnet_dict(self, subnet, fields=None):
+        if not subnet.get('allocation_pools'):
+            subnet['allocation_pools'] = {}
+        if not subnet.get('dns_nameservers'):
+            subnet['dns_nameservers'] = {}
+        if not subnet.get('routes'):
+            subnet['routes'] = {}
         res = {'id': subnet.get('id'),
                'name': subnet.get('name'),
                'tenant_id': subnet.get('tenant_id'),
@@ -64,6 +72,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         return res
 
     def _make_port_dict(self, port, fields=None):
+        if not port.get('fixed_ips'):
+            port['fixed_ips'] = {}
         res = {"id": port.get("id"),
                'name': port.get('name'),
                "network_id": port.get("network_id"),
