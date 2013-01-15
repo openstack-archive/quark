@@ -88,7 +88,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             quantum/api/v2/attributes.py.  All keys will be populated.
         """
         subnet = {'id' : self._gen_uuid()}
-        return _make_subnet_dict(subnet)
+        return self._make_subnet_dict(subnet)
 # need to return a dict much like the form from
 # db_base_plugin_v2._make_subnet_dict(subnet)
 # we just need to pass it a jank subnet
@@ -176,7 +176,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             quantum/api/v2/attributes.py.  All keys will be populated.
         """
         network = {'id': self._gen_uuid()}
-        return _make_network_dict(network)
+        return self._make_network_dict(network)
         pass
 
     def update_network(self, context, id, network):
