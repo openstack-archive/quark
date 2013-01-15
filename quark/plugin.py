@@ -198,7 +198,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.
         """
-        network = {'id': self._gen_uuid()}
+        network = {'id': id}
         return self._make_network_dict(network)
 
     def get_network(self, context, id, fields=None):
