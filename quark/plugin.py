@@ -187,7 +187,6 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         """
         network = {'id': self._gen_uuid()}
         return self._make_network_dict(network)
-        pass
 
     def update_network(self, context, id, network):
         """
@@ -199,7 +198,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.
         """
-        pass
+        network = {'id': self._gen_uuid()}
+        return self._make_network_dict(network)
 
     def get_network(self, context, id, fields=None):
         """
@@ -211,7 +211,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             object in quantum/api/v2/attributes.py. Only these fields
             will be returned.
         """
-        pass
+        network = {'id': id}
+        return self._make_network_dict(network)
 
     def get_networks(self, context, filters=None, fields=None):
         """
@@ -231,7 +232,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             object in quantum/api/v2/attributes.py. Only these fields
             will be returned.
         """
-        pass
+        network = {'id': id}
+        return [self._make_network_dict(network)]
 
     def get_networks_count(self, context, filters=None):
         """
@@ -250,7 +252,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         NOTE: this method is optional, as it was not part of the originally
               defined plugin API.
         """
-        raise exceptions.NotImplementedError()
+        retunr 1
 
     def delete_network(self, context, id):
         """
