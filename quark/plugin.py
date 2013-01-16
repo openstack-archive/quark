@@ -20,7 +20,6 @@ v2 Quantum Plug-in API Quark Implementation
 
 import uuid
 
-from quantum.common import exceptions
 from quantum.openstack.common import log as logging
 from quantum import quantum_plugin_base_v2
 
@@ -114,10 +113,6 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         """
         subnet = {'id': self._gen_uuid()}
         return self._make_subnet_dict(subnet)
-# need to return a dict much like the form from
-# db_base_plugin_v2._make_subnet_dict(subnet)
-# we just need to pass it a jank subnet
-        pass
 
     def update_subnet(self, context, id, subnet):
         """
@@ -129,7 +124,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.
         """
-        pass
+        subnet = {'id': None}
+        return self._make_subnet_dict(subnet)
 
     def get_subnet(self, context, id, fields=None):
         """
@@ -141,7 +137,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             object in quantum/api/v2/attributes.py. Only these fields
             will be returned.
         """
-        pass
+        subnet = {'id': None}
+        return self._make_subnet_dict(subnet)
 
     def get_subnets(self, context, filters=None, fields=None):
         """
@@ -161,7 +158,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             object in quantum/api/v2/attributes.py. Only these fields
             will be returned.
         """
-        pass
+        subnet = {'id': self._gen_uuid()}
+        return [self._make_subnet_dict(subnet)]
 
     def get_subnets_count(self, context, filters=None):
         """
@@ -180,7 +178,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         NOTE: this method is optional, as it was not part of the originally
               defined plugin API.
         """
-        raise exceptions.NotImplementedError()
+        return 1
 
     def delete_subnet(self, context, id):
         """
@@ -188,7 +186,6 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         : param context: quantum api request context
         : param id: UUID representing the subnet to delete.
         """
-#this function doesn't need to do anything
         pass
 
     def create_network(self, context, network):
@@ -286,7 +283,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.  All keys will be populated.
         """
-        pass
+        new_port = {'id': self._gen_uuid()}
+        return self._make_port_dict(new_port)
 
     def update_port(self, context, id, port):
         """
@@ -298,7 +296,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.
         """
-        pass
+        new_port = {'id': None}
+        return self._make_port_dict(new_port)
 
     def get_port(self, context, id, fields=None):
         """
@@ -310,7 +309,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             object in quantum/api/v2/attributes.py. Only these fields
             will be returned.
         """
-        pass
+        new_port = {'id': None}
+        return self._make_port_dict(new_port)
 
     def get_ports(self, context, filters=None, fields=None):
         """
@@ -330,7 +330,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             object in quantum/api/v2/attributes.py. Only these fields
             will be returned.
         """
-        pass
+        new_port = {'id': self._gen_uuid()}
+        return [self._make_port_dict(new_port)]
 
     def get_ports_count(self, context, filters=None):
         """
@@ -349,7 +350,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         NOTE: this method is optional, as it was not part of the originally
               defined plugin API.
         """
-        raise exceptions.NotImplementedError()
+        return 1
 
     def delete_port(self, context, id):
         """
