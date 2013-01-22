@@ -20,10 +20,26 @@ v2 Quantum Plug-in API Quark Implementation
 
 import uuid
 
+from quantum.openstack.common import log as logging
 from quantum import quantum_plugin_base_v2
+
+LOG = logging.getLogger("quantum")
 
 
 class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
+    def __getattribute__(self, name):
+        #TODO(anyone): Absolutely remove this later
+        attr = object.__getattribute__(self, name)
+        if hasattr(attr, "__call__"):
+            def func(*args, **kwargs):
+                LOG.debug("Calling %s with %s, %s" % (name, args, kwargs))
+                result = attr(*args, **kwargs)
+                LOG.debug("Finished call to %s, got %s" % (name, result))
+                return result
+            return func
+        else:
+            return attr
+
     def _gen_uuid(self):
         return uuid.uuid1()
 
@@ -55,8 +71,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                'cidr': subnet.get('cidr'),
                'allocation_pools': [{'start': pool.get('first_ip'),
                                      'end': pool.get('last_ip')}
-                                    for pool in
-                                    subnet.get('allocation_pools')],
+                                    for pool in subnet.get('allocation_pools')
+                                    ],
                'gateway_ip': subnet.get('gateway_ip'),
                'enable_dhcp': subnet.get('enable_dhcp'),
                'dns_nameservers': [dns.get('address')
