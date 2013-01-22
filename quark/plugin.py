@@ -240,7 +240,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             object in quantum/api/v2/attributes.py. Only these fields
             will be returned.
         """
-        network = {'id': None}
+        network = {'id': self._gen_uuid()}
         return [self._make_network_dict(network)]
 
     def get_networks_count(self, context, filters=None):
