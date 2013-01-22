@@ -120,7 +120,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.
         """
-        subnet = {'id': None}
+        subnet = {'id': id}
         return self._make_subnet_dict(subnet)
 
     def get_subnet(self, context, id, fields=None):
@@ -133,7 +133,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             object in quantum/api/v2/attributes.py. Only these fields
             will be returned.
         """
-        subnet = {'id': None}
+        subnet = {'id': id}
         return self._make_subnet_dict(subnet)
 
     def get_subnets(self, context, filters=None, fields=None):
@@ -206,7 +206,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.
         """
-        network = {'id': None}
+        network = {'id': id}
         return self._make_network_dict(network)
 
     def get_network(self, context, id, fields=None):
@@ -219,7 +219,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             object in quantum/api/v2/attributes.py. Only these fields
             will be returned.
         """
-        network = {'id': None}
+        network = {'id': id}
         return self._make_network_dict(network)
 
     def get_networks(self, context, filters=None, fields=None):
@@ -292,7 +292,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.
         """
-        new_port = {'id': None}
+        new_port = {'id': id}
         return self._make_port_dict(new_port)
 
     def get_port(self, context, id, fields=None):
@@ -305,7 +305,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             object in quantum/api/v2/attributes.py. Only these fields
             will be returned.
         """
-        new_port = {'id': None}
+        new_port = {'id': id}
         return self._make_port_dict(new_port)
 
     def get_ports(self, context, filters=None, fields=None):
