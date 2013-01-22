@@ -20,7 +20,6 @@ v2 Quantum Plug-in API Quark Implementation
 
 import uuid
 
-from quantum.common import exceptions
 from quantum import quantum_plugin_base_v2
 
 
@@ -56,7 +55,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                'cidr': subnet.get('cidr'),
                'allocation_pools': [{'start': pool.get('first_ip'),
                                      'end': pool.get('last_ip')}
-                                    for pool in subnet.get('allocation_pools')],
+                                    for pool in
+                                    subnet.get('allocation_pools')],
                'gateway_ip': subnet.get('gateway_ip'),
                'enable_dhcp': subnet.get('enable_dhcp'),
                'dns_nameservers': [dns.get('address')
@@ -96,7 +96,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.  All keys will be populated.
         """
-        subnet = {'id' : self._gen_uuid()}
+        subnet = {'id': self._gen_uuid()}
         return self._make_subnet_dict(subnet)
 
     def update_subnet(self, context, id, subnet):
@@ -109,7 +109,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.
         """
-        subnet = {'id' : id }
+        subnet = {'id': id}
         return self._make_subnet_dict(subnet)
 
     def get_subnet(self, context, id, fields=None):
@@ -122,7 +122,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             object in quantum/api/v2/attributes.py. Only these fields
             will be returned.
         """
-        subnet = {'id' : id }
+        subnet = {'id': id}
         return self._make_subnet_dict(subnet)
 
     def get_subnets(self, context, filters=None, fields=None):
@@ -143,7 +143,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             object in quantum/api/v2/attributes.py. Only these fields
             will be returned.
         """
-        subnet = {'id' : self._gen_uuid()}
+        subnet = {'id': self._gen_uuid()}
         return [self._make_subnet_dict(subnet)]
 
     def get_subnets_count(self, context, filters=None):
@@ -195,7 +195,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.
         """
-        network = {'id': id }
+        network = {'id': id}
         return self._make_network_dict(network)
 
     def get_network(self, context, id, fields=None):
@@ -208,7 +208,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             object in quantum/api/v2/attributes.py. Only these fields
             will be returned.
         """
-        network = {'id': id }
+        network = {'id': id}
         return self._make_network_dict(network)
 
     def get_networks(self, context, filters=None, fields=None):
@@ -259,7 +259,6 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         """
         pass
 
-    
     def create_port(self, context, port):
         """
         Create a port, which is a connection point of a device (e.g., a VM
@@ -272,7 +271,6 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         new_port = {'id': self._gen_uuid()}
         return self._make_port_dict(new_port)
 
-    
     def update_port(self, context, id, port):
         """
         Update values of a port.
@@ -283,10 +281,9 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.
         """
-        new_port = {'id': id }
+        new_port = {'id': id}
         return self._make_port_dict(new_port)
 
-    
     def get_port(self, context, id, fields=None):
         """
         Retrieve a port.
@@ -297,10 +294,9 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             object in quantum/api/v2/attributes.py. Only these fields
             will be returned.
         """
-        new_port = {'id': id }
+        new_port = {'id': id}
         return self._make_port_dict(new_port)
 
-    
     def get_ports(self, context, filters=None, fields=None):
         """
         Retrieve a list of ports.  The contents of the list depends on
@@ -341,7 +337,6 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         """
         return 1
 
-    
     def delete_port(self, context, id):
         """
         Delete a port.
