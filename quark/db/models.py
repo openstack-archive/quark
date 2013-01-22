@@ -81,6 +81,17 @@ class Subnet(ModelBase, HasId, HasTenant):
                               cascade='delete')
 
 
+class MacAddress(ModelBase, HasTenant):
+    address = sa.Column(sa.Integer(), primary_key=True)
+    mac_address_range_id = sa.Column(sa.Integer(),
+                                     sa.ForeignKey("mac_address_ranges.id"),
+                                     nullable=False)
+
+
+class MacAddressRange(ModelBase, HasId):
+    cidr = sa.Column(sa.String(255), nullable=False)
+
+
 class Port(ModelBase, HasId, HasTenant):
     network_id = sa.Column(sa.String(36), sa.ForeignKey("networks.id"),
                            nullable=False)
@@ -88,7 +99,8 @@ class Port(ModelBase, HasId, HasTenant):
     # Maybe have this for optimizing lookups.
     # subnet_id = sa.Column(sa.String(36), sa.ForeignKey("subnets.id"),
     #                      nulllable=False)
-    mac_address = sa.Column(sa.String(32), nullable=False)
+    mac_address = sa.Column(sa.Integer(),
+                            sa.ForeignKey("mac_adddresse.address"))
 
     # device is an ID pertaining to the entity utilizing the port. Could be
     # an instance, a load balancer, or any other network capable object
