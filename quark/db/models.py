@@ -6,22 +6,48 @@ from quantum.db.models_v2 import HasTenant, HasId
 
 # TODO(mdietz): discuss any IP reservation policies ala Melange with the nerds
 # but not sure if we need them offhand
+#
+# Things omitted:
+#
+# shared or sharing fields from any of the tables. If we're going to implement
+# actual sharing, then we need to provide AuthZ as well as reasonable
+# constructs for said sharing. Then the act of sharing will be implicit in
+# those structures.
+#
+# Most of the IPAM model from upstream. It seemed unwieldy, and ended up
+# providing what Subnet with a CIDR defined
+#
+# status fields. In most cases, they seemed superfluous. We prefer to delete
+# ports when they're not in use. Meanwhile, I don't see a need for a network
+# that exists but might have a state that means it's unusable.
+#
+# IP octets and policies from Melange, for now
+#
+# DNS and DHCP things. Don't need them right now, not sure we'd ever
+# have to implement those unless Quark completely co-opts upstream
+#
+# Most of the fields on routes. I think the simpler cidr and gateway
+# denotation is more meaningful and easier.
 
 
 class ModelBase(model_base.BASEV2):
     created_at = sa.Column(sa.DateTime())
 
 
-class IPAllocation(ModelBase, HasTenant):
-    address = sa.Column(sa.String(64), nullable=False, primary_key=True)
+class IPAddress(ModelBase, HasId, HasTenant):
+    """More closely the melange version of the IP table.
+    We always mark the record as deallocated rather than deleting it.
+    Gives us an IP address owner audit log for free, essentially"""
+
+    address = sa.Column(sa.String(64), nullable=False)
     subnet_id = sa.Column(sa.String(36),
-                          sa.ForeignKey("subnets.id", ondelete="CASCADE"),
-                          primary_key=True)
+                          sa.ForeignKey("subnets.id", ondelete="CASCADE"))
     network_id = sa.Column(sa.String(36),
-                           sa.ForeignKey("networks.id", ondelete="CASCADE"),
-                           primary_key=True)
+                           sa.ForeignKey("networks.id", ondelete="CASCADE"))
     port_id = sa.Column(sa.Column(36),
                         sa.ForeignKey("ports.id", ondelete="CASCADE"))
+    deallocatable = sa.Column(sa.Boolean())
+    deallocated_at = sa.Column(sa.DateTime())
 
 
 class Route(ModelBase, HasId):
@@ -48,7 +74,7 @@ class Subnet(ModelBase, HasId, HasTenant):
 
     network_id = sa.Column(sa.String(36), sa.ForeignKey('networks.id'))
     cidr = sa.Column(sa.String(64), nullable=False)
-    allocated_ips = orm.relationship(IPAllocation, backref="subnet",
+    allocated_ips = orm.relationship(IPAddress, backref="subnet",
                                      lazy="dynamic", cascade="DELETE")
     routes = orm.relationship(Route,
                               backref='subnet',
