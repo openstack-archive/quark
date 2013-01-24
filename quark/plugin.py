@@ -41,7 +41,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             return attr
 
     def _gen_uuid(self):
-        return uuid.uuid1()
+        return str(uuid.uuid1())
 
     def _make_network_dict(self, network, fields=None):
         if not network.get('subnets'):
