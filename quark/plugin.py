@@ -20,13 +20,19 @@ v2 Quantum Plug-in API Quark Implementation
 
 import uuid
 
-from quantum.openstack.common import log as logging
 from quantum import quantum_plugin_base_v2
+from quantum.db import api as db_api
+from quantum.openstack.common import log as logging
+
+from quark.db import models
 
 LOG = logging.getLogger("quantum")
 
 
 class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
+    def __init__(self):
+        db_api.configure_db()
+
     def __getattribute__(self, name):
         #TODO(anyone): Absolutely remove this later
         attr = object.__getattribute__(self, name)
@@ -240,8 +246,9 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             object in quantum/api/v2/attributes.py. Only these fields
             will be returned.
         """
-        network = {'id': self._gen_uuid()}
-        return [self._make_network_dict(network)]
+        query = context.session.query(models.Network)
+        networks = query.filter(models.Network.tenant_id == context.tenant_id)
+        return [self._make_network_dict(net) for net in networks]
 
     def get_networks_count(self, context, filters=None):
         """

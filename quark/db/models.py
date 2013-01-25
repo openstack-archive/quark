@@ -1,7 +1,23 @@
 import sqlalchemy as sa
 from sqlalchemy import orm
+from sqlalchemy.ext import declarative
+
 from quantum.db import model_base
 from quantum.db.models_v2 import HasTenant, HasId
+
+
+class CreatedAt(object):
+    created_at = sa.Column(sa.DateTime())
+
+
+class ModelBase(model_base.QuantumBase, CreatedAt):
+    @declarative.declared_attr
+    def __tablename__(cls):
+        # NOTE(mdietz): This is to get around the models below already
+        # existing in the metadata by the time this plugin is loaded
+        return "quark_%ss" % cls.__name__.lower()
+
+QuarkBase = declarative.declarative_base(cls=ModelBase)
 
 
 # TODO(mdietz): discuss any IP reservation policies ala Melange with the nerds
@@ -30,35 +46,33 @@ from quantum.db.models_v2 import HasTenant, HasId
 # denotation is more meaningful and easier.
 
 
-class ModelBase(model_base.BASEV2):
-    created_at = sa.Column(sa.DateTime())
-
-
-class IPAddress(ModelBase, HasId, HasTenant):
+class IPAddress(QuarkBase, HasId, HasTenant):
     """More closely the melange version of the IP table.
     We always mark the record as deallocated rather than deleting it.
     Gives us an IP address owner audit log for free, essentially"""
 
     address = sa.Column(sa.String(64), nullable=False)
     subnet_id = sa.Column(sa.String(36),
-                          sa.ForeignKey("subnets.id", ondelete="CASCADE"))
+                          sa.ForeignKey("quark_subnets.id",
+                                        ondelete="CASCADE"))
     network_id = sa.Column(sa.String(36),
-                           sa.ForeignKey("networks.id", ondelete="CASCADE"))
-    port_id = sa.Column(sa.Column(36),
-                        sa.ForeignKey("ports.id", ondelete="CASCADE"))
+                           sa.ForeignKey("quark_networks.id",
+                                         ondelete="CASCADE"))
+    port_id = sa.Column(sa.String(36),
+                        sa.ForeignKey("quark_ports.id", ondelete="CASCADE"))
 
     # Need a constant to facilitate the indexed search for new IPs
     deallocated = sa.Column(sa.Boolean())
     deallocated_at = sa.Column(sa.DateTime())
 
 
-class Route(ModelBase, HasId):
+class Route(QuarkBase, HasId):
     cidr = sa.Column(sa.String(64))
     gateway = sa.Column(sa.String(64))
-    subnet_id = sa.Column(sa.String(36), sa.ForeignKey("subnets.id"))
+    subnet_id = sa.Column(sa.String(36), sa.ForeignKey("quark_subnets.id"))
 
 
-class Subnet(ModelBase, HasId, HasTenant):
+class Subnet(QuarkBase, HasId, HasTenant):
     """
     Upstream model for IPs
 
@@ -74,28 +88,31 @@ class Subnet(ModelBase, HasId, HasTenant):
     for your subnet
     """
 
-    network_id = sa.Column(sa.String(36), sa.ForeignKey('networks.id'))
+    network_id = sa.Column(sa.String(36), sa.ForeignKey('quark_networks.id'))
     cidr = sa.Column(sa.String(64), nullable=False)
+    # TODO(mdietz): re-add this later if possible
     allocated_ips = orm.relationship(IPAddress, backref="subnet",
-                                     lazy="dynamic", cascade="DELETE")
+                                     lazy="select")
+
+                                     #, cascade="DELETE")
     routes = orm.relationship(Route,
                               backref='subnet',
-                              cascade='delete')
+                              cascade='delete', lazy="select")
 
 
-class MacAddress(ModelBase, HasTenant):
+class MacAddress(QuarkBase, HasTenant):
     address = sa.Column(sa.Integer(), primary_key=True)
     mac_address_range_id = sa.Column(sa.Integer(),
-                                     sa.ForeignKey("mac_address_ranges.id"),
-                                     nullable=False)
+                                sa.ForeignKey("quark_mac_address_ranges.id"),
+                                nullable=False)
 
 
-class MacAddressRange(ModelBase, HasId):
+class MacAddressRange(QuarkBase, HasId):
     cidr = sa.Column(sa.String(255), nullable=False)
 
 
-class Port(ModelBase, HasId, HasTenant):
-    network_id = sa.Column(sa.String(36), sa.ForeignKey("networks.id"),
+class Port(QuarkBase, HasId, HasTenant):
+    network_id = sa.Column(sa.String(36), sa.ForeignKey("quark_networks.id"),
                            nullable=False)
 
     # Maybe have this for optimizing lookups.
@@ -109,7 +126,7 @@ class Port(ModelBase, HasId, HasTenant):
     device_id = sa.Column(sa.String(255), nullable=False)
 
 
-class Network(ModelBase, HasTenant, HasId):
+class Network(QuarkBase, HasTenant, HasId):
     name = sa.Column(sa.String(255))
-    ports = orm.relationship(Port, backref='networks')
-    subnets = orm.relationship(Subnet, backref='networks')
+    ports = orm.relationship(Port, backref='network')
+    subnets = orm.relationship(Subnet, backref='network')
