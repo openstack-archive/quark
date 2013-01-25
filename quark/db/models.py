@@ -46,6 +46,9 @@ class IPAddress(ModelBase, HasId, HasTenant):
                            sa.ForeignKey("networks.id", ondelete="CASCADE"))
     port_id = sa.Column(sa.Column(36),
                         sa.ForeignKey("ports.id", ondelete="CASCADE"))
+
+    # Need a constant to facilitate the indexed search for new IPs
+    deallocated = sa.Column(sa.Boolean())
     deallocated_at = sa.Column(sa.DateTime())
 
 
