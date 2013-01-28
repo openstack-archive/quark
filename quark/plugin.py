@@ -225,7 +225,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             object in quantum/api/v2/attributes.py. Only these fields
             will be returned.
         """
-        network = {'id': id}
+        query = context.session.query(models.Network)
+        network = query.filter(models.Network.id == id)
         return self._make_network_dict(network)
 
     def get_networks(self, context, filters=None, fields=None):
