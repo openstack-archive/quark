@@ -1,27 +1,12 @@
 import sqlalchemy as sa
 from sqlalchemy import orm
-from sqlalchemy.ext import declarative
 
-from quantum.db import model_base
-from quantum.db import api as db_api
+from quantum.db.model_base import BASEV2
 from quantum.db.models_v2 import HasTenant, HasId
 
 
 class CreatedAt(object):
     created_at = sa.Column(sa.DateTime())
-
-
-class ModelBase(model_base.QuantumBase, CreatedAt):
-    @declarative.declared_attr
-    def __tablename__(cls):
-        # NOTE(mdietz): This is to get around the models below already
-        # existing in the metadata by the time this plugin is loaded
-        if cls.__name__.lower().endswith('s'):
-            return "quark_%ses" % cls.__name__.lower()
-        return "quark_%ss" % cls.__name__.lower()
-
-QuarkBase = declarative.declarative_base(cls=ModelBase,
-                                         metadata=db_api.BASE.metadata)
 
 
 # TODO(mdietz): discuss any IP reservation policies ala Melange with the nerds
@@ -50,10 +35,12 @@ QuarkBase = declarative.declarative_base(cls=ModelBase,
 # denotation is more meaningful and easier.
 
 
-class IPAddress(QuarkBase, HasId, HasTenant):
+class IPAddress(BASEV2, CreatedAt, HasId, HasTenant):
     """More closely the melange version of the IP table.
     We always mark the record as deallocated rather than deleting it.
     Gives us an IP address owner audit log for free, essentially"""
+
+    __tablename__ = "quark_ip_addresses"
 
     address = sa.Column(sa.String(64), nullable=False)
     subnet_id = sa.Column(sa.String(36),
@@ -70,13 +57,14 @@ class IPAddress(QuarkBase, HasId, HasTenant):
     deallocated_at = sa.Column(sa.DateTime())
 
 
-class Route(QuarkBase, HasId):
+class Route(BASEV2, CreatedAt, HasId):
+    __tablename__ = "quark_routes"
     cidr = sa.Column(sa.String(64))
     gateway = sa.Column(sa.String(64))
     subnet_id = sa.Column(sa.String(36), sa.ForeignKey("quark_subnets.id"))
 
 
-class Subnet(QuarkBase, HasId, HasTenant):
+class Subnet(BASEV2, CreatedAt, HasId, HasTenant):
     """
     Upstream model for IPs
 
@@ -91,7 +79,7 @@ class Subnet(QuarkBase, HasId, HasTenant):
     IPAllocationPool and Range seem superfluous. Just create intelligent CIDRs
     for your subnet
     """
-
+    __tablename__ = "quark_subnets"
     network_id = sa.Column(sa.String(36), sa.ForeignKey('quark_networks.id'))
     cidr = sa.Column(sa.String(64), nullable=False)
     # TODO(mdietz): re-add this later if possible
@@ -104,18 +92,21 @@ class Subnet(QuarkBase, HasId, HasTenant):
                               cascade='delete', lazy="select")
 
 
-class MacAddress(QuarkBase, HasTenant):
+class MacAddress(BASEV2, CreatedAt, HasTenant):
+    __tablename__ = "quark_mac_addresses"
     address = sa.Column(sa.Integer(), primary_key=True)
     mac_address_range_id = sa.Column(sa.Integer(),
-                                sa.ForeignKey("quark_macaddressranges.id"),
+                                sa.ForeignKey("quark_mac_address_ranges.id"),
                                 nullable=False)
 
 
-class MacAddressRange(QuarkBase, HasId):
+class MacAddressRange(BASEV2, CreatedAt, HasId):
+    __tablename__ = "quark_mac_address_ranges"
     cidr = sa.Column(sa.String(255), nullable=False)
 
 
-class Port(QuarkBase, HasId, HasTenant):
+class Port(BASEV2, CreatedAt, HasId, HasTenant):
+    __tablename__ = "quark_ports"
     network_id = sa.Column(sa.String(36), sa.ForeignKey("quark_networks.id"),
                            nullable=False)
 
@@ -123,14 +114,15 @@ class Port(QuarkBase, HasId, HasTenant):
     # subnet_id = sa.Column(sa.String(36), sa.ForeignKey("subnets.id"),
     #                      nulllable=False)
     mac_address = sa.Column(sa.Integer(),
-                            sa.ForeignKey("quark_macaddresses.address"))
+                            sa.ForeignKey("quark_mac_addresses.address"))
 
     # device is an ID pertaining to the entity utilizing the port. Could be
     # an instance, a load balancer, or any other network capable object
     device_id = sa.Column(sa.String(255), nullable=False)
 
 
-class Network(QuarkBase, HasTenant, HasId):
+class Network(BASEV2, CreatedAt, HasTenant, HasId):
+    __tablename__ = "quark_networks"
     name = sa.Column(sa.String(255))
     ports = orm.relationship(Port, backref='network')
     subnets = orm.relationship(Subnet, backref='network')
