@@ -3,6 +3,7 @@ from sqlalchemy import orm
 from sqlalchemy.ext import declarative
 
 from quantum.db import model_base
+from quantum.db import api as db_api
 from quantum.db.models_v2 import HasTenant, HasId
 
 
@@ -15,11 +16,12 @@ class ModelBase(model_base.QuantumBase, CreatedAt):
     def __tablename__(cls):
         # NOTE(mdietz): This is to get around the models below already
         # existing in the metadata by the time this plugin is loaded
-        if cls.__name__.endswith(["s", "S"]) :
+        if cls.__name__.lower().endswith('s'):
             return "quark_%ses" % cls.__name__.lower()
         return "quark_%ss" % cls.__name__.lower()
 
-QuarkBase = declarative.declarative_base(cls=ModelBase)
+QuarkBase = declarative.declarative_base(cls=ModelBase,
+                                         metadata=db_api.BASE.metadata)
 
 
 # TODO(mdietz): discuss any IP reservation policies ala Melange with the nerds
@@ -105,7 +107,7 @@ class Subnet(QuarkBase, HasId, HasTenant):
 class MacAddress(QuarkBase, HasTenant):
     address = sa.Column(sa.Integer(), primary_key=True)
     mac_address_range_id = sa.Column(sa.Integer(),
-                                sa.ForeignKey("quark_mac_address_ranges.id"),
+                                sa.ForeignKey("quark_macaddressranges.id"),
                                 nullable=False)
 
 
@@ -121,7 +123,7 @@ class Port(QuarkBase, HasId, HasTenant):
     # subnet_id = sa.Column(sa.String(36), sa.ForeignKey("subnets.id"),
     #                      nulllable=False)
     mac_address = sa.Column(sa.Integer(),
-                            sa.ForeignKey("mac_adddresses.address"))
+                            sa.ForeignKey("quark_macaddresses.address"))
 
     # device is an ID pertaining to the entity utilizing the port. Could be
     # an instance, a load balancer, or any other network capable object
