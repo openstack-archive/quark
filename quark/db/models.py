@@ -15,6 +15,8 @@ class ModelBase(model_base.QuantumBase, CreatedAt):
     def __tablename__(cls):
         # NOTE(mdietz): This is to get around the models below already
         # existing in the metadata by the time this plugin is loaded
+        if cls.__name__.endswith(["s", "S"]) :
+            return "quark_%ses" % cls.__name__.lower()
         return "quark_%ss" % cls.__name__.lower()
 
 QuarkBase = declarative.declarative_base(cls=ModelBase)
@@ -119,7 +121,7 @@ class Port(QuarkBase, HasId, HasTenant):
     # subnet_id = sa.Column(sa.String(36), sa.ForeignKey("subnets.id"),
     #                      nulllable=False)
     mac_address = sa.Column(sa.Integer(),
-                            sa.ForeignKey("mac_adddresse.address"))
+                            sa.ForeignKey("mac_adddresses.address"))
 
     # device is an ID pertaining to the entity utilizing the port. Could be
     # an instance, a load balancer, or any other network capable object
