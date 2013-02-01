@@ -22,16 +22,31 @@ import uuid
 
 from quantum import quantum_plugin_base_v2
 from quantum.db import api as db_api
+from quantum.openstack.common import cfg
+from quantum.openstack.common import importutils
 from quantum.openstack.common import log as logging
 
 from quark.db import models
 
 LOG = logging.getLogger("quantum")
 
+CONF = cfg.CONF
+
+quark_opts = [
+    cfg.StrOpt('nvp_driver', default='aicq.QuantumPlugin.NvpPlugin',
+               help=_('The client to use to talk to NVP')),
+    cfg.StrOpt('nvp_driver_cfg', default='/etc/quantum/quark.ini',
+               help=_("Path to the config for the NVP driver"))
+]
+
+CONF.register_opts(quark_opts, "QUARK")
+
 
 class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
     def __init__(self):
         db_api.configure_db()
+        self.nvp_driver = (importutils.import_class(CONF.QUARK.nvp_driver)
+                          (configfile=CONF.QUARK.nvp_driver_cfg))
 
     def __getattribute__(self, name):
         #TODO(anyone): Absolutely remove this later
@@ -226,6 +241,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             will be returned.
         """
         query = context.session.query(models.Network)
+        network = query.filter(models.Network.id == id)
         return self._make_network_dict(network)
 
     def get_networks(self, context, filters=None, fields=None):
@@ -247,7 +263,10 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             will be returned.
         """
         query = context.session.query(models.Network)
-        networks = query.filter(models.Network.tenant_id == context.tenant_id)
+        query = query.filter(models.Network.tenant_id == context.tenant_id)
+        networks = query.all()
+        if not networks:
+            networks = self.nvp_driver.get_all_networks(context.tenant_id)
         return [self._make_network_dict(net) for net in networks]
 
     def get_networks_count(self, context, filters=None):

@@ -36,7 +36,7 @@ class CreatedAt(object):
 
 
 class IPAddress(BASEV2, CreatedAt, HasId, HasTenant):
-    """More closely the melange version of the IP table.
+    """More closely emulate the melange version of the IP table.
     We always mark the record as deallocated rather than deleting it.
     Gives us an IP address owner audit log for free, essentially"""
 
