@@ -20,7 +20,10 @@ v2 Quantum Plug-in API Quark Implementation
 
 import uuid
 
+from sqlalchemy import func as sql_func
+
 from quantum import quantum_plugin_base_v2
+from quantum.common import exceptions
 from quantum.db import api as db_api
 from quantum.openstack.common import cfg
 from quantum.openstack.common import importutils
@@ -73,7 +76,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                'status': network.get('status'),
                'shared': network.get('shared'),
                'subnets': [subnet.get('id')
-                           for subnet in network.get('subnets')]}
+                           for subnet in network.get('subnets', [])]}
         return res
 
     def _make_subnet_dict(self, subnet, fields=None):
@@ -154,7 +157,12 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             object in quantum/api/v2/attributes.py. Only these fields
             will be returned.
         """
-        subnet = {'id': id}
+        subnet = context.session.query(models.Subnet).\
+                    filter(models.Subnet.id == id).\
+                    first()
+        if not subnet:
+            raise exceptions.SubnetNotFound(subnet_id=id)
+
         return self._make_subnet_dict(subnet)
 
     def get_subnets(self, context, filters=None, fields=None):
@@ -175,8 +183,11 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             object in quantum/api/v2/attributes.py. Only these fields
             will be returned.
         """
-        subnet = {'id': self._gen_uuid()}
-        return [self._make_subnet_dict(subnet)]
+        query = context.session.query(models.Subnet)
+        if filters.get("network_id"):
+            query = query.filter(
+                    models.Subnet.network_id == filters["network_id"])
+        return [self._make_subnet_dict(s) for s in query.all()]
 
     def get_subnets_count(self, context, filters=None):
         """
@@ -195,7 +206,11 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         NOTE: this method is optional, as it was not part of the originally
               defined plugin API.
         """
-        return 1
+        query = context.session.query(sql_func.count(models.Subnet))
+        if filters.get("network_id"):
+            query = query.filter(
+                    models.Subnet.network_id == filters["network_id"])
+        return query.scalar()
 
     def delete_subnet(self, context, id):
         """
@@ -241,7 +256,9 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             will be returned.
         """
         query = context.session.query(models.Network)
-        network = query.filter(models.Network.id == id)
+        network = query.filter(models.Network.id == id).first()
+        if not network:
+            raise exceptions.NetworkNotFound(net_id=id)
         return self._make_network_dict(network)
 
     def get_networks(self, context, filters=None, fields=None):
@@ -263,11 +280,11 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             will be returned.
         """
         query = context.session.query(models.Network)
-        query = query.filter(models.Network.tenant_id == context.tenant_id)
-        networks = query.all()
-        if not networks:
-            networks = self.nvp_driver.get_all_networks(context.tenant_id)
-        return [self._make_network_dict(net) for net in networks]
+        nets = query.filter(models.Network.tenant_id == context.tenant_id).\
+                     all()
+        #if not nets:
+        #    networks = self.nvp_driver.get_all_networks(context.tenant_id)
+        return [self._make_network_dict(net) for net in nets]
 
     def get_networks_count(self, context, filters=None):
         """
@@ -286,7 +303,9 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         NOTE: this method is optional, as it was not part of the originally
               defined plugin API.
         """
-        return 1
+        query = context.session.query(sql_func.count(models.Network))
+        return query.filter(models.Network.tenant_id == context.tenant_id).\
+                     scalar()
 
     def delete_network(self, context, id):
         """
@@ -331,8 +350,30 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             object in quantum/api/v2/attributes.py. Only these fields
             will be returned.
         """
-        new_port = {'id': id}
-        return self._make_port_dict(new_port)
+        port = context.session.query(models.Port).\
+                    filter(models.Port.id == id).\
+                    first()
+        if not port:
+            raise exceptions.PortNotFound(port_id=id, net_id='')
+        return self._make_port_dict(port)
+
+    def _ports_query(self, context, filters, query=None):
+        query = query or context.session.query(models.Port)
+        if filters.get("network_id"):
+            query = query.filter(
+                    models.Port.network_id == filters["network_id"])
+
+        if filters.get("device_id"):
+            query = query.filter(models.Port.device_id == filters["device_id"])
+
+        if filters.get("mac_address"):
+            query = query.filter(
+                    models.Port.mac_address == filters["mac_address"])
+
+        if filters.get("tenant_id"):
+            query = query.filter(
+                    models.Port.tenant_id == filters["tenant_id"])
+        return query
 
     def get_ports(self, context, filters=None, fields=None):
         """
@@ -352,8 +393,9 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             object in quantum/api/v2/attributes.py. Only these fields
             will be returned.
         """
-        new_port = {'id': self._gen_uuid()}
-        return [self._make_port_dict(new_port)]
+        #TODO(mdietz): May need to build a list of fields to query for later
+        return [self._make_port_dict(p)
+                for p in self._ports_query(context, filters).all()]
 
     def get_ports_count(self, context, filters=None):
         """
@@ -372,7 +414,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         NOTE: this method is optional, as it was not part of the originally
               defined plugin API.
         """
-        return 1
+        query = context.session.query(sql_func.count(models.Port))
+        return self._ports_query(context, filters, query=query).scalar()
 
     def delete_port(self, context, id):
         """
