@@ -1,0 +1,16 @@
+Import the tags and meta objects from newtonian
+Clean up and subset aicq/aiclib for quark
+Implement All port methods
+Implement update for subnet and network
+Figure out a better way to patch the allowed attributes in the API (bulk create subnets in the network create etc)
+Import and implement zope transaction all the way down
+Implement API extensions for basically everything
+CRUD routes
+CRUD IP Allocations
+CRUD MacAddresses
+CRUD MacAddressRanges
+
+
+Later:
+Maybe implement a straight passthrough driver for testing and debugging purposes
+
