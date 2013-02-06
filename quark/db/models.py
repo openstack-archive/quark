@@ -3,10 +3,11 @@ from sqlalchemy import orm
 
 from quantum.db.model_base import BASEV2
 from quantum.db.models_v2 import HasTenant, HasId
+from quantum.openstack.common import timeutils
 
 
 class CreatedAt(object):
-    created_at = sa.Column(sa.DateTime())
+    created_at = sa.Column(sa.DateTime(), default=timeutils.utcnow)
 
 
 # TODO(mdietz): discuss any IP reservation policies ala Melange with the nerds

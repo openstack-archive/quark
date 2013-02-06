@@ -22,6 +22,7 @@ import uuid
 
 from sqlalchemy import func as sql_func
 
+from quantum.api.v2 import attributes as q_attr
 from quantum import quantum_plugin_base_v2
 from quantum.common import exceptions
 from quantum.db import api as db_api
@@ -43,6 +44,13 @@ quark_opts = [
 ]
 
 CONF.register_opts(quark_opts, "QUARK")
+
+#NOTE(mdietz): hacking this for now because disallowing subnets on a network
+#              create is absurd. Might be useful to implement the ability
+#              upstream to add a "mask" on the attributes to override
+
+
+q_attr.RESOURCE_ATTRIBUTE_MAP["networks"]["subnets"]["allow_post"] = True
 
 
 class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
@@ -68,21 +76,19 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         return str(uuid.uuid1())
 
     def _make_network_dict(self, network, fields=None):
-        network['subnets'] = network.get("subnets") or {}
         res = {'id': network.get('id'),
                'name': network.get('name'),
                'tenant_id': network.get('tenant_id'),
                'admin_state_up': network.get('admin_state_up'),
                'status': network.get('status'),
                'shared': network.get('shared'),
-               'subnets': [subnet.get('id')
+               'subnets': [self._make_subnet_dict(subnet)
                            for subnet in network.get('subnets', [])]}
         return res
 
     def _make_subnet_dict(self, subnet, fields=None):
         subnet['allocation_pools'] = subnet.get('allocation_pools') or {}
         subnet['dns_nameservers'] = subnet.get('dns_nameservers') or {}
-        subnet['routes'] = subnet.get('routes') or {}
 
         res = {'id': subnet.get('id'),
                'name': subnet.get('name'),
@@ -99,7 +105,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                                    for dns in subnet.get('dns_nameservers')],
                'host_routes': [{'destination': route.get('destination'),
                                 'nexthop': route.get('nexthop')}
-                               for route in subnet.get('routes')],
+                               for route in subnet.get('routes', [])],
                'shared': subnet.get('shared')
                }
         if subnet.get('gateway_ip'):
@@ -122,6 +128,13 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                "device_owner": port.get("device_owner")}
         return res
 
+    def _create_subnet(self, context, subnet, session=None):
+        s = models.Subnet()
+        s.update(subnet["subnet"])
+        s["tenant_id"] = context.tenant_id
+        session.add(s)
+        return s
+
     def create_subnet(self, context, subnet):
         """
         Create a subnet, which represents a range of IP addresses
@@ -131,8 +144,10 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.  All keys will be populated.
         """
-        subnet = {'id': self._gen_uuid()}
-        return self._make_subnet_dict(subnet)
+        session = context.session
+        new_subnet = self._create_subnet(context, subnet, session)
+        session.flush()
+        return self._make_subnet_dict(new_subnet)
 
     def update_subnet(self, context, id, subnet):
         """
@@ -229,8 +244,21 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.  All keys will be populated.
         """
-        network = {'id': self._gen_uuid()}
-        return self._make_network_dict(network)
+        lswitch = self.nvp_driver.create_network(context.tenant_id,
+                                                 network["network"]["name"])
+
+        with context.session.begin(subtransactions=True):
+            if network["network"].get("subnets"):
+                subnets = network["network"].pop("subnets")
+                for sub in subnets:
+                    sub["subnet"]["network_id"] = lswitch["uuid"]
+                    self._create_subnet(context, sub, context.session)
+            new_net = models.Network()
+            new_net.update(network["network"])
+            new_net["id"] = lswitch["uuid"]
+            context.session.add(new_net)
+
+        return self._make_network_dict(new_net)
 
     def update_network(self, context, id, network):
         """
