@@ -227,13 +227,25 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                     models.Subnet.network_id == filters["network_id"])
         return query.scalar()
 
+    def _delete_subnet(self, subnet, session):
+        if subnet.allocated_ips:
+            raise exceptions.SubnetInUse(subnet_id=id)
+        session.delete(subnet)
+
     def delete_subnet(self, context, id):
         """
         Delete a subnet.
         : param context: quantum api request context
         : param id: UUID representing the subnet to delete.
         """
-        pass
+        subnet = context.session.query(models.Subnet).\
+                        filter(models.Subnet.id == id).\
+                        first()
+        if not subnet:
+            raise exceptions.SubnetNotFound(subnet_id=id)
+
+        self._delete_subnet(subnet, context.session)
+        context.session.flush()
 
     def create_network(self, context, network):
         """
@@ -341,7 +353,19 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         : param context: quantum api request context
         : param id: UUID representing the network to delete.
         """
-        pass
+        session = context.session
+        with session.begin():
+            net = session.query(models.Network).\
+                        filter(models.Network.id == id).\
+                        first()
+            if not net:
+                raise exceptions.NetworkNotFound(net_id=id)
+            if net.ports:
+                raise exceptions.NetworkInUse(net_id=id)
+            self.nvp_driver.delete_network(context.tenant_id, id)
+            for subnet in net["subnets"]:
+                self._delete_subnet(subnet, session)
+            session.delete(net)
 
     def create_port(self, context, port):
         """

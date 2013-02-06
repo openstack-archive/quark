@@ -83,14 +83,8 @@ class Subnet(BASEV2, CreatedAt, HasId, HasTenant):
     __tablename__ = "quark_subnets"
     network_id = sa.Column(sa.String(36), sa.ForeignKey('quark_networks.id'))
     cidr = sa.Column(sa.String(64), nullable=False)
-    # TODO(mdietz): re-add this later if possible
-    allocated_ips = orm.relationship(IPAddress, backref="subnet",
-                                     lazy="select")
-
-                                     #, cascade="DELETE")
-    routes = orm.relationship(Route,
-                              backref='subnet',
-                              cascade='delete', lazy="select")
+    allocated_ips = orm.relationship(IPAddress, backref="subnet")
+    routes = orm.relationship(Route, backref='subnet', cascade='delete')
 
 
 class MacAddress(BASEV2, CreatedAt, HasTenant):
