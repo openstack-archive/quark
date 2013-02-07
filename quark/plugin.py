@@ -1,4 +1,4 @@
-# Copyright 2011 Nicira Networks, Inc.
+# Copyright 2013 Openstack LLC.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -12,13 +12,10 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-# @author: Dan Wendlandt, Nicira, Inc.
 
 """
 v2 Quantum Plug-in API Quark Implementation
 """
-
-import uuid
 
 from sqlalchemy import func as sql_func
 
@@ -29,11 +26,11 @@ from quantum.db import api as db_api
 from quantum.openstack.common import cfg
 from quantum.openstack.common import importutils
 from quantum.openstack.common import log as logging
+from quantum.openstack.common import uuidutils
 
 from quark.db import models
 
 LOG = logging.getLogger("quantum")
-
 CONF = cfg.CONF
 
 quark_opts = [
@@ -57,23 +54,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
     def __init__(self):
         db_api.configure_db()
         self.nvp_driver = (importutils.import_class(CONF.QUARK.nvp_driver)
-                          (configfile=CONF.QUARK.nvp_driver_cfg))
-
-    def __getattribute__(self, name):
-        #TODO(anyone): Absolutely remove this later
-        attr = object.__getattribute__(self, name)
-        if hasattr(attr, "__call__"):
-            def func(*args, **kwargs):
-                LOG.debug("Calling %s with %s, %s" % (name, args, kwargs))
-                result = attr(*args, **kwargs)
-                LOG.debug("Finished call to %s, got %s" % (name, result))
-                return result
-            return func
-        else:
-            return attr
-
-    def _gen_uuid(self):
-        return str(uuid.uuid1())
+                                        (configfile=CONF.QUARK.nvp_driver_cfg))
 
     def _make_network_dict(self, network, fields=None):
         res = {'id': network.get('id'),
@@ -256,18 +237,25 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.  All keys will be populated.
         """
-        lswitch = self.nvp_driver.create_network(context.tenant_id,
-                                                 network["network"]["name"])
-
         with context.session.begin(subtransactions=True):
+            # Generate a uuid that we're going to hand to NVP and the database
+            net_uuid = uuidutils.generate_uuid()
+
+            #NOTE(mdietz): probably want to abstract this out as we're getting
+            #              too tied to the implementation here
+            tags = [{"tag": net_uuid, "scope": "quantum_net_id"}]
+            self.nvp_driver.create_network(context.tenant_id,
+                                           network["network"]["name"],
+                                           tags=tags)
+
             if network["network"].get("subnets"):
                 subnets = network["network"].pop("subnets")
-                for sub in subnets:
-                    sub["subnet"]["network_id"] = lswitch["uuid"]
-                    self._create_subnet(context, sub, context.session)
-            new_net = models.Network()
+            new_net = models.Network(id=net_uuid)
             new_net.update(network["network"])
-            new_net["id"] = lswitch["uuid"]
+
+            for sub in subnets:
+                sub["subnet"]["network_id"] = new_net["id"]
+                self._create_subnet(context, sub, context.session)
             context.session.add(new_net)
 
         return self._make_network_dict(new_net)
@@ -322,8 +310,6 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         query = context.session.query(models.Network)
         nets = query.filter(models.Network.tenant_id == context.tenant_id).\
                      all()
-        #if not nets:
-        #    networks = self.nvp_driver.get_all_networks(context.tenant_id)
         return [self._make_network_dict(net) for net in nets]
 
     def get_networks_count(self, context, filters=None):
