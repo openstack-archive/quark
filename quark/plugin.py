@@ -394,9 +394,13 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
 
             #TODO(mdietz): aic doesn't support creating new switches past the
             #              first one. We need to implement spanning and tagging
-            self.nvp_driver.create_port(context.tenant_id, net_id)
+            nvp_port = self.nvp_driver.create_port(context.tenant_id, net_id)
             new_port = models.Port()
             new_port.update(port["port"])
+            new_port["id"] = nvp_port["uuid"]
+
+            #TODO(mdietz): might be worthwhile to store the lswitch UUID
+            #              for the port in the db meta
             session.add(new_port)
         return self._make_port_dict(new_port)
 
@@ -509,5 +513,5 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                 raise exceptions.NetworkNotFound(net_id=id)
 
             #TODO(mdietz): need detach, mac and IP release in here, as well
-            self.nvp_driver.delete_port(port["network_id"], id)
+            self.nvp_driver.delete_port(id)
             session.delete(port)

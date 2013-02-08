@@ -87,11 +87,19 @@ def create_port(tenant_id, network_id, status=True):
     return res
 
 
-def delete_port(network_id, port_id):
+def delete_port(port_id, lswitch_uuid=None):
     connection = get_connection()
+    if not lswitch_uuid:
+        query = connection.lswitch_port("*").query()
+        query.relations("LogicalSwitchConfig")
+        query.port_uuid(port_id)
+        port = query.results()
+        if port["result_count"] > 1:
+            raise Exception("More than one lswitch for port %s" % port_id)
+        for r in port["results"]:
+            lswitch_uuid = r["_relations"]["LogicalSwitchConfig"]["uuid"]
 
-    #TODO(mdietz): the network_id needs to be scoped by tag in the connection
-    connection.lswitch_port(network_id, port_id).delete()
+    connection.lswitch_port(lswitch_uuid, port_id).delete()
 
 
 def _create_or_choose_lswitch(tenant_id, network_id):
