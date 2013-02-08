@@ -9,8 +9,25 @@ CRUD routes
 CRUD IP Allocations
 CRUD MacAddresses
 CRUD MacAddressRanges
+Allocations controller extension
+AIC doesn't support creating multiple switches on the same network. i.e. if we expand past the port count per switch, undefined
 
 
 Later:
 Maybe implement a straight passthrough driver for testing and debugging purposes
+
+
+Allocations Controller Extension:
+
+Instead of assigning ports through IP address, we need a separate way of handling that. One 
+suggestion was to provide a generic "allocations" controller with a means of defining what 
+resources you want to allocate for a particular instance.
+
+Examples:
+A traditional instance allocation, requesting a MAC, IP and Port.
+If I were a baremetal server, I may have a MAC but want an IP address and port on a given network for bridging. 
+I might simply want to allocate MAC addresses for devices serving a cloud, but don't need any connections on a particular network.
+As a customer, I might want to build an unmanaged isolated network, wherein I assign addresses via a DHCP server I set up myself
+I need an IP address for a device that sits on the same network
+I need to assign additional IPs to a device I already have, on a port I've already attached to
 

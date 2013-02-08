@@ -34,7 +34,7 @@ LOG = logging.getLogger("quantum")
 CONF = cfg.CONF
 
 quark_opts = [
-    cfg.StrOpt('nvp_driver', default='aicq.QuantumPlugin.NvpPlugin',
+    cfg.StrOpt('nvp_driver', default='quark.nvplib',
                help=_('The client to use to talk to NVP')),
     cfg.StrOpt('nvp_driver_cfg', default='/etc/quantum/quark.ini',
                help=_("Path to the config for the NVP driver"))
@@ -53,8 +53,8 @@ q_attr.RESOURCE_ATTRIBUTE_MAP["networks"]["subnets"]["allow_post"] = True
 class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
     def __init__(self):
         db_api.configure_db()
-        self.nvp_driver = (importutils.import_class(CONF.QUARK.nvp_driver)
-                                        (configfile=CONF.QUARK.nvp_driver_cfg))
+        self.nvp_driver = (importutils.import_module(CONF.QUARK.nvp_driver))
+        self.nvp_driver.load_config(CONF.QUARK.nvp_driver_cfg)
 
     def _make_network_dict(self, network, fields=None):
         res = {'id': network.get('id'),
@@ -94,7 +94,6 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         return res
 
     def _make_port_dict(self, port, fields=None):
-        port["fixed_ips"] = port.get("fixed_ips") or {}
         res = {"id": port.get("id"),
                'name': port.get('name'),
                "network_id": port.get("network_id"),
@@ -104,7 +103,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                "status": port.get("status"),
                "fixed_ips": [{'subnet_id': ip.get("subnet_id"),
                               'ip_address': ip.get("ip_address")}
-                             for ip in port.get("fixed_ips")],
+                             for ip in port.get("fixed_ips", [])],
                "device_id": port.get("device_id"),
                "device_owner": port.get("device_owner")}
         return res
@@ -139,9 +138,11 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             valid keys are those that have a value of True for 'allow_put'
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.
+
+        Raises NotImplemented, as there are no attributes one can safely
+        update on a subnet
         """
-        subnet = {'id': id}
-        return self._make_subnet_dict(subnet)
+        raise NotImplemented()
 
     def get_subnet(self, context, id, fields=None):
         """
@@ -202,7 +203,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         NOTE: this method is optional, as it was not part of the originally
               defined plugin API.
         """
-        query = context.session.query(sql_func.count(models.Subnet))
+        query = context.session.query(sql_func.count(models.Subnet.id))
         if filters.get("network_id"):
             query = query.filter(
                     models.Subnet.network_id == filters["network_id"])
@@ -243,10 +244,9 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
 
             #NOTE(mdietz): probably want to abstract this out as we're getting
             #              too tied to the implementation here
-            tags = [{"tag": net_uuid, "scope": "quantum_net_id"}]
             self.nvp_driver.create_network(context.tenant_id,
                                            network["network"]["name"],
-                                           tags=tags)
+                                           network_id=net_uuid)
 
             if network["network"].get("subnets"):
                 subnets = network["network"].pop("subnets")
@@ -270,8 +270,18 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.
         """
-        network = {'id': id}
-        return self._make_network_dict(network)
+        # TODO(mdietz): not planning to allow bulk update of subnets
+        #              here, maybe later?
+        with context.session.begin(subtransactions=True):
+            net = context.session.query(models.Network).\
+                                filter(models.Network.id == id).\
+                                first()
+            if not network:
+                raise exceptions.NetworkNotFound(net_id=id)
+            net.update(network["network"])
+            context.session.add(net)
+
+        return self._make_network_dict(net)
 
     def get_network(self, context, id, fields=None):
         """
@@ -329,7 +339,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         NOTE: this method is optional, as it was not part of the originally
               defined plugin API.
         """
-        query = context.session.query(sql_func.count(models.Network))
+        query = context.session.query(sql_func.count(models.Network.id))
         return query.filter(models.Network.tenant_id == context.tenant_id).\
                      scalar()
 
@@ -343,6 +353,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         with session.begin():
             net = session.query(models.Network).\
                         filter(models.Network.id == id).\
+                        filter(models.Network.tenant_id == context.tenant_id).\
                         first()
             if not net:
                 raise exceptions.NetworkNotFound(net_id=id)
@@ -362,7 +373,31 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.  All keys will be populated.
         """
-        new_port = {'id': self._gen_uuid()}
+        session = context.session
+
+        #TODO(mdietz): do something clever with these
+        garbage = ["fixed_ips", "mac_address", "device_owner"]
+        for k in garbage:
+            if k in port["port"]:
+                port["port"].pop(k)
+
+        with session.begin():
+            net_id = port["port"]["network_id"]
+            net = session.query(models.Network).\
+                        filter(models.Network.id == net_id).\
+                        filter(models.Network.tenant_id == context.tenant_id).\
+                        first()
+            if not net:
+                raise exceptions.NetworkNotFound(net_id=net_id)
+
+            #TODO(mdietz): we need an IP and MAC allocation here
+
+            #TODO(mdietz): aic doesn't support creating new switches past the
+            #              first one. We need to implement spanning and tagging
+            self.nvp_driver.create_port(context.tenant_id, net_id)
+            new_port = models.Port()
+            new_port.update(port["port"])
+            session.add(new_port)
         return self._make_port_dict(new_port)
 
     def update_port(self, context, id, port):
@@ -409,8 +444,11 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                     models.Port.mac_address == filters["mac_address"])
 
         if filters.get("tenant_id"):
+            tenant_id = filters["tenant_id"]
+            if type(tenant_id) is list:
+                tenant_id = tenant_id[0]
             query = query.filter(
-                    models.Port.tenant_id == filters["tenant_id"])
+                    models.Port.tenant_id == tenant_id)
         return query
 
     def get_ports(self, context, filters=None, fields=None):
@@ -452,7 +490,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         NOTE: this method is optional, as it was not part of the originally
               defined plugin API.
         """
-        query = context.session.query(sql_func.count(models.Port))
+        query = context.session.query(sql_func.count(models.Port.id))
         return self._ports_query(context, filters, query=query).scalar()
 
     def delete_port(self, context, id):
@@ -461,4 +499,15 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         : param context: quantum api request context
         : param id: UUID representing the port to delete.
         """
-        pass
+        session = context.session
+        with session.begin():
+            port = session.query(models.Port).\
+                        filter(models.Port.id == id).\
+                        filter(models.Port.tenant_id == context.tenant_id).\
+                        first()
+            if not port:
+                raise exceptions.NetworkNotFound(net_id=id)
+
+            #TODO(mdietz): need detach, mac and IP release in here, as well
+            self.nvp_driver.delete_port(port["network_id"], id)
+            session.delete(port)
