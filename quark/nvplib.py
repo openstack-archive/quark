@@ -60,16 +60,8 @@ def get_connection():
 
 def create_network(tenant_id, network_name, tags=None,
                    network_id=None, **kwargs):
-    connection = get_connection()
-    switch = connection.lswitch()
-    switch.display_name(network_name)
-    tags = tags or []
-    tags.append({"tag": tenant_id, "scope": "os_tid"})
-    if network_id:
-        tags.append({"tag": network_id, "scope": "quantum_net_id"})
-    switch.tags(tags)
-    res = switch.create()
-    return res
+    return _create_lswitch(tenant_id, network_name, tags,
+                           network_id, **kwargs)
 
 
 def delete_network(network_id):
@@ -83,6 +75,9 @@ def create_port(tenant_id, network_id, status=True):
     connection = get_connection()
     port = connection.lswitch_port(lswitch)
     port.admin_status_enabled(status)
+    tags = [dict(tag=network_id, scope="quantum_net_id"),
+            dict(tag=tenant_id, scope="os_tid")]
+    port.tags(tags)
     res = port.create()
     return res
 
@@ -110,7 +105,28 @@ def _create_or_choose_lswitch(tenant_id, network_id):
     query.tags(tags)
     query.relations("LogicalSwitchStatus")
     results = query.results()
+    lswitch = None
     for res in results["results"]:
+        lswitch = res
+
+        # TODO(mdietz): I'm sure we want this configurable
         if res["_relations"]["LogicalSwitchStatus"]["lport_count"] < 32:
             return res["uuid"]
+
     # if we get here, time to make a new switch
+    return _create_lswitch(tenant_id, lswitch["display_name"],
+                           network_id=network_id)["uuid"]
+
+
+def _create_lswitch(tenant_id, network_name, tags=None,
+                    network_id=None, **kwargs):
+    connection = get_connection()
+    switch = connection.lswitch()
+    switch.display_name(network_name)
+    tags = tags or []
+    tags.append({"tag": tenant_id, "scope": "os_tid"})
+    if network_id:
+        tags.append({"tag": network_id, "scope": "quantum_net_id"})
+    switch.tags(tags)
+    res = switch.create()
+    return res
