@@ -13,13 +13,18 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import netaddr
+
 import sqlalchemy as sa
 from sqlalchemy import orm
+from sqlalchemy.ext import hybrid
 
 from quantum.db.model_base import BASEV2
 from quantum.db.models_v2 import HasTenant, HasId
 from quantum.openstack.common import timeutils
+from quantum.openstack.common import log as logging
 
+LOG = logging.getLogger("quantum")
 
 class CreatedAt(object):
     created_at = sa.Column(sa.DateTime(), default=timeutils.utcnow)
@@ -100,7 +105,27 @@ class Subnet(BASEV2, CreatedAt, HasId, HasTenant):
     """
     __tablename__ = "quark_subnets"
     network_id = sa.Column(sa.String(36), sa.ForeignKey('quark_networks.id'))
-    cidr = sa.Column(sa.String(64), nullable=False)
+    _cidr = sa.Column(sa.String(64), nullable=False)
+
+    @hybrid.hybrid_property
+    def cidr(self):
+        return self._cidr
+
+    @cidr.setter
+    def cidr(self, val):
+        self._cidr = val
+        ip = netaddr.IPNetwork(val)
+        LOG.critical("Setting range to: %d and %d" % (ip.first, ip.last))
+        self.first_ip = ip.first
+        self.last_ip = ip.last
+
+    @cidr.expression
+    def cidr(cls):
+        return Subnet._cidr
+
+    first_ip = sa.Column(sa.LargeBinary())
+    last_ip = sa.Column(sa.LargeBinary())
+
     allocated_ips = orm.relationship(IPAddress, backref="subnet")
     routes = orm.relationship(Route, backref='subnet', cascade='delete')
 
