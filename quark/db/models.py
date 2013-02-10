@@ -58,7 +58,10 @@ class IPAddress(BASEV2, CreatedAt, HasId, HasTenant):
 
     __tablename__ = "quark_ip_addresses"
 
-    address = sa.Column(sa.String(64), nullable=False)
+    address_readable = sa.Column(sa.String(128), nullable=False)
+
+    address = sa.Column(sa.LargeBinary(16), nullable=False)
+
     subnet_id = sa.Column(sa.String(36),
                           sa.ForeignKey("quark_subnets.id",
                                         ondelete="CASCADE"))

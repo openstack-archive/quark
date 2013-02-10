@@ -17,6 +17,8 @@
 v2 Quantum Plug-in API Quark Implementation
 """
 
+import netaddr
+
 from sqlalchemy import func as sql_func
 
 from quantum.api.v2 import attributes as q_attr
@@ -248,6 +250,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                                            network["network"]["name"],
                                            network_id=net_uuid)
 
+            subnets = []
             if network["network"].get("subnets"):
                 subnets = network["network"].pop("subnets")
             new_net = models.Network(id=net_uuid)
@@ -382,7 +385,10 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                 port["port"].pop(k)
 
         with session.begin():
+
+
             net_id = port["port"]["network_id"]
+            self._choose_available_subnet(context, net_id)
             net = session.query(models.Network).\
                         filter(models.Network.id == net_id).\
                         filter(models.Network.tenant_id == context.tenant_id).\
@@ -403,6 +409,29 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             #              for the port in the db meta
             session.add(new_port)
         return self._make_port_dict(new_port)
+
+    def _choose_available_subnet(self, context, net_id):
+        session = context.session
+        subnets = session.query(models.Subnet, sql_func.count(models.IPAddress.subnet_id).\
+                    label('count')).\
+                    outerjoin(models.Subnet.allocated_ips).\
+                    group_by(models.IPAddress).\
+                    order_by("count DESC").\
+                    all()
+
+                    #filter(models.Subnet.id == net_id).\
+                    #group_by(models.IPAddress.subnet_id).\
+                    #all()
+        #subnets = session.query(models.Subnet).outerjoin(models.Subnet.allocated_ips).all()
+        if not subnets:
+            raise exceptions.IpAddressGenerationFailure(net_id=net_id)
+        for subnet in subnets:
+            ip = netaddr.IPNetwork(subnet[0]["cidr"])
+            LOG.critical(ip.size)
+            if ip.size > subnet[1]:
+                return subnet[0]
+
+        raise exceptions.IpAddressGenerationFailure(net_id=net_id)
 
     def update_port(self, context, id, port):
         """
