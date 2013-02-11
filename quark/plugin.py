@@ -87,18 +87,18 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                'ip_version': subnet.get('ip_version'),
                'cidr': subnet.get('cidr'),
                'enable_dhcp': subnet.get('enable_dhcp'),}
-               #'dns_nameservers': [dns.get('address')
-               #                    for dns in subnet.get('dns_nameservers')],
-               #'gateway_ip': subnet.get('gateway_ip'),
-               #'host_routes': [{'destination': route.get('destination'),
-               #                 'nexthop': route.get('nexthop')}
-               #                for route in subnet.get('routes', [])],
-               #'shared': subnet.get('shared')
-               #}
-               #'allocation_pools': [{'start': pool.get('first_ip'),
-               #                      'end': pool.get('last_ip')}
-               #                    for pool in subnet.get('allocation_pools')],
-               #}
+               'dns_nameservers': [dns.get('address')
+                                   for dns in subnet.get('dns_nameservers')],
+               'gateway_ip': subnet.get('gateway_ip'),
+               'host_routes': [{'destination': route.get('destination'),
+                                'nexthop': route.get('nexthop')}
+                               for route in subnet.get('routes', [])],
+               'shared': subnet.get('shared')
+               }
+               'allocation_pools': [{'start': pool.get('first_ip'),
+                                     'end': pool.get('last_ip')}
+                                   for pool in subnet.get('allocation_pools')],
+               }
         #if subnet.get('gateway_ip'):
         #    res['gateway_ip'] = subnet.get('gateway_ip')
         return res
