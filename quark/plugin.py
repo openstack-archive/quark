@@ -87,18 +87,18 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                'ip_version': subnet.get('ip_version'),
                'cidr': subnet.get('cidr'),
                'enable_dhcp': subnet.get('enable_dhcp'),}
-               'dns_nameservers': [dns.get('address')
-                                   for dns in subnet.get('dns_nameservers')],
-               'gateway_ip': subnet.get('gateway_ip'),
-               'host_routes': [{'destination': route.get('destination'),
-                                'nexthop': route.get('nexthop')}
-                               for route in subnet.get('routes', [])],
-               'shared': subnet.get('shared')
-               }
-               'allocation_pools': [{'start': pool.get('first_ip'),
-                                     'end': pool.get('last_ip')}
-                                   for pool in subnet.get('allocation_pools')],
-               }
+               #'dns_nameservers': [dns.get('address')
+               #                    for dns in subnet.get('dns_nameservers')],
+               #'gateway_ip': subnet.get('gateway_ip'),
+               #'host_routes': [{'destination': route.get('destination'),
+               #                 'nexthop': route.get('nexthop')}
+               #                for route in subnet.get('routes', [])],
+               #'shared': subnet.get('shared')
+               #}
+               #'allocation_pools': [{'start': pool.get('first_ip'),
+               #                      'end': pool.get('last_ip')}
+               #                    for pool in subnet.get('allocation_pools')],
+               #}
         #if subnet.get('gateway_ip'):
         #    res['gateway_ip'] = subnet.get('gateway_ip')
         return res
@@ -138,7 +138,6 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         new_subnet = self._create_subnet(context, subnet, session)
         session.flush()
         subnet_dict = self._make_subnet_dict(new_subnet)
-        LOG.critical(subnet_dict)
         return self._make_subnet_dict(new_subnet)
 
     def update_subnet(self, context, id, subnet):
@@ -414,7 +413,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                                                    port_id=port_id)
             new_port = models.Port()
             new_port.update(port["port"])
-            new_port["id"] = nvp_port["uuid"]
+            new_port["id"] = port_id
+            new_port["nvp_id"] = nvp_port["uuid"]
             new_port["fixed_ips"] = [addresses]
 
             #TODO(mdietz): might be worthwhile to store the lswitch UUID
@@ -531,5 +531,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                 raise exceptions.NetworkNotFound(net_id=id)
 
             #TODO(mdietz): need detach, mac and IP release in here, as well
-            self.nvp_driver.delete_port(id)
+            nvp_id = port["nvp_id"]
+            self.nvp_driver.delete_port(nvp_id)
+            self.ipam_driver.deallocate_ip_address(session, id)
             session.delete(port)

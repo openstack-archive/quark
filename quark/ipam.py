@@ -66,21 +66,30 @@ class QuarkIpam(object):
             # TODO(mdietz): Need to honor policies here
             address = models.IPAddress()
             if highest_addr:
-                next_ip = netaddr.IPAddress(highest_addr["address"]) + 1
+                next_ip = netaddr.IPAddress(int(highest_addr["address"])) + 1
                 address["address"] = next_ip
+                address["address_readable"] = str(next_ip)
             else:
                 first_address = netaddr.IPAddress(subnet["first_ip"]).ipv6()
                 address["address"] = first_address.value
                 address["address_readable"] = str(first_address)
-                address["subnet_id"] = subnet["id"]
-                address["network_id"] = net_id
-                address["tenant_id"] = subnet["tenant_id"]
 
         if address:
             address["port_id"] = port_id
+            address["subnet_id"] = subnet["id"]
+            address["network_id"] = net_id
+            address["tenant_id"] = subnet["tenant_id"]
             session.add(address)
             return address
         raise exceptions.IpAddressGenerationFailure(net_id=net_id)
 
-    def deallocate_ip_address(self, session):
-        pass
+    def deallocate_ip_address(self, session, port_id):
+        LOG.critical("Deallocating port %s." % port_id)
+        address = session.query(models.IPAddress).\
+                          filter(models.IPAddress.port_id == port_id).\
+                          first()
+        if not address:
+            LOG.critical("No IP assigned or already deallocated")
+            return
+        
+        address["deallocated"] = 1

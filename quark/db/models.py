@@ -77,7 +77,21 @@ class IPAddress(BASEV2, CreatedAt, HasId, HasTenant):
                         sa.ForeignKey("quark_ports.id", ondelete="CASCADE"))
 
     # Need a constant to facilitate the indexed search for new IPs
-    deallocated = sa.Column(sa.Boolean())
+    _deallocated = sa.Column(sa.Boolean())
+
+    @hybrid.hybrid_property
+    def deallocated(self):
+        return self._deallocated
+
+    @deallocated.setter
+    def deallocated(self, val):
+        self._deallocated = val
+        self.deallocated_at = timeutils.utcnow()
+
+    @deallocated.expression
+    def deallocated(cls):
+        return IPAddress._deallocated
+
     deallocated_at = sa.Column(sa.DateTime())
 
 
@@ -115,7 +129,6 @@ class Subnet(BASEV2, CreatedAt, HasId, HasTenant):
     def cidr(self, val):
         self._cidr = val
         ip = netaddr.IPNetwork(val)
-        LOG.critical("Setting range to: %d and %d" % (ip.first, ip.last))
         self.first_ip = ip.first
         self.last_ip = ip.last
 
@@ -148,6 +161,7 @@ class Port(BASEV2, CreatedAt, HasId, HasTenant):
     network_id = sa.Column(sa.String(36), sa.ForeignKey("quark_networks.id"),
                            nullable=False)
 
+    nvp_id = sa.Column(sa.String(36), nullable=False)
     # Maybe have this for optimizing lookups.
     # subnet_id = sa.Column(sa.String(36), sa.ForeignKey("subnets.id"),
     #                      nulllable=False)
