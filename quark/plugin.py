@@ -65,8 +65,12 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                'admin_state_up': network.get('admin_state_up'),
                'status': network.get('status'),
                'shared': network.get('shared'),
-               'subnets': [self._make_subnet_dict(subnet)
-                           for subnet in network.get('subnets', [])]}
+               #TODO(mdietz): this is the expected return. Then the client
+               #              foolishly turns around and asks for the entire
+               #              subnet list anyway! Plz2fix
+               'subnets': [s["id"] for s in network.get("subnets", [])]}
+               #'subnets': [self._make_subnet_dict(subnet)
+               #            for subnet in network.get('subnets', [])]}
         return res
 
     def _make_subnet_dict(self, subnet, fields=None):
