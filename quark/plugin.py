@@ -362,7 +362,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                 raise exceptions.NetworkNotFound(net_id=id)
             if net.ports:
                 raise exceptions.NetworkInUse(net_id=id)
-            self.nvp_driver.delete_network(context.tenant_id, id)
+            self.nvp_driver.delete_network(id)
             for subnet in net["subnets"]:
                 self._delete_subnet(subnet, session)
             session.delete(net)
@@ -385,10 +385,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                 port["port"].pop(k)
 
         with session.begin():
-
-
             net_id = port["port"]["network_id"]
-            self._choose_available_subnet(context, net_id)
+            subnet = self._choose_available_subnet(context, net_id, session)
             net = session.query(models.Network).\
                         filter(models.Network.id == net_id).\
                         filter(models.Network.tenant_id == context.tenant_id).\
@@ -410,19 +408,16 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             session.add(new_port)
         return self._make_port_dict(new_port)
 
-    def _choose_available_subnet(self, context, net_id):
-        session = context.session
-        subnets = session.query(models.Subnet, sql_func.count(models.IPAddress.subnet_id).\
+    def _choose_available_subnet(self, context, net_id, session):
+        subnets = session.query(models.Subnet,
+                                sql_func.count(models.IPAddress.subnet_id).
                     label('count')).\
+                    with_lockmode("update").\
                     outerjoin(models.Subnet.allocated_ips).\
                     group_by(models.IPAddress).\
                     order_by("count DESC").\
                     all()
 
-                    #filter(models.Subnet.id == net_id).\
-                    #group_by(models.IPAddress.subnet_id).\
-                    #all()
-        #subnets = session.query(models.Subnet).outerjoin(models.Subnet.allocated_ips).all()
         if not subnets:
             raise exceptions.IpAddressGenerationFailure(net_id=net_id)
         for subnet in subnets:

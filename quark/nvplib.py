@@ -66,7 +66,12 @@ def create_network(tenant_id, network_name, tags=None,
 
 def delete_network(network_id):
     connection = get_connection()
-    connection.lswitch(network_id).delete()
+    query = connection.lswitch().query()
+    tags = [dict(tag=network_id, scope="quantum_net_id")]
+    query.tags(tags)
+    lswitches = query.results()
+    for switch in lswitches["results"]:
+        connection.lswitch(switch["uuid"]).delete()
 
 
 def create_port(tenant_id, network_id, status=True):
@@ -87,7 +92,7 @@ def delete_port(port_id, lswitch_uuid=None):
     if not lswitch_uuid:
         query = connection.lswitch_port("*").query()
         query.relations("LogicalSwitchConfig")
-        query.port_uuid(port_id)
+        query.uuid(port_id)
         port = query.results()
         if port["result_count"] > 1:
             raise Exception("More than one lswitch for port %s" % port_id)
