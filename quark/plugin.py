@@ -38,6 +38,8 @@ CONF = cfg.CONF
 quark_opts = [
     cfg.StrOpt('nvp_driver', default='quark.nvplib',
                help=_('The client to use to talk to NVP')),
+    cfg.StrOpt('ipam_driver', default='quark.ipam.QuarkIpam',
+               help=_('IPAM Implementation to use')),
     cfg.StrOpt('nvp_driver_cfg', default='/etc/quantum/quark.ini',
                help=_("Path to the config for the NVP driver"))
 ]
@@ -57,6 +59,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         db_api.configure_db()
         self.nvp_driver = (importutils.import_module(CONF.QUARK.nvp_driver))
         self.nvp_driver.load_config(CONF.QUARK.nvp_driver_cfg)
+        self.ipam_driver = (importutils.import_class(CONF.QUARK.ipam_driver))()
 
     def _make_network_dict(self, network, fields=None):
         res = {'id': network.get('id'),
@@ -393,7 +396,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
 
         with session.begin():
             net_id = port["port"]["network_id"]
-            subnet = self._choose_available_subnet(context, net_id, session)
+            port_id = uuidutils.generate_uuid()
             net = session.query(models.Network).\
                         filter(models.Network.id == net_id).\
                         filter(models.Network.tenant_id == context.tenant_id).\
@@ -401,39 +404,23 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             if not net:
                 raise exceptions.NetworkNotFound(net_id=net_id)
 
-            #TODO(mdietz): we need an IP and MAC allocation here
+            addresses = self.ipam_driver.allocate_ip_address(session,
+                                                             net_id,
+                                                             port_id)
 
             #TODO(mdietz): aic doesn't support creating new switches past the
             #              first one. We need to implement spanning and tagging
-            nvp_port = self.nvp_driver.create_port(context.tenant_id, net_id)
+            nvp_port = self.nvp_driver.create_port(context.tenant_id, net_id,
+                                                   port_id=port_id)
             new_port = models.Port()
             new_port.update(port["port"])
             new_port["id"] = nvp_port["uuid"]
+            new_port["fixed_ips"] = [addresses]
 
             #TODO(mdietz): might be worthwhile to store the lswitch UUID
             #              for the port in the db meta
             session.add(new_port)
         return self._make_port_dict(new_port)
-
-    def _choose_available_subnet(self, context, net_id, session):
-        subnets = session.query(models.Subnet,
-                                sql_func.count(models.IPAddress.subnet_id).
-                    label('count')).\
-                    with_lockmode("update").\
-                    outerjoin(models.Subnet.allocated_ips).\
-                    group_by(models.IPAddress).\
-                    order_by("count DESC").\
-                    all()
-
-        if not subnets:
-            raise exceptions.IpAddressGenerationFailure(net_id=net_id)
-        for subnet in subnets:
-            ip = netaddr.IPNetwork(subnet[0]["cidr"])
-            LOG.critical(ip.size)
-            if ip.size > subnet[1]:
-                return subnet[0]
-
-        raise exceptions.IpAddressGenerationFailure(net_id=net_id)
 
     def update_port(self, context, id, port):
         """

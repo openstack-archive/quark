@@ -74,11 +74,11 @@ def delete_network(network_id):
         connection.lswitch(switch["uuid"]).delete()
 
 
-def create_port(tenant_id, network_id, status=True):
+def create_port(tenant_id, network_id, port_id, status=True):
     lswitch = _create_or_choose_lswitch(tenant_id, network_id)
     LOG.critical("Got lswitch %s" % lswitch)
     connection = get_connection()
-    port = connection.lswitch_port(lswitch)
+    port = connection.lswitch_port(lswitch, uuid=port_id)
     port.admin_status_enabled(status)
     tags = [dict(tag=network_id, scope="quantum_net_id"),
             dict(tag=tenant_id, scope="os_tid")]
