@@ -128,7 +128,7 @@ class Subnet(BASEV2, CreatedAt, HasId, HasTenant):
     @cidr.setter
     def cidr(self, val):
         self._cidr = val
-        ip = netaddr.IPNetwork(val)
+        ip = netaddr.IPNetwork(val).ipv6()
         self.first_ip = ip.first
         self.last_ip = ip.last
 
