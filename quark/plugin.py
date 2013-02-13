@@ -40,6 +40,8 @@ quark_opts = [
                help=_('The client to use to talk to NVP')),
     cfg.StrOpt('ipam_driver', default='quark.ipam.QuarkIpam',
                help=_('IPAM Implementation to use')),
+    cfg.BoolOpt('ipam_reuse_ip_instantly', default=False,
+               help=_("Reuse IPs immediately after deallocation.")),
     cfg.StrOpt('nvp_driver_cfg', default='/etc/quantum/quark.ini',
                help=_("Path to the config for the NVP driver"))
 ]
@@ -60,6 +62,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         self.nvp_driver = (importutils.import_module(CONF.QUARK.nvp_driver))
         self.nvp_driver.load_config(CONF.QUARK.nvp_driver_cfg)
         self.ipam_driver = (importutils.import_class(CONF.QUARK.ipam_driver))()
+        self.ipam_reuse_ip_instantly = CONF.QUARK.ipam_reuse_ip_instantly
 
     def _make_network_dict(self, network, fields=None):
         res = {'id': network.get('id'),
@@ -533,5 +536,6 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             #TODO(mdietz): need detach, mac and IP release in here, as well
             nvp_id = port["nvp_id"]
             self.nvp_driver.delete_port(nvp_id)
-            self.ipam_driver.deallocate_ip_address(session, id)
+            self.ipam_driver.deallocate_ip_address(session, id,
+                                                   ipam_reuse_ip_instantly=ipam_reuse_ip_instantly)
             session.delete(port)
