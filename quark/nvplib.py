@@ -88,6 +88,7 @@ def create_port(tenant_id, network_id, port_id, status=True):
 
 
 def delete_port(port_id, lswitch_uuid=None):
+    LOG.critical("Port_id: %s " % port_id)
     connection = get_connection()
     if not lswitch_uuid:
         query = connection.lswitch_port("*").query()
