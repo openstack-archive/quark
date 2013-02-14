@@ -53,6 +53,7 @@ class QuarkIpam(object):
     def allocate_ip_address(self, session, net_id, port_id):
         address = session.query(models.IPAddress).\
                           filter(models.IPAddress.network_id == net_id).\
+                          filter(models.IPAddress.port_id == None).\
                           filter(models.IPAddress.deallocated != 1).\
                           first()
         if not address:
@@ -74,11 +75,12 @@ class QuarkIpam(object):
                 address["address"] = int(first_address)
                 address["address_readable"] = str(first_address)
 
-        if address:
-            address["port_id"] = port_id
             address["subnet_id"] = subnet["id"]
             address["network_id"] = net_id
             address["tenant_id"] = subnet["tenant_id"]
+
+        if address:
+            address["port_id"] = port_id
             session.add(address)
             return address
         raise exceptions.IpAddressGenerationFailure(net_id=net_id)
@@ -91,6 +93,7 @@ class QuarkIpam(object):
         if not address:
             LOG.critical("No IP assigned or already deallocated")
             return
+        address["port_id"] = None
         reuse_after_deallocate = kwargs.get("ipam_reuse_ip_instantly", False)
         if reuse_after_deallocate:
             address["deallocated"] = 0
