@@ -86,7 +86,6 @@ class QuarkIpam(object):
         raise exceptions.IpAddressGenerationFailure(net_id=net_id)
 
     def deallocate_ip_address(self, session, port_id, **kwargs):
-        LOG.critical("Deallocating port %s." % port_id)
         address = session.query(models.IPAddress).\
                           filter(models.IPAddress.port_id == port_id).\
                           first()
