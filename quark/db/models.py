@@ -26,6 +26,7 @@ from quantum.openstack.common import log as logging
 
 LOG = logging.getLogger("quantum")
 
+
 class CreatedAt(object):
     created_at = sa.Column(sa.DateTime(), default=timeutils.utcnow)
 
@@ -143,19 +144,6 @@ class Subnet(BASEV2, CreatedAt, HasId, HasTenant):
     routes = orm.relationship(Route, backref='subnet', cascade='delete')
 
 
-class MacAddress(BASEV2, CreatedAt, HasTenant):
-    __tablename__ = "quark_mac_addresses"
-    address = sa.Column(sa.Integer(), primary_key=True)
-    mac_address_range_id = sa.Column(sa.Integer(),
-                                sa.ForeignKey("quark_mac_address_ranges.id"),
-                                nullable=False)
-
-
-class MacAddressRange(BASEV2, CreatedAt, HasId):
-    __tablename__ = "quark_mac_address_ranges"
-    cidr = sa.Column(sa.String(255), nullable=False)
-
-
 class Port(BASEV2, CreatedAt, HasId, HasTenant):
     __tablename__ = "quark_ports"
     network_id = sa.Column(sa.String(36), sa.ForeignKey("quark_networks.id"),
@@ -171,6 +159,23 @@ class Port(BASEV2, CreatedAt, HasId, HasTenant):
     # device is an ID pertaining to the entity utilizing the port. Could be
     # an instance, a load balancer, or any other network capable object
     device_id = sa.Column(sa.String(255), nullable=False)
+
+
+class MacAddress(BASEV2, CreatedAt, HasTenant):
+    __tablename__ = "quark_mac_addresses"
+    address = sa.Column(sa.BigInteger(), primary_key=True)
+    mac_address_range_id = sa.Column(sa.String(36),
+                                sa.ForeignKey("quark_mac_address_ranges.id"),
+                                nullable=False)
+    orm.relationship(Port, backref="mac_address")
+
+
+class MacAddressRange(BASEV2, CreatedAt, HasId):
+    __tablename__ = "quark_mac_address_ranges"
+    cidr = sa.Column(sa.String(255), nullable=False)
+    prefix = sa.Column(sa.Integer(), nullable=False)
+    first_address = sa.Column(sa.BigInteger(), nullable=False)
+    last_address = sa.Column(sa.BigInteger(), nullable=False)
 
 
 class Network(BASEV2, CreatedAt, HasTenant, HasId):

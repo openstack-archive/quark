@@ -89,7 +89,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                'network_id': subnet.get('network_id'),
                'ip_version': subnet.get('ip_version'),
                'cidr': subnet.get('cidr'),
-               'enable_dhcp': subnet.get('enable_dhcp'),}
+               'enable_dhcp': subnet.get('enable_dhcp')}
                #'dns_nameservers': [dns.get('address')
                #                    for dns in subnet.get('dns_nameservers')],
                #'gateway_ip': subnet.get('gateway_ip'),
@@ -141,7 +141,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         new_subnet = self._create_subnet(context, subnet, session)
         session.flush()
         subnet_dict = self._make_subnet_dict(new_subnet)
-        return self._make_subnet_dict(new_subnet)
+        return subnet_dict
 
     def update_subnet(self, context, id, subnet):
         """
@@ -409,6 +409,10 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             addresses = self.ipam_driver.allocate_ip_address(session,
                                                              net_id,
                                                              port_id)
+            macs = self.ipam_driver.allocate_mac_address(session,
+                                                         net_id,
+                                                         port_id,
+                                                         context.tenant_id)
 
             #TODO(mdietz): aic doesn't support creating new switches past the
             #              first one. We need to implement spanning and tagging

@@ -50,6 +50,42 @@ class QuarkIpam(object):
 
         raise exceptions.IpAddressGenerationFailure(net_id=net_id)
 
+    def allocate_mac_address(self, session, net_id, port_id, tenant_id):
+        ranges = session.query(models.MacAddressRange,
+                               sql_func.count(models.MacAddress).
+                               label("count")).\
+                        outerjoin(models.MacAddress).\
+                        group_by(models.MacAddressRange).\
+                        order_by("count DESC").\
+                        all()
+        if not ranges:
+            raise exceptions.MacAddressGenerationFailure(net_id=net_id)
+        LOG.critical(ranges)
+        for result in ranges:
+            rng, addr_count = result
+            if rng["last_address"] - rng["first_address"] <= addr_count:
+                continue
+            highest_mac = session.query(models.MacAddress).\
+                            filter(models.MacAddress.mac_address_range_id ==
+                                   rng["id"]).\
+                            order_by("address DESC").\
+                            first()
+            address = models.MacAddress()
+            LOG.critical(highest_mac)
+            if highest_mac:
+                next_mac = netaddr.EUI(highest_mac["address"]).value
+                address["address"] = netaddr.EUI(next_mac + 1)
+            else:
+                address["address"] = rng["first_address"]
+
+            address["mac_address_range_id"] = rng["id"]
+            address["tenant_id"] = tenant_id
+            LOG.critical(address)
+            session.add(address)
+            return address
+
+        raise exceptions.MacAddressGenerationFailure(net_id=net_id)
+
     def allocate_ip_address(self, session, net_id, port_id):
         address = session.query(models.IPAddress).\
                           filter(models.IPAddress.network_id == net_id).\
