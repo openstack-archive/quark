@@ -18,7 +18,6 @@ v2 Quantum Plug-in API Quark Implementation
 """
 
 import netaddr
-
 from sqlalchemy import func as sql_func
 
 from quantum.api.v2 import attributes as q_attr
@@ -100,7 +99,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                #}
                #'allocation_pools': [{'start': pool.get('first_ip'),
                #                      'end': pool.get('last_ip')}
-               #                    for pool in subnet.get('allocation_pools')],
+               #                for pool in subnet.get('allocation_pools')],
                #}
         #if subnet.get('gateway_ip'):
         #    res['gateway_ip'] = subnet.get('gateway_ip')
@@ -409,10 +408,10 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             addresses = self.ipam_driver.allocate_ip_address(session,
                                                              net_id,
                                                              port_id)
-            macs = self.ipam_driver.allocate_mac_address(session,
-                                                         net_id,
-                                                         port_id,
-                                                         context.tenant_id)
+            self.ipam_driver.allocate_mac_address(session,
+                                                  net_id,
+                                                  port_id,
+                                                  context.tenant_id)
 
             #TODO(mdietz): aic doesn't support creating new switches past the
             #              first one. We need to implement spanning and tagging
@@ -542,5 +541,21 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             nvp_id = port["nvp_id"]
             self.nvp_driver.delete_port(nvp_id)
             self.ipam_driver.deallocate_ip_address(session, id,
-                                                   ipam_reuse_ip_instantly=ipam_reuse_ip_instantly)
+                        ipam_reuse_ip_instantly=self.ipam_reuse_ip_instantly)
             session.delete(port)
+
+    def create_mac_address_range(self, context, mac_range):
+        #TODO(mdietz): we need to extend this so it can be called later
+        new_range = models.MacAddressRange()
+        cidr = mac_range["mac_address_range"]["cidr"]
+        prefix, prefix_length = cidr.split("/")
+        prefix_length = int(prefix_length)
+        prefix_size = (48 - prefix_length)
+        netmask = (2 ** prefix_length - 1) << prefix_size
+        base = netaddr.EUI(netaddr.EUI(prefix).value & netmask)
+        new_range["cidr"] = cidr
+        new_range["first_address"] = netaddr.EUI(base).value
+        new_range["last_address"] = netaddr.EUI(base.value +
+                                               (1 << prefix_size)).value
+        context.session.add(new_range)
+        context.session.flush()

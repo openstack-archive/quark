@@ -173,7 +173,6 @@ class MacAddress(BASEV2, CreatedAt, HasTenant):
 class MacAddressRange(BASEV2, CreatedAt, HasId):
     __tablename__ = "quark_mac_address_ranges"
     cidr = sa.Column(sa.String(255), nullable=False)
-    prefix = sa.Column(sa.Integer(), nullable=False)
     first_address = sa.Column(sa.BigInteger(), nullable=False)
     last_address = sa.Column(sa.BigInteger(), nullable=False)
 
