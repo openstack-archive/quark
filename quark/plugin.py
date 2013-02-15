@@ -460,6 +460,14 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
 
     def _ports_query(self, context, filters, query=None):
         query = query or context.session.query(models.Port)
+        if filters.get("id"):
+            query = query.filter(
+                    models.Port.id == filters["id"][0])
+
+        if filters.get("name"):
+            query = query.filter(
+                    models.Port.id == filters["name"][0])
+
         if filters.get("network_id"):
             query = query.filter(
                     models.Port.network_id == filters["network_id"])
@@ -528,7 +536,6 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         : param id: UUID representing the port to delete.
         """
         session = context.session
-        LOG.critical("Port_id (1): %s: " % id)
         with session.begin():
             port = session.query(models.Port).\
                         filter(models.Port.id == id).\
