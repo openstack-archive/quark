@@ -17,6 +17,8 @@
 v2 Quantum Plug-in API Quark Implementation
 """
 
+import pprint
+
 import netaddr
 from sqlalchemy import func as sql_func
 
@@ -506,8 +508,15 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             will be returned.
         """
         #TODO(mdietz): May need to build a list of fields to query for later
-        return [self._make_port_dict(p)
-                for p in self._ports_query(context, filters).all()]
+        ports = self._ports_query(context, filters).all()
+        query = context.session.query(models.IPAddress)
+        for p in ports:
+            p["fixed_ips"] = []
+            ips = query.filter(models.IPAddress.port_id == p["id"]).all()
+            for ip in ips:
+                p["fixed_ips"].append({"subnet_id": ip["subnet_id"],
+                                       "ip_address": ip.formatted()})
+        return [self._make_port_dict(p) for p in ports]
 
     def get_ports_count(self, context, filters=None):
         """

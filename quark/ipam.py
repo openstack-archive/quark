@@ -112,6 +112,7 @@ class QuarkIpam(object):
                 address["address_readable"] = str(first_address)
 
             address["subnet_id"] = subnet["id"]
+            address["version"] = subnet["version"]
             address["network_id"] = net_id
             address["tenant_id"] = subnet["tenant_id"]
 
