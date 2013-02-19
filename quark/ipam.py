@@ -73,7 +73,6 @@ class QuarkIpam(object):
                         all()
         if not ranges:
             raise exceptions.MacAddressGenerationFailure(net_id=net_id)
-        LOG.critical(ranges)
         for result in ranges:
             rng, addr_count = result
             if rng["last_address"] - rng["first_address"] <= addr_count:

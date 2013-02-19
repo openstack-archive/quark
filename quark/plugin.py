@@ -17,8 +17,6 @@
 v2 Quantum Plug-in API Quark Implementation
 """
 
-import pprint
-
 import netaddr
 from sqlalchemy import func as sql_func
 
@@ -31,6 +29,7 @@ from quantum.openstack.common import importutils
 from quantum.openstack.common import log as logging
 from quantum.openstack.common import uuidutils
 
+from quark.api import extensions
 from quark.db import models
 
 LOG = logging.getLogger("quantum")
@@ -49,7 +48,7 @@ quark_opts = [
 ]
 
 CONF.register_opts(quark_opts, "QUARK")
-
+CONF.set_override('api_extensions_path', ":".join(extensions.__path__))
 #NOTE(mdietz): hacking this for now because disallowing subnets on a network
 #              create is absurd. Might be useful to implement the ability
 #              upstream to add a "mask" on the attributes to override
@@ -63,6 +62,9 @@ class InvalidMacAddressRange(exceptions.QuantumException):
 
 
 class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
+    # NOTE(mdietz): I hate this
+    supported_extension_aliases = ["mac_address_ranges"]
+
     def __init__(self):
         db_api.configure_db()
         self.nvp_driver = (importutils.import_module(CONF.QUARK.nvp_driver))
@@ -126,6 +128,10 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                "device_id": port.get("device_id"),
                "device_owner": port.get("device_owner")}
         return res
+
+    def _make_mac_range_dict(self, mac_range):
+        return {"id": mac_range["id"],
+                "cidr": mac_range["cidr"]}
 
     def _create_subnet(self, context, subnet, session=None):
         s = models.Subnet()
@@ -571,6 +577,10 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             session.delete(port)
             self.nvp_driver.delete_port(nvp_id)
 
+    def get_mac_address_ranges(self, context):
+        ranges = context.session.query(models.MacAddressRange).all()
+        return [self._make_mac_range_dict(m) for m in ranges]
+
     def create_mac_address_range(self, context, mac_range):
         #TODO(mdietz): we need to extend this so it can be called later
         new_range = models.MacAddressRange()
@@ -582,6 +592,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         new_range["tenant_id"] = context.tenant_id
         context.session.add(new_range)
         context.session.flush()
+        return self._make_mac_range_dict(new_range)
 
     def _to_mac(self, val):
         cidr_parts = val.split("/")
@@ -600,5 +611,5 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         mask_size = 1 << (48 - mask)
         prefix = "%s%s" % (prefix, "0" * diff)
         prefix_int = int(prefix, base=16)
-        cidr = "%s/%s" % (netaddr.EUI(prefix), mask)
+        cidr = "%s/%s" % (netaddr.EUI(prefix, dialect=netaddr.mac_unix), mask)
         return cidr, prefix_int, prefix_int + mask_size
