@@ -17,12 +17,13 @@
 Quark Pluggable IPAM
 """
 
+import datetime
+
 import netaddr
 
 from sqlalchemy import func as sql_func
 from quantum.common import exceptions
 from quantum.openstack.common import log as logging
-
 from quark.db import models
 
 
@@ -34,7 +35,7 @@ class QuarkIpam(object):
     def _choose_available_subnet(self, net_id, session):
         subnets = session.query(models.Subnet,
                                 sql_func.count(models.IPAddress.subnet_id).
-                    label('count')).\
+                                    label('count')).\
                     with_lockmode("update").\
                     outerjoin(models.Subnet.allocated_ips).\
                     group_by(models.IPAddress).\
@@ -50,7 +51,19 @@ class QuarkIpam(object):
 
         raise exceptions.IpAddressGenerationFailure(net_id=net_id)
 
-    def allocate_mac_address(self, session, net_id, port_id, tenant_id):
+    def allocate_mac_address(self, session, net_id, port_id, tenant_id,
+                             reuse_after):
+        reuse = (datetime.datetime.utcnow() -
+                        datetime.timedelta(seconds=reuse_after))
+        deallocated_mac = session.query(models.MacAddress).\
+                            filter(models.MacAddress.deallocated == 1).\
+                            filter(models.MacAddress.deallocated_at <= reuse).\
+                            first()
+        if deallocated_mac:
+            deallocated_mac["deallocated"] = False
+            deallocated_mac["deallocated_at"] = None
+            return deallocated_mac
+
         ranges = session.query(models.MacAddressRange,
                                sql_func.count(models.MacAddress).
                                label("count")).\
@@ -71,26 +84,27 @@ class QuarkIpam(object):
                             order_by("address DESC").\
                             first()
             address = models.MacAddress()
-            LOG.critical(highest_mac)
             if highest_mac:
                 next_mac = netaddr.EUI(highest_mac["address"]).value
-                address["address"] = netaddr.EUI(next_mac + 1)
+                address["address"] = next_mac + 1
             else:
                 address["address"] = rng["first_address"]
 
             address["mac_address_range_id"] = rng["id"]
             address["tenant_id"] = tenant_id
-            LOG.critical(address)
             session.add(address)
             return address
 
         raise exceptions.MacAddressGenerationFailure(net_id=net_id)
 
-    def allocate_ip_address(self, session, net_id, port_id):
+    def allocate_ip_address(self, session, net_id, port_id, reuse_after):
+        reuse = (datetime.datetime.utcnow() -
+                        datetime.timedelta(seconds=reuse_after))
         address = session.query(models.IPAddress).\
                           filter(models.IPAddress.network_id == net_id).\
                           filter(models.IPAddress.port_id == None).\
-                          filter(models.IPAddress.deallocated != 1).\
+                          filter(models.IPAddress._deallocated == 1).\
+                          filter(models.IPAddress.deallocated_at <= reuse).\
                           first()
         if not address:
             subnet = self._choose_available_subnet(net_id, session)
@@ -128,8 +142,16 @@ class QuarkIpam(object):
         if not address:
             LOG.critical("No IP assigned or already deallocated")
             return
-        reuse_after_deallocate = kwargs.get("ipam_reuse_ip_instantly", False)
-        if reuse_after_deallocate:
-            address["deallocated"] = 0
-        else:
-            address["deallocated"] = 1
+        address["deallocated"] = 1
+
+    def deallocate_mac_address(self, session, address):
+        mac = session.query(models.MacAddress).\
+                        filter(models.MacAddress.address == address).\
+                        first()
+        if not mac:
+            mac_pretty = netaddr.EUI(address)
+            raise exceptions.NotFound(
+                        message="No MAC address %s found" % mac_pretty)
+        mac["deallocated"] = True
+        mac["deallocated_at"] = datetime.datetime.utcnow()
+        session.add(mac)

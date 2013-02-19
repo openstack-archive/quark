@@ -39,8 +39,9 @@ quark_opts = [
                help=_('The client to use to talk to NVP')),
     cfg.StrOpt('ipam_driver', default='quark.ipam.QuarkIpam',
                help=_('IPAM Implementation to use')),
-    cfg.BoolOpt('ipam_reuse_ip_instantly', default=False,
-               help=_("Reuse IPs immediately after deallocation.")),
+    cfg.BoolOpt('ipam_reuse_after', default=7200,
+               help=_("Time in seconds til IP and MAC reuse"
+                      "after deallocation.")),
     cfg.StrOpt('nvp_driver_cfg', default='/etc/quantum/quark.ini',
                help=_("Path to the config for the NVP driver"))
 ]
@@ -65,7 +66,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         self.nvp_driver = (importutils.import_module(CONF.QUARK.nvp_driver))
         self.nvp_driver.load_config(CONF.QUARK.nvp_driver_cfg)
         self.ipam_driver = (importutils.import_class(CONF.QUARK.ipam_driver))()
-        self.ipam_reuse_ip_instantly = CONF.QUARK.ipam_reuse_ip_instantly
+        self.ipam_reuse_after = CONF.QUARK.ipam_reuse_after
 
     def _make_network_dict(self, network, fields=None):
         res = {'id': network.get('id'),
@@ -410,13 +411,14 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                 raise exceptions.NetworkNotFound(net_id=net_id)
 
             addresses = self.ipam_driver.allocate_ip_address(session,
-                                                             net_id,
-                                                             port_id)
-            self.ipam_driver.allocate_mac_address(session,
-                                                  net_id,
-                                                  port_id,
-                                                  context.tenant_id)
-
+                                                        net_id,
+                                                        port_id,
+                                                        self.ipam_reuse_after)
+            mac = self.ipam_driver.allocate_mac_address(session,
+                                                        net_id,
+                                                        port_id,
+                                                        context.tenant_id,
+                                                        self.ipam_reuse_after)
             #TODO(mdietz): aic doesn't support creating new switches past the
             #              first one. We need to implement spanning and tagging
             nvp_port = self.nvp_driver.create_port(context.tenant_id, net_id,
@@ -426,10 +428,13 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             new_port["id"] = port_id
             new_port["nvp_id"] = nvp_port["uuid"]
             new_port["fixed_ips"] = [addresses]
+            new_port["mac_address"] = mac["address"]
 
             #TODO(mdietz): might be worthwhile to store the lswitch UUID
             #              for the port in the db meta
             session.add(new_port)
+        new_port["mac_address"] = str(netaddr.EUI(new_port["mac_address"],
+                                        dialect=netaddr.mac_unix))
         return self._make_port_dict(new_port)
 
     def update_port(self, context, id, port):
@@ -550,10 +555,12 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
 
             #TODO(mdietz): need detach, mac and IP release in here, as well
             nvp_id = port["nvp_id"]
-            self.nvp_driver.delete_port(nvp_id)
+            self.ipam_driver.deallocate_mac_address(session,
+                                                    port["mac_address"],)
             self.ipam_driver.deallocate_ip_address(session, id,
-                        ipam_reuse_ip_instantly=self.ipam_reuse_ip_instantly)
+                        ipam_reuse_after=self.ipam_reuse_after)
             session.delete(port)
+            self.nvp_driver.delete_port(nvp_id)
 
     def create_mac_address_range(self, context, mac_range):
         #TODO(mdietz): we need to extend this so it can be called later

@@ -153,7 +153,7 @@ class Port(BASEV2, CreatedAt, HasId, HasTenant):
     # Maybe have this for optimizing lookups.
     # subnet_id = sa.Column(sa.String(36), sa.ForeignKey("subnets.id"),
     #                      nulllable=False)
-    mac_address = sa.Column(sa.Integer(),
+    mac_address = sa.Column(sa.BigInteger(),
                             sa.ForeignKey("quark_mac_addresses.address"))
 
     # device is an ID pertaining to the entity utilizing the port. Could be
@@ -167,6 +167,8 @@ class MacAddress(BASEV2, CreatedAt, HasTenant):
     mac_address_range_id = sa.Column(sa.String(36),
                                 sa.ForeignKey("quark_mac_address_ranges.id"),
                                 nullable=False)
+    deallocated = sa.Column(sa.Boolean())
+    deallocated_at = sa.Column(sa.DateTime())
     orm.relationship(Port, backref="mac_address")
 
 
