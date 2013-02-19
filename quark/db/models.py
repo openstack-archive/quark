@@ -104,7 +104,7 @@ class IPAddress(BASEV2, CreatedAt, HasId, HasTenant):
     deallocated_at = sa.Column(sa.DateTime())
 
 
-class Route(BASEV2, CreatedAt, HasId):
+class Route(BASEV2, CreatedAt, HasTenant, HasId):
     __tablename__ = "quark_routes"
     cidr = sa.Column(sa.String(64))
     gateway = sa.Column(sa.String(64))

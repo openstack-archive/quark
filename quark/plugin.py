@@ -58,12 +58,16 @@ q_attr.RESOURCE_ATTRIBUTE_MAP["networks"]["subnets"]["allow_post"] = True
 
 
 class InvalidMacAddressRange(exceptions.QuantumException):
-    message = _("Invalid MAC address range %(cidr)s")
+    message = _("Invalid MAC address range %(cidr)s.")
+
+
+class RouteNotFound(exceptions.NotFound):
+    message = _("Route %(route_id)s not found.")
 
 
 class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
     # NOTE(mdietz): I hate this
-    supported_extension_aliases = ["mac_address_ranges"]
+    supported_extension_aliases = ["mac_address_ranges", "routes"]
 
     def __init__(self):
         db_api.configure_db()
@@ -132,6 +136,12 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
     def _make_mac_range_dict(self, mac_range):
         return {"id": mac_range["id"],
                 "cidr": mac_range["cidr"]}
+
+    def _make_route_dict(self, route):
+        return {"id": route["id"],
+                "cidr": route["cidr"],
+                "gateway": route["gateway"],
+                "subnet_id": route["subnet_id"]}
 
     def _create_subnet(self, context, subnet, session=None):
         s = models.Subnet()
@@ -613,3 +623,48 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         prefix_int = int(prefix, base=16)
         cidr = "%s/%s" % (netaddr.EUI(prefix, dialect=netaddr.mac_unix), mask)
         return cidr, prefix_int, prefix_int + mask_size
+
+    def get_route(self, context, id):
+        route = context.session.query(models.Route).\
+                          filter(models.Route.tenant_id == context.tenant_id).\
+                          filter(models.Route.id == id).\
+                          first()
+        if not route:
+            raise RouteNotFound(route_id=id)
+        return self._make_route_dict(route)
+
+    def get_routes(self, context):
+        routes = context.session.query(models.Route).\
+                          filter(models.Route.tenant_id == context.tenant_id).\
+                          all()
+        return [self._make_route_dict(r) for r in routes]
+
+    def create_route(self, context, route):
+        route = route["route"]
+        subnet_id = route["subnet_id"]
+        subnet = context.session.query(models.Subnet).\
+                         filter(models.Subnet.id == subnet_id).\
+                         filter(models.Subnet.tenant_id == context.tenant_id).\
+                         first()
+        if not subnet:
+            raise exceptions.SubnetNotFound(subnet_id=subnet_id)
+
+        new_route = models.Route()
+        new_route.update(route)
+        new_route["tenant_id"] = context.tenant_id
+        context.session.add(new_route)
+        context.session.flush()
+        return self._make_route_dict(new_route)
+
+    def delete_route(self, context, id):
+        #TODO(mdietz): This is probably where we check to see that someone is
+        #              admin and only filter on tenant if they aren't. Correct
+        #              for all the above later
+        route = context.session.query(models.Route).\
+                        filter(models.Route.id == id).\
+                        filter(models.Route.tenant_id == context.tenant_id).\
+                        first()
+        if not route:
+            raise RouteNotFound(route_id=id)
+        context.session.delete(route)
+        context.session.flush()

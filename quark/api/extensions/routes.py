@@ -20,10 +20,11 @@ import webob
 from quantum.api import extensions
 from quantum.api.v2 import base
 from quantum.manager import QuantumManager
+from quantum.common import exceptions
 from quantum.openstack.common import log as logging
 from quantum import wsgi
 
-RESOURCE_NAME = 'mac_address_range'
+RESOURCE_NAME = 'route'
 RESOURCE_COLLECTION = RESOURCE_NAME + "s"
 EXTENDED_ATTRIBUTES_2_0 = {
     RESOURCE_COLLECTION: {}
@@ -31,18 +32,20 @@ EXTENDED_ATTRIBUTES_2_0 = {
 
 attr_dict = EXTENDED_ATTRIBUTES_2_0[RESOURCE_COLLECTION]
 attr_dict[RESOURCE_NAME] = {'allow_post': True,
-                            'allow_put': False,
+                            'allow_put': True,
                             'is_visible': True}
 
 LOG = logging.getLogger("quantum")
 
 
-def mac_range_dict(mac_range):
-    return dict(address=mac_range["cidr"],
-                id=mac_range["id"])
+def route_dict(route):
+    return dict(cidr=route["cidr"],
+                gateway=route["gateway"],
+                id=route["id"],
+                subnet_id=route["subnet_id"])
 
 
-class MacAddressRangesController(wsgi.Controller):
+class RoutesController(wsgi.Controller):
 
     def __init__(self, plugin):
         self._resource_name = RESOURCE_NAME
@@ -57,31 +60,39 @@ class MacAddressRangesController(wsgi.Controller):
 
     def create(self, request, body=None):
         body = self._get_body(request)
-        if not "cidr" in body["route"]:
-            raise webob.exc.HTTPUnprocessableEntity()
-        return {"mac_address_range":
-                 self._plugin.create_mac_address_range(request.context, body)}
+        keys = ["subnet_id", "gateway", "cidr"]
+        for k in keys:
+            if not k in body:
+                raise webob.exc.HTTPUnprocessableEntity()
+
+        return {"route":
+                 self._plugin.create_route(request.context, body)}
 
     def index(self, request):
         context = request.context
-        if not context.is_admin:
-            raise webob.exc.HTTPForbidden()
-        return {"mac_address_ranges":
-                        self._plugin.get_mac_address_ranges(context)}
+        return {"routes":
+                        self._plugin.get_routes(context)}
 
     def show(self, request, id):
         context = request.context
-        tenant_id = id
-        if not tenant_id:
-            raise webob.exc.HTTPBadRequest('invalid tenant')
-        return self._plugin.get_mac_address_range(context, id)
+        try:
+            return {"route": self._plugin.get_route(context, id)}
+        except exceptions.NotFound:
+            raise webob.exc.HTTPNotFound()
+
+    def delete(self, request, id):
+        context = request.context
+        try:
+            self._plugin.delete_route(context, id)
+        except exceptions.NotFound:
+            raise webob.exc.HTTPNotFound()
 
 
-class Mac_address_ranges(object):
+class Routes(object):
     """Routes support"""
     @classmethod
     def get_name(cls):
-        return "MAC Address Ranges for a tenant"
+        return "Routes for a tenant"
 
     @classmethod
     def get_alias(cls):
@@ -89,13 +100,11 @@ class Mac_address_ranges(object):
 
     @classmethod
     def get_description(cls):
-        return ("Expose functions for cloud admin to manage MAC ranges"
-                "for each tenant")
+        return ("Expose functions for tenant route management")
 
     @classmethod
     def get_namespace(cls):
-        return ("http://docs.openstack.org/network/ext/"
-                "mac-address-ranges/api/v2.0")
+        return ("http://docs.openstack.org/network/ext/routes/api/v2.0")
 
     @classmethod
     def get_updated(cls):
@@ -110,7 +119,7 @@ class Mac_address_ranges(object):
     @classmethod
     def get_resources(cls):
         """ Returns Ext Resources """
-        controller = MacAddressRangesController(QuantumManager.get_plugin())
+        controller = RoutesController(QuantumManager.get_plugin())
         return [extensions.ResourceExtension(
-            Mac_address_ranges.get_alias(),
+            Routes.get_alias(),
             controller)]
