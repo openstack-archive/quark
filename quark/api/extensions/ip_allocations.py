@@ -18,13 +18,12 @@
 import webob
 
 from quantum.api import extensions
-from quantum.api.v2 import base
 from quantum.manager import QuantumManager
 from quantum.common import exceptions
 from quantum.openstack.common import log as logging
 from quantum import wsgi
 
-RESOURCE_NAME = 'route'
+RESOURCE_NAME = 'ip_allocation'
 RESOURCE_COLLECTION = RESOURCE_NAME + "s"
 EXTENDED_ATTRIBUTES_2_0 = {
     RESOURCE_COLLECTION: {}
@@ -38,61 +37,39 @@ attr_dict[RESOURCE_NAME] = {'allow_post': True,
 LOG = logging.getLogger("quantum")
 
 
-def route_dict(route):
-    return dict(cidr=route["cidr"],
-                gateway=route["gateway"],
-                id=route["id"],
-                subnet_id=route["subnet_id"])
+def ip_dict(address):
+    return dict(subnet_id=address["subnet_id"],
+                network_id=address["network_id"],
+                id=address["id"],
+                address=address["address"],
+                port_id=address["port_id"])
 
 
-class RoutesController(wsgi.Controller):
+class IpAllocationsController(wsgi.Controller):
 
     def __init__(self, plugin):
         self._resource_name = RESOURCE_NAME
         self._plugin = plugin
 
-    def _get_body(self, request):
-        body = self._deserialize(request.body, request.get_content_type())
-        attr_info = EXTENDED_ATTRIBUTES_2_0[RESOURCE_COLLECTION]
-        req_body = base.Controller.prepare_request_body(
-            request.context, body, False, self._resource_name, attr_info)
-        return req_body
-
-    def create(self, request, body=None):
-        body = self._get_body(request)
-        keys = ["subnet_id", "gateway", "cidr"]
-        for k in keys:
-            if not k in body:
-                raise webob.exc.HTTPUnprocessableEntity()
-
-        return {"route":
-                 self._plugin.create_route(request.context, body)}
-
     def index(self, request):
         context = request.context
-        return {"routes":
-                        self._plugin.get_routes(context)}
+        return {"ip_allocations":
+                        self._plugin.get_ip_allocations(context)}
 
     def show(self, request, id):
         context = request.context
         try:
-            return {"route": self._plugin.get_route(context, id)}
-        except exceptions.NotFound:
-            raise webob.exc.HTTPNotFound()
-
-    def delete(self, request, id):
-        context = request.context
-        try:
-            self._plugin.delete_route(context, id)
+            return {"ip_allocation":
+                        self._plugin.get_ip_allocation(context, id)}
         except exceptions.NotFound:
             raise webob.exc.HTTPNotFound()
 
 
-class Routes(object):
+class Ip_allocations(object):
     """Routes support"""
     @classmethod
     def get_name(cls):
-        return "Routes for a tenant"
+        return "IP Allocations for a tenant"
 
     @classmethod
     def get_alias(cls):
@@ -100,11 +77,12 @@ class Routes(object):
 
     @classmethod
     def get_description(cls):
-        return "Expose functions for tenant route management"
+        return "Expose functions for tenant IP Address management"
 
     @classmethod
     def get_namespace(cls):
-        return "http://docs.openstack.org/network/ext/routes/api/v2.0"
+        return ("http://docs.openstack.org/network/ext/"
+                "ip_allocations/api/v2.0")
 
     @classmethod
     def get_updated(cls):
@@ -119,7 +97,7 @@ class Routes(object):
     @classmethod
     def get_resources(cls):
         """ Returns Ext Resources """
-        controller = RoutesController(QuantumManager.get_plugin())
+        controller = IpAllocationsController(QuantumManager.get_plugin())
         return [extensions.ResourceExtension(
-            Routes.get_alias(),
+            Ip_allocations.get_alias(),
             controller)]

@@ -67,7 +67,8 @@ class RouteNotFound(exceptions.NotFound):
 
 class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
     # NOTE(mdietz): I hate this
-    supported_extension_aliases = ["mac_address_ranges", "routes"]
+    supported_extension_aliases = ["mac_address_ranges", "routes",
+                                   "ip_allocations"]
 
     def __init__(self):
         db_api.configure_db()
@@ -142,6 +143,13 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                 "cidr": route["cidr"],
                 "gateway": route["gateway"],
                 "subnet_id": route["subnet_id"]}
+
+    def _make_ip_dict(self, address):
+        return {"id": address["id"],
+                "network_id": address["network_id"],
+                "address": address.formatted(),
+                "port_id": address["port_id"],
+                "subnet_id": address["subnet_id"]}
 
     def _create_subnet(self, context, subnet, session=None):
         s = models.Subnet()
@@ -668,3 +676,16 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             raise RouteNotFound(route_id=id)
         context.session.delete(route)
         context.session.flush()
+
+    def get_ip_allocations(self, context):
+        addrs = context.session.query(models.IPAddress).\
+                      filter(models.IPAddress.tenant_id == context.tenant_id).\
+                      all()
+        return [self._make_ip_dict(ip) for ip in addrs]
+
+    def get_ip_allocation(self, context, id):
+        addr = context.session.query(models.IPAddress).\
+                      filter(models.IPAddress.tenant_id == context.tenant_id).\
+                      filter(models.IPAddress.id == id).\
+                      first()
+        return self._make_ip_dict(addr)
