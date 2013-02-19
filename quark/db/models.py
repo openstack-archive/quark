@@ -77,6 +77,8 @@ class IPAddress(BASEV2, CreatedAt, HasId, HasTenant):
     port_id = sa.Column(sa.String(36),
                         sa.ForeignKey("quark_ports.id", ondelete="CASCADE"))
 
+    version = sa.Column(sa.Integer())
+
     # Need a constant to facilitate the indexed search for new IPs
     _deallocated = sa.Column(sa.Boolean())
 
@@ -92,6 +94,12 @@ class IPAddress(BASEV2, CreatedAt, HasId, HasTenant):
     @deallocated.expression
     def deallocated(cls):
         return IPAddress._deallocated
+
+    def formatted(self):
+        ip = netaddr.IPAddress(self.address_readable)
+        if self.version == 4:
+            return str(ip.ipv4())
+        return str(ip.ipv6())
 
     deallocated_at = sa.Column(sa.DateTime())
 
@@ -129,6 +137,8 @@ class Subnet(BASEV2, CreatedAt, HasId, HasTenant):
     @cidr.setter
     def cidr(self, val):
         self._cidr = val
+        preip = netaddr.IPNetwork(val)
+        self.version = preip.version
         ip = netaddr.IPNetwork(val).ipv6()
         self.first_ip = ip.first
         self.last_ip = ip.last
@@ -136,9 +146,10 @@ class Subnet(BASEV2, CreatedAt, HasId, HasTenant):
     @cidr.expression
     def cidr(cls):
         return Subnet._cidr
-
+    
     first_ip = sa.Column(sa.LargeBinary())
     last_ip = sa.Column(sa.LargeBinary())
+    version = sa.Column(sa.Integer())
 
     allocated_ips = orm.relationship(IPAddress, backref="subnet")
     routes = orm.relationship(Route, backref='subnet', cascade='delete')
