@@ -55,6 +55,10 @@ CONF.register_opts(quark_opts, "QUARK")
 q_attr.RESOURCE_ATTRIBUTE_MAP["networks"]["subnets"]["allow_post"] = True
 
 
+class InvalidMacAddressRange(exceptions.QuantumException):
+    message = _("Invalid MAC address range %(cidr)s")
+
+
 class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
     def __init__(self):
         db_api.configure_db()
@@ -555,14 +559,30 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         #TODO(mdietz): we need to extend this so it can be called later
         new_range = models.MacAddressRange()
         cidr = mac_range["mac_address_range"]["cidr"]
-        prefix, prefix_length = cidr.split("/")
-        prefix_length = int(prefix_length)
-        prefix_size = (48 - prefix_length)
-        netmask = (2 ** prefix_length - 1) << prefix_size
-        base = netaddr.EUI(netaddr.EUI(prefix).value & netmask)
+        cidr, first_address, last_address = self._to_mac(cidr)
         new_range["cidr"] = cidr
-        new_range["first_address"] = netaddr.EUI(base).value
-        new_range["last_address"] = netaddr.EUI(base.value +
-                                               (1 << prefix_size)).value
+        new_range["first_address"] = first_address
+        new_range["last_address"] = last_address
+        new_range["tenant_id"] = context.tenant_id
         context.session.add(new_range)
         context.session.flush()
+
+    def _to_mac(self, val):
+        cidr_parts = val.split("/")
+        prefix = cidr_parts[0]
+        prefix = prefix.replace(':', '')
+        prefix = prefix.replace('-', '')
+        prefix_length = len(prefix)
+        if prefix_length < 6 or prefix_length > 10:
+            raise InvalidMacAddressRange(cidr=val)
+
+        diff = 12 - len(prefix)
+        if len(cidr_parts) > 1:
+            mask = int(cidr_parts[1])
+        else:
+            mask = 48 - diff * 4
+        mask_size = 1 << (48 - mask)
+        prefix = "%s%s" % (prefix, "0" * diff)
+        prefix_int = int(prefix, base=16)
+        cidr = "%s/%s" % (netaddr.EUI(prefix), mask)
+        return cidr, prefix_int, prefix_int + mask_size
