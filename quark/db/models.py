@@ -138,7 +138,7 @@ class Subnet(BASEV2, CreatedAt, HasId, HasTenant):
     def cidr(self, val):
         self._cidr = val
         preip = netaddr.IPNetwork(val)
-        self.version = preip.version
+        self.ip_version = preip.version
         ip = netaddr.IPNetwork(val).ipv6()
         self.first_ip = ip.first
         self.last_ip = ip.last
@@ -149,7 +149,7 @@ class Subnet(BASEV2, CreatedAt, HasId, HasTenant):
     
     first_ip = sa.Column(sa.LargeBinary())
     last_ip = sa.Column(sa.LargeBinary())
-    version = sa.Column(sa.Integer())
+    ip_version = sa.Column(sa.Integer())
 
     allocated_ips = orm.relationship(IPAddress, backref="subnet")
     routes = orm.relationship(Route, backref='subnet', cascade='delete')

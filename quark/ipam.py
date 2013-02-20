@@ -132,6 +132,7 @@ class QuarkIpam(object):
         if address:
             address["port_id"] = port_id
             session.add(address)
+            address["ip_address"] = address.formatted()
             return address
         raise exceptions.IpAddressGenerationFailure(net_id=net_id)
 
