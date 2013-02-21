@@ -132,6 +132,9 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                              for ip in port.get("fixed_ips", [])],
                "device_id": port.get("device_id"),
                "device_owner": port.get("device_owner")}
+        if isinstance(res["mac_address"], (int, long)):
+            res["mac_address"] = str(netaddr.EUI(res["mac_address"],
+                                        dialect=netaddr.mac_unix))
         return res
 
     def _make_mac_range_dict(self, mac_range):
@@ -503,6 +506,13 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                     first()
         if not port:
             raise exceptions.PortNotFound(port_id=id, net_id='')
+
+        port["fixed_ips"] = []
+        query = context.session.query(models.IPAddress)
+        ips = query.filter(models.IPAddress.port_id == port["id"]).all()
+        for ip in ips:
+            port["fixed_ips"].append({"subnet_id": ip["subnet_id"],
+                                     "ip_address": ip.formatted()})
         return self._make_port_dict(port)
 
     def _ports_query(self, context, filters, query=None):

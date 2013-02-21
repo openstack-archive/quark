@@ -125,13 +125,14 @@ class QuarkIpam(object):
                 address["address_readable"] = str(first_address)
 
             address["subnet_id"] = subnet["id"]
-            address["version"] = subnet["version"]
+            address["version"] = subnet["ip_version"]
             address["network_id"] = net_id
             address["tenant_id"] = subnet["tenant_id"]
 
         if address:
             address["port_id"] = port_id
             session.add(address)
+            address["ip_address"] = address.formatted()
             return address
         raise exceptions.IpAddressGenerationFailure(net_id=net_id)
 
