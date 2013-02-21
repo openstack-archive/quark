@@ -18,7 +18,6 @@
 import webob
 
 from quantum.api import extensions
-from quantum.api.v2 import base
 from quantum.manager import QuantumManager
 from quantum.openstack.common import log as logging
 from quantum import wsgi
@@ -48,16 +47,9 @@ class MacAddressRangesController(wsgi.Controller):
         self._resource_name = RESOURCE_NAME
         self._plugin = plugin
 
-    def _get_body(self, request):
-        body = self._deserialize(request.body, request.get_content_type())
-        attr_info = EXTENDED_ATTRIBUTES_2_0[RESOURCE_COLLECTION]
-        req_body = base.Controller.prepare_request_body(
-            request.context, body, False, self._resource_name, attr_info)
-        return req_body
-
     def create(self, request, body=None):
-        body = self._get_body(request)
-        if not "cidr" in body["route"]:
+        body = self._deserialize(request.body, request.get_content_type())
+        if not "cidr" in body[RESOURCE_NAME]:
             raise webob.exc.HTTPUnprocessableEntity()
         return {"mac_address_range":
                  self._plugin.create_mac_address_range(request.context, body)}

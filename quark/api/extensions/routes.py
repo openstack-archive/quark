@@ -51,18 +51,11 @@ class RoutesController(wsgi.Controller):
         self._resource_name = RESOURCE_NAME
         self._plugin = plugin
 
-    def _get_body(self, request):
-        body = self._deserialize(request.body, request.get_content_type())
-        attr_info = EXTENDED_ATTRIBUTES_2_0[RESOURCE_COLLECTION]
-        req_body = base.Controller.prepare_request_body(
-            request.context, body, False, self._resource_name, attr_info)
-        return req_body
-
     def create(self, request, body=None):
-        body = self._get_body(request)
+        body = self._deserialize(request.body, request.get_content_type())
         keys = ["subnet_id", "gateway", "cidr"]
         for k in keys:
-            if not k in body:
+            if not k in body[RESOURCE_NAME]:
                 raise webob.exc.HTTPUnprocessableEntity()
 
         return {"route":

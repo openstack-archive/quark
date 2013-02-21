@@ -37,7 +37,7 @@ LOG = logging.getLogger("quantum")
 CONF = cfg.CONF
 
 quark_opts = [
-    cfg.StrOpt('net_driver', default='quark.nvplib',
+    cfg.StrOpt('net_driver', default='quark.nvplib.OptimizedNVPDriver',
                help=_('The client to use to talk to NVP')),
     cfg.StrOpt('ipam_driver', default='quark.ipam.QuarkIpam',
                help=_('IPAM Implementation to use')),
@@ -64,7 +64,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
 
     def __init__(self):
         db_api.configure_db()
-        self.net_driver = (importutils.import_module(CONF.QUARK.net_driver))
+        self.net_driver = (importutils.import_class(CONF.QUARK.net_driver))()
         self.net_driver.load_config(CONF.QUARK.net_driver_cfg)
         self.ipam_driver = (importutils.import_class(CONF.QUARK.ipam_driver))()
         self.ipam_reuse_after = CONF.QUARK.ipam_reuse_after
