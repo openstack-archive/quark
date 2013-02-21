@@ -22,6 +22,9 @@ import ConfigParser
 import aiclib
 from quantum.openstack.common import log as logging
 
+from quark.db import models
+from quark import exceptions as quark_exceptions
+
 conn_index = 0
 nvp_connections = []
 
@@ -64,7 +67,7 @@ def create_network(tenant_id, network_name, tags=None,
                            network_id, **kwargs)
 
 
-def delete_network(network_id):
+def delete_network(context, network_id):
     connection = get_connection()
     query = connection.lswitch().query()
     tags = [dict(tag=network_id, scope="quantum_net_id")]
@@ -74,8 +77,68 @@ def delete_network(network_id):
         connection.lswitch(switch["uuid"]).delete()
 
 
-def create_port(tenant_id, network_id, port_id, status=True):
-    lswitch = _create_or_choose_lswitch(tenant_id, network_id)
+def _get_open_lswitch_nvp(context, network_id, max_per_switch):
+    query = _lswitch_query(context, network_id)
+    query.relations("LogicalSwitchStatus")
+    results = query.results()
+    for res in results["results"]:
+        count = res["_relations"]["LogicalSwitchStatus"]["lport_count"]
+        if count < max_per_switch:
+            return res["uuid"]
+    return None
+
+
+def _get_open_lswitch_nvp(context, network_id, max_per_switch):
+    # This is where we implement our expedited, implementation specific
+    # path to get an lswitch
+    pass
+
+
+def _get_lswitch_for_network_db(context, network_id):
+    # This is the path to take if we denormalize the lswitch uuid
+    # into the database somewhere
+    pass
+
+
+def _get_lswitch_for_network_nvp(context, network_id):
+    LOG.debug("Finding the network %s lswitch" % network_id)
+    results = _lswitch_query(context, network_id).results()
+    LOG.debug(results)
+    if results["result_count"] > 1:
+        raise quark_exceptions.AmbiguousLswitchCount(net_id=network_id)
+    return results["results"][0]
+
+
+def _lswitch_query(context, network_id):
+    connection = get_connection()
+    query = connection.lswitch().query()
+    tags = [dict(tag=network_id, scope="quantum_net_id"),
+            dict(tag=context.tenant_id, scope="os_tid")]
+    query.tags(tags)
+    return query
+
+
+def _create_or_choose_lswitch(context, network_id, max_per_switch=0):
+    tenant_id = context.tenant_id
+    LOG.debug("Choosing an appropriate lswitch for %s" % tenant_id)
+    if max_per_switch > 0:
+        LOG.debug("Max ports per switch %d" % max_per_switch)
+        switch = _get_open_lswitch_nvp(context, network_id,
+                                            max_per_switch)
+        if switch:
+            LOG.debug("Found open switch %s" % switch)
+            return switch
+
+        # if we get here, time to make a new switch
+        return _create_lswitch(tenant_id, network_id,
+                               network_id=network_id)["uuid"]
+
+    return _get_lswitch_for_network_nvp(context, network_id)
+
+
+def create_port(context, network_id, port_id, status=True):
+    tenant_id = context.tenant_id
+    lswitch = _create_or_choose_lswitch(context, network_id)
     connection = get_connection()
     port = connection.lswitch_port(lswitch)
     port.admin_status_enabled(status)
@@ -87,7 +150,7 @@ def create_port(tenant_id, network_id, port_id, status=True):
     return res
 
 
-def delete_port(port_id, lswitch_uuid=None):
+def delete_port(context, port_id, lswitch_uuid=None):
     LOG.critical("Port_id: %s " % port_id)
     connection = get_connection()
     if not lswitch_uuid:
@@ -103,29 +166,11 @@ def delete_port(port_id, lswitch_uuid=None):
     connection.lswitch_port(lswitch_uuid, port_id).delete()
 
 
-def _create_or_choose_lswitch(tenant_id, network_id):
-    connection = get_connection()
-    query = connection.lswitch().query()
-    tags = [dict(tag=network_id, scope="quantum_net_id"),
-            dict(tag=tenant_id, scope="os_tid")]
-    query.tags(tags)
-    query.relations("LogicalSwitchStatus")
-    results = query.results()
-    lswitch = None
-    for res in results["results"]:
-        lswitch = res
-
-        # TODO(mdietz): I'm sure we want this configurable
-        if res["_relations"]["LogicalSwitchStatus"]["lport_count"] < 32:
-            return res["uuid"]
-
-    # if we get here, time to make a new switch
-    return _create_lswitch(tenant_id, lswitch["display_name"],
-                           network_id=network_id)["uuid"]
-
-
-def _create_lswitch(tenant_id, network_name, tags=None,
+def _create_lswitch(context, network_name, tags=None,
                     network_id=None, **kwargs):
+    LOG.debug("Creating new lswitch for %s network %s" %
+                                (context.tenant_id, network_name))
+    tenant_id = context.tenant_id
     connection = get_connection()
     switch = connection.lswitch()
     switch.display_name(network_name)
