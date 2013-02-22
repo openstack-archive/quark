@@ -33,7 +33,7 @@ attr_dict[RESOURCE_NAME] = {'allow_post': True,
                             'allow_put': False,
                             'is_visible': True}
 
-LOG = logging.getLogger("quantum")
+LOG = logging.getLogger("quark.api.extensions.mac_address_ranges")
 
 
 def mac_range_dict(mac_range):

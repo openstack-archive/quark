@@ -34,7 +34,7 @@ attr_dict[RESOURCE_NAME] = {'allow_post': True,
                             'allow_put': True,
                             'is_visible': True}
 
-LOG = logging.getLogger("quantum")
+LOG = logging.getLogger("quark.api.extensions.ip_allocations")
 
 
 def ip_dict(address):

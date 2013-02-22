@@ -7,7 +7,6 @@ Implement API extensions for basically everything
 * CRUD routes
 CRUD IP Allocations
 * CRUD MacAddressRanges
-Allocations controller extension
 * AIC doesn't support creating multiple switches on the same network. i.e. if we expand past the port count per switch, undefined
 
 

@@ -33,11 +33,11 @@ from quark.api import extensions
 from quark.db import models
 from quark import exceptions as quark_exceptions
 
-LOG = logging.getLogger("quantum")
+LOG = logging.getLogger("quark.plugin")
 CONF = cfg.CONF
 
 quark_opts = [
-    cfg.StrOpt('net_driver', default='quark.nvplib.OptimizedNVPDriver',
+    cfg.StrOpt('net_driver', default='quark.drivers.base.BaseDriver',
                help=_('The client to use to talk to NVP')),
     cfg.StrOpt('ipam_driver', default='quark.ipam.QuarkIpam',
                help=_('IPAM Implementation to use')),
@@ -71,7 +71,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
 
     def _make_network_dict(self, network, fields=None):
         res = {'id': network.get('id'),
-               'name': network.get('name'),
+               'name': network.get('id'),
                'tenant_id': network.get('tenant_id'),
                'admin_state_up': network.get('admin_state_up'),
                'status': network.get('status'),
@@ -93,7 +93,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         if subnet.routes:
             gateway_ip = subnet.routes[0]["gateway"]
         res = {'id': subnet.get('id'),
-               'name': subnet.get('name'),
+               'name': subnet.get('id'),
                'tenant_id': subnet.get('tenant_id'),
                'network_id': subnet.get('network_id'),
                'ip_version': subnet.get('ip_version'),
@@ -121,7 +121,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             mac = str(netaddr.EUI(port["mac_address"])).replace("-", ":")
 
         res = {"id": port.get("id"),
-               'name': port.get('name'),
+               'name': port.get('id'),
                "network_id": port.get("network_id"),
                'tenant_id': port.get('tenant_id'),
                "mac_address": mac,
@@ -170,6 +170,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.  All keys will be populated.
         """
+        LOG.info("create_subnet for tenant %s" % context.tenant_id)
         session = context.session
         new_subnet = self._create_subnet(context, subnet, session)
         session.flush()
@@ -201,6 +202,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             object in quantum/api/v2/attributes.py. Only these fields
             will be returned.
         """
+        LOG.info("get_subnet %s for tenant %s with fields %s" %
+                                            (id, context.tenant_id, fields))
         subnet = context.session.query(models.Subnet).\
                     filter(models.Subnet.id == id).\
                     first()
@@ -227,8 +230,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             object in quantum/api/v2/attributes.py. Only these fields
             will be returned.
         """
-        LOG.info("Getting subnets for tenant %s with filters %s" %
-                                                (context.tenant_id, filters))
+        LOG.info("get_subnets for tenant %s with filters %s fields %s" %
+                                        (context.tenant_id, filters, fields))
         query = context.session.query(models.Subnet)
         if filters.get("network_id"):
             query = query.filter(
@@ -252,6 +255,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         NOTE: this method is optional, as it was not part of the originally
               defined plugin API.
         """
+        LOG.info("get_subnets_count for tenant %s with filters %s" %
+                                            (context.tenant_id, filters))
         query = context.session.query(sql_func.count(models.Subnet.id))
         if filters.get("network_id"):
             query = query.filter(
@@ -269,6 +274,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         : param context: quantum api request context
         : param id: UUID representing the subnet to delete.
         """
+        LOG.info("delete_subnet %s for tenant %s with filters %s" %
+                                                (id, context.tenant_id))
         subnet = context.session.query(models.Subnet).\
                         filter(models.Subnet.id == id).\
                         first()
@@ -287,6 +294,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.  All keys will be populated.
         """
+        LOG.info("create_network for tenant %s" % context.tenant_id)
         with context.session.begin(subtransactions=True):
             # Generate a uuid that we're going to hand to the backend and db
             net_uuid = uuidutils.generate_uuid()
@@ -320,8 +328,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.
         """
-        # TODO(mdietz): not planning to allow bulk update of subnets
-        #              here, maybe later?
+        LOG.info("update_network %s for tenant %s with filters %s" %
+                                                (id, context.tenant_id))
         with context.session.begin(subtransactions=True):
             net = context.session.query(models.Network).\
                                 filter(models.Network.id == id).\
@@ -343,6 +351,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             object in quantum/api/v2/attributes.py. Only these fields
             will be returned.
         """
+        LOG.info("get_network %s for tenant %s fields %s" %
+                                    (id, context.tenant_id, fields))
         query = context.session.query(models.Network)
         network = query.filter(models.Network.id == id).first()
         if not network:
@@ -367,8 +377,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             object in quantum/api/v2/attributes.py. Only these fields
             will be returned.
         """
-        LOG.info("Listing networks for tenant %s with filters %s" %
-                                                (context.tenant_id, filters))
+        LOG.info("get_networks for tenant %s with filters %s, fields %s" %
+                                          (context.tenant_id, filters, fields))
         query = context.session.query(models.Network)
         # TODO(mdietz): we don't support "shared" networks yet. The concept
         #               is broken
@@ -398,6 +408,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         NOTE: this method is optional, as it was not part of the originally
               defined plugin API.
         """
+        LOG.info("get_networks_count for tenant %s filters %s" %
+                                                (context.tenant_id, filters))
         query = context.session.query(sql_func.count(models.Network.id))
         return query.filter(models.Network.tenant_id == context.tenant_id).\
                      scalar()
@@ -408,6 +420,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         : param context: quantum api request context
         : param id: UUID representing the network to delete.
         """
+        LOG.info("delete_network %s for tenant %s filters %s" %
+                                                    (id, context.tenant_id))
         session = context.session
         with session.begin():
             net = session.query(models.Network).\
@@ -432,7 +446,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.  All keys will be populated.
         """
-        LOG.info("Creating port %s" % port)
+        LOG.info("create_port for tenant %s" % context.tenant_id)
         session = context.session
 
         #TODO(mdietz): do something clever with these
@@ -486,8 +500,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.
         """
-        new_port = {'id': id}
-        return self._make_port_dict(new_port)
+        raise NotImplemented()
 
     def get_port(self, context, id, fields=None):
         """
@@ -499,6 +512,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             object in quantum/api/v2/attributes.py. Only these fields
             will be returned.
         """
+        LOG.info("get_port %s for tenant %s fields %s" %
+                                    (id, context.tenant_id, fields))
         port = context.session.query(models.Port).\
                     filter(models.Port.id == id).\
                     first()
@@ -513,9 +528,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                                      "ip_address": ip.formatted()})
         return self._make_port_dict(port)
 
-    def _ports_query(self, context, filters, query=None):
-        LOG.info("Querying ports for tenant %s with filters %s" %
-                                                (context.tenant_id, filters))
+    def _ports_query(self, context, filters, query=None, fields=None):
         query = query or context.session.query(models.Port)
         if filters.get("id"):
             query = query.filter(
@@ -560,8 +573,9 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             object in quantum/api/v2/attributes.py. Only these fields
             will be returned.
         """
-        #TODO(mdietz): May need to build a list of fields to query for later
-        ports = self._ports_query(context, filters).all()
+        LOG.info("get_ports for tenant %s filters %s fields %s" %
+                                    (context.tenant_id, filters, fields))
+        ports = self._ports_query(context, filters, fields=fields).all()
         query = context.session.query(models.IPAddress)
         for p in ports:
             p["fixed_ips"] = []
@@ -588,6 +602,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         NOTE: this method is optional, as it was not part of the originally
               defined plugin API.
         """
+        LOG.info("get_ports_count for tenant %s filters %s" %
+                                    (context.tenant_id, filters))
         query = context.session.query(sql_func.count(models.Port.id))
         return self._ports_query(context, filters, query=query).scalar()
 
@@ -597,6 +613,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         : param context: quantum api request context
         : param id: UUID representing the port to delete.
         """
+        LOG.info("delete_port %s for tenant %s" %
+                                    (id, context.tenant_id))
         session = context.session
         with session.begin():
             port = session.query(models.Port).\
@@ -606,7 +624,6 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             if not port:
                 raise exceptions.NetworkNotFound(net_id=id)
 
-            #TODO(mdietz): need detach, mac and IP release in here, as well
             backend_key = port["backend_key"]
             self.ipam_driver.deallocate_mac_address(session,
                                                     port["mac_address"],)
@@ -616,11 +633,12 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             self.net_driver.delete_port(context, backend_key)
 
     def get_mac_address_ranges(self, context):
+        LOG.info("get_mac_address_ranges for tenant %s" % context.tenant_id)
         ranges = context.session.query(models.MacAddressRange).all()
         return [self._make_mac_range_dict(m) for m in ranges]
 
     def create_mac_address_range(self, context, mac_range):
-        #TODO(mdietz): we need to extend this so it can be called later
+        LOG.info("create_mac_address_range for tenant %s" % context.tenant_id)
         new_range = models.MacAddressRange()
         cidr = mac_range["mac_address_range"]["cidr"]
         cidr, first_address, last_address = self._to_mac(cidr)
@@ -653,6 +671,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         return cidr, prefix_int, prefix_int + mask_size
 
     def get_route(self, context, id):
+        LOG.info("get_route %s for tenant %s" % (id, context.tenant_id))
         route = context.session.query(models.Route).\
                           filter(models.Route.tenant_id == context.tenant_id).\
                           filter(models.Route.id == id).\
@@ -662,12 +681,14 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         return self._make_route_dict(route)
 
     def get_routes(self, context):
+        LOG.info("get_routes for tenant %s" % context.tenant_id)
         routes = context.session.query(models.Route).\
                           filter(models.Route.tenant_id == context.tenant_id).\
                           all()
         return [self._make_route_dict(r) for r in routes]
 
     def create_route(self, context, route):
+        LOG.info("create_route for tenant %s" % context.tenant_id)
         route = route["route"]
         subnet_id = route["subnet_id"]
         subnet = context.session.query(models.Subnet).\
@@ -688,6 +709,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         #TODO(mdietz): This is probably where we check to see that someone is
         #              admin and only filter on tenant if they aren't. Correct
         #              for all the above later
+        LOG.info("delete_route %s for tenant %s" % (id, context.tenant_id))
         route = context.session.query(models.Route).\
                         filter(models.Route.id == id).\
                         filter(models.Route.tenant_id == context.tenant_id).\
@@ -698,12 +720,15 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         context.session.flush()
 
     def get_ip_allocations(self, context):
+        LOG.info("get_ip_allocations for tenant %s" % context.tenant_id)
         addrs = context.session.query(models.IPAddress).\
                       filter(models.IPAddress.tenant_id == context.tenant_id).\
                       all()
         return [self._make_ip_dict(ip) for ip in addrs]
 
     def get_ip_allocation(self, context, id):
+        LOG.info("get_ip_allocation %s for tenant %s" %
+                                                (id, context.tenant_id))
         addr = context.session.query(models.IPAddress).\
                       filter(models.IPAddress.tenant_id == context.tenant_id).\
                       filter(models.IPAddress.id == id).\

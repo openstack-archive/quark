@@ -24,37 +24,11 @@ from quantum.db.models_v2 import HasTenant, HasId
 from quantum.openstack.common import timeutils
 from quantum.openstack.common import log as logging
 
-LOG = logging.getLogger("quantum")
+LOG = logging.getLogger("quark.db.models")
 
 
 class CreatedAt(object):
     created_at = sa.Column(sa.DateTime(), default=timeutils.utcnow)
-
-
-# TODO(mdietz): discuss any IP reservation policies ala Melange with the nerds
-# but not sure if we need them offhand
-#
-# Things omitted:
-#
-# shared or sharing fields from any of the tables. If we're going to implement
-# actual sharing, then we need to provide AuthZ as well as reasonable
-# constructs for said sharing. Then the act of sharing will be implicit in
-# those structures.
-#
-# Most of the IPAM model from upstream. It seemed unwieldy, and ended up
-# providing what Subnet with a CIDR defined
-#
-# status fields. In most cases, they seemed superfluous. We prefer to delete
-# ports when they're not in use. Meanwhile, I don't see a need for a network
-# that exists but might have a state that means it's unusable.
-#
-# IP octets and policies from Melange, for now
-#
-# DNS and DHCP things. Don't need them right now, not sure we'd ever
-# have to implement those unless Quark completely co-opts upstream
-#
-# Most of the fields on routes. I think the simpler cidr and gateway
-# denotation is more meaningful and easier.
 
 
 class IPAddress(BASEV2, CreatedAt, HasId, HasTenant):
@@ -161,14 +135,8 @@ class Port(BASEV2, CreatedAt, HasId, HasTenant):
                            nullable=False)
 
     backend_key = sa.Column(sa.String(36), nullable=False)
-    # Maybe have this for optimizing lookups.
-    # subnet_id = sa.Column(sa.String(36), sa.ForeignKey("subnets.id"),
-    #                      nulllable=False)
     mac_address = sa.Column(sa.BigInteger(),
                             sa.ForeignKey("quark_mac_addresses.address"))
-
-    # device is an ID pertaining to the entity utilizing the port. Could be
-    # an instance, a load balancer, or any other network capable object
     device_id = sa.Column(sa.String(255), nullable=False)
 
 

@@ -23,17 +23,19 @@ import aiclib
 from quantum.openstack.common import log as logging
 
 #from quark.db import models
+from quark.drivers import base
 from quark import exceptions as quark_exceptions
 
-conn_index = 0
-nvp_connections = []
 
-LOG = logging.getLogger("quantum")
+LOG = logging.getLogger("quark.nvplib")
 
 
-class NVPDriver(object):
+class NVPDriver(base.BaseDriver):
+    def __init__(self):
+        self.nvp_connections = []
+        self.conn_index = 0
+
     def load_config(self, path):
-        global nvp_connections
         config = ConfigParser.ConfigParser()
         config.read(path)
         default_tz = config.get("NVP", "DEFAULT_TZ_UUID")
@@ -42,7 +44,7 @@ class NVPDriver(object):
             (ip, port, user, pw, req_timeout,
              http_timeout, retries, redirects) =\
                     config.get("NVP", conn).split(":")
-            nvp_connections.append(dict(ip_address=ip,
+            self.nvp_connections.append(dict(ip_address=ip,
                                         port=port,
                                         username=user,
                                         password=pw,
@@ -53,8 +55,7 @@ class NVPDriver(object):
                                         default_tz=default_tz))
 
     def get_connection(self):
-        global conn_index
-        conn = nvp_connections[conn_index]
+        conn = self.nvp_connections[self.conn_index]
         if not "connection" in conn:
             scheme = conn["port"] == "443" and "https" or "http"
             uri = "%s://%s:%s" % (scheme, conn["ip_address"], conn["port"])
@@ -73,6 +74,7 @@ class NVPDriver(object):
         query.tags(tags)
         lswitches = query.results()
         for switch in lswitches["results"]:
+            LOG.debug("Deleting lswitch %s" % switch["uuid"])
             connection.lswitch(switch["uuid"]).delete()
 
     def _get_open_lswitch(self, context, network_id, max_per_switch):
@@ -88,7 +90,6 @@ class NVPDriver(object):
     def _get_lswitch_for_network(self, context, network_id):
         LOG.debug("Finding lswitch for network %s" % network_id)
         results = self._lswitch_query(context, network_id).results()
-        LOG.debug(results)
         if results["result_count"] > 1:
             raise quark_exceptions.AmbiguousLswitchCount(net_id=network_id)
         return results["results"][0]
@@ -127,12 +128,12 @@ class NVPDriver(object):
         tags = [dict(tag=network_id, scope="quantum_net_id"),
                 dict(tag=port_id, scope="quantum_port_id"),
                 dict(tag=tenant_id, scope="os_tid")]
+        LOG.debug("Creating port on switch %s" % lswitch["uuid"])
         port.tags(tags)
         res = port.create()
         return res
 
     def delete_port(self, context, port_id, lswitch_uuid=None):
-        LOG.critical("Port_id: %s " % port_id)
         connection = self.get_connection()
         if not lswitch_uuid:
             query = connection.lswitch_port("*").query()
@@ -143,7 +144,7 @@ class NVPDriver(object):
                 raise Exception("More than one lswitch for port %s" % port_id)
             for r in port["results"]:
                 lswitch_uuid = r["_relations"]["LogicalSwitchConfig"]["uuid"]
-
+        LOG.debug("Deleting port %s from lswitch %s" % (port_id, lswitch_uuid))
         connection.lswitch_port(lswitch_uuid, port_id).delete()
 
     def _create_lswitch(self, context, network_name, tags=None,
@@ -159,15 +160,18 @@ class NVPDriver(object):
         if network_id:
             tags.append({"tag": network_id, "scope": "quantum_net_id"})
         switch.tags(tags)
+        LOG.debug("Creating lswitch for network %s" % network_id)
         res = switch.create()
         return res
 
 
 class OptimizedNVPDriver(NVPDriver):
     def _get_open_lswitch(self, context, network_id, max_per_switch):
+        #TODO: use the lswitch table here
         return super(OptimizedNVPDriver, self)._get_open_lswitch(
                             context, network_id, max_per_switch)
 
     def _get_lswitch_for_network(self, context, network_id):
+        #TODO: use the lswitch table here
         return super(OptimizedNVPDriver, self)._get_lswitch_for_network(
                             context, network_id)

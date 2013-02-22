@@ -35,7 +35,7 @@ attr_dict[RESOURCE_NAME] = {'allow_post': True,
                             'allow_put': True,
                             'is_visible': True}
 
-LOG = logging.getLogger("quantum")
+LOG = logging.getLogger("quark.api.extensions.routes")
 
 
 def route_dict(route):
