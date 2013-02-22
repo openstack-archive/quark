@@ -37,7 +37,8 @@ LOG = logging.getLogger("quark.plugin")
 CONF = cfg.CONF
 
 quark_opts = [
-    cfg.StrOpt('net_driver', default='quark.drivers.base.BaseDriver',
+    cfg.StrOpt('net_driver',
+               default='quark.drivers.base.BaseDriver',
                help=_('The client to use to talk to NVP')),
     cfg.StrOpt('ipam_driver', default='quark.ipam.QuarkIpam',
                help=_('IPAM Implementation to use')),
@@ -420,8 +421,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         : param context: quantum api request context
         : param id: UUID representing the network to delete.
         """
-        LOG.info("delete_network %s for tenant %s filters %s" %
-                                                    (id, context.tenant_id))
+        LOG.info("delete_network %s for tenant %s" % (id, context.tenant_id))
         session = context.session
         with session.begin():
             net = session.query(models.Network).\

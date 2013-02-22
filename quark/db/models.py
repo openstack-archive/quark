@@ -17,6 +17,8 @@ import netaddr
 
 import sqlalchemy as sa
 from sqlalchemy import orm
+from sqlalchemy.ext import associationproxy
+from sqlalchemy.ext import declarative
 from sqlalchemy.ext import hybrid
 
 from quantum.db.model_base import BASEV2
@@ -25,6 +27,21 @@ from quantum.openstack.common import timeutils
 from quantum.openstack.common import log as logging
 
 LOG = logging.getLogger("quark.db.models")
+
+
+def _default_list_getset(collection_class, proxy):
+    attr = proxy.value_attr
+
+    def getter(obj):
+        if obj:
+            return getattr(obj, attr, None)
+        return []
+
+    if collection_class is dict:
+        setter = lambda o, k, v: setattr(o, attr, v)
+    else:
+        setter = lambda o, v: setattr(o, attr, v)
+    return getter, setter
 
 
 class CreatedAt(object):
@@ -163,3 +180,50 @@ class Network(BASEV2, CreatedAt, HasTenant, HasId):
     name = sa.Column(sa.String(255))
     ports = orm.relationship(Port, backref='network')
     subnets = orm.relationship(Subnet, backref='network')
+
+
+class TagAssociation(BASEV2, HasId):
+    __tablename__ = "quark_tag_associations"
+
+    discriminator = sa.Column(sa.String(255))
+    tags = associationproxy.association_proxy("tags_association", "tag",
+                                              creator=lambda t: Tag(tag=t))
+
+    @classmethod
+    def creator(cls, discriminator):
+        return lambda tags: TagAssociation(tags=tags,
+                                           discriminator=discriminator)
+
+    @property
+    def parent(self):
+        """Return the parent object."""
+        return getattr(self, "%s_parent" % self.discriminator)
+
+
+class Tag(BASEV2, HasId, HasTenant):
+    __tablename__ = "quark_tags"
+    association_uuid = sa.Column(sa.String(36),
+                       sa.ForeignKey(TagAssociation.id), nullable=False)
+
+    tag = sa.Column(sa.String(255), nullable=False)
+    parent = associationproxy.association_proxy("association", "parent")
+    association = orm.relationship("TagAssociation",
+                                   backref=orm.backref("tags_association"))
+
+
+class IsHazTags(object):
+    @declarative.declared_attr
+    def tag_association_uuid(cls):
+        return sa.Column(sa.String(36), sa.ForeignKey(TagAssociation.id),
+                         nullable=True)
+
+    @declarative.declared_attr
+    def tag_association(cls):
+        discriminator = cls.__name__.lower()
+        creator = TagAssociation.creator(discriminator)
+        kwargs = {'creator': creator,
+                  'getset_factory': _default_list_getset}
+        cls.tags = associationproxy.association_proxy("tag_association",
+                                                      "tags", **kwargs)
+        backref = orm.backref("%s_parent" % discriminator, uselist=False)
+        return orm.relationship("TagAssociation", backref=backref)
