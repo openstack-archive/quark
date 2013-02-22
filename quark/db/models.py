@@ -146,7 +146,7 @@ class Subnet(BASEV2, CreatedAt, HasId, HasTenant):
     @cidr.expression
     def cidr(cls):
         return Subnet._cidr
-    
+
     first_ip = sa.Column(sa.LargeBinary())
     last_ip = sa.Column(sa.LargeBinary())
     ip_version = sa.Column(sa.Integer())
@@ -160,7 +160,7 @@ class Port(BASEV2, CreatedAt, HasId, HasTenant):
     network_id = sa.Column(sa.String(36), sa.ForeignKey("quark_networks.id"),
                            nullable=False)
 
-    nvp_id = sa.Column(sa.String(36), nullable=False)
+    backend_key = sa.Column(sa.String(36), nullable=False)
     # Maybe have this for optimizing lookups.
     # subnet_id = sa.Column(sa.String(36), sa.ForeignKey("subnets.id"),
     #                      nulllable=False)

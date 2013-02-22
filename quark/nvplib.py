@@ -22,7 +22,7 @@ import ConfigParser
 import aiclib
 from quantum.openstack.common import log as logging
 
-from quark.db import models
+#from quark.db import models
 from quark import exceptions as quark_exceptions
 
 conn_index = 0
@@ -86,7 +86,7 @@ class NVPDriver(object):
         return None
 
     def _get_lswitch_for_network(self, context, network_id):
-        LOG.debug("Finding the network %s lswitch" % network_id)
+        LOG.debug("Finding lswitch for network %s" % network_id)
         results = self._lswitch_query(context, network_id).results()
         LOG.debug(results)
         if results["result_count"] > 1:
@@ -164,9 +164,10 @@ class NVPDriver(object):
 
 
 class OptimizedNVPDriver(NVPDriver):
-    #def _get_open_lswitch(context, network_id, max_per_switch):
-    #    pass
+    def _get_open_lswitch(self, context, network_id, max_per_switch):
+        return super(OptimizedNVPDriver, self)._get_open_lswitch(
+                            context, network_id, max_per_switch)
 
-    #def _get_lswitch_for_network(context, network_id):
-    #    pass
-    pass
+    def _get_lswitch_for_network(self, context, network_id):
+        return super(OptimizedNVPDriver, self)._get_lswitch_for_network(
+                            context, network_id)

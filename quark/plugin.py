@@ -288,7 +288,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             quantum/api/v2/attributes.py.  All keys will be populated.
         """
         with context.session.begin(subtransactions=True):
-            # Generate a uuid that we're going to hand to NVP and the database
+            # Generate a uuid that we're going to hand to the backend and db
             net_uuid = uuidutils.generate_uuid()
 
             #NOTE(mdietz): probably want to abstract this out as we're getting
@@ -432,7 +432,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.  All keys will be populated.
         """
-        LOG.critical("Creating port %s" % port)
+        LOG.info("Creating port %s" % port)
         session = context.session
 
         #TODO(mdietz): do something clever with these
@@ -461,21 +461,19 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                                                         port_id,
                                                         context.tenant_id,
                                                         self.ipam_reuse_after)
-            nvp_port = self.net_driver.create_port(context, net_id,
-                                                   port_id=port_id)
+            backend_port = self.net_driver.create_port(context, net_id,
+                                                      port_id=port_id)
             new_port = models.Port()
             new_port.update(port["port"])
             new_port["id"] = port_id
-            new_port["nvp_id"] = nvp_port["uuid"]
+            new_port["backend_key"] = backend_port["uuid"]
             new_port["fixed_ips"] = [addresses]
             new_port["mac_address"] = mac["address"]
 
-            #TODO(mdietz): might be worthwhile to store the lswitch UUID
-            #              for the port in the db meta
             session.add(new_port)
         new_port["mac_address"] = str(netaddr.EUI(new_port["mac_address"],
                                         dialect=netaddr.mac_unix))
-        LOG.critical("Port created %s" % new_port)
+        LOG.debug("Port created %s" % new_port)
         return self._make_port_dict(new_port)
 
     def update_port(self, context, id, port):
@@ -516,7 +514,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         return self._make_port_dict(port)
 
     def _ports_query(self, context, filters, query=None):
-        LOG.critical("Querying ports for tenant %s with filters %s" %
+        LOG.info("Querying ports for tenant %s with filters %s" %
                                                 (context.tenant_id, filters))
         query = query or context.session.query(models.Port)
         if filters.get("id"):
@@ -609,13 +607,13 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                 raise exceptions.NetworkNotFound(net_id=id)
 
             #TODO(mdietz): need detach, mac and IP release in here, as well
-            nvp_id = port["nvp_id"]
+            backend_key = port["backend_key"]
             self.ipam_driver.deallocate_mac_address(session,
                                                     port["mac_address"],)
             self.ipam_driver.deallocate_ip_address(session, id,
                         ipam_reuse_after=self.ipam_reuse_after)
             session.delete(port)
-            self.net_driver.delete_port(context, nvp_id)
+            self.net_driver.delete_port(context, backend_key)
 
     def get_mac_address_ranges(self, context):
         ranges = context.session.query(models.MacAddressRange).all()
