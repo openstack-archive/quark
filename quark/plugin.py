@@ -116,11 +116,10 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         #    res['gateway_ip'] = subnet.get('gateway_ip')
         return res
 
-    def _make_port_dict(self, port, fields=None):
+    def _port_dict(self, port, fields):
         mac = ""
         if port.get("mac_address"):
             mac = str(netaddr.EUI(port["mac_address"])).replace("-", ":")
-
         res = {"id": port.get("id"),
                'name': port.get('id'),
                "network_id": port.get("network_id"),
@@ -128,15 +127,34 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                "mac_address": mac,
                "admin_state_up": port.get("admin_state_up"),
                "status": port.get("status"),
-               "fixed_ips": [{'subnet_id': ip.get("subnet_id"),
-                              'ip_address': ip.formatted()}
-                             for ip in port.ip_addresses],
                "device_id": port.get("device_id"),
                "device_owner": port.get("device_owner")}
         if isinstance(res["mac_address"], (int, long)):
             res["mac_address"] = str(netaddr.EUI(res["mac_address"],
                                         dialect=netaddr.mac_unix))
         return res
+
+    def _make_port_address_dict(self, ip):
+        return {'subnet_id': ip.get("subnet_id"),
+                'ip_address': ip.formatted()}
+
+    def _make_port_dict(self, port, fields=None):
+        res = self._port_dict(port, fields)
+        res["fixed_ips"] = [self._make_port_address_dict(ip)
+                            for ip in port["addresses"]]
+        return res
+
+    def _make_ports_list(self, query, fields=None):
+        ports = {}
+        for port_dict, addr_dict in query:
+            port_id = port_dict["id"]
+            if port_id not in ports:
+                ports[port_id] = self._port_dict(port_dict, fields)
+                ports[port_id]["fixed_ips"] = []
+            if addr_dict:
+                ports[port_id]["fixed_ips"].append(
+                                self._make_port_address_dict(addr_dict))
+        return ports.values()
 
     def _make_mac_range_dict(self, mac_range):
         return {"id": mac_range["id"],
@@ -481,7 +499,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             new_port.update(port["port"])
             new_port["id"] = port_id
             new_port["backend_key"] = backend_port["uuid"]
-            new_port["fixed_ips"] = [addresses]
+            new_port["addresses"] = [addresses]
             new_port["mac_address"] = mac["address"]
 
             session.add(new_port)
@@ -514,20 +532,20 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         """
         LOG.info("get_port %s for tenant %s fields %s" %
                                     (id, context.tenant_id, fields))
-        port = context.session.query(models.Port).\
-                    filter(models.Port.id == id).\
-                    first()
-        if not port:
+        results = context.session.query(models.Port, models.IPAddress).\
+                        outerjoin(models.IPAddress).\
+                        filter(models.Port.id == id).all()
+        if not results:
             raise exceptions.PortNotFound(port_id=id, net_id='')
-
-        port["fixed_ips"] = []
-        for ip in port.ip_addresses:
-            port["fixed_ips"].append({"subnet_id": ip["subnet_id"],
-                                     "ip_address": ip.formatted()})
+        port = {}
+        port.update(results[0][0])
+        port["addresses"] = []
+        for _, address in results:
+            if address:
+                port["addresses"].append(address)
         return self._make_port_dict(port)
 
-    def _ports_query(self, context, filters, query=None, fields=None):
-        query = query or context.session.query(models.Port)
+    def _ports_query(self, context, filters, query, fields=None):
         if filters.get("id"):
             query = query.filter(
                     models.Port.id.in_(filters["id"]))
@@ -578,10 +596,10 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         """
         LOG.info("get_ports for tenant %s filters %s fields %s" %
                                     (context.tenant_id, filters, fields))
-        query = self._ports_query(context, filters, fields=fields)
-        query.join(models.Port.ip_addresses)
-        ports = query.all()
-        return [self._make_port_dict(p) for p in ports]
+        query = context.session.query(models.Port, models.IPAddress).\
+                                outerjoin(models.IPAddress)
+        query = self._ports_query(context, filters, fields=fields, query=query)
+        return self._make_ports_list(query, fields)
 
     def get_ports_count(self, context, filters=None):
         """

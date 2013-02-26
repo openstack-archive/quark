@@ -202,7 +202,7 @@ class Port(BASEV2, CreatedAt, HasId, HasTenant):
     mac_address = sa.Column(sa.BigInteger(),
                             sa.ForeignKey("quark_mac_addresses.address"))
     device_id = sa.Column(sa.String(255), nullable=False)
-    ip_addresses = orm.relationship(IPAddress, backref="ports")
+    ip_addresses = orm.relationship(IPAddress, backref=orm.backref("ports"))
 
 
 class MacAddress(BASEV2, CreatedAt, HasTenant):
