@@ -129,7 +129,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                "admin_state_up": port.get("admin_state_up"),
                "status": port.get("status"),
                "fixed_ips": [{'subnet_id': ip.get("subnet_id"),
-                              'ip_address': ip.get("ip_address")}
+                              'ip_address': ip.formatted()}
                              for ip in port.ip_addresses],
                "device_id": port.get("device_id"),
                "device_owner": port.get("device_owner")}
@@ -579,7 +579,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         LOG.info("get_ports for tenant %s filters %s fields %s" %
                                     (context.tenant_id, filters, fields))
         query = self._ports_query(context, filters, fields=fields)
-        query.outerjoin(models.Port.ip_addresses)
+        query.join(models.Port.ip_addresses)
         ports = query.all()
         return [self._make_port_dict(p) for p in ports]
 
