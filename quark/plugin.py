@@ -33,7 +33,7 @@ from quark.api import extensions
 from quark.db import models
 from quark import exceptions as quark_exceptions
 
-LOG = logging.getLogger("quark.plugin")
+LOG = logging.getLogger("quantum.quark")
 CONF = cfg.CONF
 
 quark_opts = [
@@ -46,7 +46,7 @@ quark_opts = [
                help=_("Time in seconds til IP and MAC reuse"
                       "after deallocation.")),
     cfg.StrOpt('net_driver_cfg', default='/etc/quantum/quark.ini',
-               help=_("Path to the config for the NVP driver"))
+               help=_("Path to the config for the net driver"))
 ]
 
 CONF.register_opts(quark_opts, "QUARK")
@@ -61,7 +61,7 @@ q_attr.RESOURCE_ATTRIBUTE_MAP["networks"]["subnets"]["allow_post"] = True
 class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
     # NOTE(mdietz): I hate this
     supported_extension_aliases = ["mac_address_ranges", "routes",
-                                   "ip_allocations"]
+                                   "ip_addresses"]
 
     def __init__(self):
         db_api.configure_db()
@@ -130,7 +130,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                "status": port.get("status"),
                "fixed_ips": [{'subnet_id': ip.get("subnet_id"),
                               'ip_address': ip.get("ip_address")}
-                             for ip in port.get("fixed_ips", [])],
+                             for ip in port.ip_addresses],
                "device_id": port.get("device_id"),
                "device_owner": port.get("device_owner")}
         if isinstance(res["mac_address"], (int, long)):
@@ -521,9 +521,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             raise exceptions.PortNotFound(port_id=id, net_id='')
 
         port["fixed_ips"] = []
-        query = context.session.query(models.IPAddress)
-        ips = query.filter(models.IPAddress.port_id == port["id"]).all()
-        for ip in ips:
+        for ip in port.ip_addresses:
             port["fixed_ips"].append({"subnet_id": ip["subnet_id"],
                                      "ip_address": ip.formatted()})
         return self._make_port_dict(port)
@@ -553,6 +551,11 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         if filters.get("tenant_id"):
             query = query.filter(
                     models.Port.tenant_id.in_(filters["tenant_id"]))
+
+        if filters.get("tenant_id"):
+            query = query.filter(
+                    models.Port.tenant_id.in_(filters["tenant_id"]))
+
         return query
 
     def get_ports(self, context, filters=None, fields=None):
@@ -575,14 +578,9 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         """
         LOG.info("get_ports for tenant %s filters %s fields %s" %
                                     (context.tenant_id, filters, fields))
-        ports = self._ports_query(context, filters, fields=fields).all()
-        query = context.session.query(models.IPAddress)
-        for p in ports:
-            p["fixed_ips"] = []
-            ips = query.filter(models.IPAddress.port_id == p["id"]).all()
-            for ip in ips:
-                p["fixed_ips"].append({"subnet_id": ip["subnet_id"],
-                                       "ip_address": ip.formatted()})
+        query = self._ports_query(context, filters, fields=fields)
+        query.outerjoin(models.Port.ip_addresses)
+        ports = query.all()
         return [self._make_port_dict(p) for p in ports]
 
     def get_ports_count(self, context, filters=None):
@@ -719,15 +717,15 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         context.session.delete(route)
         context.session.flush()
 
-    def get_ip_allocations(self, context):
-        LOG.info("get_ip_allocations for tenant %s" % context.tenant_id)
+    def get_ip_addresses(self, context):
+        LOG.info("get_ip_addresses for tenant %s" % context.tenant_id)
         addrs = context.session.query(models.IPAddress).\
                       filter(models.IPAddress.tenant_id == context.tenant_id).\
                       all()
         return [self._make_ip_dict(ip) for ip in addrs]
 
-    def get_ip_allocation(self, context, id):
-        LOG.info("get_ip_allocation %s for tenant %s" %
+    def get_ip_address(self, context, id):
+        LOG.info("get_ip_address %s for tenant %s" %
                                                 (id, context.tenant_id))
         addr = context.session.query(models.IPAddress).\
                       filter(models.IPAddress.tenant_id == context.tenant_id).\

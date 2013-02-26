@@ -23,8 +23,8 @@ from quantum.common import exceptions
 from quantum.openstack.common import log as logging
 from quantum import wsgi
 
-RESOURCE_NAME = 'ip_allocation'
-RESOURCE_COLLECTION = RESOURCE_NAME + "s"
+RESOURCE_NAME = 'ip_address'
+RESOURCE_COLLECTION = RESOURCE_NAME + "es"
 EXTENDED_ATTRIBUTES_2_0 = {
     RESOURCE_COLLECTION: {}
 }
@@ -34,7 +34,7 @@ attr_dict[RESOURCE_NAME] = {'allow_post': True,
                             'allow_put': True,
                             'is_visible': True}
 
-LOG = logging.getLogger("quark.api.extensions.ip_allocations")
+LOG = logging.getLogger("quantum.quark.api.extensions.ip_addresses")
 
 
 def ip_dict(address):
@@ -45,7 +45,7 @@ def ip_dict(address):
                 port_id=address["port_id"])
 
 
-class IpAllocationsController(wsgi.Controller):
+class IpAddressesController(wsgi.Controller):
 
     def __init__(self, plugin):
         self._resource_name = RESOURCE_NAME
@@ -53,23 +53,23 @@ class IpAllocationsController(wsgi.Controller):
 
     def index(self, request):
         context = request.context
-        return {"ip_allocations":
-                        self._plugin.get_ip_allocations(context)}
+        return {"ip_addresses":
+                        self._plugin.get_ip_addresses(context)}
 
     def show(self, request, id):
         context = request.context
         try:
-            return {"ip_allocation":
-                        self._plugin.get_ip_allocation(context, id)}
+            return {"ip_addresses":
+                        self._plugin.get_ip_address(context, id)}
         except exceptions.NotFound:
             raise webob.exc.HTTPNotFound()
 
 
-class Ip_allocations(object):
+class Ip_addresses(object):
     """Routes support"""
     @classmethod
     def get_name(cls):
-        return "IP Allocations for a tenant"
+        return "IP Aaddresses for a tenant"
 
     @classmethod
     def get_alias(cls):
@@ -82,7 +82,7 @@ class Ip_allocations(object):
     @classmethod
     def get_namespace(cls):
         return ("http://docs.openstack.org/network/ext/"
-                "ip_allocations/api/v2.0")
+                "ip_addresses/api/v2.0")
 
     @classmethod
     def get_updated(cls):
@@ -97,7 +97,7 @@ class Ip_allocations(object):
     @classmethod
     def get_resources(cls):
         """ Returns Ext Resources """
-        controller = IpAllocationsController(QuantumManager.get_plugin())
+        controller = IpAddressesController(QuantumManager.get_plugin())
         return [extensions.ResourceExtension(
-            Ip_allocations.get_alias(),
+            Ip_addresses.get_alias(),
             controller)]

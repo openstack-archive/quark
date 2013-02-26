@@ -27,7 +27,7 @@ from quark.drivers import base
 from quark import exceptions as quark_exceptions
 
 
-LOG = logging.getLogger("quark.nvplib")
+LOG = logging.getLogger("quantum.quark.nvplib")
 
 
 class NVPDriver(base.BaseDriver):

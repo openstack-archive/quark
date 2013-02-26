@@ -13,6 +13,10 @@
 #    License for the specific language governing permissions and limitations
 #
 
+from quantum.openstack.common import log as logging
+
+LOG = logging.getLogger("quantum.quark.base")
+
 
 class BaseDriver(object):
     """
@@ -20,20 +24,23 @@ class BaseDriver(object):
     for the sample plugin
     """
     def load_config(self, path):
-        pass
+        LOG.info("load_config %s" % path)
 
     def get_connection(self):
-        pass
+        LOG.info("get_connection")
 
     def create_network(self, tenant_id, network_name, tags=None,
                        network_id=None, **kwargs):
-        pass
+        LOG.info("create_network %s %s %s" % (tenant_id, network_name,
+                                              tags))
 
     def delete_network(self, context, network_id):
-        pass
+        LOG.info("delete_network %s" % network_id)
 
     def create_port(self, context, network_id, port_id, status=True):
+        LOG.info("create_port %s %s %s" % (context.tenant_id, network_id,
+                                           port_id))
         return {"uuid": port_id}
 
     def delete_port(self, context, port_id, lswitch_uuid=None):
-        pass
+        LOG.info("delete_port %s %s" % (context.tenant_id, port_id))
