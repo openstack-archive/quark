@@ -26,6 +26,8 @@ from quantum.db.models_v2 import HasTenant, HasId
 from quantum.openstack.common import timeutils
 from quantum.openstack.common import log as logging
 
+from quark.db import custom_types
+
 LOG = logging.getLogger("quantum.quark.db.models")
 
 
@@ -104,7 +106,7 @@ class IPAddress(BASEV2, CreatedAt, HasId, HasTenant):
 
     address_readable = sa.Column(sa.String(128), nullable=False)
 
-    address = sa.Column(sa.LargeBinary(16), nullable=False)
+    address = sa.Column(custom_types.INET(), nullable=False)
 
     subnet_id = sa.Column(sa.String(36),
                           sa.ForeignKey("quark_subnets.id",
@@ -185,8 +187,8 @@ class Subnet(BASEV2, CreatedAt, HasId, HasTenant, IsHazTags):
     def cidr(cls):
         return Subnet._cidr
 
-    first_ip = sa.Column(sa.LargeBinary())
-    last_ip = sa.Column(sa.LargeBinary())
+    first_ip = sa.Column(custom_types.INET())
+    last_ip = sa.Column(custom_types.INET())
     ip_version = sa.Column(sa.Integer())
 
     allocated_ips = orm.relationship(IPAddress, backref="subnet")
