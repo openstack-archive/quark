@@ -85,22 +85,26 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                #            for subnet in network.get('subnets', [])]}
         return res
 
-    def _make_subnet_dict(self, subnet, fields=None):
-        subnet['allocation_pools'] = subnet.get('allocation_pools') or {}
-        subnet['dns_nameservers'] = subnet.get('dns_nameservers') or {}
+    def _subnet_dict(self, subnet, fields=None):
         # TODO(mdietz): this is a hack to get nova to boot. We want to get the
         #               "default" route out of the database and use that
         gateway_ip = "0.0.0.0"
-        if subnet.routes:
-            gateway_ip = subnet.routes[0]["gateway"]
-        res = {'id': subnet.get('id'),
-               'name': subnet.get('id'),
-               'tenant_id': subnet.get('tenant_id'),
-               'network_id': subnet.get('network_id'),
-               'ip_version': subnet.get('ip_version'),
-               'cidr': subnet.get('cidr'),
-               'enable_dhcp': subnet.get('enable_dhcp'),
-               "gateway_ip": gateway_ip}
+        subnet["allocation_pools"] = subnet.get("allocation_pools") or {}
+        subnet["dns_nameservers"] = subnet.get("dns_nameservers") or {}
+        return {"id": subnet.get('id'),
+                "name": subnet.get('id'),
+                "tenant_id": subnet.get('tenant_id'),
+                "network_id": subnet.get('network_id'),
+                "ip_version": subnet.get('ip_version'),
+                "cidr": subnet.get('cidr'),
+                "enable_dhcp": subnet.get('enable_dhcp'),
+                "gateway_ip": gateway_ip}
+
+    def _make_subnet_dict(self, subnet, fields=None):
+        res = self._subnet_dict(subnet, fields)
+        LOG.critical("*" * 80)
+        res["routes"] = [self._make_route_dict(r) for r in subnet["routes"]]
+        LOG.critical("*" * 80)
                #'dns_nameservers': [dns.get('address')
                #                    for dns in subnet.get('dns_nameservers')],
                #'host_routes': [{'destination': route.get('destination'),
@@ -121,9 +125,9 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         if port.get("mac_address"):
             mac = str(netaddr.EUI(port["mac_address"])).replace("-", ":")
         res = {"id": port.get("id"),
-               'name': port.get('id'),
+               "name": port.get('id'),
                "network_id": port.get("network_id"),
-               'tenant_id': port.get('tenant_id'),
+               "tenant_id": port.get('tenant_id'),
                "mac_address": mac,
                "admin_state_up": port.get("admin_state_up"),
                "status": port.get("status"),
@@ -155,6 +159,20 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                 ports[port_id]["fixed_ips"].append(
                     self._make_port_address_dict(addr_dict))
         return ports.values()
+
+    def _make_subnets_list(self, query, fields=None):
+        subnets = {}
+        for subnet_dict, route_dict in query:
+            subnet_id = subnet_dict["id"]
+            if subnet_id not in subnets:
+                subnets[subnet_id] = {}
+                subnets[subnet_id]["routes"] = []
+                subnets[subnet_id] = self._subnet_dict(subnet_dict, fields)
+                subnets[subnet_id]["gateway_ip"] = "0.0.0.0"
+            if route_dict:
+                subnets[subnet_id]["routes"].append(
+                    self._make_route_dict(route_dict))
+        return subnets.values()
 
     def _make_mac_range_dict(self, mac_range):
         return {"id": mac_range["id"],
@@ -223,11 +241,17 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         """
         LOG.info("get_subnet %s for tenant %s with fields %s" %
                 (id, context.tenant_id, fields))
-        subnet = context.session.query(models.Subnet).\
-            filter(models.Subnet.id == id).first()
-        if not subnet:
+        results = context.session.query(models.Subnet, models.Route).\
+            outerjoin(models.Route).\
+            filter(models.Subnet.id == id).all()
+        if not results:
             raise exceptions.SubnetNotFound(subnet_id=id)
-
+        subnet = {}
+        subnet.update(results[0][0])
+        subnet["routes"] = []
+        for _, route in results:
+            if route:
+                subnet["routes"].append(route)
         return self._make_subnet_dict(subnet)
 
     def get_subnets(self, context, filters=None, fields=None):
@@ -250,11 +274,12 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         """
         LOG.info("get_subnets for tenant %s with filters %s fields %s" %
                 (context.tenant_id, filters, fields))
-        query = context.session.query(models.Subnet)
+        query = context.session.query(models.Subnet, models.Route).\
+            outerjoin(models.Route)
         if filters.get("network_id"):
             query = query.filter(
                 models.Subnet.network_id == filters["network_id"])
-        return [self._make_subnet_dict(s) for s in query.all()]
+        return self._make_subnets_list(query, fields)
 
     def get_subnets_count(self, context, filters=None):
         """
@@ -562,10 +587,6 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         if filters.get("mac_address"):
             query = query.filter(
                 models.Port.mac_address.in_(filters["mac_address"]))
-
-        if filters.get("tenant_id"):
-            query = query.filter(
-                models.Port.tenant_id.in_(filters["tenant_id"]))
 
         if filters.get("tenant_id"):
             query = query.filter(
