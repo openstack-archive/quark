@@ -72,7 +72,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
 
     def _make_network_dict(self, network, fields=None):
         res = {'id': network.get('id'),
-               'name': network.get('id'),
+               'name': network.get('name'),
                'tenant_id': network.get('tenant_id'),
                'admin_state_up': network.get('admin_state_up'),
                'status': network.get('status'),
