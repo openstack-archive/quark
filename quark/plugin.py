@@ -50,7 +50,8 @@ quark_opts = [
 ]
 
 CONF.register_opts(quark_opts, "QUARK")
-CONF.set_override('api_extensions_path', ":".join(extensions.__path__))
+if 'api_extensions_path' in CONF:
+    CONF.set_override('api_extensions_path', ":".join(extensions.__path__))
 
 #NOTE(mdietz): hacking this for now because disallowing subnets on a network
 #              create is absurd. Might be useful to implement the ability
@@ -327,7 +328,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             subnets = []
             if network["network"].get("subnets"):
                 subnets = network["network"].pop("subnets")
-            new_net = models.Network(id=net_uuid)
+            new_net = models.Network(id=net_uuid, tenant_id=context.tenant_id)
             new_net.update(network["network"])
 
             for sub in subnets:
@@ -501,6 +502,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             new_port["backend_key"] = backend_port["uuid"]
             new_port["addresses"] = [addresses]
             new_port["mac_address"] = mac["address"]
+            new_port["tenant_id"] = context.tenant_id
 
             session.add(new_port)
         new_port["mac_address"] = str(netaddr.EUI(new_port["mac_address"],
@@ -641,8 +643,9 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                 raise exceptions.NetworkNotFound(net_id=id)
 
             backend_key = port["backend_key"]
+            mac_address = netaddr.EUI(port["mac_address"]).value
             self.ipam_driver.deallocate_mac_address(session,
-                                                    port["mac_address"],)
+                                                    mac_address,)
             self.ipam_driver.deallocate_ip_address(session, id,
                         ipam_reuse_after=self.ipam_reuse_after)
             session.delete(port)

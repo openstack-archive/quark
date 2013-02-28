@@ -191,7 +191,11 @@ class Subnet(BASEV2, CreatedAt, HasId, HasTenant, IsHazTags):
     last_ip = sa.Column(custom_types.INET())
     ip_version = sa.Column(sa.Integer())
 
-    allocated_ips = orm.relationship(IPAddress, backref="subnet")
+    allocated_ips = orm.relationship(IPAddress,
+                                     primaryjoin=
+                                     'and_(Subnet.id==IPAddress.subnet_id, '
+                                     'IPAddress._deallocated!=1)',
+                                     backref="subnet")
     routes = orm.relationship(Route, backref='subnet', cascade='delete')
 
 
