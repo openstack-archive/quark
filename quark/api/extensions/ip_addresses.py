@@ -54,13 +54,13 @@ class IpAddressesController(wsgi.Controller):
     def index(self, request):
         context = request.context
         return {"ip_addresses":
-                        self._plugin.get_ip_addresses(context)}
+                self._plugin.get_ip_addresses(context)}
 
     def show(self, request, id):
         context = request.context
         try:
             return {"ip_addresses":
-                        self._plugin.get_ip_address(context, id)}
+                    self._plugin.get_ip_address(context, id)}
         except exceptions.NotFound:
             raise webob.exc.HTTPNotFound()
 

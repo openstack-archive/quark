@@ -43,7 +43,7 @@ class NVPDriver(base.BaseDriver):
         for conn in connections.split():
             (ip, port, user, pw, req_timeout,
              http_timeout, retries, redirects) =\
-                    config.get("NVP", conn).split(":")
+                config.get("NVP", conn).split(":")
             self.nvp_connections.append(dict(ip_address=ip,
                                         port=port,
                                         username=user,
@@ -65,7 +65,7 @@ class NVPDriver(base.BaseDriver):
     def create_network(self, tenant_id, network_name, tags=None,
                        network_id=None, **kwargs):
         return self._create_lswitch(tenant_id, network_name, tags,
-                               network_id, **kwargs)
+                                    network_id, **kwargs)
 
     def delete_network(self, context, network_id):
         connection = self.get_connection()
@@ -108,7 +108,7 @@ class NVPDriver(base.BaseDriver):
         if max_per_switch > 0:
             LOG.debug("Max ports per switch %d" % max_per_switch)
             switch = self._get_open_lswitch(context, network_id,
-                                                max_per_switch)
+                                            max_per_switch)
             if switch:
                 LOG.debug("Found open switch %s" % switch)
                 return switch
@@ -150,7 +150,7 @@ class NVPDriver(base.BaseDriver):
     def _create_lswitch(self, context, network_name, tags=None,
                         network_id=None, **kwargs):
         LOG.debug("Creating new lswitch for %s network %s" %
-                                    (context.tenant_id, network_name))
+                 (context.tenant_id, network_name))
         tenant_id = context.tenant_id
         connection = self.get_connection()
         switch = connection.lswitch()
@@ -169,9 +169,9 @@ class OptimizedNVPDriver(NVPDriver):
     def _get_open_lswitch(self, context, network_id, max_per_switch):
         #TODO: use the lswitch table here
         return super(OptimizedNVPDriver, self)._get_open_lswitch(
-                            context, network_id, max_per_switch)
+            context, network_id, max_per_switch)
 
     def _get_lswitch_for_network(self, context, network_id):
         #TODO: use the lswitch table here
         return super(OptimizedNVPDriver, self)._get_lswitch_for_network(
-                            context, network_id)
+            context, network_id)

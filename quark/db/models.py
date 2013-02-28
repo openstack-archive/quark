@@ -69,7 +69,8 @@ class TagAssociation(BASEV2, HasId):
 class Tag(BASEV2, HasId, HasTenant):
     __tablename__ = "quark_tags"
     association_uuid = sa.Column(sa.String(36),
-                       sa.ForeignKey(TagAssociation.id), nullable=False)
+                                 sa.ForeignKey(TagAssociation.id),
+                                 nullable=False)
 
     tag = sa.Column(sa.String(255), nullable=False)
     parent = associationproxy.association_proxy("association", "parent")
@@ -208,9 +209,9 @@ class Port(BASEV2, CreatedAt, HasId, HasTenant):
 class MacAddress(BASEV2, CreatedAt, HasTenant):
     __tablename__ = "quark_mac_addresses"
     address = sa.Column(sa.BigInteger(), primary_key=True)
-    mac_address_range_id = sa.Column(sa.String(36),
-                                sa.ForeignKey("quark_mac_address_ranges.id"),
-                                nullable=False)
+    mac_address_range_id = sa.Column(
+        sa.String(36), sa.ForeignKey("quark_mac_address_ranges.id"),
+        nullable=False)
     deallocated = sa.Column(sa.Boolean())
     deallocated_at = sa.Column(sa.DateTime())
     orm.relationship(Port, backref="mac_address")

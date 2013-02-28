@@ -52,14 +52,14 @@ class MacAddressRangesController(wsgi.Controller):
         if not "cidr" in body[RESOURCE_NAME]:
             raise webob.exc.HTTPUnprocessableEntity()
         return {"mac_address_range":
-                 self._plugin.create_mac_address_range(request.context, body)}
+                self._plugin.create_mac_address_range(request.context, body)}
 
     def index(self, request):
         context = request.context
         if not context.is_admin:
             raise webob.exc.HTTPForbidden()
         return {"mac_address_ranges":
-                        self._plugin.get_mac_address_ranges(context)}
+                self._plugin.get_mac_address_ranges(context)}
 
     def show(self, request, id):
         context = request.context

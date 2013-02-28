@@ -35,12 +35,12 @@ class QuarkIpam(object):
     def _choose_available_subnet(self, net_id, session):
         subnets = session.query(models.Subnet,
                                 sql_func.count(models.IPAddress.subnet_id).
-                                    label('count')).\
-                    with_lockmode("update").\
-                    outerjoin(models.Subnet.allocated_ips).\
-                    group_by(models.IPAddress).\
-                    order_by("count DESC").\
-                    all()
+                                label('count')).\
+            with_lockmode("update").\
+            outerjoin(models.Subnet.allocated_ips).\
+            group_by(models.IPAddress).\
+            order_by("count DESC").\
+            all()
 
         if not subnets:
             raise exceptions.IpAddressGenerationFailure(net_id=net_id)
@@ -54,11 +54,11 @@ class QuarkIpam(object):
     def allocate_mac_address(self, session, net_id, port_id, tenant_id,
                              reuse_after):
         reuse = (datetime.datetime.utcnow() -
-                        datetime.timedelta(seconds=reuse_after))
+                 datetime.timedelta(seconds=reuse_after))
         deallocated_mac = session.query(models.MacAddress).\
-                            filter(models.MacAddress.deallocated == 1).\
-                            filter(models.MacAddress.deallocated_at <= reuse).\
-                            first()
+            filter(models.MacAddress.deallocated == 1).\
+            filter(models.MacAddress.deallocated_at <= reuse).\
+            first()
         if deallocated_mac:
             deallocated_mac["deallocated"] = False
             deallocated_mac["deallocated_at"] = None
@@ -67,10 +67,10 @@ class QuarkIpam(object):
         ranges = session.query(models.MacAddressRange,
                                sql_func.count(models.MacAddress).
                                label("count")).\
-                        outerjoin(models.MacAddress).\
-                        group_by(models.MacAddressRange).\
-                        order_by("count DESC").\
-                        all()
+            outerjoin(models.MacAddress).\
+            group_by(models.MacAddressRange).\
+            order_by("count DESC").\
+            all()
         if not ranges:
             raise exceptions.MacAddressGenerationFailure(net_id=net_id)
         for result in ranges:
@@ -78,10 +78,10 @@ class QuarkIpam(object):
             if rng["last_address"] - rng["first_address"] <= addr_count:
                 continue
             highest_mac = session.query(models.MacAddress).\
-                            filter(models.MacAddress.mac_address_range_id ==
-                                   rng["id"]).\
-                            order_by("address DESC").\
-                            first()
+                filter(models.MacAddress.mac_address_range_id ==
+                       rng["id"]).\
+                order_by("address DESC").\
+                first()
             address = models.MacAddress()
             if highest_mac:
                 next_mac = netaddr.EUI(highest_mac["address"]).value
@@ -98,20 +98,20 @@ class QuarkIpam(object):
 
     def allocate_ip_address(self, session, net_id, port_id, reuse_after):
         reuse = (datetime.datetime.utcnow() -
-                        datetime.timedelta(seconds=reuse_after))
+                 datetime.timedelta(seconds=reuse_after))
         address = session.query(models.IPAddress).\
-                          filter(models.IPAddress.network_id == net_id).\
-                          filter(models.IPAddress.port_id == None).\
-                          filter(models.IPAddress._deallocated == 1).\
-                          filter(models.IPAddress.deallocated_at <= reuse).\
-                          first()
+            filter(models.IPAddress.network_id == net_id).\
+            filter(models.IPAddress.port_id == None).\
+            filter(models.IPAddress._deallocated == 1).\
+            filter(models.IPAddress.deallocated_at <= reuse).\
+            first()
         if not address:
             subnet = self._choose_available_subnet(net_id, session)
             highest_addr = session.query(models.IPAddress).\
-                                filter(models.IPAddress.subnet_id ==
-                                                        subnet["id"]).\
-                                order_by("address DESC").\
-                                first()
+                filter(models.IPAddress.subnet_id ==
+                       subnet["id"]).\
+                order_by("address DESC").\
+                first()
 
             # TODO(mdietz): Need to honor policies here
             address = models.IPAddress()
@@ -138,8 +138,8 @@ class QuarkIpam(object):
 
     def deallocate_ip_address(self, session, port_id, **kwargs):
         address = session.query(models.IPAddress).\
-                          filter(models.IPAddress.port_id == port_id).\
-                          first()
+            filter(models.IPAddress.port_id == port_id).\
+            first()
         if not address:
             LOG.critical("No IP assigned or already deallocated")
             return
@@ -147,12 +147,12 @@ class QuarkIpam(object):
 
     def deallocate_mac_address(self, session, address):
         mac = session.query(models.MacAddress).\
-                        filter(models.MacAddress.address == address).\
-                        first()
+            filter(models.MacAddress.address == address).\
+            first()
         if not mac:
             mac_pretty = netaddr.EUI(address)
             raise exceptions.NotFound(
-                        message="No MAC address %s found" % mac_pretty)
+                message="No MAC address %s found" % mac_pretty)
         mac["deallocated"] = True
         mac["deallocated_at"] = datetime.datetime.utcnow()
         session.add(mac)

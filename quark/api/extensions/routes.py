@@ -59,12 +59,12 @@ class RoutesController(wsgi.Controller):
                 raise webob.exc.HTTPUnprocessableEntity()
 
         return {"route":
-                 self._plugin.create_route(request.context, body)}
+                self._plugin.create_route(request.context, body)}
 
     def index(self, request):
         context = request.context
         return {"routes":
-                        self._plugin.get_routes(context)}
+                self._plugin.get_routes(context)}
 
     def show(self, request, id):
         context = request.context
