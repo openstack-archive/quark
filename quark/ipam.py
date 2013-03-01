@@ -91,7 +91,6 @@ class QuarkIpam(object):
 
             address["mac_address_range_id"] = rng["id"]
             address["tenant_id"] = tenant_id
-            session.add(address)
             return address
 
         raise exceptions.MacAddressGenerationFailure(net_id=net_id)
@@ -131,7 +130,6 @@ class QuarkIpam(object):
 
         if address:
             address["port_id"] = port_id
-            session.add(address)
             address["ip_address"] = address.formatted()
             return address
         raise exceptions.IpAddressGenerationFailure(net_id=net_id)

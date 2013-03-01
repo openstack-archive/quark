@@ -20,7 +20,6 @@ v2 Quantum Plug-in API Quark Implementation
 import netaddr
 from sqlalchemy import func as sql_func
 
-from quantum.api.v2 import attributes as q_attr
 from quantum import quantum_plugin_base_v2
 from quantum.common import exceptions
 from quantum.db import api as db_api
@@ -39,7 +38,7 @@ CONF = cfg.CONF
 quark_opts = [
     cfg.StrOpt('net_driver',
                default='quark.drivers.base.BaseDriver',
-               help=_('The client to use to talk to NVP')),
+               help=_('The client to use to talk to the backend')),
     cfg.StrOpt('ipam_driver', default='quark.ipam.QuarkIpam',
                help=_('IPAM Implementation to use')),
     cfg.BoolOpt('ipam_reuse_after', default=7200,
@@ -52,11 +51,6 @@ quark_opts = [
 CONF.register_opts(quark_opts, "QUARK")
 CONF.set_override('api_extensions_path', ":".join(extensions.__path__))
 
-#NOTE(mdietz): hacking this for now because disallowing subnets on a network
-#              create is absurd. Might be useful to implement the ability
-#              upstream to add a "mask" on the attributes to override
-q_attr.RESOURCE_ATTRIBUTE_MAP["networks"]["subnets"]["allow_post"] = True
-
 
 class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
     # NOTE(mdietz): I hate this
@@ -65,6 +59,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
 
     def __init__(self):
         db_api.configure_db()
+        models.BASEV2.metadata.create_all(db_api._ENGINE)
         self.net_driver = (importutils.import_class(CONF.QUARK.net_driver))()
         self.net_driver.load_config(CONF.QUARK.net_driver_cfg)
         self.ipam_driver = (importutils.import_class(CONF.QUARK.ipam_driver))()
@@ -102,9 +97,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
 
     def _make_subnet_dict(self, subnet, fields=None):
         res = self._subnet_dict(subnet, fields)
-        LOG.critical("*" * 80)
         res["routes"] = [self._make_route_dict(r) for r in subnet["routes"]]
-        LOG.critical("*" * 80)
                #'dns_nameservers': [dns.get('address')
                #                    for dns in subnet.get('dns_nameservers')],
                #'host_routes': [{'destination': route.get('destination'),
@@ -168,7 +161,6 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                 subnets[subnet_id] = {}
                 subnets[subnet_id]["routes"] = []
                 subnets[subnet_id] = self._subnet_dict(subnet_dict, fields)
-                subnets[subnet_id]["gateway_ip"] = "0.0.0.0"
             if route_dict:
                 subnets[subnet_id]["routes"].append(
                     self._make_route_dict(route_dict))
@@ -508,7 +500,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             if not net:
                 raise exceptions.NetworkNotFound(net_id=net_id)
 
-            addresses = self.ipam_driver.allocate_ip_address(
+            address = self.ipam_driver.allocate_ip_address(
                 session, net_id, port_id, self.ipam_reuse_after)
             mac = self.ipam_driver.allocate_mac_address(session,
                                                         net_id,
@@ -517,14 +509,22 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                                                         self.ipam_reuse_after)
             backend_port = self.net_driver.create_port(context, net_id,
                                                        port_id=port_id)
+
+            #TODO: hack for now, until we allow allocate from multiple
+            #      blocks later
+            addresses = [address]
             new_port = models.Port()
             new_port.update(port["port"])
             new_port["id"] = port_id
             new_port["backend_key"] = backend_port["uuid"]
-            new_port["addresses"] = [addresses]
+            new_port["addresses"] = addresses
             new_port["mac_address"] = mac["address"]
 
+            for a in addresses:
+                session.add(a)
+            session.add(mac)
             session.add(new_port)
+
         new_port["mac_address"] = str(netaddr.EUI(new_port["mac_address"],
                                       dialect=netaddr.mac_unix))
         LOG.debug("Port created %s" % new_port)
@@ -675,7 +675,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         LOG.info("create_mac_address_range for tenant %s" % context.tenant_id)
         new_range = models.MacAddressRange()
         cidr = mac_range["mac_address_range"]["cidr"]
-        cidr, first_address, last_address = self.bto_mac_range(cidr)
+        cidr, first_address, last_address = self._to_mac_range(cidr)
         new_range["cidr"] = cidr
         new_range["first_address"] = first_address
         new_range["last_address"] = last_address
@@ -701,7 +701,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         mask_size = 1 << (48 - mask)
         prefix = "%s%s" % (prefix, "0" * diff)
         prefix_int = int(prefix, base=16)
-        cidr = "%s/%s" % (netaddr.EUI(prefix, dialect=netaddr.mac_unix), mask)
+        cidr = "%s/%s" % (str(netaddr.EUI(prefix)).replace("-", ":"), mask)
         return cidr, prefix_int, prefix_int + mask_size
 
     def get_route(self, context, id):
