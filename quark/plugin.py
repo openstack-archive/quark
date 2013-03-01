@@ -678,7 +678,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         LOG.info("create_mac_address_range for tenant %s" % context.tenant_id)
         new_range = models.MacAddressRange()
         cidr = mac_range["mac_address_range"]["cidr"]
-        cidr, first_address, last_address = self.bto_mac_range(cidr)
+        cidr, first_address, last_address = self._to_mac_range(cidr)
         new_range["cidr"] = cidr
         new_range["first_address"] = first_address
         new_range["last_address"] = last_address
