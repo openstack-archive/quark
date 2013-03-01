@@ -9,6 +9,9 @@ CRUD IP Allocations
 * CRUD MacAddressRanges
 * AIC doesn't support creating multiple switches on the same network. i.e. if we expand past the port count per switch, undefined
 
+We may want to override the existing sessionmaker. Things it chooses to do, like disabling expiration and autocommiting, are discouraged by the docs
+Implementation of Zope Interfaces to abstract base class all the things, as well as represent pluggable all the things
+
 
 Later:
 Maybe implement a straight passthrough driver for testing and debugging purposes
