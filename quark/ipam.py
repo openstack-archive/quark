@@ -65,7 +65,7 @@ class QuarkIpam(object):
             return deallocated_mac
 
         ranges = session.query(models.MacAddressRange,
-                               sql_func.count(models.MacAddress).
+                               sql_func.count(models.MacAddress.address).
                                label("count")).\
             outerjoin(models.MacAddress).\
             group_by(models.MacAddressRange).\
@@ -128,6 +128,7 @@ class QuarkIpam(object):
             address["version"] = subnet["ip_version"]
             address["network_id"] = net_id
             address["tenant_id"] = subnet["tenant_id"]
+            address["_deallocated"] = 0
 
         if address:
             address["port_id"] = port_id
