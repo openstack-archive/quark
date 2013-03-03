@@ -19,10 +19,13 @@ NVP client driver for Quark
 
 import ConfigParser
 
+import sqlalchemy as sa
+
 import aiclib
 from quantum.openstack.common import log as logging
+from quantum.db.models_v2 import HasId
 
-#from quark.db import models
+from quark.db import models
 from quark.drivers import base
 from quark import exceptions as quark_exceptions
 
@@ -175,3 +178,8 @@ class OptimizedNVPDriver(NVPDriver):
         #TODO: use the lswitch table here
         return super(OptimizedNVPDriver, self)._get_lswitch_for_network(
             context, network_id)
+
+
+class LSwitch(models.BASEV2, HasId):
+    __tablename__ = "quark_nvp_driver_lswitch"
+    switch_id = sa.Column(sa.String(255), primary_key=True, nullable=False)
