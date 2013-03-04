@@ -15,9 +15,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from distribute_setup import use_setuptools
-use_setuptools()
-
 from setuptools import setup
 
 
