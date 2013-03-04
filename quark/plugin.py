@@ -522,9 +522,13 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             new_port["mac_address"] = mac["address"]
             new_port["tenant_id"] = context.tenant_id
 
-            for a in addresses:
-                session.add(a)
             session.add(mac)
+            for addr in addresses:
+                assoc = models.PortIPAddressAssociation()
+                assoc["port"] = new_port
+                assoc["ip_address"] = addr
+                session.add(addr)
+                session.add(assoc)
             session.add(new_port)
 
         new_port["mac_address"] = str(netaddr.EUI(new_port["mac_address"],

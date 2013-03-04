@@ -102,6 +102,18 @@ class IsHazTags(object):
         return orm.relationship("TagAssociation", backref=backref)
 
 
+class PortIPAddressAssociation(BASEV2, HasId):
+    __tablename__ = "quark_port_ip_address_associations"
+    port_id = sa.Column(sa.String(36), sa.ForeignKey("quark_ports.id"),
+                        nullable=False)
+    ip_address_id = sa.Column(sa.String(36),
+                              sa.ForeignKey("quark_ip_addresses.id"),
+                              nullable=False)
+    port = orm.relationship("Port", uselist=False, backref="association")
+    ip_address = orm.relationship("IPAddress", uselist=False,
+                                  backref="association")
+
+
 class IPAddress(BASEV2, HasId, HasTenant):
     """More closely emulate the melange version of the IP table.
     We always mark the record as deallocated rather than deleting it.
@@ -119,9 +131,6 @@ class IPAddress(BASEV2, HasId, HasTenant):
     network_id = sa.Column(sa.String(36),
                            sa.ForeignKey("quark_networks.id",
                                          ondelete="CASCADE"))
-    port_id = sa.Column(sa.String(36),
-                        sa.ForeignKey("quark_ports.id"),
-                        nullable=True)
 
     version = sa.Column(sa.Integer())
 
@@ -198,8 +207,8 @@ class Subnet(BASEV2, HasId, HasTenant, IsHazTags):
     ip_version = sa.Column(sa.Integer())
 
     allocated_ips = orm.relationship(IPAddress,
-                                     primaryjoin=
-                                     'and_(Subnet.id==IPAddress.subnet_id, '
+                                     primaryjoin='and_(Subnet.id=='
+                                     'IPAddress.subnet_id, '
                                      'IPAddress._deallocated!=1)',
                                      backref="subnet")
     routes = orm.relationship(Route, backref='subnet', cascade='delete')
