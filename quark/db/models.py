@@ -216,18 +216,6 @@ class Port(BASEV2, HasId, HasTenant):
     ip_addresses = orm.relationship(IPAddress, backref=orm.backref("ports"))
 
 
-class PortIPAddressAssociation(BASEV2, HasId):
-    __tablename__ = "quark_port_ip_address_associations"
-    port_id = sa.Column(sa.String(36), sa.ForeignKey("quark_ports.id"),
-                        nullable=False)
-    ip_address_id = sa.Column(sa.String(36),
-                              sa.ForeignKey("quark_ip_addresses.id"),
-                              nullable=False)
-    port = orm.relationship(Port, uselist=False, backref="association")
-    ip_address = orm.relationship(IPAddress, uselist=False,
-                                  backref="association")
-
-
 class MacAddress(BASEV2, HasTenant):
     __tablename__ = "quark_mac_addresses"
     address = sa.Column(sa.BigInteger(), primary_key=True)
@@ -236,6 +224,7 @@ class MacAddress(BASEV2, HasTenant):
         nullable=False)
     deallocated = sa.Column(sa.Boolean())
     deallocated_at = sa.Column(sa.DateTime())
+    orm.relationship(Port, backref="mac_address")
 
 
 class MacAddressRange(BASEV2, HasId):
@@ -243,7 +232,6 @@ class MacAddressRange(BASEV2, HasId):
     cidr = sa.Column(sa.String(255), nullable=False)
     first_address = sa.Column(sa.BigInteger(), nullable=False)
     last_address = sa.Column(sa.BigInteger(), nullable=False)
-    mac_addresses = orm.relationship(MacAddress, backref="mac_address_range")
 
 
 class Network(BASEV2, HasTenant, HasId):

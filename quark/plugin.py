@@ -490,7 +490,6 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             if k in port["port"]:
                 port["port"].pop(k)
 
-        addresses = []
         with session.begin():
             port_id = uuidutils.generate_uuid()
             net_id = port["port"]["network_id"]
@@ -523,15 +522,10 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             new_port["mac_address"] = mac["address"]
             new_port["tenant_id"] = context.tenant_id
 
-            session.add(new_port)
+            for a in addresses:
+                session.add(a)
             session.add(mac)
-            for addr in addresses:
-                addr["port"] = new_port
-                assoc = models.PortIPAddressAssociation()
-                assoc["port"] = new_port
-                assoc["ip_address"] = addr
-                session.add(addr)
-                session.add(assoc)
+            session.add(new_port)
 
         new_port["mac_address"] = str(netaddr.EUI(new_port["mac_address"],
                                       dialect=netaddr.mac_unix))
