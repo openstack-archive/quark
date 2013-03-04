@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # -*- encoding: utf-8 -*-
-# Copyright (c) 2012 OpenStack, LLC.
+# Copyright (c) 2013 OpenStack Foundation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,9 +14,6 @@
 # implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from distribute_setup import use_setuptools
-use_setuptools()
 
 from setuptools import setup
 
