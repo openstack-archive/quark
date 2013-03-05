@@ -623,8 +623,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         """
         LOG.info("get_ports for tenant %s filters %s fields %s" %
                 (context.tenant_id, filters, fields))
-        query = context.session.query(models.Port, models.IPAddress).\
-            outerjoin(models.IPAddress)
+        query = context.session.query(models.Port, models.IPAddress)
         query = self._ports_query(context, filters, fields=fields, query=query)
         return self._make_ports_list(query, fields)
 

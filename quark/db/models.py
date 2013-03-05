@@ -109,9 +109,6 @@ class PortIPAddressAssociation(BASEV2, HasId):
     ip_address_id = sa.Column(sa.String(36),
                               sa.ForeignKey("quark_ip_addresses.id"),
                               nullable=False)
-    port = orm.relationship("Port", uselist=False, backref="association")
-    ip_address = orm.relationship("IPAddress", uselist=False,
-                                  backref="association")
 
 
 class IPAddress(BASEV2, HasId, HasTenant):
@@ -223,6 +220,9 @@ class Port(BASEV2, HasId, HasTenant):
     backend_key = sa.Column(sa.String(36), nullable=False)
     mac_address = sa.Column(sa.BigInteger())
     device_id = sa.Column(sa.String(255), nullable=False)
+    ip_addresses = orm.relationship(IPAddress,
+                                    secondary=PortIPAddressAssociation,
+                                    backref="ports")
 
 
 class MacAddress(BASEV2, HasTenant):
