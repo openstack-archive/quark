@@ -102,15 +102,6 @@ class IsHazTags(object):
         return orm.relationship("TagAssociation", backref=backref)
 
 
-class PortIPAddressAssociation(BASEV2, HasId):
-    __tablename__ = "quark_port_ip_address_associations"
-    port_id = sa.Column(sa.String(36), sa.ForeignKey("quark_ports.id"),
-                        nullable=False)
-    ip_address_id = sa.Column(sa.String(36),
-                              sa.ForeignKey("quark_ip_addresses.id"),
-                              nullable=False)
-
-
 class IPAddress(BASEV2, HasId, HasTenant):
     """More closely emulate the melange version of the IP table.
     We always mark the record as deallocated rather than deleting it.
@@ -129,7 +120,6 @@ class IPAddress(BASEV2, HasId, HasTenant):
                            sa.ForeignKey("quark_networks.id",
                                          ondelete="CASCADE"))
 
-    port_id = sa.Column(sa.String(36))
     version = sa.Column(sa.Integer())
 
     # Need a constant to facilitate the indexed search for new IPs
@@ -212,6 +202,14 @@ class Subnet(BASEV2, HasId, HasTenant, IsHazTags):
     routes = orm.relationship(Route, backref='subnet', cascade='delete')
 
 
+port_ip_association_table = sa.Table("quark_port_ip_address_associations",
+                                  BASEV2.metadata,
+                                  sa.Column("port_id", sa.String(36),
+                                    sa.ForeignKey("quark_ports.id")),
+                                  sa.Column("ip_address_id", sa.String(36),
+                                    sa.ForeignKey("quark_ip_addresses.id")))
+
+
 class Port(BASEV2, HasId, HasTenant):
     __tablename__ = "quark_ports"
     network_id = sa.Column(sa.String(36), sa.ForeignKey("quark_networks.id"),
@@ -221,8 +219,10 @@ class Port(BASEV2, HasId, HasTenant):
     mac_address = sa.Column(sa.BigInteger())
     device_id = sa.Column(sa.String(255), nullable=False)
     ip_addresses = orm.relationship(IPAddress,
-                                    secondary=PortIPAddressAssociation,
-                                    backref="ports")
+        primaryjoin=sa.and_(id == port_ip_association_table.c.port_id,
+                    port_ip_association_table.c.ip_address_id == IPAddress.id),
+        secondary=port_ip_association_table,
+        backref="ports")
 
 
 class MacAddress(BASEV2, HasTenant):

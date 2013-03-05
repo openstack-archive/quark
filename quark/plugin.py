@@ -490,6 +490,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             if k in port["port"]:
                 port["port"].pop(k)
 
+        addresses = []
         with session.begin():
             port_id = uuidutils.generate_uuid()
             net_id = port["port"]["network_id"]
@@ -501,8 +502,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             if not net:
                 raise exceptions.NetworkNotFound(net_id=net_id)
 
-            address = self.ipam_driver.allocate_ip_address(
-                session, net_id, port_id, self.ipam_reuse_after)
+            addresses.append(self.ipam_driver.allocate_ip_address(
+                session, net_id, port_id, self.ipam_reuse_after))
             mac = self.ipam_driver.allocate_mac_address(session,
                                                         net_id,
                                                         port_id,
@@ -511,9 +512,6 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             backend_port = self.net_driver.create_port(context, net_id,
                                                        port_id=port_id)
 
-            #TODO: hack for now, until we allow allocate from multiple
-            #      blocks later
-            addresses = [address]
             new_port = models.Port()
             new_port.update(port["port"])
             new_port["id"] = port_id
@@ -521,17 +519,9 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             new_port["addresses"] = addresses
             new_port["mac_address"] = mac["address"]
             new_port["tenant_id"] = context.tenant_id
+            new_port["ip_addresses"].extend(addresses)
 
             session.add(mac)
-            for addr in addresses:
-                assoc = models.PortIPAddressAssociation()
-                assoc["port"] = new_port
-                assoc["ip_address"] = addr
-
-                #TODO: remove this after the join table works
-                addr["port_id"] = port_id
-                session.add(addr)
-                session.add(assoc)
             session.add(new_port)
 
         new_port["mac_address"] = str(netaddr.EUI(new_port["mac_address"],
