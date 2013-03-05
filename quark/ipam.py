@@ -71,8 +71,7 @@ class QuarkIpam(object):
             group_by(models.MacAddressRange).\
             order_by("count DESC").\
             all()
-        if not ranges:
-            raise exceptions.MacAddressGenerationFailure(net_id=net_id)
+
         for result in ranges:
             rng, addr_count = result
             if rng["last_address"] - rng["first_address"] <= addr_count:
