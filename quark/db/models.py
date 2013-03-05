@@ -132,6 +132,7 @@ class IPAddress(BASEV2, HasId, HasTenant):
                            sa.ForeignKey("quark_networks.id",
                                          ondelete="CASCADE"))
 
+    port_id = sa.Column(sa.String(36))
     version = sa.Column(sa.Integer())
 
     # Need a constant to facilitate the indexed search for new IPs
@@ -222,7 +223,6 @@ class Port(BASEV2, HasId, HasTenant):
     backend_key = sa.Column(sa.String(36), nullable=False)
     mac_address = sa.Column(sa.BigInteger())
     device_id = sa.Column(sa.String(255), nullable=False)
-    ip_addresses = orm.relationship(IPAddress, backref=orm.backref("ports"))
 
 
 class MacAddress(BASEV2, HasTenant):

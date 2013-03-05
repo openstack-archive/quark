@@ -527,6 +527,9 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                 assoc = models.PortIPAddressAssociation()
                 assoc["port"] = new_port
                 assoc["ip_address"] = addr
+
+                #TODO: remove this after the join table works
+                addr["port_id"] = port_id
                 session.add(addr)
                 session.add(assoc)
             session.add(new_port)
@@ -656,22 +659,28 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         LOG.info("delete_port %s for tenant %s" %
                 (id, context.tenant_id))
         session = context.session
-        with session.begin():
-            port = session.query(models.Port).\
-                filter(models.Port.id == id).\
-                filter(models.Port.tenant_id == context.tenant_id).\
-                first()
-            if not port:
-                raise exceptions.NetworkNotFound(net_id=id)
+        port = session.query(models.Port).\
+            filter(models.Port.id == id).\
+            filter(models.Port.tenant_id == context.tenant_id).\
+            first()
+        if not port:
+            raise exceptions.NetworkNotFound(net_id=id)
 
-            backend_key = port["backend_key"]
-            mac_address = netaddr.EUI(port["mac_address"]).value
-            self.ipam_driver.deallocate_mac_address(session,
-                                                    mac_address,)
-            self.ipam_driver.deallocate_ip_address(
-                session, id, ipam_reuse_after=self.ipam_reuse_after)
-            session.delete(port)
-            self.net_driver.delete_port(context, backend_key)
+        assocs = session.query(models.PortIPAddressAssociation).\
+            filter(models.PortIPAddressAssociation.port_id == id).\
+            all()
+
+        backend_key = port["backend_key"]
+        mac_address = netaddr.EUI(port["mac_address"]).value
+        self.ipam_driver.deallocate_mac_address(session,
+                                                mac_address,)
+        self.ipam_driver.deallocate_ip_address(
+            session, id, ipam_reuse_after=self.ipam_reuse_after)
+        for assoc in assocs:
+            session.delete(assoc)
+        session.delete(port)
+        session.flush()
+        self.net_driver.delete_port(context, backend_key)
 
     def get_mac_address_ranges(self, context):
         LOG.info("get_mac_address_ranges for tenant %s" % context.tenant_id)
