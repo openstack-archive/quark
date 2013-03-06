@@ -56,7 +56,7 @@ class QuarkIpam(object):
         reuse = (datetime.datetime.utcnow() -
                  datetime.timedelta(seconds=reuse_after))
         deallocated_mac = session.query(models.MacAddress).\
-            filter(models.MacAddress.deallocated == 1).\
+            filter(models.MacAddress.deallocated == True).\
             filter(models.MacAddress.deallocated_at <= reuse).\
             first()
         if deallocated_mac:
