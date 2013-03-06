@@ -19,11 +19,11 @@ v2 Quantum Plug-in API Quark Implementation
 
 import netaddr
 from sqlalchemy import func as sql_func
+from oslo.config import cfg
 
 from quantum import quantum_plugin_base_v2
 from quantum.common import exceptions
 from quantum.db import api as db_api
-from quantum.openstack.common import cfg
 from quantum.openstack.common import importutils
 from quantum.openstack.common import log as logging
 from quantum.openstack.common import uuidutils
