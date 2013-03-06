@@ -23,6 +23,15 @@ class TestQuarkIpam(test_base.TestBase):
         self.context = context.get_admin_context()
         self.plugin = quark.plugin.Plugin()
 
+    def _create_and_insert_mar(self, base='01:02:03:00:00:00', mask=24):
+        first_address = int(base.replace(':', ''), base=16)
+        last_address = first_address + (1 << (48 - mask))
+        mar = models.MacAddressRange(cidr=base + '/' + str(mask),
+                                     first_address=first_address,
+                                     last_address=last_address)
+        self.context.session.add(mar)
+        self.context.session.flush()
+
     def test_allocate_mac_address_no_ranges(self):
         net_id = None
         port_id = None
@@ -42,17 +51,9 @@ class TestQuarkIpam(test_base.TestBase):
         tenant_id = 'foobar'
         reuse_after = 0
 
-        mac_base = '01:02:03:00:00:00'
-        mac_mask = 24
-        mac_first_address = int(mac_base.replace(':', ''), base=16)
-        mac_last_address = mac_first_address + (1 << (48 - mac_mask))
-        mar = models.MacAddressRange(cidr=mac_base + '/' + str(mac_mask),
-                                     first_address=mac_first_address,
-                                     last_address=mac_last_address)
-        self.context.session.add(mar)
-        self.context.session.flush()
-
+        self._create_and_insert_mar()
         mar = self.context.session.query(models.MacAddressRange).first()
+
         mac = self.ipam.allocate_mac_address(self.context.session,
                                              net_id,
                                              port_id,
@@ -61,7 +62,7 @@ class TestQuarkIpam(test_base.TestBase):
 
         self.assertEqual(mac['tenant_id'], tenant_id)
         self.assertIsNone(mac['created_at'])  # null pre-insert
-        self.assertEqual(mac['address'], mac_first_address)
+        self.assertEqual(mac['address'], mar['first_address'])
         self.assertEqual(mac['mac_address_range_id'], mar['id'])
         self.assertFalse(mac['deallocated'])
         self.assertIsNone(mac['deallocated_at'])
@@ -72,22 +73,13 @@ class TestQuarkIpam(test_base.TestBase):
         tenant_id = 'foobar'
         reuse_after = 0
 
-        mac_base = '01:02:03:00:00:00'
-        mac_mask = 24
-        mac_first_address = int(mac_base.replace(':', ''), base=16)
-        mac_last_address = mac_first_address + (1 << (48 - mac_mask))
-        mar = models.MacAddressRange(cidr=mac_base + '/' + str(mac_mask),
-                                     first_address=mac_first_address,
-                                     last_address=mac_last_address)
-        self.context.session.add(mar)
-        self.context.session.flush()
-
+        self._create_and_insert_mar()
         mar = self.context.session.query(models.MacAddressRange).first()
 
         mac_deallocated = models.MacAddress(tenant_id=tenant_id,
-                                            address=mac_first_address,
+                                            address=mar['first_address'],
                                             mac_address_range_id=mar['id'],
-                                            deallocated=1,
+                                            deallocated=True,
                                             deallocated_at=datetime.date(1970,
                                                                          1,
                                                                          1))
@@ -102,7 +94,7 @@ class TestQuarkIpam(test_base.TestBase):
 
         self.assertEqual(mac['tenant_id'], tenant_id)
         self.assertIsNotNone(mac['created_at'])  # non-null post-insert
-        self.assertEqual(mac['address'], mac_first_address)
+        self.assertEqual(mac['address'], mar['first_address'])
         self.assertEqual(mac['mac_address_range_id'], mar['id'])
         self.assertFalse(mac['deallocated'])
         self.assertIsNone(mac['deallocated_at'])
@@ -116,20 +108,11 @@ class TestQuarkIpam(test_base.TestBase):
         reuse_after = 3600
         deallocated_at = datetime.datetime.utcnow()
 
-        mac_base = '01:02:03:00:00:00'
-        mac_mask = 24
-        mac_first_address = int(mac_base.replace(':', ''), base=16)
-        mac_last_address = mac_first_address + (1 << (48 - mac_mask))
-        mar = models.MacAddressRange(cidr=mac_base + '/' + str(mac_mask),
-                                     first_address=mac_first_address,
-                                     last_address=mac_last_address)
-        self.context.session.add(mar)
-        self.context.session.flush()
-
+        self._create_and_insert_mar()
         mar = self.context.session.query(models.MacAddressRange).first()
 
         mac_deallocated = models.MacAddress(tenant_id=tenant_id,
-                                            address=mac_first_address,
+                                            address=mar['first_address'],
                                             mac_address_range_id=mar['id'],
                                             deallocated=True,
                                             deallocated_at=deallocated_at)
@@ -144,7 +127,7 @@ class TestQuarkIpam(test_base.TestBase):
 
         self.assertEqual(mac['tenant_id'], tenant_id)
         self.assertIsNone(mac['created_at'])  # null pre-insert
-        self.assertEqual(mac['address'], mac_first_address + 1)
+        self.assertEqual(mac['address'], mar['first_address'] + 1)
         self.assertEqual(mac['mac_address_range_id'], mar['id'])
         self.assertFalse(mac['deallocated'])
         self.assertIsNone(mac['deallocated_at'])
@@ -155,20 +138,11 @@ class TestQuarkIpam(test_base.TestBase):
         tenant_id = 'foobar'
         reuse_after = 0
 
-        mac_base = '01:02:03:00:00:00'
-        mac_mask = 24
-        mac_first_address = int(mac_base.replace(':', ''), base=16)
-        mac_last_address = mac_first_address + (1 << (48 - mac_mask))
-        mar = models.MacAddressRange(cidr=mac_base + '/' + str(mac_mask),
-                                     first_address=mac_first_address,
-                                     last_address=mac_last_address)
-        self.context.session.add(mar)
-        self.context.session.flush()
-
+        self._create_and_insert_mar()
         mar = self.context.session.query(models.MacAddressRange).first()
 
         mac = models.MacAddress(tenant_id=tenant_id,
-                                address=mac_first_address,
+                                address=mar['first_address'],
                                 mac_address_range_id=mar['id'],
                                 deallocated=False,
                                 deallocated_at=None)
@@ -183,7 +157,7 @@ class TestQuarkIpam(test_base.TestBase):
 
         self.assertEqual(mac2['tenant_id'], tenant_id)
         self.assertIsNone(mac2['created_at'])  # null pre-insert
-        self.assertEqual(mac2['address'], mac_first_address + 1)
+        self.assertEqual(mac2['address'], mar['first_address'] + 1)
         self.assertEqual(mac2['mac_address_range_id'], mar['id'])
         self.assertFalse(mac2['deallocated'])
         self.assertIsNone(mac2['deallocated_at'])
@@ -194,20 +168,11 @@ class TestQuarkIpam(test_base.TestBase):
         tenant_id = 'foobar'
         reuse_after = 0
 
-        mac_base = '01:02:03:00:00:00'
-        mac_mask = 48
-        mac_first_address = int(mac_base.replace(':', ''), base=16)
-        mac_last_address = mac_first_address + (1 << (48 - mac_mask))
-        mar = models.MacAddressRange(cidr=mac_base + '/' + str(mac_mask),
-                                     first_address=mac_first_address,
-                                     last_address=mac_last_address)
-        self.context.session.add(mar)
-        self.context.session.flush()
-
+        self._create_and_insert_mar(mask=48)
         mar = self.context.session.query(models.MacAddressRange).first()
 
         mac = models.MacAddress(tenant_id=tenant_id,
-                                address=mac_first_address,
+                                address=mar['first_address'],
                                 mac_address_range_id=mar['id'],
                                 deallocated=False,
                                 deallocated_at=None)
@@ -229,35 +194,18 @@ class TestQuarkIpam(test_base.TestBase):
         tenant_id = 'foobar'
         reuse_after = 0
 
-        mac_base = '01:02:03:00:00:00'
-        mac_mask = 24
-        mac_first_address = int(mac_base.replace(':', ''), base=16)
-        mac_last_address = mac_first_address + (1 << (48 - mac_mask))
-        mar = models.MacAddressRange(cidr=mac_base + '/' + str(mac_mask),
-                                     first_address=mac_first_address,
-                                     last_address=mac_last_address)
-        self.context.session.add(mar)
-        self.context.session.flush()
-
+        self._create_and_insert_mar()
         mar = self.context.session.query(models.MacAddressRange).first()
 
         mac = models.MacAddress(tenant_id=tenant_id,
-                                address=mac_first_address,
+                                address=mar['first_address'],
                                 mac_address_range_id=mar['id'],
                                 deallocated=False,
                                 deallocated_at=None)
         self.context.session.add(mac)
         self.context.session.flush()
 
-        mac2_base = '01:02:04:00:00:00'
-        mac2_mask = 24
-        mac2_first_address = int(mac_base.replace(':', ''), base=16)
-        mac2_last_address = mac_first_address + (1 << (48 - mac_mask))
-        mar2 = models.MacAddressRange(cidr=mac2_base + '/' + str(mac2_mask),
-                                      first_address=mac2_first_address,
-                                      last_address=mac2_last_address)
-        self.context.session.add(mar2)
-        self.context.session.flush()
+        self._create_and_insert_mar(base='01:02:04:00:00:00')
 
         mac = self.ipam.allocate_mac_address(self.context.session,
                                              net_id,
@@ -267,7 +215,7 @@ class TestQuarkIpam(test_base.TestBase):
 
         self.assertEqual(mac['tenant_id'], tenant_id)
         self.assertIsNone(mac['created_at'])  # null pre-insert
-        self.assertEqual(mac['address'], mac_first_address + 1)
+        self.assertEqual(mac['address'], mar['first_address'] + 1)
         self.assertEqual(mac['mac_address_range_id'], mar['id'])
         self.assertFalse(mac['deallocated'])
         self.assertIsNone(mac['deallocated_at'])
