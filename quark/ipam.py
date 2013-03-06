@@ -24,6 +24,7 @@ import netaddr
 from sqlalchemy import func as sql_func
 from quantum.common import exceptions
 from quantum.openstack.common import log as logging
+from quantum.openstack.common import timeutils
 from quark.db import models
 
 
@@ -53,10 +54,10 @@ class QuarkIpam(object):
 
     def allocate_mac_address(self, session, net_id, port_id, tenant_id,
                              reuse_after):
-        reuse = (datetime.datetime.utcnow() -
+        reuse = (timeutils.utcnow() -
                  datetime.timedelta(seconds=reuse_after))
         deallocated_mac = session.query(models.MacAddress).\
-            filter(models.MacAddress.deallocated == 1).\
+            filter(models.MacAddress.deallocated == True).\
             filter(models.MacAddress.deallocated_at <= reuse).\
             first()
         if deallocated_mac:
@@ -71,8 +72,7 @@ class QuarkIpam(object):
             group_by(models.MacAddressRange).\
             order_by("count DESC").\
             all()
-        if not ranges:
-            raise exceptions.MacAddressGenerationFailure(net_id=net_id)
+
         for result in ranges:
             rng, addr_count = result
             if rng["last_address"] - rng["first_address"] <= addr_count:
@@ -91,12 +91,14 @@ class QuarkIpam(object):
 
             address["mac_address_range_id"] = rng["id"]
             address["tenant_id"] = tenant_id
+            address["deallocated"] = False
+            address["deallocated_at"] = None
             return address
 
         raise exceptions.MacAddressGenerationFailure(net_id=net_id)
 
     def allocate_ip_address(self, session, net_id, port_id, reuse_after):
-        reuse = (datetime.datetime.utcnow() -
+        reuse = (timeutils.utcnow() -
                  datetime.timedelta(seconds=reuse_after))
         address = session.query(models.IPAddress).\
             filter(models.IPAddress.network_id == net_id).\
@@ -152,5 +154,4 @@ class QuarkIpam(object):
             raise exceptions.NotFound(
                 message="No MAC address %s found" % mac_pretty)
         mac["deallocated"] = True
-        mac["deallocated_at"] = datetime.datetime.utcnow()
-        session.add(mac)
+        mac["deallocated_at"] = timeutils.utcnow()
