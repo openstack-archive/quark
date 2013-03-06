@@ -139,7 +139,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
     def _make_port_dict(self, port, fields=None):
         res = self._port_dict(port, fields)
         res["fixed_ips"] = [self._make_port_address_dict(ip)
-                            for ip in port["addresses"]]
+                            for ip in port["ip_addresses"]]
         return res
 
     def _make_ports_list(self, query, fields=None):
@@ -553,18 +553,13 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         """
         LOG.info("get_port %s for tenant %s fields %s" %
                 (id, context.tenant_id, fields))
-        results = context.session.query(models.Port, models.IPAddress).\
-            outerjoin(models.IPAddress).\
-            filter(models.Port.id == id).all()
-        if not results:
+        query = context.session.query(models.Port)
+        result = query.filter(models.Port.id == id).first()
+
+        if not result:
             raise exceptions.PortNotFound(port_id=id, net_id='')
-        port = {}
-        port.update(results[0][0])
-        port["addresses"] = []
-        for _, address in results:
-            if address:
-                port["addresses"].append(address)
-        return self._make_port_dict(port)
+
+        return self._make_port_dict(result)
 
     def _ports_query(self, context, filters, query, fields=None):
         if filters.get("id"):
@@ -656,18 +651,12 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         if not port:
             raise exceptions.NetworkNotFound(net_id=id)
 
-        assocs = session.query(models.PortIPAddressAssociation).\
-            filter(models.PortIPAddressAssociation.port_id == id).\
-            all()
-
         backend_key = port["backend_key"]
         mac_address = netaddr.EUI(port["mac_address"]).value
         self.ipam_driver.deallocate_mac_address(session,
                                                 mac_address,)
         self.ipam_driver.deallocate_ip_address(
             session, id, ipam_reuse_after=self.ipam_reuse_after)
-        for assoc in assocs:
-            session.delete(assoc)
         session.delete(port)
         session.flush()
         self.net_driver.delete_port(context, backend_key)
