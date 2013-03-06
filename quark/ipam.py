@@ -98,11 +98,13 @@ class QuarkIpam(object):
     def allocate_ip_address(self, session, net_id, port_id, reuse_after):
         reuse = (datetime.datetime.utcnow() -
                  datetime.timedelta(seconds=reuse_after))
-        address = session.query(models.IPAddress).\
-            filter(models.IPAddress.network_id == net_id).\
-            filter(models.IPAddress.deallocated == False).\
-            filter(models.IPAddress.deallocated_at <= reuse).\
-            first()
+        query = session.query(models.IPAddress)
+        query = query.filter_by(network_id=net_id)
+        query = query.filter_by(deallocated=False)
+        query = query.filter(models.IPAddress.deallocated_at <= reuse)
+
+        address = query.first()
+
         if not address:
             subnet = self._choose_available_subnet(net_id, session)
             highest_addr = session.query(models.IPAddress).\
@@ -135,13 +137,17 @@ class QuarkIpam(object):
         raise exceptions.IpAddressGenerationFailure(net_id=net_id)
 
     def deallocate_ip_address(self, session, port_id, **kwargs):
-        address = session.query(models.IPAddress).\
-            filter(models.IPAddress.port_id == port_id).\
-            first()
-        if not address:
-            LOG.critical("No IP assigned or already deallocated")
-            return
-        address["deallocated"] = 1
+        # NOTE(jkoelker) Get on primary key will not cause SQL lookup
+        #                if the object is already in the session
+        port = session.query(models.Port).get(port_id)
+        for address in port['ip_addresses']:
+            # NOTE(jkoelker) Address is used by multiple ports only
+            #                remove it from this port
+            if len(address['ports']) > 1:
+                address['ports'].remove(port)
+                continue
+
+            address["deallocated"] = 1
 
     def deallocate_mac_address(self, session, address):
         mac = session.query(models.MacAddress).\
