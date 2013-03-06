@@ -1,5 +1,17 @@
-from collections import namedtuple
-from sqlalchemy import create_engine
+# Copyright 2013 Openstack Foundation
+# All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License. You may obtain
+# a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+#  under the License.
 
 from oslo.config import cfg
 from quantum import context
@@ -37,19 +49,16 @@ class TestSubnets(test_base.TestBase):
         port = {'port': {'network_id': network_id,
                          'device_id': ''}}
         response = self.plugin.create_port(self.context, port)
+        port = self.plugin.get_port(self.context, response['id'])
 
-        q = self.context.session.query(models.Subnet).outerjoin(
-            models.IPAddress)
-        self.assertEqual(len(q.first().allocated_ips),
-                         1)
+        self.assertTrue(len(port['fixed_ips']) >= 1)
 
         # 5. Delete port.
         self.plugin.delete_port(self.context, response['id'])
 
-        q = self.context.session.query(models.Subnet).outerjoin(
-            models.IPAddress)
-        self.assertEqual(len(q.first().allocated_ips),
-                         0)
+        # TODO(jkoelker) once the ip_addresses controller is in the api
+        #                grab the fixed_ip from that and make sure it has
+        #                no ports
 
     def tearDown(self):
         db_api.clear_db()
