@@ -256,3 +256,30 @@ class TestQuarkIpamBase(test_base.TestBase):
         mac = self.context.session.query(models.MacAddress).first()
         self.assertTrue(mac['deallocated'])
         self.assertEqual(mac['deallocated_at'], test_datetime)
+
+    def test_allocate_ip_address_deallocated_success(self):
+        pass
+
+    def test_allocate_ip_address_deallocated_failure(self):
+        pass
+
+    def test_allocate_ip_address_no_subnets_failure(self):
+        pass
+
+    def test_allocate_ip_address_fully_allocated_subnet(self):
+        pass
+
+    def test_allocate_ip_address_multiple_subnets(self):
+        pass
+
+    def test_allocate_ip_address_success(self):
+        pass
+
+    def test_allocate_ip_address_multiple_ips(self):
+        pass
+
+    def test_deallocate_ip_address_success(self):
+        pass
+
+    def test_deallocate_ip_address_failure(self):
+        pass

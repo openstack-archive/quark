@@ -43,12 +43,10 @@ class QuarkIpam(object):
             order_by("count DESC").\
             all()
 
-        if not subnets:
-            raise exceptions.IpAddressGenerationFailure(net_id=net_id)
-        for subnet in subnets:
-            ip = netaddr.IPNetwork(subnet[0]["cidr"])
-            if ip.size > subnet[1]:
-                return subnet[0]
+        for subnet, ips_in_subnet in subnets:
+            ipnet = netaddr.IPNetwork(subnet["cidr"])
+            if ipnet.size > ips_in_subnet:
+                return subnet
 
         raise exceptions.IpAddressGenerationFailure(net_id=net_id)
 
