@@ -23,7 +23,7 @@ class TestQuarkIpam(test_base.TestBase):
         self.context = context.get_admin_context()
         self.plugin = quark.plugin.Plugin()
 
-    def test_allocate_mac_address_exception(self):
+    def test_allocate_mac_address_no_ranges(self):
         net_id = None
         port_id = None
         tenant_id = None
@@ -185,6 +185,39 @@ class TestQuarkIpam(test_base.TestBase):
         self.assertEqual(mac2['mac_address_range_id'], mar['id'])
         self.assertFalse(mac2['deallocated'])
         self.assertIsNone(mac2['deallocated_at'])
+
+    def test_allocate_mac_address_fully_allocated_range(self):
+        net_id = None
+        port_id = None
+        tenant_id = 'foobar'
+        reuse_after = 0
+
+        mac_base = '01:02:03:00:00:00'
+        mac_mask = 48
+        mac_first_address = int(mac_base.replace(':', ''), base=16)
+        mac_last_address = mac_first_address + (1 << (48 - mac_mask))
+        mar = models.MacAddressRange(cidr=mac_base + '/' + str(mac_mask),
+                                     first_address=mac_first_address,
+                                     last_address=mac_last_address)
+        self.context.session.add(mar)
+        self.context.session.flush()
+
+        mar = self.context.session.query(models.MacAddressRange).first()
+
+        mac = models.MacAddress(tenant_id=tenant_id,
+                                address=mac_first_address,
+                                mac_address_range_id=mar['id'],
+                                deallocated=False,
+                                deallocated_at=None)
+        self.context.session.add(mac)
+        self.context.session.flush()
+
+        with self.assertRaises(exceptions.MacAddressGenerationFailure):
+            self.ipam.allocate_mac_address(self.context.session,
+                                           net_id,
+                                           port_id,
+                                           tenant_id,
+                                           reuse_after)
 
     def test_allocate_mac_address_multiple_ranges(self):
         pass
