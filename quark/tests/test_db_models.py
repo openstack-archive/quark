@@ -17,7 +17,6 @@ from oslo.config import cfg
 from quantum import context
 from quantum.db import api as db_api
 
-from quark.db import models
 import quark.plugin
 
 import test_base
