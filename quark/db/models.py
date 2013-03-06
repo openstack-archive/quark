@@ -127,7 +127,7 @@ class IPAddress(BASEV2, HasId, HasTenant):
 
     @hybrid.hybrid_property
     def deallocated(self):
-        return self._deallocated
+        return self._deallocated and not self.ports
 
     @deallocated.setter
     def deallocated(self, val):

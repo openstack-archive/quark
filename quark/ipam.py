@@ -100,8 +100,7 @@ class QuarkIpam(object):
                  datetime.timedelta(seconds=reuse_after))
         address = session.query(models.IPAddress).\
             filter(models.IPAddress.network_id == net_id).\
-            filter(models.IPAddress.port_id == None).\
-            filter(models.IPAddress._deallocated == 1).\
+            filter(models.IPAddress.deallocated == False).\
             filter(models.IPAddress.deallocated_at <= reuse).\
             first()
         if not address:
