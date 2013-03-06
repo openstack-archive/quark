@@ -14,7 +14,7 @@ import quark.plugin
 import test_base
 
 
-class TestSubnets(test_base.TestBase):
+class TestQuarkIpam(test_base.TestBase):
     def setUp(self):
         cfg.CONF.set_override('sql_connection', 'sqlite://', 'DATABASE')
         db_api.configure_db()
@@ -148,7 +148,43 @@ class TestSubnets(test_base.TestBase):
         self.assertIsNone(mac['deallocated_at'])
 
     def test_allocate_mac_address_second_mac(self):
-        pass
+        net_id = None
+        port_id = None
+        tenant_id = 'foobar'
+        reuse_after = 0
+
+        mac_base = '01:02:03:00:00:00'
+        mac_mask = 24
+        mac_first_address = int(mac_base.replace(':', ''), base=16)
+        mac_last_address = mac_first_address + (1 << (48 - mac_mask))
+        mar = models.MacAddressRange(cidr=mac_base + '/' + str(mac_mask),
+                                     first_address=mac_first_address,
+                                     last_address=mac_last_address)
+        self.context.session.add(mar)
+        self.context.session.flush()
+
+        mar = self.context.session.query(models.MacAddressRange).first()
+
+        mac = models.MacAddress(tenant_id=tenant_id,
+                                address=mac_first_address,
+                                mac_address_range_id=mar['id'],
+                                deallocated=False,
+                                deallocated_at=None)
+        self.context.session.add(mac)
+        self.context.session.flush()
+
+        mac2 = self.ipam.allocate_mac_address(self.context.session,
+                                              net_id,
+                                              port_id,
+                                              tenant_id,
+                                              reuse_after)
+
+        self.assertEqual(mac2['tenant_id'], tenant_id)
+        self.assertIsNone(mac2['created_at'])  # null pre-insert
+        self.assertEqual(mac2['address'], mac_first_address + 1)
+        self.assertEqual(mac2['mac_address_range_id'], mar['id'])
+        self.assertFalse(mac2['deallocated'])
+        self.assertIsNone(mac2['deallocated_at'])
 
     def test_allocate_mac_address_multiple_ranges(self):
         pass
