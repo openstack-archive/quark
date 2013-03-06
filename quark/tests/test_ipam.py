@@ -81,8 +81,9 @@ class TestQuarkIpam(test_base.TestBase):
                                             address=mar['first_address'],
                                             mac_address_range_id=mar['id'],
                                             deallocated=True,
-                                            deallocated_at=\
-                                                datetime(1970, 1, 1))
+                                            deallocated_at=datetime(1970,
+                                                                    1,
+                                                                    1))
         self.context.session.add(mac_deallocated)
         self.context.session.flush()
 
