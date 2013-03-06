@@ -264,7 +264,14 @@ class TestQuarkIpamBase(test_base.TestBase):
         pass
 
     def test_allocate_ip_address_no_subnets_failure(self):
-        pass
+        net_id = None
+        port_id = None
+        reuse_after = 0
+        with self.assertRaises(exceptions.IpAddressGenerationFailure):
+            self.ipam.allocate_ip_address(self.context.session,
+                                          net_id,
+                                          port_id,
+                                          reuse_after)
 
     def test_allocate_ip_address_fully_allocated_subnet(self):
         pass
