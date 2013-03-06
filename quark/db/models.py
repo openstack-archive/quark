@@ -210,8 +210,9 @@ port_ip_association_table = sa.Table("quark_port_ip_address_associations",
                                     sa.ForeignKey("quark_ip_addresses.id")))
 
 
-class Port(BASEV2, HasId, HasTenant):
+class Port(BASEV2, HasTenant):
     __tablename__ = "quark_ports"
+    id = sa.Column(sa.String(36), primary_key=True)
     network_id = sa.Column(sa.String(36), sa.ForeignKey("quark_networks.id"),
                            nullable=False)
 
@@ -219,8 +220,9 @@ class Port(BASEV2, HasId, HasTenant):
     mac_address = sa.Column(sa.BigInteger())
     device_id = sa.Column(sa.String(255), nullable=False)
     ip_addresses = orm.relationship(IPAddress,
-        primaryjoin=sa.and_(id == port_ip_association_table.c.port_id,
-                    port_ip_association_table.c.ip_address_id == IPAddress.id),
+        primaryjoin=id == port_ip_association_table.c.port_id,
+        secondaryjoin=port_ip_association_table.c.ip_address_id ==
+                      IPAddress.id,
         secondary=port_ip_association_table,
         backref="ports")
 
