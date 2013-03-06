@@ -155,4 +155,3 @@ class QuarkIpam(object):
                 message="No MAC address %s found" % mac_pretty)
         mac["deallocated"] = True
         mac["deallocated_at"] = datetime.datetime.utcnow()
-        session.add(mac)

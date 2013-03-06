@@ -220,5 +220,35 @@ class TestQuarkIpam(test_base.TestBase):
         self.assertFalse(mac['deallocated'])
         self.assertIsNone(mac['deallocated_at'])
 
+    def test_deallocate_mac_address_failure(self):
+        with self.assertRaises(exceptions.NotFound):
+            self.ipam.deallocate_mac_address(self.context.session,
+                                             '01:02:04:00:00:00')
+
+    def test_deallocate_mac_address_success(self):
+        net_id = None
+        port_id = None
+        tenant_id = 'foobar'
+        reuse_after = 0
+
+        self._create_and_insert_mar()
+        mar = self.context.session.query(models.MacAddressRange).first()
+
+        mac = models.MacAddress(tenant_id=tenant_id,
+                                address=mar['first_address'],
+                                mac_address_range_id=mar['id'],
+                                deallocated=False,
+                                deallocated_at=None)
+        self.context.session.add(mac)
+        self.context.session.flush()
+
+        self.ipam.deallocate_mac_address(self.context.session,
+                                         mar['first_address'])
+
+        mac = self.context.session.query(models.MacAddress).first()
+        self.assertTrue(mac['deallocated'])
+        # TODO(amir): mock datetime.datetime.utcnow()
+        self.assertIsNotNone(mac['deallocated_at'])
+
     def tearDown(self):
         db_api.clear_db()
