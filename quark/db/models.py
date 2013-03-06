@@ -202,15 +202,16 @@ class Subnet(BASEV2, HasId, HasTenant, IsHazTags):
     routes = orm.relationship(Route, backref='subnet', cascade='delete')
 
 
-port_ip_association_table = sa.Table("quark_port_ip_address_associations",
-                                  BASEV2.metadata,
-                                  sa.Column("port_id", sa.String(36),
-                                    sa.ForeignKey("quark_ports.id")),
-                                  sa.Column("ip_address_id", sa.String(36),
-                                    sa.ForeignKey("quark_ip_addresses.id")))
+port_ip_association_table = sa.Table(
+    "quark_port_ip_address_associations",
+    BASEV2.metadata,
+    sa.Column("port_id", sa.String(36),
+              sa.ForeignKey("quark_ports.id")),
+    sa.Column("ip_address_id", sa.String(36),
+              sa.ForeignKey("quark_ip_addresses.id")))
 
 
-class Port(BASEV2, HasTenant):
+class Port(BASEV2, HasTenant, HasId):
     __tablename__ = "quark_ports"
     id = sa.Column(sa.String(36), primary_key=True)
     network_id = sa.Column(sa.String(36), sa.ForeignKey("quark_networks.id"),
@@ -219,12 +220,16 @@ class Port(BASEV2, HasTenant):
     backend_key = sa.Column(sa.String(36), nullable=False)
     mac_address = sa.Column(sa.BigInteger())
     device_id = sa.Column(sa.String(255), nullable=False)
-    ip_addresses = orm.relationship(IPAddress,
-        primaryjoin=id == port_ip_association_table.c.port_id,
-        secondaryjoin=port_ip_association_table.c.ip_address_id ==
-                      IPAddress.id,
-        secondary=port_ip_association_table,
-        backref="ports")
+
+    @declarative.declared_attr
+    def ip_addresses(cls):
+        primaryjoin = cls.id == port_ip_association_table.c.port_id
+        secondaryjoin = (port_ip_association_table.c.ip_address_id ==
+                         IPAddress.id)
+        return orm.relationship(IPAddress, primaryjoin=primaryjoin,
+                                secondaryjoin=secondaryjoin,
+                                secondary=port_ip_association_table,
+                                backref="ports")
 
 
 class MacAddress(BASEV2, HasTenant):
