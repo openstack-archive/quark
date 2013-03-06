@@ -10,19 +10,20 @@ from quantum.db import api as db_api
 
 from quark.db import models
 import quark.ipam
-import quark.plugin
 
 import test_base
 
 
-class TestQuarkIpam(test_base.TestBase):
+class TestQuarkIpamBase(test_base.TestBase):
     def setUp(self):
         cfg.CONF.set_override('sql_connection', 'sqlite://', 'DATABASE')
         db_api.configure_db()
         models.BASEV2.metadata.create_all(db_api._ENGINE)
         self.ipam = quark.ipam.QuarkIpam()
         self.context = context.get_admin_context()
-        self.plugin = quark.plugin.Plugin()
+
+    def tearDown(self):
+        db_api.clear_db()
 
     def _create_and_insert_mar(self, base='01:02:03:00:00:00', mask=24):
         first_address = int(base.replace(':', ''), base=16)
@@ -255,6 +256,3 @@ class TestQuarkIpam(test_base.TestBase):
         mac = self.context.session.query(models.MacAddress).first()
         self.assertTrue(mac['deallocated'])
         self.assertEqual(mac['deallocated_at'], test_datetime)
-
-    def tearDown(self):
-        db_api.clear_db()
