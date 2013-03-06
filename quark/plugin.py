@@ -60,11 +60,11 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
 
     def __init__(self):
         db_api.configure_db()
-        models.BASEV2.metadata.create_all(db_api._ENGINE)
         self.net_driver = (importutils.import_class(CONF.QUARK.net_driver))()
         self.net_driver.load_config(CONF.QUARK.net_driver_cfg)
         self.ipam_driver = (importutils.import_class(CONF.QUARK.ipam_driver))()
         self.ipam_reuse_after = CONF.QUARK.ipam_reuse_after
+        models.BASEV2.metadata.create_all(db_api._ENGINE)
 
     def _make_network_dict(self, network, fields=None):
         res = {'id': network.get('id'),
