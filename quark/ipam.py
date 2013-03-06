@@ -90,6 +90,8 @@ class QuarkIpam(object):
 
             address["mac_address_range_id"] = rng["id"]
             address["tenant_id"] = tenant_id
+            address["deallocated"] = False
+            address["deallocated_at"] = None
             return address
 
         raise exceptions.MacAddressGenerationFailure(net_id=net_id)
