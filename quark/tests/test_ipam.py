@@ -1,6 +1,7 @@
 from collections import namedtuple
+from datetime import datetime
 from sqlalchemy import create_engine
-import datetime
+import mock
 
 from oslo.config import cfg
 from quantum import context
@@ -80,9 +81,8 @@ class TestQuarkIpam(test_base.TestBase):
                                             address=mar['first_address'],
                                             mac_address_range_id=mar['id'],
                                             deallocated=True,
-                                            deallocated_at=datetime.date(1970,
-                                                                         1,
-                                                                         1))
+                                            deallocated_at=\
+                                                datetime(1970, 1, 1))
         self.context.session.add(mac_deallocated)
         self.context.session.flush()
 
@@ -106,7 +106,8 @@ class TestQuarkIpam(test_base.TestBase):
         port_id = None
         tenant_id = 'foobar'
         reuse_after = 3600
-        deallocated_at = datetime.datetime.utcnow()
+        test_datetime = datetime(1970, 1, 1)
+        deallocated_at = test_datetime
 
         self._create_and_insert_mar()
         mar = self.context.session.query(models.MacAddressRange).first()
@@ -119,18 +120,20 @@ class TestQuarkIpam(test_base.TestBase):
         self.context.session.add(mac_deallocated)
         self.context.session.flush()
 
-        mac = self.ipam.allocate_mac_address(self.context.session,
-                                             net_id,
-                                             port_id,
-                                             tenant_id,
-                                             reuse_after)
+        with mock.patch('quark.ipam.timeutils') as timeutils:
+            timeutils.utcnow.return_value = test_datetime
+            mac = self.ipam.allocate_mac_address(self.context.session,
+                                                 net_id,
+                                                 port_id,
+                                                 tenant_id,
+                                                 reuse_after)
 
-        self.assertEqual(mac['tenant_id'], tenant_id)
-        self.assertIsNone(mac['created_at'])  # null pre-insert
-        self.assertEqual(mac['address'], mar['first_address'] + 1)
-        self.assertEqual(mac['mac_address_range_id'], mar['id'])
-        self.assertFalse(mac['deallocated'])
-        self.assertIsNone(mac['deallocated_at'])
+            self.assertEqual(mac['tenant_id'], tenant_id)
+            self.assertIsNone(mac['created_at'])  # null pre-insert
+            self.assertEqual(mac['address'], mar['first_address'] + 1)
+            self.assertEqual(mac['mac_address_range_id'], mar['id'])
+            self.assertFalse(mac['deallocated'])
+            self.assertIsNone(mac['deallocated_at'])
 
     def test_allocate_mac_address_second_mac(self):
         net_id = None
@@ -242,13 +245,15 @@ class TestQuarkIpam(test_base.TestBase):
         self.context.session.add(mac)
         self.context.session.flush()
 
-        self.ipam.deallocate_mac_address(self.context.session,
-                                         mar['first_address'])
+        test_datetime = datetime(1970, 1, 1)
+        with mock.patch('quark.ipam.timeutils') as timeutils:
+            timeutils.utcnow.return_value = test_datetime
+            self.ipam.deallocate_mac_address(self.context.session,
+                                             mar['first_address'])
 
         mac = self.context.session.query(models.MacAddress).first()
         self.assertTrue(mac['deallocated'])
-        # TODO(amir): mock datetime.datetime.utcnow()
-        self.assertIsNotNone(mac['deallocated_at'])
+        self.assertEqual(mac['deallocated_at'], test_datetime)
 
     def tearDown(self):
         db_api.clear_db()

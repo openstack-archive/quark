@@ -24,6 +24,7 @@ import netaddr
 from sqlalchemy import func as sql_func
 from quantum.common import exceptions
 from quantum.openstack.common import log as logging
+from quantum.openstack.common import timeutils
 from quark.db import models
 
 
@@ -53,7 +54,7 @@ class QuarkIpam(object):
 
     def allocate_mac_address(self, session, net_id, port_id, tenant_id,
                              reuse_after):
-        reuse = (datetime.datetime.utcnow() -
+        reuse = (timeutils.utcnow() -
                  datetime.timedelta(seconds=reuse_after))
         deallocated_mac = session.query(models.MacAddress).\
             filter(models.MacAddress.deallocated == True).\
@@ -97,7 +98,7 @@ class QuarkIpam(object):
         raise exceptions.MacAddressGenerationFailure(net_id=net_id)
 
     def allocate_ip_address(self, session, net_id, port_id, reuse_after):
-        reuse = (datetime.datetime.utcnow() -
+        reuse = (timeutils.utcnow() -
                  datetime.timedelta(seconds=reuse_after))
         address = session.query(models.IPAddress).\
             filter(models.IPAddress.network_id == net_id).\
@@ -154,4 +155,4 @@ class QuarkIpam(object):
             raise exceptions.NotFound(
                 message="No MAC address %s found" % mac_pretty)
         mac["deallocated"] = True
-        mac["deallocated_at"] = datetime.datetime.utcnow()
+        mac["deallocated_at"] = timeutils.utcnow()
