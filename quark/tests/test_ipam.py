@@ -15,6 +15,7 @@
 
 from datetime import datetime
 import mock
+import netaddr
 
 from oslo.config import cfg
 from quantum import context
@@ -289,8 +290,60 @@ class TestQuarkIpamBase(test_base.TestBase):
     def test_allocate_ip_address_multiple_subnets(self):
         pass
 
-    def test_allocate_ip_address_success(self):
+    def test_allocate_ip_address_multiple_networks(self):
+        # TODO(amir): test for filters
         pass
+
+    def test_allocate_ip_address_success(self):
+        tenant_id = 'foobar'
+        port_id = '123'
+        port_backend_key = '123'
+        port_device_id = '123'
+        reuse_after = 0
+
+        net = models.Network()
+        net['name'] = 'mynet'
+        net['tenant_id'] = tenant_id
+        self.context.session.add(net)
+        self.context.session.flush()
+
+        net = self.context.session.query(models.Network).first()
+
+        subnet = models.Subnet()
+        subnet['tenant_id'] = tenant_id
+        subnet['network_id'] = net['id']
+        subnet['cidr'] = '192.168.10.1/24'
+        self.context.session.add(subnet)
+        self.context.session.flush()
+
+        subnet = self.context.session.query(models.Subnet).first()
+
+        port = models.Port()
+        port['tenant_id'] = tenant_id
+        port['id'] = port_id
+        port['network_id'] = net['id']
+        port['backend_key'] = port_backend_key
+        port['mac_address'] = None
+        port['device_id'] = port_device_id
+        self.context.session.add(port)
+        self.context.session.flush()
+
+        port = self.context.session.query(models.Port).first()
+
+        ipaddress = self.ipam.allocate_ip_address(self.context.session,
+                                                  net['id'],
+                                                  port['id'],
+                                                  reuse_after)
+        self.assertIsNone(ipaddress['id'])
+        self.assertEqual(ipaddress['tenant_id'], tenant_id)
+        self.assertEqual(ipaddress['address_readable'], '::ffff:192.168.10.0')
+        self.assertEqual(ipaddress['address'],
+                         int(netaddr.IPAddress('::ffff:192.168.10.0')))
+        self.assertEqual(ipaddress['subnet_id'], subnet['id'])
+        self.assertEqual(ipaddress['network_id'], net['id'])
+        self.assertEqual(ipaddress['version'], 4)
+        self.assertFalse(ipaddress['deallocated'])
+        self.assertIsNone(ipaddress['deallocated_at'])
 
     def test_allocate_ip_address_multiple_ips(self):
         pass

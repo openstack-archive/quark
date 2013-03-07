@@ -37,8 +37,8 @@ class QuarkIpam(object):
         subnets = session.query(models.Subnet,
                                 sql_func.count(models.IPAddress.subnet_id).
                                 label('count')).\
-            with_lockmode("update").\
             outerjoin(models.Subnet.allocated_ips).\
+            filter(models.Subnet.network_id == net_id).\
             group_by(models.IPAddress).\
             order_by("count DESC").\
             all()
@@ -134,7 +134,6 @@ class QuarkIpam(object):
 
         if address:
             address["port_id"] = port_id
-            address["ip_address"] = address.formatted()
             return address
         raise exceptions.IpAddressGenerationFailure(net_id=net_id)
 
