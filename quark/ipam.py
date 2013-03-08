@@ -130,7 +130,7 @@ class QuarkIpam(object):
             address["version"] = subnet["ip_version"]
             address["network_id"] = net_id
             address["tenant_id"] = subnet["tenant_id"]
-            address["_deallocated"] = 0
+            address["_deallocated"] = False
 
         if address:
             address["port_id"] = port_id
@@ -150,7 +150,7 @@ class QuarkIpam(object):
             #                remove it from this port
             address['ports'].remove(port)
             if len(address['ports']) == 0:
-                address["deallocated"] = 1
+                address["deallocated"] = True
 
     def deallocate_mac_address(self, session, address):
         mac = session.query(models.MacAddress).\
