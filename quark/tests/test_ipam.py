@@ -296,6 +296,25 @@ class TestQuarkIpamBase(test_base.TestBase):
         self.context.session.add(port)
         self.context.session.flush()
 
+    def _create_and_insert_ip(self, ports, subnet_id, net_id,
+                              tenant_id='foobar',
+                              address='::ffff:192.168.10.0',
+                              deallocated=False, deallocated_at=None):
+        ipaddress = models.IPAddress()
+        ipaddress['tenant_id'] = tenant_id
+        ipaddress['address_readable'] = address
+        ipaddress['address'] = int(netaddr.IPAddress(address))
+        ipaddress['subnet_id'] = subnet_id
+        ipaddress['network_id'] = net_id
+        ipaddress['version'] = 4
+        ipaddress['deallocated'] = deallocated
+        ipaddress['deallocated_at'] = deallocated_at
+        if not deallocated:
+            for port in ports:
+                port['ip_addresses'].extend([ipaddress])
+        self.context.session.add(ipaddress)
+        self.context.session.flush()
+
     def test_allocate_ip_address_deallocated_success(self):
         tenant_id = 'foobar'
         test_datetime = datetime(1970, 1, 1)
@@ -310,27 +329,22 @@ class TestQuarkIpamBase(test_base.TestBase):
         self._create_and_insert_port(net['id'])
         port = self.context.session.query(models.Port).first()
 
-        ipaddress = models.IPAddress()
-        ipaddress['tenant_id'] = tenant_id
-        ipaddress['address_readable'] = '::ffff:192.168.10.0'
-        ipaddress['address'] = int(netaddr.IPAddress('::ffff:192.168.10.0'))
-        ipaddress['subnet_id'] = subnet['id']
-        ipaddress['network_id'] = net['id']
-        ipaddress['version'] = 4
-        ipaddress['deallocated'] = True
-        ipaddress['deallocated_at'] = test_datetime
-        self.context.session.add(ipaddress)
-        self.context.session.flush()
+        self._create_and_insert_ip([port],
+                                   subnet['id'],
+                                   net['id'],
+                                   deallocated=True,
+                                   deallocated_at=test_datetime)
 
         ipaddress = self.ipam.allocate_ip_address(self.context.session,
                                                   net['id'],
                                                   port['id'],
                                                   tenant_id,
                                                   reuse_after)
+
         self.assertIsNotNone(ipaddress['id'])
         self.assertEqual(ipaddress['tenant_id'], tenant_id)
         self.assertEqual(ipaddress['address_readable'], '::ffff:192.168.10.0')
-        self.assertEqual(ipaddress['address'],
+        self.assertEqual(int(ipaddress['address']),
                          int(netaddr.IPAddress('::ffff:192.168.10.0')))
         self.assertEqual(ipaddress['subnet_id'], subnet['id'])
         self.assertEqual(ipaddress['network_id'], net['id'])
@@ -355,17 +369,11 @@ class TestQuarkIpamBase(test_base.TestBase):
         self._create_and_insert_port(net['id'])
         port = self.context.session.query(models.Port).first()
 
-        ipaddress = models.IPAddress()
-        ipaddress['tenant_id'] = tenant_id
-        ipaddress['address_readable'] = '::ffff:192.168.10.0'
-        ipaddress['address'] = int(netaddr.IPAddress('::ffff:192.168.10.0'))
-        ipaddress['subnet_id'] = subnet['id']
-        ipaddress['network_id'] = net['id']
-        ipaddress['version'] = 4
-        ipaddress['deallocated'] = True
-        ipaddress['deallocated_at'] = test_datetime
-        self.context.session.add(ipaddress)
-        self.context.session.flush()
+        self._create_and_insert_ip([port],
+                                   subnet['id'],
+                                   net['id'],
+                                   deallocated=True,
+                                   deallocated_at=test_datetime)
 
         with mock.patch('quark.ipam.timeutils') as timeutils:
             timeutils.utcnow.return_value = test_datetime
@@ -412,18 +420,9 @@ class TestQuarkIpamBase(test_base.TestBase):
         self._create_and_insert_port(net['id'])
         port = self.context.session.query(models.Port).first()
 
-        ipaddress = models.IPAddress()
-        ipaddress['tenant_id'] = tenant_id
-        ipaddress['address_readable'] = '::ffff:192.168.10.0'
-        ipaddress['address'] = int(netaddr.IPAddress('::ffff:192.168.10.0'))
-        ipaddress['subnet_id'] = subnet['id']
-        ipaddress['network_id'] = net['id']
-        ipaddress['version'] = 4
-        ipaddress['deallocated'] = False
-        ipaddress['deallocated_at'] = None
-        port['ip_addresses'].extend([ipaddress])
-        self.context.session.add(ipaddress)
-        self.context.session.flush()
+        self._create_and_insert_ip([port],
+                                   subnet['id'],
+                                   net['id'])
 
         with self.assertRaises(exceptions.IpAddressGenerationFailure):
             ipaddress = self.ipam.allocate_ip_address(self.context.session,
@@ -446,18 +445,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         self._create_and_insert_port(net['id'])
         port = self.context.session.query(models.Port).first()
 
-        ipaddress = models.IPAddress()
-        ipaddress['tenant_id'] = tenant_id
-        ipaddress['address_readable'] = '::ffff:192.168.10.0'
-        ipaddress['address'] = int(netaddr.IPAddress('::ffff:192.168.10.0'))
-        ipaddress['subnet_id'] = primary_subnet['id']
-        ipaddress['network_id'] = net['id']
-        ipaddress['version'] = 4
-        ipaddress['deallocated'] = False
-        ipaddress['deallocated_at'] = None
-        port['ip_addresses'].extend([ipaddress])
-        self.context.session.add(ipaddress)
-        self.context.session.flush()
+        self._create_and_insert_ip([port], primary_subnet['id'], net['id'])
 
         ipaddress = self.ipam.allocate_ip_address(self.context.session,
                                                   net['id'],
@@ -522,17 +510,11 @@ class TestQuarkIpamBase(test_base.TestBase):
         self._create_and_insert_port(primary_net['id'])
         port = self.context.session.query(models.Port).first()
 
-        ipaddress = models.IPAddress()
-        ipaddress['tenant_id'] = tenant_id
-        ipaddress['address_readable'] = '::ffff:192.168.10.0'
-        ipaddress['address'] = int(netaddr.IPAddress('::ffff:192.168.10.0'))
-        ipaddress['subnet_id'] = subnet['id']
-        ipaddress['network_id'] = primary_net['id']
-        ipaddress['version'] = 4
-        ipaddress['deallocated'] = True
-        ipaddress['deallocated_at'] = test_datetime
-        self.context.session.add(ipaddress)
-        self.context.session.flush()
+        self._create_and_insert_ip([port],
+                                   subnet['id'],
+                                   primary_net['id'],
+                                   deallocated=True,
+                                   deallocated_at=test_datetime)
 
         ipaddress = self.ipam.allocate_ip_address(self.context.session,
                                                   primary_net['id'],
@@ -542,7 +524,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         self.assertIsNotNone(ipaddress['id'])
         self.assertEqual(ipaddress['tenant_id'], tenant_id)
         self.assertEqual(ipaddress['address_readable'], '::ffff:192.168.10.0')
-        self.assertEqual(ipaddress['address'],
+        self.assertEqual(int(ipaddress['address']),
                          int(netaddr.IPAddress('::ffff:192.168.10.0')))
         self.assertEqual(ipaddress['subnet_id'], subnet['id'])
         self.assertEqual(ipaddress['network_id'], primary_net['id'])
@@ -643,18 +625,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         self._create_and_insert_port(net['id'])
         port = self.context.session.query(models.Port).first()
 
-        ipaddress = models.IPAddress()
-        ipaddress['tenant_id'] = tenant_id
-        ipaddress['address_readable'] = '::ffff:192.168.10.0'
-        ipaddress['address'] = int(netaddr.IPAddress('::ffff:192.168.10.0'))
-        ipaddress['subnet_id'] = subnet['id']
-        ipaddress['network_id'] = net['id']
-        ipaddress['version'] = 4
-        ipaddress['deallocated'] = False
-        ipaddress['deallocated_at'] = None
-        port['ip_addresses'].extend([ipaddress])
-        self.context.session.add(ipaddress)
-        self.context.session.flush()
+        self._create_and_insert_ip([port], subnet['id'], net['id'])
 
         self.ipam.deallocate_ip_address(self.context.session,
                                         port['id'])
@@ -678,19 +649,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         self._create_and_insert_port(net['id'], id='456')
         ports = self.context.session.query(models.Port).all()
 
-        ipaddress = models.IPAddress()
-        ipaddress['tenant_id'] = tenant_id
-        ipaddress['address_readable'] = '::ffff:192.168.10.0'
-        ipaddress['address'] = int(netaddr.IPAddress('::ffff:192.168.10.0'))
-        ipaddress['subnet_id'] = subnet['id']
-        ipaddress['network_id'] = net['id']
-        ipaddress['version'] = 4
-        ipaddress['deallocated'] = False
-        ipaddress['deallocated_at'] = None
-        for port in ports:
-            port['ip_addresses'].extend([ipaddress])
-        self.context.session.add(ipaddress)
-        self.context.session.flush()
+        self._create_and_insert_ip(ports, subnet['id'], net['id'])
 
         self.ipam.deallocate_ip_address(self.context.session,
                                         ports[0]['id'])
