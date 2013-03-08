@@ -131,8 +131,6 @@ class QuarkIpam(object):
             address["version"] = subnet["ip_version"]
             address["network_id"] = net_id
             address["tenant_id"] = tenant_id
-            address["_deallocated"] = False
-            address["deallocated_at"] = None
 
         if address:
             address["port_id"] = port_id
