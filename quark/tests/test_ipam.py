@@ -268,6 +268,13 @@ class TestQuarkIpamBase(test_base.TestBase):
         self.assertTrue(mac['deallocated'])
         self.assertEqual(mac['deallocated_at'], test_datetime)
 
+    def _create_and_insert_net(self, name='mynet', tenant_id='foobar'):
+        net = models.Network()
+        net['name'] = name
+        net['tenant_id'] = tenant_id
+        self.context.session.add(net)
+        self.context.session.flush()
+
     def test_allocate_ip_address_deallocated_success(self):
         tenant_id = 'foobar'
         port_id = '123'
@@ -276,12 +283,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         test_datetime = datetime(1970, 1, 1)
         reuse_after = 0
 
-        net = models.Network()
-        net['name'] = 'mynet'
-        net['tenant_id'] = tenant_id
-        self.context.session.add(net)
-        self.context.session.flush()
-
+        self._create_and_insert_net()
         net = self.context.session.query(models.Network).first()
 
         subnet = models.Subnet()
@@ -344,12 +346,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         test_datetime = datetime(1970, 1, 1)
         reuse_after = 3600
 
-        net = models.Network()
-        net['name'] = 'mynet'
-        net['tenant_id'] = tenant_id
-        self.context.session.add(net)
-        self.context.session.flush()
-
+        self._create_and_insert_net()
         net = self.context.session.query(models.Network).first()
 
         subnet = models.Subnet()
@@ -424,12 +421,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         port_device_id = '123'
         reuse_after = 0
 
-        net = models.Network()
-        net['name'] = 'mynet'
-        net['tenant_id'] = tenant_id
-        self.context.session.add(net)
-        self.context.session.flush()
-
+        self._create_and_insert_net()
         net = self.context.session.query(models.Network).first()
 
         subnet = models.Subnet()
@@ -480,12 +472,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         port_device_id = '123'
         reuse_after = 0
 
-        net = models.Network()
-        net['name'] = 'mynet'
-        net['tenant_id'] = tenant_id
-        self.context.session.add(net)
-        self.context.session.flush()
-
+        self._create_and_insert_net()
         net = self.context.session.query(models.Network).first()
 
         subnet = models.Subnet()
@@ -553,18 +540,8 @@ class TestQuarkIpamBase(test_base.TestBase):
         port_device_id = '123'
         reuse_after = 0
 
-        net = models.Network()
-        net['name'] = 'mynet'
-        net['tenant_id'] = tenant_id
-        self.context.session.add(net)
-        self.context.session.flush()
-
-        net = models.Network()
-        net['name'] = 'mynet2'
-        net['tenant_id'] = tenant_id
-        self.context.session.add(net)
-        self.context.session.flush()
-
+        self._create_and_insert_net(name='mynet')
+        self._create_and_insert_net(name='mynet2')
         primary_net = self.context.session.query(models.Network).first()
 
         subnet = models.Subnet()
@@ -613,18 +590,8 @@ class TestQuarkIpamBase(test_base.TestBase):
         test_datetime = datetime(1970, 1, 1)
         reuse_after = 0
 
-        net = models.Network()
-        net['name'] = 'mynet'
-        net['tenant_id'] = tenant_id
-        self.context.session.add(net)
-        self.context.session.flush()
-
-        net = models.Network()
-        net['name'] = 'mynet2'
-        net['tenant_id'] = tenant_id
-        self.context.session.add(net)
-        self.context.session.flush()
-
+        self._create_and_insert_net(name='mynet')
+        self._create_and_insert_net(name='mynet2')
         primary_net = self.context.session.query(models.Network).first()
 
         subnet = models.Subnet()
@@ -684,12 +651,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         port_device_id = '123'
         reuse_after = 0
 
-        net = models.Network()
-        net['name'] = 'mynet'
-        net['tenant_id'] = tenant_id
-        self.context.session.add(net)
-        self.context.session.flush()
-
+        self._create_and_insert_net()
         net = self.context.session.query(models.Network).first()
 
         subnet = models.Subnet()
@@ -737,12 +699,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         port_device_id = '123'
         reuse_after = 0
 
-        net = models.Network()
-        net['name'] = 'mynet'
-        net['tenant_id'] = tenant_id
-        self.context.session.add(net)
-        self.context.session.flush()
-
+        self._create_and_insert_net()
         net = self.context.session.query(models.Network).first()
 
         subnet = models.Subnet()
@@ -809,12 +766,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         port_device_id = '123'
         reuse_after = 0
 
-        net = models.Network()
-        net['name'] = 'mynet'
-        net['tenant_id'] = tenant_id
-        self.context.session.add(net)
-        self.context.session.flush()
-
+        self._create_and_insert_net()
         net = self.context.session.query(models.Network).first()
 
         subnet = models.Subnet()
@@ -867,12 +819,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         port_device_id = '123'
         reuse_after = 0
 
-        net = models.Network()
-        net['name'] = 'mynet'
-        net['tenant_id'] = tenant_id
-        self.context.session.add(net)
-        self.context.session.flush()
-
+        self._create_and_insert_net()
         net = self.context.session.query(models.Network).first()
 
         subnet = models.Subnet()
