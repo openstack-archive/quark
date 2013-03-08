@@ -352,4 +352,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         pass
 
     def test_deallocate_ip_address_failure(self):
-        pass
+        port_id = 'abc'
+        with self.assertRaises(exceptions.NotFound):
+            self.ipam.deallocate_ip_address(self.context.session,
+                                            port_id)

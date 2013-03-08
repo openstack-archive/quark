@@ -141,6 +141,9 @@ class QuarkIpam(object):
         # NOTE(jkoelker) Get on primary key will not cause SQL lookup
         #                if the object is already in the session
         port = session.query(models.Port).get(port_id)
+        if not port:
+            raise exceptions.NotFound(
+                message="No port found with id=%s" % port_id)
         for address in port['ip_addresses']:
             # NOTE(jkoelker) Address is used by multiple ports only
             #                remove it from this port
