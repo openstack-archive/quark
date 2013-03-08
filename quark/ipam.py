@@ -102,7 +102,7 @@ class QuarkIpam(object):
                  datetime.timedelta(seconds=reuse_after))
         query = session.query(models.IPAddress)
         query = query.filter_by(network_id=net_id)
-        query = query.filter_by(deallocated=False)
+        query = query.filter_by(deallocated=True)
         query = query.filter(models.IPAddress.deallocated_at <= reuse)
 
         address = query.first()
@@ -131,9 +131,12 @@ class QuarkIpam(object):
             address["network_id"] = net_id
             address["tenant_id"] = subnet["tenant_id"]
             address["_deallocated"] = False
+            address["deallocated_at"] = None
 
         if address:
             address["port_id"] = port_id
+            address["_deallocated"] = False
+            address["deallocated_at"] = None
             return address
         raise exceptions.IpAddressGenerationFailure(net_id=net_id)
 
