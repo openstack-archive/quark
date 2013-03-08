@@ -66,4 +66,20 @@ class TestSubnets(TestQuarkPlugin):
 
 
 class TestIpAddresses(TestQuarkPlugin):
-    pass
+    def test_create_ip_address_success(self):
+        pass
+
+    def test_create_ip_success_failure(self):
+        pass
+
+    def test_get_ip_address_success(self):
+        pass
+
+    def test_get_ip_address_failure(self):
+        pass
+
+    def test_get_ip_addresses_success(self):
+        pass
+
+    def test_update_ip_address_success(self):
+        pass

@@ -767,3 +767,9 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             filter(models.IPAddress.id == id).\
             first()
         return self._make_ip_dict(addr)
+
+    def create_ip_address(self):
+        raise NotImplemented()
+
+    def update_ip_address(self):
+        raise NotImplemented()
