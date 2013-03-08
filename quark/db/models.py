@@ -134,6 +134,7 @@ class IPAddress(BASEV2, HasId, HasTenant):
         self._deallocated = val
         self.deallocated_at = timeutils.utcnow()
 
+    # TODO(jkoelker) update the expression to use the jointable as well
     @deallocated.expression
     def deallocated(cls):
         return IPAddress._deallocated
