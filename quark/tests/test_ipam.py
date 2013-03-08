@@ -320,6 +320,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         ipaddress = self.ipam.allocate_ip_address(self.context.session,
                                                   net['id'],
                                                   port['id'],
+                                                  tenant_id,
                                                   reuse_after)
         self.assertIsNotNone(ipaddress['id'])
         self.assertEqual(ipaddress['tenant_id'], tenant_id)
@@ -389,6 +390,7 @@ class TestQuarkIpamBase(test_base.TestBase):
             ipaddress = self.ipam.allocate_ip_address(self.context.session,
                                                       net['id'],
                                                       port['id'],
+                                                      tenant_id,
                                                       reuse_after)
             self.assertIsNone(ipaddress['id'])
             self.assertEqual(ipaddress['tenant_id'], tenant_id)
@@ -406,11 +408,13 @@ class TestQuarkIpamBase(test_base.TestBase):
     def test_allocate_ip_address_no_subnets_failure(self):
         net_id = None
         port_id = None
+        tenant_id = None
         reuse_after = 0
         with self.assertRaises(exceptions.IpAddressGenerationFailure):
             self.ipam.allocate_ip_address(self.context.session,
                                           net_id,
                                           port_id,
+                                          tenant_id,
                                           reuse_after)
 
     def test_allocate_ip_address_fully_allocated_subnet(self):
@@ -466,12 +470,17 @@ class TestQuarkIpamBase(test_base.TestBase):
             ipaddress = self.ipam.allocate_ip_address(self.context.session,
                                                       net['id'],
                                                       port['id'],
+                                                      tenant_id,
                                                       reuse_after)
 
     def test_allocate_ip_address_multiple_subnets(self):
         pass
 
-    def test_allocate_ip_address_multiple_networks(self):
+    def test_allocate_ip_address_multiple_networks_subnet(self):
+        # TODO(amir): test for filters
+        pass
+
+    def test_allocate_ip_address_multiple_networks_deallocated(self):
         # TODO(amir): test for filters
         pass
 
@@ -514,6 +523,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         ipaddress = self.ipam.allocate_ip_address(self.context.session,
                                                   net['id'],
                                                   port['id'],
+                                                  tenant_id,
                                                   reuse_after)
         self.assertIsNone(ipaddress['id'])
         self.assertEqual(ipaddress['tenant_id'], tenant_id)
@@ -566,6 +576,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         ipaddress = self.ipam.allocate_ip_address(self.context.session,
                                                   net['id'],
                                                   port['id'],
+                                                  tenant_id,
                                                   reuse_after)
         self.assertIsNone(ipaddress['id'])
         self.assertEqual(ipaddress['tenant_id'], tenant_id)
@@ -584,6 +595,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         ipaddress2 = self.ipam.allocate_ip_address(self.context.session,
                                                    net['id'],
                                                    port['id'],
+                                                   tenant_id,
                                                    reuse_after)
         self.assertIsNone(ipaddress2['id'])
         self.assertEqual(ipaddress2['tenant_id'], tenant_id)

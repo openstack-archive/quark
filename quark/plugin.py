@@ -502,8 +502,12 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             if not net:
                 raise exceptions.NetworkNotFound(net_id=net_id)
 
-            addresses.append(self.ipam_driver.allocate_ip_address(
-                session, net_id, port_id, self.ipam_reuse_after))
+            addresses.append(
+                self.ipam_driver.allocate_ip_address(session,
+                                                     net_id,
+                                                     port_id,
+                                                     context.tenant_id,
+                                                     self.ipam_reuse_after))
             mac = self.ipam_driver.allocate_mac_address(session,
                                                         net_id,
                                                         port_id,

@@ -97,7 +97,8 @@ class QuarkIpam(object):
 
         raise exceptions.MacAddressGenerationFailure(net_id=net_id)
 
-    def allocate_ip_address(self, session, net_id, port_id, reuse_after):
+    def allocate_ip_address(self, session, net_id, port_id, tenant_id,
+                            reuse_after):
         reuse = (timeutils.utcnow() -
                  datetime.timedelta(seconds=reuse_after))
         query = session.query(models.IPAddress)
@@ -129,7 +130,7 @@ class QuarkIpam(object):
             address["subnet_id"] = subnet["id"]
             address["version"] = subnet["ip_version"]
             address["network_id"] = net_id
-            address["tenant_id"] = subnet["tenant_id"]
+            address["tenant_id"] = tenant_id
             address["_deallocated"] = False
             address["deallocated_at"] = None
 
