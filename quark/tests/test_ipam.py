@@ -275,6 +275,15 @@ class TestQuarkIpamBase(test_base.TestBase):
         self.context.session.add(net)
         self.context.session.flush()
 
+    def _create_and_insert_subnet(self, net_id, tenant_id='foobar',
+                                  cidr='192.168.10.1/24'):
+        subnet = models.Subnet()
+        subnet['tenant_id'] = tenant_id
+        subnet['network_id'] = net_id
+        subnet['cidr'] = cidr
+        self.context.session.add(subnet)
+        self.context.session.flush()
+
     def test_allocate_ip_address_deallocated_success(self):
         tenant_id = 'foobar'
         port_id = '123'
@@ -286,13 +295,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         self._create_and_insert_net()
         net = self.context.session.query(models.Network).first()
 
-        subnet = models.Subnet()
-        subnet['tenant_id'] = tenant_id
-        subnet['network_id'] = net['id']
-        subnet['cidr'] = '192.168.10.1/24'
-        self.context.session.add(subnet)
-        self.context.session.flush()
-
+        self._create_and_insert_subnet(net['id'])
         subnet = self.context.session.query(models.Subnet).first()
 
         port = models.Port()
@@ -349,13 +352,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         self._create_and_insert_net()
         net = self.context.session.query(models.Network).first()
 
-        subnet = models.Subnet()
-        subnet['tenant_id'] = tenant_id
-        subnet['network_id'] = net['id']
-        subnet['cidr'] = '192.168.10.1/24'
-        self.context.session.add(subnet)
-        self.context.session.flush()
-
+        self._create_and_insert_subnet(net['id'])
         subnet = self.context.session.query(models.Subnet).first()
 
         port = models.Port()
@@ -424,13 +421,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         self._create_and_insert_net()
         net = self.context.session.query(models.Network).first()
 
-        subnet = models.Subnet()
-        subnet['tenant_id'] = tenant_id
-        subnet['network_id'] = net['id']
-        subnet['cidr'] = '192.168.10.1/32'
-        self.context.session.add(subnet)
-        self.context.session.flush()
-
+        self._create_and_insert_subnet(net['id'], cidr='192.168.10.1/32')
         subnet = self.context.session.query(models.Subnet).first()
 
         port = models.Port()
@@ -475,13 +466,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         self._create_and_insert_net()
         net = self.context.session.query(models.Network).first()
 
-        subnet = models.Subnet()
-        subnet['tenant_id'] = tenant_id
-        subnet['network_id'] = net['id']
-        subnet['cidr'] = '192.168.10.1/24'
-        self.context.session.add(subnet)
-        self.context.session.flush()
-
+        self._create_and_insert_subnet(net['id'])
         primary_subnet = self.context.session.query(models.Subnet).first()
 
         subnet = models.Subnet()
@@ -544,13 +529,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         self._create_and_insert_net(name='mynet2')
         primary_net = self.context.session.query(models.Network).first()
 
-        subnet = models.Subnet()
-        subnet['tenant_id'] = tenant_id
-        subnet['network_id'] = primary_net['id']
-        subnet['cidr'] = '192.168.10.1/24'
-        self.context.session.add(subnet)
-        self.context.session.flush()
-
+        self._create_and_insert_subnet(primary_net['id'])
         subnet = self.context.session.query(models.Subnet).first()
 
         port = models.Port()
@@ -594,13 +573,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         self._create_and_insert_net(name='mynet2')
         primary_net = self.context.session.query(models.Network).first()
 
-        subnet = models.Subnet()
-        subnet['tenant_id'] = tenant_id
-        subnet['network_id'] = primary_net['id']
-        subnet['cidr'] = '192.168.10.1/24'
-        self.context.session.add(subnet)
-        self.context.session.flush()
-
+        self._create_and_insert_subnet(primary_net['id'])
         subnet = self.context.session.query(models.Subnet).first()
 
         port = models.Port()
@@ -654,13 +627,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         self._create_and_insert_net()
         net = self.context.session.query(models.Network).first()
 
-        subnet = models.Subnet()
-        subnet['tenant_id'] = tenant_id
-        subnet['network_id'] = net['id']
-        subnet['cidr'] = '192.168.10.1/24'
-        self.context.session.add(subnet)
-        self.context.session.flush()
-
+        self._create_and_insert_subnet(net['id'])
         subnet = self.context.session.query(models.Subnet).first()
 
         port = models.Port()
@@ -702,13 +669,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         self._create_and_insert_net()
         net = self.context.session.query(models.Network).first()
 
-        subnet = models.Subnet()
-        subnet['tenant_id'] = tenant_id
-        subnet['network_id'] = net['id']
-        subnet['cidr'] = '192.168.10.1/24'
-        self.context.session.add(subnet)
-        self.context.session.flush()
-
+        self._create_and_insert_subnet(net['id'])
         subnet = self.context.session.query(models.Subnet).first()
 
         port = models.Port()
@@ -769,13 +730,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         self._create_and_insert_net()
         net = self.context.session.query(models.Network).first()
 
-        subnet = models.Subnet()
-        subnet['tenant_id'] = tenant_id
-        subnet['network_id'] = net['id']
-        subnet['cidr'] = '192.168.10.1/24'
-        self.context.session.add(subnet)
-        self.context.session.flush()
-
+        self._create_and_insert_subnet(net['id'])
         subnet = self.context.session.query(models.Subnet).first()
 
         port = models.Port()
@@ -822,13 +777,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         self._create_and_insert_net()
         net = self.context.session.query(models.Network).first()
 
-        subnet = models.Subnet()
-        subnet['tenant_id'] = tenant_id
-        subnet['network_id'] = net['id']
-        subnet['cidr'] = '192.168.10.1/24'
-        self.context.session.add(subnet)
-        self.context.session.flush()
-
+        self._create_and_insert_subnet(net['id'])
         subnet = self.context.session.query(models.Subnet).first()
 
         port = models.Port()
