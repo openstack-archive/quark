@@ -392,7 +392,8 @@ class TestQuarkIpamBase(test_base.TestBase):
                                                       reuse_after)
             self.assertIsNone(ipaddress['id'])
             self.assertEqual(ipaddress['tenant_id'], tenant_id)
-            self.assertEqual(ipaddress['address_readable'], '::ffff:192.168.10.1')
+            self.assertEqual(ipaddress['address_readable'],
+                             '::ffff:192.168.10.1')
             self.assertEqual(ipaddress['address'],
                              int(netaddr.IPAddress('::ffff:192.168.10.1')))
             self.assertEqual(ipaddress['subnet_id'], subnet['id'])
