@@ -144,14 +144,13 @@ class QuarkIpam(object):
         if not port:
             raise exceptions.NotFound(
                 message="No port found with id=%s" % port_id)
+
         for address in port['ip_addresses']:
             # NOTE(jkoelker) Address is used by multiple ports only
             #                remove it from this port
-            if len(address['ports']) > 1:
-                address['ports'].remove(port)
-                continue
-
-            address["deallocated"] = 1
+            address['ports'].remove(port)
+            if len(address['ports']) == 0:
+                address["deallocated"] = 1
 
     def deallocate_mac_address(self, session, address):
         mac = session.query(models.MacAddress).\
