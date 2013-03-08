@@ -405,7 +405,72 @@ class TestQuarkIpamBase(test_base.TestBase):
         self.assertTrue(ipaddress['deallocated'])
 
     def test_deallocate_ip_address_success_two_ports(self):
-        pass
+        tenant_id = 'foobar'
+        port_id = '123'
+        port_id_two = '456'
+        port_backend_key = '123'
+        port_device_id = '123'
+        reuse_after = 0
+
+        net = models.Network()
+        net['name'] = 'mynet'
+        net['tenant_id'] = tenant_id
+        self.context.session.add(net)
+        self.context.session.flush()
+
+        net = self.context.session.query(models.Network).first()
+
+        subnet = models.Subnet()
+        subnet['tenant_id'] = tenant_id
+        subnet['network_id'] = net['id']
+        subnet['cidr'] = '192.168.10.1/24'
+        self.context.session.add(subnet)
+        self.context.session.flush()
+
+        subnet = self.context.session.query(models.Subnet).first()
+
+        port = models.Port()
+        port['tenant_id'] = tenant_id
+        port['id'] = port_id
+        port['network_id'] = net['id']
+        port['backend_key'] = port_backend_key
+        port['mac_address'] = None
+        port['device_id'] = port_device_id
+        self.context.session.add(port)
+        self.context.session.flush()
+
+        port = models.Port()
+        port['tenant_id'] = tenant_id
+        port['id'] = port_id_two
+        port['network_id'] = net['id']
+        port['backend_key'] = port_backend_key
+        port['mac_address'] = None
+        port['device_id'] = port_device_id
+        self.context.session.add(port)
+        self.context.session.flush()
+
+        ports = self.context.session.query(models.Port).all()
+
+        ipaddress = models.IPAddress()
+        ipaddress['tenant_id'] = tenant_id
+        ipaddress['address_readable'] = '::ffff:192.168.10.0'
+        ipaddress['address'] = int(netaddr.IPAddress('::ffff:192.168.10.0'))
+        ipaddress['subnet_id'] = subnet['id']
+        ipaddress['network_id'], net['id']
+        ipaddress['version'] = 4
+        ipaddress['deallocated'] = False
+        ipaddress['deallocated_at'] = None
+        for port in ports:
+            port['ip_addresses'].extend([ipaddress])
+        self.context.session.add(ipaddress)
+        self.context.session.flush()
+
+        self.ipam.deallocate_ip_address(self.context.session,
+                                        ports[0]['id'])
+        self.context.session.flush()
+
+        ipaddress = self.context.session.query(models.IPAddress).first()
+        self.assertFalse(ipaddress['deallocated'])
 
     def test_deallocate_ip_address_failure(self):
         port_id = 'abc'
