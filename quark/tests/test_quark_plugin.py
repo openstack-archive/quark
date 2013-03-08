@@ -22,13 +22,18 @@ import quark.plugin
 import test_base
 
 
-class TestSubnets(test_base.TestBase):
+class TestQuarkPlugin(test_base.TestBase):
     def setUp(self):
         cfg.CONF.set_override('sql_connection', 'sqlite://', 'DATABASE')
         db_api.configure_db()
         self.context = context.get_admin_context()
         self.plugin = quark.plugin.Plugin()
 
+    def tearDown(self):
+        db_api.clear_db()
+
+
+class TestSubnets(TestQuarkPlugin):
     def test_allocated_ips_only(self):
         # 1. Create network
         network = {'network': {'name': 'test'}}
@@ -59,5 +64,6 @@ class TestSubnets(test_base.TestBase):
         #                grab the fixed_ip from that and make sure it has
         #                no ports
 
-    def tearDown(self):
-        db_api.clear_db()
+
+class TestIpAddresses(TestQuarkPlugin):
+    pass
