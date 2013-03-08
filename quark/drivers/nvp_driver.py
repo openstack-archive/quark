@@ -20,6 +20,7 @@ NVP client driver for Quark
 import ConfigParser
 
 import sqlalchemy as sa
+from sqlalchemy import orm
 
 import aiclib
 from quantum.openstack.common import log as logging
@@ -27,7 +28,6 @@ from quantum.db.models_v2 import HasId
 
 from quark.db import models
 from quark.drivers import base
-from quark import exceptions as quark_exceptions
 
 
 LOG = logging.getLogger("quantum.quark.nvplib")
@@ -37,12 +37,14 @@ class NVPDriver(base.BaseDriver):
     def __init__(self):
         self.nvp_connections = []
         self.conn_index = 0
+        self.max_ports_per_switch = 0
 
     def load_config(self, path):
         config = ConfigParser.ConfigParser()
         config.read(path)
         default_tz = config.get("NVP", "DEFAULT_TZ_UUID")
         connections = config.get("NVP", "NVP_CONTROLLER_CONNECTIONS")
+        self.max_ports_per_switch = int(config.get("NVP", "max_ports_per_switch"))
         for conn in connections.split():
             (ip, port, user, pw, req_timeout,
              http_timeout, retries, redirects) =\
@@ -67,60 +69,15 @@ class NVPDriver(base.BaseDriver):
 
     def create_network(self, tenant_id, network_name, tags=None,
                        network_id=None, **kwargs):
-        return self._create_lswitch(tenant_id, network_name, tags,
+        return self._lswitch_create(tenant_id, network_name, tags,
                                     network_id, **kwargs)
 
     def delete_network(self, context, network_id):
+        lswitches = self._lswitches_for_network(context, network_id).results()
         connection = self.get_connection()
-        query = connection.lswitch().query()
-        tags = [dict(tag=network_id, scope="quantum_net_id")]
-        query.tags(tags)
-        lswitches = query.results()
         for switch in lswitches["results"]:
             LOG.debug("Deleting lswitch %s" % switch["uuid"])
             connection.lswitch(switch["uuid"]).delete()
-
-    def _get_open_lswitch(self, context, network_id, max_per_switch):
-        query = self._lswitch_query(context, network_id)
-        query.relations("LogicalSwitchStatus")
-        results = query.results()
-        for res in results["results"]:
-            count = res["_relations"]["LogicalSwitchStatus"]["lport_count"]
-            if count < max_per_switch:
-                return res["uuid"]
-        return None
-
-    def _get_lswitch_for_network(self, context, network_id):
-        LOG.debug("Finding lswitch for network %s" % network_id)
-        results = self._lswitch_query(context, network_id).results()
-        if results["result_count"] > 1:
-            raise quark_exceptions.AmbiguousLswitchCount(net_id=network_id)
-        return results["results"][0]
-
-    def _lswitch_query(self, context, network_id):
-        connection = self.get_connection()
-        query = connection.lswitch().query()
-        tags = [dict(tag=network_id, scope="quantum_net_id"),
-                dict(tag=context.tenant_id, scope="os_tid")]
-        query.tags(tags)
-        return query
-
-    def _create_or_choose_lswitch(self, context, network_id, max_per_switch=0):
-        tenant_id = context.tenant_id
-        LOG.debug("Choosing an appropriate lswitch for %s" % tenant_id)
-        if max_per_switch > 0:
-            LOG.debug("Max ports per switch %d" % max_per_switch)
-            switch = self._get_open_lswitch(context, network_id,
-                                            max_per_switch)
-            if switch:
-                LOG.debug("Found open switch %s" % switch)
-                return switch
-
-            # if we get here, time to make a new switch
-            return self._create_lswitch(tenant_id, network_id,
-                                        network_id=network_id)["uuid"]
-
-        return self._get_lswitch_for_network(context, network_id)
 
     def create_port(self, context, network_id, port_id, status=True):
         tenant_id = context.tenant_id
@@ -131,9 +88,10 @@ class NVPDriver(base.BaseDriver):
         tags = [dict(tag=network_id, scope="quantum_net_id"),
                 dict(tag=port_id, scope="quantum_port_id"),
                 dict(tag=tenant_id, scope="os_tid")]
-        LOG.debug("Creating port on switch %s" % lswitch["uuid"])
+        LOG.debug("Creating port on switch %s" % lswitch)
         port.tags(tags)
         res = port.create()
+        res["lswitch"] = lswitch
         return res
 
     def delete_port(self, context, port_id, lswitch_uuid=None):
@@ -150,7 +108,35 @@ class NVPDriver(base.BaseDriver):
         LOG.debug("Deleting port %s from lswitch %s" % (port_id, lswitch_uuid))
         connection.lswitch_port(lswitch_uuid, port_id).delete()
 
-    def _create_lswitch(self, context, network_name, tags=None,
+    def _create_or_choose_lswitch(self, context, network_id):
+        tenant_id = context.tenant_id
+        LOG.debug("Choosing an appropriate lswitch for %s" % tenant_id)
+        LOG.debug("Max ports per switch %d" % self.max_ports_per_switch)
+        switch = self._lswitch_select_open(context, network_id)
+        if switch:
+            LOG.debug("Found open switch %s" % switch)
+            return switch
+
+        return self._lswitch_create(context, network_id,
+                                    network_id=network_id)
+
+    def _lswitch_select_open(self, context, network_id):
+        query = self._lswitches_for_network(context, network_id)
+        query.relations("LogicalSwitchStatus")
+        results = query.results()
+        LOG.debug("Query results: %s" % results)
+        for res in results["results"]:
+            count = res["_relations"]["LogicalSwitchStatus"]["lport_count"]
+            if self.max_ports_per_switch == 0 or count < self.max_ports_per_switch:
+                return res["uuid"]
+        return None
+
+    def _lswitch_delete(self, context, lswitch_uuid):
+        connection = self.get_connection()
+        LOG.debug("Deleting lswitch %s" % lswitch_uuid)
+        connection.lswitch(lswitch_uuid).delete()
+
+    def _lswitch_create(self, context, network_name, tags=None,
                         network_id=None, **kwargs):
         LOG.debug("Creating new lswitch for %s network %s" %
                  (context.tenant_id, network_name))
@@ -165,21 +151,99 @@ class NVPDriver(base.BaseDriver):
         switch.tags(tags)
         LOG.debug("Creating lswitch for network %s" % network_id)
         res = switch.create()
-        return res
+        return res["uuid"]
+
+    def _lswitches_for_network(self, context, network_id):
+        connection = self.get_connection()
+        query = connection.lswitch().query()
+        tags = [dict(tag=network_id, scope="quantum_net_id"),
+                dict(tag=context.tenant_id, scope="os_tid")]
+        query.tags(tags)
+        return query
 
 
 class OptimizedNVPDriver(NVPDriver):
-    def _get_open_lswitch(self, context, network_id, max_per_switch):
-        #TODO: use the lswitch table here
-        return super(OptimizedNVPDriver, self)._get_open_lswitch(
-            context, network_id, max_per_switch)
+    def delete_network(self, context, network_id):
+        lswitches = self._lswitches_for_network(context, network_id)
+        with context.session.begin(subtransactions=True):
+            for switch in lswitches:
+                self._lswitch_delete(context, switch.nvp_id)
 
-    def _get_lswitch_for_network(self, context, network_id):
-        #TODO: use the lswitch table here
-        return super(OptimizedNVPDriver, self)._get_lswitch_for_network(
-            context, network_id)
+    def create_port(self, context, network_id, port_id, status=True):
+        with context.session.begin(subtransactions=True):
+            nvp_port = super(OptimizedNVPDriver, self).create_port(context, network_id,
+                                                                   port_id, status)
+            switch_nvp_id = nvp_port["lswitch"]
+            switch = context.session.query(LSwitch).\
+                    filter(LSwitch.nvp_id == switch_nvp_id).\
+                    first()
+            new_port = LSwitchPort(port_id=nvp_port["uuid"],
+                                   switch_id=switch.id)
+            context.session.add(new_port)
+            switch.port_count = switch.port_count + 1
+        return nvp_port
+
+    def delete_port(self, context, port_id, lswitch_uuid=None):
+        with context.session.begin(subtransactions=True):
+            port = context.session.query(LSwitchPort).\
+                    filter(LSwitchPort.port_id == port_id).\
+                    first()
+            switch = port.switch
+            super(OptimizedNVPDriver, self).delete_port(context, port_id,
+                                                        lswitch_uuid=switch.nvp_id)
+            context.session.delete(port)
+            switch.port_count = switch.port_count - 1
+            if switch.port_count == 0:
+                self._lswitch_delete(context, switch.nvp_id)
+
+    def _lswitch_delete(self, context, lswitch_uuid):
+        with context.session.begin(subtransactions=True):
+            switch = context.session.query(LSwitch).\
+                    filter(LSwitch.nvp_id == lswitch_uuid).\
+                    first()
+            super(OptimizedNVPDriver, self)._lswitch_delete(context, lswitch_uuid)
+            context.session.delete(switch)
+
+    def _lswitch_select_open(self, context, network_id):
+        if self.max_ports_per_switch == 0:
+            switch = context.session.query(LSwitch).first()
+        else:
+            switch = context.session.query(LSwitch).\
+                    filter(LSwitch.port_count < self.max_ports_per_switch).\
+                    order_by(LSwitch.port_count).\
+                    first()
+        if not switch:
+            LOG.debug("Could not find optimized switch")
+            return None
+        return switch.nvp_id
+
+    def _lswitch_create(self, context, network_name, tags=None,
+                        network_id=None, **kwargs):
+        with context.session.begin(subtransactions=True):
+            nvp_id = super(OptimizedNVPDriver, self)._lswitch_create(context, 
+                                network_name, tags, network_id, **kwargs)
+            new_switch = LSwitch(nvp_id=nvp_id, network_id=network_id,
+                                        port_count=0)
+            context.session.add(new_switch)
+            return new_switch.nvp_id
+
+    def _lswitches_for_network(self, context, network_id):
+        switches = context.session.query(LSwitch).\
+                filter(LSwitch.network_id == network_id).\
+                all()
+        return switches
+
+
+class LSwitchPort(models.BASEV2, HasId):
+    __tablename__ = "quark_nvp_driver_lswitchport"
+    port_id = sa.Column(sa.String(255), nullable=False)
+    switch_id = sa.Column(sa.String(255), sa.ForeignKey("quark_nvp_driver_lswitch.id"),
+                          nullable=False)
 
 
 class LSwitch(models.BASEV2, HasId):
     __tablename__ = "quark_nvp_driver_lswitch"
-    switch_id = sa.Column(sa.String(255), primary_key=True, nullable=False)
+    nvp_id = sa.Column(sa.String(255), nullable=False)
+    network_id = sa.Column(sa.String(255), nullable=False)
+    port_count = sa.Column(sa.Integer())
+    ports = orm.relationship(LSwitchPort, backref='switch')
