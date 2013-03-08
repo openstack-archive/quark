@@ -167,12 +167,12 @@ class NVPDriver(base.BaseDriver):
 class OptimizedNVPDriver(NVPDriver):
     def delete_network(self, context, network_id):
         lswitches = self._lswitches_for_network(context, network_id)
-        with context.session.begin(subtransactions=True):
+        with context.session.begin():
             for switch in lswitches:
                 self._lswitch_delete(context, switch.nvp_id)
 
     def create_port(self, context, network_id, port_id, status=True):
-        with context.session.begin(subtransactions=True):
+        with context.session.begin():
             nvp_port = super(OptimizedNVPDriver, self).\
                 create_port(context, network_id,
                             port_id, status)
@@ -187,7 +187,7 @@ class OptimizedNVPDriver(NVPDriver):
         return nvp_port
 
     def delete_port(self, context, port_id, lswitch_uuid=None):
-        with context.session.begin(subtransactions=True):
+        with context.session.begin():
             port = context.session.query(LSwitchPort).\
                 filter(LSwitchPort.port_id == port_id).\
                 first()
@@ -200,7 +200,7 @@ class OptimizedNVPDriver(NVPDriver):
                 self._lswitch_delete(context, switch.nvp_id)
 
     def _lswitch_delete(self, context, lswitch_uuid):
-        with context.session.begin(subtransactions=True):
+        with context.session.begin():
             switch = context.session.query(LSwitch).\
                 filter(LSwitch.nvp_id == lswitch_uuid).\
                 first()
@@ -223,7 +223,7 @@ class OptimizedNVPDriver(NVPDriver):
 
     def _lswitch_create(self, context, network_name, tags=None,
                         network_id=None, **kwargs):
-        with context.session.begin(subtransactions=True):
+        with context.session.begin():
             nvp_id = super(OptimizedNVPDriver, self).\
                 _lswitch_create(context, network_name, tags,
                                 network_id, **kwargs)
