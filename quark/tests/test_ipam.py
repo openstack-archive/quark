@@ -284,11 +284,20 @@ class TestQuarkIpamBase(test_base.TestBase):
         self.context.session.add(subnet)
         self.context.session.flush()
 
+    def _create_and_insert_port(self, net_id, id='123', backend_key='123',
+                                device_id='123', tenant_id='foobar'):
+        port = models.Port()
+        port['tenant_id'] = tenant_id
+        port['id'] = id
+        port['network_id'] = net_id
+        port['backend_key'] = backend_key
+        port['mac_address'] = None
+        port['device_id'] = device_id
+        self.context.session.add(port)
+        self.context.session.flush()
+
     def test_allocate_ip_address_deallocated_success(self):
         tenant_id = 'foobar'
-        port_id = '123'
-        port_backend_key = '123'
-        port_device_id = '123'
         test_datetime = datetime(1970, 1, 1)
         reuse_after = 0
 
@@ -298,16 +307,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         self._create_and_insert_subnet(net['id'])
         subnet = self.context.session.query(models.Subnet).first()
 
-        port = models.Port()
-        port['tenant_id'] = tenant_id
-        port['id'] = port_id
-        port['network_id'] = net['id']
-        port['backend_key'] = port_backend_key
-        port['mac_address'] = None
-        port['device_id'] = port_device_id
-        self.context.session.add(port)
-        self.context.session.flush()
-
+        self._create_and_insert_port(net['id'])
         port = self.context.session.query(models.Port).first()
 
         ipaddress = models.IPAddress()
@@ -343,9 +343,6 @@ class TestQuarkIpamBase(test_base.TestBase):
         '''Fails based on the choice of reuse_after argument. Allocates new ip
         address instead of previously deallocated mac address.'''
         tenant_id = 'foobar'
-        port_id = '123'
-        port_backend_key = '123'
-        port_device_id = '123'
         test_datetime = datetime(1970, 1, 1)
         reuse_after = 3600
 
@@ -355,16 +352,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         self._create_and_insert_subnet(net['id'])
         subnet = self.context.session.query(models.Subnet).first()
 
-        port = models.Port()
-        port['tenant_id'] = tenant_id
-        port['id'] = port_id
-        port['network_id'] = net['id']
-        port['backend_key'] = port_backend_key
-        port['mac_address'] = None
-        port['device_id'] = port_device_id
-        self.context.session.add(port)
-        self.context.session.flush()
-
+        self._create_and_insert_port(net['id'])
         port = self.context.session.query(models.Port).first()
 
         ipaddress = models.IPAddress()
@@ -413,9 +401,6 @@ class TestQuarkIpamBase(test_base.TestBase):
 
     def test_allocate_ip_address_fully_allocated_subnet(self):
         tenant_id = 'foobar'
-        port_id = '123'
-        port_backend_key = '123'
-        port_device_id = '123'
         reuse_after = 0
 
         self._create_and_insert_net()
@@ -424,16 +409,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         self._create_and_insert_subnet(net['id'], cidr='192.168.10.1/32')
         subnet = self.context.session.query(models.Subnet).first()
 
-        port = models.Port()
-        port['tenant_id'] = tenant_id
-        port['id'] = port_id
-        port['network_id'] = net['id']
-        port['backend_key'] = port_backend_key
-        port['mac_address'] = None
-        port['device_id'] = port_device_id
-        self.context.session.add(port)
-        self.context.session.flush()
-
+        self._create_and_insert_port(net['id'])
         port = self.context.session.query(models.Port).first()
 
         ipaddress = models.IPAddress()
@@ -458,9 +434,6 @@ class TestQuarkIpamBase(test_base.TestBase):
 
     def test_allocate_ip_address_multiple_subnets(self):
         tenant_id = 'foobar'
-        port_id = '123'
-        port_backend_key = '123'
-        port_device_id = '123'
         reuse_after = 0
 
         self._create_and_insert_net()
@@ -468,24 +441,9 @@ class TestQuarkIpamBase(test_base.TestBase):
 
         self._create_and_insert_subnet(net['id'])
         primary_subnet = self.context.session.query(models.Subnet).first()
+        self._create_and_insert_subnet(net['id'], cidr='192.168.20.1/24')
 
-        subnet = models.Subnet()
-        subnet['tenant_id'] = tenant_id
-        subnet['network_id'] = net['id']
-        subnet['cidr'] = '192.168.20.1/24'
-        self.context.session.add(subnet)
-        self.context.session.flush()
-
-        port = models.Port()
-        port['tenant_id'] = tenant_id
-        port['id'] = port_id
-        port['network_id'] = net['id']
-        port['backend_key'] = port_backend_key
-        port['mac_address'] = None
-        port['device_id'] = port_device_id
-        self.context.session.add(port)
-        self.context.session.flush()
-
+        self._create_and_insert_port(net['id'])
         port = self.context.session.query(models.Port).first()
 
         ipaddress = models.IPAddress()
@@ -520,9 +478,6 @@ class TestQuarkIpamBase(test_base.TestBase):
 
     def test_allocate_ip_address_multiple_networks_subnet(self):
         tenant_id = 'foobar'
-        port_id = '123'
-        port_backend_key = '123'
-        port_device_id = '123'
         reuse_after = 0
 
         self._create_and_insert_net(name='mynet')
@@ -532,16 +487,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         self._create_and_insert_subnet(primary_net['id'])
         subnet = self.context.session.query(models.Subnet).first()
 
-        port = models.Port()
-        port['tenant_id'] = tenant_id
-        port['id'] = port_id
-        port['network_id'] = primary_net['id']
-        port['backend_key'] = port_backend_key
-        port['mac_address'] = None
-        port['device_id'] = port_device_id
-        self.context.session.add(port)
-        self.context.session.flush()
-
+        self._create_and_insert_port(primary_net['id'])
         port = self.context.session.query(models.Port).first()
 
         ipaddress = self.ipam.allocate_ip_address(self.context.session,
@@ -563,9 +509,6 @@ class TestQuarkIpamBase(test_base.TestBase):
 
     def test_allocate_ip_address_multiple_networks_deallocated(self):
         tenant_id = 'foobar'
-        port_id = '123'
-        port_backend_key = '123'
-        port_device_id = '123'
         test_datetime = datetime(1970, 1, 1)
         reuse_after = 0
 
@@ -576,16 +519,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         self._create_and_insert_subnet(primary_net['id'])
         subnet = self.context.session.query(models.Subnet).first()
 
-        port = models.Port()
-        port['tenant_id'] = tenant_id
-        port['id'] = port_id
-        port['network_id'] = primary_net['id']
-        port['backend_key'] = port_backend_key
-        port['mac_address'] = None
-        port['device_id'] = port_device_id
-        self.context.session.add(port)
-        self.context.session.flush()
-
+        self._create_and_insert_port(primary_net['id'])
         port = self.context.session.query(models.Port).first()
 
         ipaddress = models.IPAddress()
@@ -619,9 +553,6 @@ class TestQuarkIpamBase(test_base.TestBase):
 
     def test_allocate_ip_address_success(self):
         tenant_id = 'foobar'
-        port_id = '123'
-        port_backend_key = '123'
-        port_device_id = '123'
         reuse_after = 0
 
         self._create_and_insert_net()
@@ -630,16 +561,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         self._create_and_insert_subnet(net['id'])
         subnet = self.context.session.query(models.Subnet).first()
 
-        port = models.Port()
-        port['tenant_id'] = tenant_id
-        port['id'] = port_id
-        port['network_id'] = net['id']
-        port['backend_key'] = port_backend_key
-        port['mac_address'] = None
-        port['device_id'] = port_device_id
-        self.context.session.add(port)
-        self.context.session.flush()
-
+        self._create_and_insert_port(net['id'])
         port = self.context.session.query(models.Port).first()
 
         ipaddress = self.ipam.allocate_ip_address(self.context.session,
@@ -661,9 +583,6 @@ class TestQuarkIpamBase(test_base.TestBase):
 
     def test_allocate_ip_address_multiple_ips(self):
         tenant_id = 'foobar'
-        port_id = '123'
-        port_backend_key = '123'
-        port_device_id = '123'
         reuse_after = 0
 
         self._create_and_insert_net()
@@ -672,16 +591,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         self._create_and_insert_subnet(net['id'])
         subnet = self.context.session.query(models.Subnet).first()
 
-        port = models.Port()
-        port['tenant_id'] = tenant_id
-        port['id'] = port_id
-        port['network_id'] = net['id']
-        port['backend_key'] = port_backend_key
-        port['mac_address'] = None
-        port['device_id'] = port_device_id
-        self.context.session.add(port)
-        self.context.session.flush()
-
+        self._create_and_insert_port(net['id'])
         port = self.context.session.query(models.Port).first()
 
         ipaddress = self.ipam.allocate_ip_address(self.context.session,
@@ -722,9 +632,6 @@ class TestQuarkIpamBase(test_base.TestBase):
 
     def test_deallocate_ip_address_success_one_port(self):
         tenant_id = 'foobar'
-        port_id = '123'
-        port_backend_key = '123'
-        port_device_id = '123'
         reuse_after = 0
 
         self._create_and_insert_net()
@@ -733,16 +640,7 @@ class TestQuarkIpamBase(test_base.TestBase):
         self._create_and_insert_subnet(net['id'])
         subnet = self.context.session.query(models.Subnet).first()
 
-        port = models.Port()
-        port['tenant_id'] = tenant_id
-        port['id'] = port_id
-        port['network_id'] = net['id']
-        port['backend_key'] = port_backend_key
-        port['mac_address'] = None
-        port['device_id'] = port_device_id
-        self.context.session.add(port)
-        self.context.session.flush()
-
+        self._create_and_insert_port(net['id'])
         port = self.context.session.query(models.Port).first()
 
         ipaddress = models.IPAddress()
@@ -768,10 +666,6 @@ class TestQuarkIpamBase(test_base.TestBase):
 
     def test_deallocate_ip_address_success_two_ports(self):
         tenant_id = 'foobar'
-        port_id = '123'
-        port_id_two = '456'
-        port_backend_key = '123'
-        port_device_id = '123'
         reuse_after = 0
 
         self._create_and_insert_net()
@@ -780,26 +674,8 @@ class TestQuarkIpamBase(test_base.TestBase):
         self._create_and_insert_subnet(net['id'])
         subnet = self.context.session.query(models.Subnet).first()
 
-        port = models.Port()
-        port['tenant_id'] = tenant_id
-        port['id'] = port_id
-        port['network_id'] = net['id']
-        port['backend_key'] = port_backend_key
-        port['mac_address'] = None
-        port['device_id'] = port_device_id
-        self.context.session.add(port)
-        self.context.session.flush()
-
-        port = models.Port()
-        port['tenant_id'] = tenant_id
-        port['id'] = port_id_two
-        port['network_id'] = net['id']
-        port['backend_key'] = port_backend_key
-        port['mac_address'] = None
-        port['device_id'] = port_device_id
-        self.context.session.add(port)
-        self.context.session.flush()
-
+        self._create_and_insert_port(net['id'], id='123')
+        self._create_and_insert_port(net['id'], id='456')
         ports = self.context.session.query(models.Port).all()
 
         ipaddress = models.IPAddress()
