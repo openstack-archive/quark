@@ -162,7 +162,7 @@ class TestIpAddresses(TestQuarkPlugin):
 
         self._create_mac_address_range()
         device_id = 'onetwothree'
-        self._create_port(network_id, device_id)
+        port_id = self._create_port(network_id, device_id)['id']
 
         ip_address = {'ip_address': {'network_id': network_id,
                                      'device_id': device_id,
@@ -175,7 +175,7 @@ class TestIpAddresses(TestQuarkPlugin):
         self.assertIn(netaddr.IPAddress(response['address']),
                       netaddr.IPNetwork(subnet_v4['cidr']))
         self.assertEqual(response['port_ids'], [port_id])
-        self.assertEqual(response['subnet_id'], subnet['id'])
+        self.assertEqual(response['subnet_id'], subnet_v4['id'])
 
     def test_create_ip_address_success_7(self):
         '''7. Create IP address with version (v6) specified.'''
