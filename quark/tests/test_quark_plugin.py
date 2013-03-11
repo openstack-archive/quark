@@ -76,7 +76,6 @@ class TestIpAddresses(TestQuarkPlugin):
     #    ip_address optional
     #    network_id and device_id (or port_id)
 
-    # 3. Create IP Address with all ids missing (failure) 000
     # 4. Create IP Address with network id and not device id (failure) 100
     # 5. Create IP Address with not network id and device id (failure) 010
     # 6. Create IP Address with version specified (version == 6),
@@ -148,6 +147,13 @@ class TestIpAddresses(TestQuarkPlugin):
         '''2b. Create IP Address with invalid port_id.'''
         with self.assertRaises(exceptions.IpAddressGenerationFailure):
             ip_address = {'ip_address': {'port_id': 'fake'}}
+            response = self.plugin.create_ip_address(self.context,
+                                                     ip_address)
+
+    def test_create_ip_address_failure_3(self):
+        '''3. Create IP address with all ids missing.'''
+        with self.assertRaises(exceptions.IpAddressGenerationFailure):
+            ip_address = {'ip_address': {}}
             response = self.plugin.create_ip_address(self.context,
                                                      ip_address)
 
