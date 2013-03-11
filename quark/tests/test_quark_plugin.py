@@ -76,8 +76,6 @@ class TestIpAddresses(TestQuarkPlugin):
     #    ip_address optional
     #    network_id and device_id (or port_id)
 
-    # 10. Create IP Address with specific ip_address, ip does exist already,
-    # associates success
     # 11. Create IP Address with specific ip_address,
     # fail when subnet doesn't exist
 
@@ -232,8 +230,7 @@ class TestIpAddresses(TestQuarkPlugin):
         '''9. Create IP address with specific ip_address and ip_address doesn't
         exist already.'''
         network_id = self._create_network()['id']
-        cidr = '192.168.10.1/24'
-        subnet = self._create_subnet(network_id, cidr)['id']
+        subnet = self._create_subnet(network_id)['id']
         self._create_mac_address_range()
         port_id = self._create_port(network_id)['id']
 
@@ -248,6 +245,27 @@ class TestIpAddresses(TestQuarkPlugin):
         self.assertEqual(response['address'], magic_ip)
         self.assertEqual(response['port_id'], port_id)
         self.assertEqual(response['subnet_id'], subnet['id'])
+
+    def test_create_ip_address_success_10(self):
+        '''10. Create IP address with specific ip_address when ip_address does
+        exist already. Associates to new port successfully.'''
+        network_id = self._create_network()['id']
+        subnet = self._create_subnet(network_id)['id']
+        self._create_mac_address_range()
+        port = self._create_port(network_id)
+
+        magic_ip = port['fixed_ips'][0]
+        ip_address = {'ip_address': {'port_id': port['id'],
+                                     'ip_address': magic_ip}}
+        response = self.plugin.create_ip_address(self.context,
+                                                 ip_address)
+
+        self.assertIsNotNone(response['id'])
+        self.assertEqual(response['network_id'], network_id)
+        self.assertEqual(response['address'], magic_ip)
+        self.assertEqual(response['port_id'], port_id)
+        self.assertEqual(response['subnet_id'], subnet['id'])
+        
 
     def test_get_ip_address_success(self):
         pass
