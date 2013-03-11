@@ -31,36 +31,38 @@ class TestQuarkPlugin(test_base.TestBase):
         self.context = context.get_admin_context()
         self.plugin = quark.plugin.Plugin()
 
+    def _create_network(self, name='test'):
+        network = {'network': {'name': name}}
+        return self.plugin.create_network(self.context, network)
+
+    def _create_subnet(self, network_id, cidr='192.168.10.1/24'):
+        subnet = {'subnet': {'cidr': cidr,
+                             'network_id': network_id}}
+        return self.plugin.create_subnet(self.context, subnet)
+
+    def _create_mac_address_range(self, cidr='01:23:45/24'):
+        mac_range = {'mac_address_range': {'cidr': cidr}}
+        return self.plugin.create_mac_address_range(self.context, mac_range)
+
+    def _create_port(self, network_id, device_id=''):
+        port = {'port': {'network_id': network_id,
+                         'device_id': device_id}}
+        return self.plugin.create_port(self.context, port)
+
     def tearDown(self):
         db_api.clear_db()
 
 
 class TestSubnets(TestQuarkPlugin):
     def test_allocated_ips_only(self):
-        # 1. Create network
-        network = {'network': {'name': 'test'}}
-        response = self.plugin.create_network(self.context, network)
-        network_id = response['id']
+        network_id = self._create_network()['id']
+        self._create_subnet(network_id)
+        self._create_mac_address_range()
 
-        # 2. Create subnet
-        subnet = {'subnet': {'cidr': '192.168.10.1/24',
-                             'network_id': network_id}}
-        self.plugin.create_subnet(self.context, subnet)
-
-        # 3. Create M.A.R.
-        mac_range = {'mac_address_range': {'cidr': '01:23:45/24'}}
-        self.plugin.create_mac_address_range(self.context, mac_range)
-
-        # 4. Create port
-        port = {'port': {'network_id': network_id,
-                         'device_id': ''}}
-        response = self.plugin.create_port(self.context, port)
-        port = self.plugin.get_port(self.context, response['id'])
-
+        port = self._create_port(network_id)
         self.assertTrue(len(port['fixed_ips']) >= 1)
 
-        # 5. Delete port.
-        self.plugin.delete_port(self.context, response['id'])
+        self.plugin.delete_port(self.context, port['id'])
 
         # TODO(jkoelker) once the ip_addresses controller is in the api
         #                grab the fixed_ip from that and make sure it has
@@ -99,30 +101,13 @@ class TestIpAddresses(TestQuarkPlugin):
     # 2. Fail: port_id in port_ids doesn't exist
     # 3. Success: Associate ipaddress at specific id with port
 
-    def test_create_ip_address_success(self):
-        '''Success: Create IP address with network id and device id.'''
-        # 1. Create network
-        network = {'network': {'name': 'test'}}
-        response = self.plugin.create_network(self.context, network)
-        network_id = response['id']
-
-        # 2. Create subnet
-        subnet_cidr = '192.168.10.1/24'
-        subnet = {'subnet': {'cidr': subnet_cidr,
-                             'network_id': network_id}}
-        response = self.plugin.create_subnet(self.context, subnet)
-        subnet_id = response['id']
-
-        # 3. Create M.A.R.
-        mac_range = {'mac_address_range': {'cidr': '01:23:45/24'}}
-        self.plugin.create_mac_address_range(self.context, mac_range)
-
-        # 4. Create port
+    def test_create_ip_address_success_1(self):
+        '''1. Create IP address with network id and device id.'''
+        network_id = self._create_network()['id']
+        subnet_id = self._create_subnet(network_id)['id']
+        self._create_mac_address_range()
         device_id = 'onetwothree'
-        port = {'port': {'network_id': network_id,
-                         'device_id': device_id}}
-        response = self.plugin.create_port(self.context, port)
-        port_id = response['id']
+        self._create_port(network_id, device_id)
 
         ip_address = {'ip_address': {'network_id': network_id,
                                      'device_id': device_id}}
