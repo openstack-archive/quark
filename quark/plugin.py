@@ -816,19 +816,22 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
 
         old_ports = address['ports']
         port_ids = ip_address['ip_address'].get('port_ids')
-        if not port_ids:
+        if port_ids is None:
             return self._make_ip_dict(address)
 
-        query = context.session.query(models.Port)
-        query = query.filter_by(tenant_id=context.tenant_id)
-        query = query.filter(models.Port.id.in_(port_ids))
-        ports = query.all()
-        if len(ports) != len(port_ids):
-            raise exceptions.NotFound(
-                message="All ports not found with ids=%s" % port_ids)
-        for port in old_ports:
-            port['ip_addresses'].remove(address)
-        for port in ports:
-            port['ip_addresses'].extend([address])
+        with context.session.begin():
+            for port in old_ports:
+                port['ip_addresses'].remove(address)
+
+            if port_ids:
+                query = context.session.query(models.Port)
+                query = query.filter_by(tenant_id=context.tenant_id)
+                query = query.filter(models.Port.id.in_(port_ids))
+                ports = query.all()
+                if len(ports) != len(port_ids):
+                    raise exceptions.NotFound(
+                        message="All ports not found with ids=%s" % port_ids)
+                for port in ports:
+                    port['ip_addresses'].extend([address])
 
         return self._make_ip_dict(address)

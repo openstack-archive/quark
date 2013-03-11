@@ -307,3 +307,35 @@ class TestIpAddresses(TestQuarkPlugin):
                                                  response['id'],
                                                  ip_address)
         self.assertEqual(response['port_ids'], [port_2['id']])
+
+    def test_update_ip_address_success_4(self):
+        '''4. Update IP address with valid id but no port_ids is no-op.'''
+        network_id = self._create_network()['id']
+        subnet = self._create_subnet(network_id)
+        self._create_mac_address_range()
+        port = self._create_port(network_id)
+
+        ip_address = {'ip_address': {'port_id': port['id']}}
+        response = self.plugin.create_ip_address(self.context,
+                                                 ip_address)
+        ip_address = {'ip_address': {}}
+        response = self.plugin.update_ip_address(self.context,
+                                                 response['id'],
+                                                 ip_address)
+        self.assertEqual(response['port_ids'], [port['id']])
+
+    def test_update_ip_address_success_5(self):
+        '''5. Update IP address with valid id and empty list deletes all.'''
+        network_id = self._create_network()['id']
+        subnet = self._create_subnet(network_id)
+        self._create_mac_address_range()
+        port = self._create_port(network_id)
+
+        ip_address = {'ip_address': {'port_id': port['id']}}
+        response = self.plugin.create_ip_address(self.context,
+                                                 ip_address)
+        ip_address = {'ip_address': {'port_ids': []}}
+        response = self.plugin.update_ip_address(self.context,
+                                                 response['id'],
+                                                 ip_address)
+        self.assertEqual(response['port_ids'], [])
