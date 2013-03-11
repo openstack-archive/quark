@@ -769,7 +769,26 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         return self._make_ip_dict(addr)
 
     def create_ip_address(self, context, ip_address):
-        raise NotImplemented()
+        LOG.info("create_ip_address for tenant %s" % context.tenant_id)
+
+        port = None
+        port_id = ip_address['ip_address'].get('port_id')
+        network_id = ip_address['ip_address'].get('network_id')
+        device_id = ip_address['ip_address'].get('device_id')
+        if network_id and device_id:
+            query = context.session.query(models.Port)
+            query = query.filter_by(network_id=network_id)
+            query = query.filter_by(device_id=device_id)
+            port = query.first()
+        elif port_id:
+            query = context.session.query(models.Port)
+            query = query.filter_by(id=port_id)
+            port = query.first()
+
+        if not port:
+            raise exceptions.PortNotFound(id=port_id,
+                                          net_id=network_id,
+                                          device_id=device_id)
 
     def update_ip_address(self, context, id, ip_address):
         raise NotImplemented()
