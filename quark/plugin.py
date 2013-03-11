@@ -181,7 +181,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         return {"id": address["id"],
                 "network_id": address["network_id"],
                 "address": address.formatted(),
-                "port_id": address["port_id"],
+                "port_ids": [port["id"] for port in address["ports"]],
                 "subnet_id": address["subnet_id"]}
 
     def _create_subnet(self, context, subnet, session=None):
@@ -791,6 +791,15 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                                           net_id=network_id,
                                           device_id=device_id,
                                           tenant_id=context.tenant_id)
+        with context.session.begin():
+            address = self.ipam_driver.allocate_ip_address(
+                context.session,
+                port['network_id'],
+                port['id'],
+                context.tenant_id,
+                self.ipam_reuse_after)
+            port["ip_addresses"].append(address)
+        return self._make_ip_dict(address)
 
     def update_ip_address(self, context, id, ip_address):
         raise NotImplemented()

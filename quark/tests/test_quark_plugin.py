@@ -79,7 +79,7 @@ class TestIpAddresses(TestQuarkPlugin):
         subnet = self._create_subnet(network_id)
         self._create_mac_address_range()
         device_id = 'onetwothree'
-        self._create_port(network_id, device_id)
+        port_id = self._create_port(network_id, device_id)['id']
 
         ip_address = {'ip_address': {'network_id': network_id,
                                      'device_id': device_id}}
@@ -105,7 +105,7 @@ class TestIpAddresses(TestQuarkPlugin):
     def test_create_ip_address_success_2(self):
         '''2. Create IP address with port_id.'''
         network_id = self._create_network()['id']
-        subnet = self._create_subnet(network_id)['id']
+        subnet = self._create_subnet(network_id)
         self._create_mac_address_range()
         port_id = self._create_port(network_id)['id']
 
