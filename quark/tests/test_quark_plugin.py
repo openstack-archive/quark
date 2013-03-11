@@ -13,6 +13,8 @@
 # License for the specific language governing permissions and limitations
 #  under the License.
 
+import netaddr
+
 from oslo.config import cfg
 from quantum import context
 from quantum.db import api as db_api
@@ -72,26 +74,67 @@ class TestIpAddresses(TestQuarkPlugin):
     #    network_id and device_id (or port_id)
 
     # 1. Create IP Address with network and device id (success) 110
-    # 1b. create IP Address with invalid network and/or invalid device_id (failure)
+    # 1b. create IP Address with invalid network and/or invalid device_id
+    # (failure)
     # 2. Create IP Address with port id (success) 001
     # 2b. Create IP Address with invalid port id (failure)
     # 3. Create IP Address with all ids missing (failure) 000
     # 4. Create IP Address with network id and not device id (failure) 100
     # 5. Create IP Address with not network id and device id (failure) 010
-    # 6. Create IP Address with version specified (version == 6), success with ipv6 address
-    # 7. Create IP Address with version specified (version == 4), success with ipv4 address
+    # 6. Create IP Address with version specified (version == 6),
+    # success with ipv6 address
+    # 7. Create IP Address with version specified (version == 4),
+    # success with ipv4 address
     # 8. Create IP Address with version specified (version == 10), failure
-    # 9. Create IP Address with specifc ip_address, ip doesn't exist already, associates success
-    # 10. Create IP Address with specific ip_address, ip does exist already, associates success
-    # 11. Create IP Address with specific ip_address, fail when subnet doesn't exist
+    # 9. Create IP Address with specifc ip_address, ip doesn't exist already,
+    # associates success
+    # 10. Create IP Address with specific ip_address, ip does exist already,
+    # associates success
+    # 11. Create IP Address with specific ip_address,
+    # fail when subnet doesn't exist
 
-    # POST /ip_address/id/ports: <== pass in a list of port_id’s
+    # POST /ip_address/id/ports: <== pass in a list of port_id's
 
     # 1. Fail: IP Address id doesn't exist
     # 2. Fail: port_id in port_ids doesn't exist
     # 3. Success: Associate ipaddress at specific id with port
+
     def test_create_ip_address_success(self):
-        pass
+        '''Success: Create IP address with network id and device id.'''
+        # 1. Create network
+        network = {'network': {'name': 'test'}}
+        response = self.plugin.create_network(self.context, network)
+        network_id = response['id']
+
+        # 2. Create subnet
+        subnet_cidr = '192.168.10.1/24'
+        subnet = {'subnet': {'cidr': subnet_cidr,
+                             'network_id': network_id}}
+        response = self.plugin.create_subnet(self.context, subnet)
+        subnet_id = response['id']
+
+        # 3. Create M.A.R.
+        mac_range = {'mac_address_range': {'cidr': '01:23:45/24'}}
+        self.plugin.create_mac_address_range(self.context, mac_range)
+
+        # 4. Create port
+        device_id = 'onetwothree'
+        port = {'port': {'network_id': network_id,
+                         'device_id': device_id}}
+        response = self.plugin.create_port(self.context, port)
+        port_id = response['id']
+
+        ip_address = {'ip_address': {'network_id': network_id,
+                                     'device_id': device_id}}
+        response = self.plugin.create_ip_address(self.context,
+                                                 ip_address)
+
+        self.assertIsNotNone(response['id'])
+        self.assertEqual(response['network_id'], network_id)
+        self.assertIn(netaddr.IPAddress(response['address']),
+                      netaddr.IPNetwork(subnet_cidr))
+        self.assertEqual(response['port_id'], port_id)
+        self.assertEqual(response['subnet_id'], subnet_id)
 
     def test_create_ip_success_failure(self):
         pass
