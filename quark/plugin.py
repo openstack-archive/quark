@@ -779,6 +779,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             query = context.session.query(models.Port)
             query = query.filter_by(network_id=network_id)
             query = query.filter_by(device_id=device_id)
+            query = query.filter_by(tenant_id=context.tenant_id)
             port = query.first()
         elif port_id:
             query = context.session.query(models.Port)
@@ -788,7 +789,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         if not port:
             raise exceptions.PortNotFound(id=port_id,
                                           net_id=network_id,
-                                          device_id=device_id)
+                                          device_id=device_id,
+                                          tenant_id=context.tenant_id)
 
     def update_ip_address(self, context, id, ip_address):
         raise NotImplemented()

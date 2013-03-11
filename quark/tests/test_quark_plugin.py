@@ -71,6 +71,8 @@ class TestSubnets(TestQuarkPlugin):
 
 
 class TestIpAddresses(TestQuarkPlugin):
+    # TODO(amir): add test to check filter for tenant_id
+
     def test_create_ip_address_success_1(self):
         '''1. Create IP address with network id and device id.'''
         network_id = self._create_network()['id']
