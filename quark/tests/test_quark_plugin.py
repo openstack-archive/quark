@@ -177,6 +177,7 @@ class TestIpAddresses(TestQuarkPlugin):
 
     def test_create_ip_address_success_7(self):
         '''7. Create IP address with version (v6) specified.'''
+        # NOTE(amir): current INET custom_types not working with IPv6
         network_id = self._create_network()['id']
         subnet_v6 = self._create_subnet(network_id, cidr='fc00::/7')
 
