@@ -181,7 +181,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         return {"id": address["id"],
                 "network_id": address["network_id"],
                 "address": address.formatted(),
-                "port_id": address["port_id"],
+                "port_ids": [port["id"] for port in address["ports"]],
                 "subnet_id": address["subnet_id"]}
 
     def _create_subnet(self, context, subnet, session=None):
@@ -769,7 +769,37 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         return self._make_ip_dict(addr)
 
     def create_ip_address(self, context, ip_address):
-        raise NotImplementedError()
+        LOG.info("create_ip_address for tenant %s" % context.tenant_id)
+
+        port = None
+        port_id = ip_address['ip_address'].get('port_id')
+        network_id = ip_address['ip_address'].get('network_id')
+        device_id = ip_address['ip_address'].get('device_id')
+        if network_id and device_id:
+            query = context.session.query(models.Port)
+            query = query.filter_by(network_id=network_id)
+            query = query.filter_by(device_id=device_id)
+            query = query.filter_by(tenant_id=context.tenant_id)
+            port = query.first()
+        elif port_id:
+            query = context.session.query(models.Port)
+            query = query.filter_by(id=port_id)
+            port = query.first()
+
+        if not port:
+            raise exceptions.PortNotFound(id=port_id,
+                                          net_id=network_id,
+                                          device_id=device_id,
+                                          tenant_id=context.tenant_id)
+        with context.session.begin():
+            address = self.ipam_driver.allocate_ip_address(
+                context.session,
+                port['network_id'],
+                port['id'],
+                context.tenant_id,
+                self.ipam_reuse_after)
+            port["ip_addresses"].append(address)
+        return self._make_ip_dict(address)
 
     def update_ip_address(self, context, id, ip_address):
         raise NotImplementedError()
