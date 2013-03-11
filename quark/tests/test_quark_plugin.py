@@ -265,7 +265,6 @@ class TestIpAddresses(TestQuarkPlugin):
         self.assertEqual(response['address'], magic_ip)
         self.assertEqual(response['port_id'], port_id)
         self.assertEqual(response['subnet_id'], subnet['id'])
-        
 
     def test_get_ip_address_success(self):
         pass
