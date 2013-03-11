@@ -17,6 +17,7 @@ import netaddr
 
 from oslo.config import cfg
 from quantum import context
+from quantum.common import exceptions
 from quantum.db import api as db_api
 
 import quark.plugin
