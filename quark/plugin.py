@@ -220,7 +220,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         Raises NotImplemented, as there are no attributes one can safely
         update on a subnet
         """
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def get_subnet(self, context, id, fields=None):
         """
@@ -543,7 +543,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.
         """
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def get_port(self, context, id, fields=None):
         """
@@ -769,7 +769,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         return self._make_ip_dict(addr)
 
     def create_ip_address(self, context, ip_address):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def update_ip_address(self, context, id, ip_address):
-        raise NotImplemented()
+        raise NotImplementedError()
