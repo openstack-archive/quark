@@ -768,8 +768,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             first()
         return self._make_ip_dict(addr)
 
-    def create_ip_address(self):
+    def create_ip_address(self, context, ip_address):
         raise NotImplemented()
 
-    def update_ip_address(self):
+    def update_ip_address(self, context, id, ip_address):
         raise NotImplemented()
