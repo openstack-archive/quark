@@ -88,7 +88,7 @@ class TestIpAddresses(TestQuarkPlugin):
         self.assertEqual(response['network_id'], network_id)
         self.assertIn(netaddr.IPAddress(response['address']),
                       netaddr.IPNetwork(subnet['cidr']))
-        self.assertEqual(response['port_id'], port_id)
+        self.assertEqual(response['port_ids'], [port_id])
         self.assertEqual(response['subnet_id'], subnet['id'])
 
     def test_create_ip_address_failure_1b(self):
@@ -115,7 +115,7 @@ class TestIpAddresses(TestQuarkPlugin):
         self.assertEqual(response['network_id'], network_id)
         self.assertIn(netaddr.IPAddress(response['address']),
                       netaddr.IPNetwork(subnet['cidr']))
-        self.assertEqual(response['port_id'], port_id)
+        self.assertEqual(response['port_ids'], [port_id])
         self.assertEqual(response['subnet_id'], subnet['id'])
 
     def test_create_ip_address_failure_2b(self):
@@ -172,7 +172,7 @@ class TestIpAddresses(TestQuarkPlugin):
         self.assertEqual(response['network_id'], network_id)
         self.assertIn(netaddr.IPAddress(response['address']),
                       netaddr.IPNetwork(subnet_v4['cidr']))
-        self.assertEqual(response['port_id'], port_id)
+        self.assertEqual(response['port_ids'], [port_id])
         self.assertEqual(response['subnet_id'], subnet['id'])
 
     def test_create_ip_address_success_7(self):
@@ -194,7 +194,7 @@ class TestIpAddresses(TestQuarkPlugin):
         self.assertEqual(response['network_id'], network_id)
         self.assertIn(netaddr.IPAddress(response['address']),
                       netaddr.IPNetwork(subnet_v6['cidr']))
-        self.assertEqual(response['port_id'], port_id)
+        self.assertEqual(response['port_ids'], [port_id])
         self.assertEqual(response['subnet_id'], subnet['id'])
 
     def test_create_ip_address_failure_8(self):
@@ -229,7 +229,7 @@ class TestIpAddresses(TestQuarkPlugin):
         self.assertIsNotNone(response['id'])
         self.assertEqual(response['network_id'], network_id)
         self.assertEqual(response['address'], magic_ip)
-        self.assertEqual(response['port_id'], port_id)
+        self.assertEqual(response['port_ids'], [port_id])
         self.assertEqual(response['subnet_id'], subnet['id'])
 
     def test_create_ip_address_success_10(self):
@@ -249,7 +249,7 @@ class TestIpAddresses(TestQuarkPlugin):
         self.assertIsNotNone(response['id'])
         self.assertEqual(response['network_id'], network_id)
         self.assertEqual(response['address'], magic_ip)
-        self.assertEqual(response['port_id'], port_id)
+        self.assertEqual(response['port_ids'], [port_id])
         self.assertEqual(response['subnet_id'], subnet['id'])
 
     def test_get_ip_address_success(self):
@@ -303,5 +303,4 @@ class TestIpAddresses(TestQuarkPlugin):
                                                  response['id'],
                                                  {'ip_address':
                                                       {'port_ids': [port_2['id']]}})
-        self.assertIn(port_2['id'], response['ports'])
-        self.assertNotIn(port['id'], response['ports'])
+        self.assertEqual(response['port_ids'], [port_2['id']])
