@@ -71,12 +71,6 @@ class TestSubnets(TestQuarkPlugin):
 
 
 class TestIpAddresses(TestQuarkPlugin):
-    # TODO(amir):
-    # POST /ip_address/id/ports: <== pass in a list of port_id's
-    # 1. Fail: IP Address id doesn't exist
-    # 2. Fail: port_id in port_ids doesn't exist
-    # 3. Success: Associate ipaddress at specific id with port
-
     def test_create_ip_address_success_1(self):
         '''1. Create IP address with network id and device id.'''
         network_id = self._create_network()['id']
@@ -266,6 +260,17 @@ class TestIpAddresses(TestQuarkPlugin):
 
     def test_get_ip_addresses_success(self):
         pass
+
+    # TODO(amir):
+    # POST /ip_address/id/ports: <== pass in a list of port_id's
+    # 2. Fail: port_id in port_ids doesn't exist
+    # 3. Success: Associate ipaddress at specific id with port
+    def test_update_ip_address_failure_1(self):
+        '''1. Update IP address when specific ip_address id doesn't exist.'''
+        with self.assertRaises(exceptions.NotFound):
+            self.plugin.update_ip_address(self.context,
+                                          'no_ip_address_id',
+                                          {})
 
     def test_update_ip_address_success(self):
         pass
