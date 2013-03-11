@@ -76,7 +76,6 @@ class TestIpAddresses(TestQuarkPlugin):
     #    ip_address optional
     #    network_id and device_id (or port_id)
 
-    # 2. Create IP Address with port id (success) 001
     # 2b. Create IP Address with invalid port id (failure)
     # 3. Create IP Address with all ids missing (failure) 000
     # 4. Create IP Address with network id and not device id (failure) 100
@@ -102,7 +101,7 @@ class TestIpAddresses(TestQuarkPlugin):
     def test_create_ip_address_success_1(self):
         '''1. Create IP address with network id and device id.'''
         network_id = self._create_network()['id']
-        subnet_id = self._create_subnet(network_id)['id']
+        subnet = self._create_subnet(network_id)
         self._create_mac_address_range()
         device_id = 'onetwothree'
         self._create_port(network_id, device_id)
@@ -115,18 +114,36 @@ class TestIpAddresses(TestQuarkPlugin):
         self.assertIsNotNone(response['id'])
         self.assertEqual(response['network_id'], network_id)
         self.assertIn(netaddr.IPAddress(response['address']),
-                      netaddr.IPNetwork(subnet_cidr))
+                      netaddr.IPNetwork(subnet['cidr']))
         self.assertEqual(response['port_id'], port_id)
-        self.assertEqual(response['subnet_id'], subnet_id)
+        self.assertEqual(response['subnet_id'], subnet['id'])
 
     def test_create_ip_success_failure_1b(self):
         '''1b. Create IP address with invalid network_id and invalid
-        device_id'''
+        device_id.'''
         with self.assertRaises(exceptions.IpAddressGenerationFailure):
             ip_address = {'ip_address': {'network_id': 'fake',
                                          'device_id': 'fake'}}
             response = self.plugin.create_ip_address(self.context,
                                                      ip_address)
+
+    def test_create_ip_address_success_2(self):
+        '''2. Create IP address with port_id.'''
+        network_id = self._create_network()['id']
+        subnet = self._create_subnet(network_id)['id']
+        self._create_mac_address_range()
+        port_id = self._create_port(network_id)['id']
+
+        ip_address = {'ip_address': {'port_id': port_id}}
+        response = self.plugin.create_ip_address(self.context,
+                                                 ip_address)
+
+        self.assertIsNotNone(response['id'])
+        self.assertEqual(response['network_id'], network_id)
+        self.assertIn(netaddr.IPAddress(response['address']),
+                      netaddr.IPNetwork(subnet['cidr']))
+        self.assertEqual(response['port_id'], port_id)
+        self.assertEqual(response['subnet_id'], subnet['id'])
 
     def test_get_ip_address_success(self):
         pass
