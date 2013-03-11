@@ -117,7 +117,7 @@ class TestIpAddresses(TestQuarkPlugin):
         self.assertEqual(response['port_id'], port_id)
         self.assertEqual(response['subnet_id'], subnet['id'])
 
-    def test_create_ip_success_failure_1b(self):
+    def test_create_ip_address_failure_1b(self):
         '''1b. Create IP address with invalid network_id and invalid
         device_id.'''
         with self.assertRaises(exceptions.IpAddressGenerationFailure):
@@ -144,7 +144,7 @@ class TestIpAddresses(TestQuarkPlugin):
         self.assertEqual(response['port_id'], port_id)
         self.assertEqual(response['subnet_id'], subnet['id'])
 
-    def test_create_ip_success_failure_2b(self):
+    def test_create_ip_address_failure_2b(self):
         '''2b. Create IP Address with invalid port_id.'''
         with self.assertRaises(exceptions.IpAddressGenerationFailure):
             ip_address = {'ip_address': {'port_id': 'fake'}}
