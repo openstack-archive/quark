@@ -76,7 +76,6 @@ class TestIpAddresses(TestQuarkPlugin):
     #    ip_address optional
     #    network_id and device_id (or port_id)
 
-    # 5. Create IP Address with not network id and device id (failure) 010
     # 6. Create IP Address with version specified (version == 6),
     # success with ipv6 address
     # 7. Create IP Address with version specified (version == 4),
@@ -150,20 +149,32 @@ class TestIpAddresses(TestQuarkPlugin):
                                                      ip_address)
 
     def test_create_ip_address_failure_3(self):
-        '''3. Create IP address with all ids missing.'''
+        '''3. Create IP address with none of network_id, device_id, port_id.'''
         with self.assertRaises(exceptions.IpAddressGenerationFailure):
             ip_address = {'ip_address': {}}
             response = self.plugin.create_ip_address(self.context,
                                                      ip_address)
 
     def test_create_ip_address_failure_4(self):
-        '''4. Create IP address with network id and not device id.'''
+        '''4. Create IP address with network_id and without device_id.'''
         network_id = self._create_network()['id']
         with self.assertRaises(exceptions.IpAddressGenerationFailure):
             ip_address = {'ip_address': {'network_id': network_id}}
             response = self.plugin.create_ip_address(self.context,
                                                      ip_address)
 
+    def test_create_ip_address_failure_5(self):
+        '''5. Create IP Address without network_id and with device_id.'''
+        network_id = self._create_network()['id']
+        subnet = self._create_subnet(network_id)['id']
+        self._create_mac_address_range()
+        device_id = 'onetwothree'
+        port_id = self._create_port(network_id, device_id=device_id)['id']
+
+        with self.assertRaises(exceptions.IpAddressGenerationFailure):
+            ip_address = {'ip_address': {'device_id': device_id}}
+            response = self.plugin.create_ip_address(self.context,
+                                                     ip_address)
 
     def test_get_ip_address_success(self):
         pass
