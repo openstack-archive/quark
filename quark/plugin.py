@@ -802,4 +802,18 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         return self._make_ip_dict(address)
 
     def update_ip_address(self, context, id, ip_address):
-        raise NotImplementedError()
+        LOG.info("update_ip_address %s for tenant %s" %
+                (id, context.tenant_id))
+
+        query = context.session.query(models.IPAddress)
+        query = query.filter_by(tenant_id=context.tenant_id)
+        query = query.filter_by(id=id)
+        address = query.first()
+
+        if not address:
+            raise exceptions.NotFound(
+                message="No IP address found with id=%s" % id)
+
+        port_ids = ip_address['ip_address'].get('port_ids')
+        if not port_ids:
+            return self._make_ip_dict(address)
