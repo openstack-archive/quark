@@ -76,8 +76,6 @@ class TestIpAddresses(TestQuarkPlugin):
     #    ip_address optional
     #    network_id and device_id (or port_id)
 
-    # 9. Create IP Address with specifc ip_address, ip doesn't exist already,
-    # associates success
     # 10. Create IP Address with specific ip_address, ip does exist already,
     # associates success
     # 11. Create IP Address with specific ip_address,
@@ -229,6 +227,27 @@ class TestIpAddresses(TestQuarkPlugin):
                                          'version': 10}}
             response = self.plugin.create_ip_address(self.context,
                                                      ip_address)
+
+    def test_create_ip_address_success_9(self):
+        '''9. Create IP address with specific ip_address and ip_address doesn't
+        exist already.'''
+        network_id = self._create_network()['id']
+        cidr = '192.168.10.1/24'
+        subnet = self._create_subnet(network_id, cidr)['id']
+        self._create_mac_address_range()
+        port_id = self._create_port(network_id)['id']
+
+        magic_ip = '192.168.10.123'
+        ip_address = {'ip_address': {'port_id': port_id,
+                                     'ip_address': magic_ip}}
+        response = self.plugin.create_ip_address(self.context,
+                                                 ip_address)
+
+        self.assertIsNotNone(response['id'])
+        self.assertEqual(response['network_id'], network_id)
+        self.assertEqual(response['address'], magic_ip)
+        self.assertEqual(response['port_id'], port_id)
+        self.assertEqual(response['subnet_id'], subnet['id'])
 
     def test_get_ip_address_success(self):
         pass
