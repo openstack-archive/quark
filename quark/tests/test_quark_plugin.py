@@ -76,9 +76,6 @@ class TestIpAddresses(TestQuarkPlugin):
     #    ip_address optional
     #    network_id and device_id (or port_id)
 
-    # 7. Create IP Address with version specified (version == 6),
-    # success with ipv6 address
-    # 8. Create IP Address with version specified (version == 10), failure
     # 9. Create IP Address with specifc ip_address, ip doesn't exist already,
     # associates success
     # 10. Create IP Address with specific ip_address, ip does exist already,
@@ -217,6 +214,21 @@ class TestIpAddresses(TestQuarkPlugin):
                       netaddr.IPNetwork(subnet_v6['cidr']))
         self.assertEqual(response['port_id'], port_id)
         self.assertEqual(response['subnet_id'], subnet['id'])
+
+    def test_create_ip_address_failure_8(self):
+        '''8. Create IP Address with version (10) specified.'''
+        network_id = self._create_network()['id']
+        self._create_subnet(network_id)
+        self._create_mac_address_range()
+        device_id = 'onetwothree'
+        self._create_port(network_id, device_id)
+
+        with self.assertRaises(exceptions.IpAddressGenerationFailure):
+            ip_address = {'ip_address': {'network_id': network_id,
+                                         'device_id': device_id,
+                                         'version': 10}}
+            response = self.plugin.create_ip_address(self.context,
+                                                     ip_address)
 
     def test_get_ip_address_success(self):
         pass
