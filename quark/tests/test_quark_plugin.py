@@ -270,7 +270,8 @@ class TestIpAddresses(TestQuarkPlugin):
                                           {'ip_address': {'port_ids': []}})
 
     def test_update_ip_address_failure_2(self):
-        '''2. Update IP address when specific port_id in port_ids doesn't exist.'''
+        '''2. Update IP address when specific port_id in port_ids doesn't
+        exist.'''
         network_id = self._create_network()['id']
         subnet = self._create_subnet(network_id)
         self._create_mac_address_range()
@@ -283,10 +284,10 @@ class TestIpAddresses(TestQuarkPlugin):
                                                  ip_address)
 
         with self.assertRaises(exceptions.NotFound):
+            ip_address = {'ip_address': {'port_ids': ['fake']}}
             self.plugin.update_ip_address(self.context,
                                           response['id'],
-                                          {'ip_address':
-                                               {'port_ids': ['fake']}})
+                                          ip_address)
 
     def test_update_ip_address_success_3(self):
         '''3. Update IP address to associate with specific port_ids.'''
@@ -299,9 +300,8 @@ class TestIpAddresses(TestQuarkPlugin):
         ip_address = {'ip_address': {'port_id': port['id']}}
         response = self.plugin.create_ip_address(self.context,
                                                  ip_address)
-        
+        ip_address = {'ip_address': {'port_ids': [port_2['id']]}}
         response = self.plugin.update_ip_address(self.context,
                                                  response['id'],
-                                                 {'ip_address':
-                                                      {'port_ids': [port_2['id']]}})
+                                                 ip_address)
         self.assertEqual(response['port_ids'], [port_2['id']])
