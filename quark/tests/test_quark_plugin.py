@@ -71,16 +71,8 @@ class TestSubnets(TestQuarkPlugin):
 
 
 class TestIpAddresses(TestQuarkPlugin):
-    # POST /ip_address
-    #    version (optional)
-    #    ip_address optional
-    #    network_id and device_id (or port_id)
-
-    # 11. Create IP Address with specific ip_address,
-    # fail when subnet doesn't exist
-
+    # TODO(amir):
     # POST /ip_address/id/ports: <== pass in a list of port_id's
-
     # 1. Fail: IP Address id doesn't exist
     # 2. Fail: port_id in port_ids doesn't exist
     # 3. Success: Associate ipaddress at specific id with port
