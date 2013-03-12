@@ -775,6 +775,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         port_id = ip_address['ip_address'].get('port_id')
         network_id = ip_address['ip_address'].get('network_id')
         device_id = ip_address['ip_address'].get('device_id')
+        ip_version = ip_address['ip_address'].get('version')
+        ip_address = ip_address['ip_address'].get('address')
         if network_id and device_id:
             query = context.session.query(models.Port)
             query = query.filter_by(network_id=network_id)
@@ -797,7 +799,9 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                 port['network_id'],
                 port['id'],
                 context.tenant_id,
-                self.ipam_reuse_after)
+                self.ipam_reuse_after,
+                ip_version,
+                ip_address)
             port["ip_addresses"].append(address)
         return self._make_ip_dict(address)
 

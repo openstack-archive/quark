@@ -33,15 +33,18 @@ LOG = logging.getLogger("quantum")
 
 class QuarkIpam(object):
 
-    def _choose_available_subnet(self, session, net_id):
-        subnets = session.query(models.Subnet,
-                                sql_func.count(models.IPAddress.subnet_id).
-                                label('count')).\
-            outerjoin(models.Subnet.allocated_ips).\
-            filter(models.Subnet.network_id == net_id).\
-            group_by(models.IPAddress).\
-            order_by("count DESC").\
-            all()
+    def _choose_available_subnet(self, session, net_id, version, ip_address):
+        query = session.query(models.Subnet,
+                              sql_func.count(models.IPAddress.subnet_id).
+                              label('count'))
+        query = query.outerjoin(models.Subnet.allocated_ips)
+        query = query.filter(models.Subnet.network_id == net_id)
+        if version:
+            query = query.filter(models.Subnet.ip_version == version)
+        query = query.group_by(models.IPAddress)
+        query = query.order_by("count DESC")
+
+        subnets = query.all()
 
         for subnet, ips_in_subnet in subnets:
             ipnet = netaddr.IPNetwork(subnet["cidr"])
@@ -98,18 +101,21 @@ class QuarkIpam(object):
         raise exceptions.MacAddressGenerationFailure(net_id=net_id)
 
     def allocate_ip_address(self, session, net_id, port_id, tenant_id,
-                            reuse_after):
+                            reuse_after, version=None, ip_address=None):
         reuse = (timeutils.utcnow() -
                  datetime.timedelta(seconds=reuse_after))
         query = session.query(models.IPAddress)
         query = query.filter_by(network_id=net_id)
         query = query.filter_by(deallocated=True)
         query = query.filter(models.IPAddress.deallocated_at <= reuse)
+        if version:
+            query = query.filter_by(version=version)
 
         address = query.first()
 
         if not address:
-            subnet = self._choose_available_subnet(session, net_id)
+            subnet = self._choose_available_subnet(session, net_id, version,
+                                                   ip_address)
             highest_addr = session.query(models.IPAddress).\
                 filter(models.IPAddress.subnet_id ==
                        subnet["id"]).\
