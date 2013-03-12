@@ -159,6 +159,7 @@ class TestIpAddresses(TestQuarkPlugin):
         '''6. Create IP Address with version (v4) specified.'''
         network_id = self._create_network()['id']
         subnet_v4 = self._create_subnet(network_id, cidr='192.168.10.1/24')
+        subnet_v6 = self._create_subnet(network_id, cidr='fc00::/7')
 
         self._create_mac_address_range()
         device_id = 'onetwothree'
@@ -179,13 +180,13 @@ class TestIpAddresses(TestQuarkPlugin):
 
     def test_create_ip_address_success_7(self):
         '''7. Create IP address with version (v6) specified.'''
-        # NOTE(amir): current INET custom_types not working with IPv6
         network_id = self._create_network()['id']
         subnet_v6 = self._create_subnet(network_id, cidr='fc00::/7')
+        subnet_v4 = self._create_subnet(network_id, cidr='192.168.10.1/24')
 
         self._create_mac_address_range()
         device_id = 'onetwothree'
-        self._create_port(network_id, device_id)
+        port_id = self._create_port(network_id, device_id)['id']
 
         ip_address = {'ip_address': {'network_id': network_id,
                                      'device_id': device_id,
@@ -198,7 +199,7 @@ class TestIpAddresses(TestQuarkPlugin):
         self.assertIn(netaddr.IPAddress(response['address']),
                       netaddr.IPNetwork(subnet_v6['cidr']))
         self.assertEqual(response['port_ids'], [port_id])
-        self.assertEqual(response['subnet_id'], subnet['id'])
+        self.assertEqual(response['subnet_id'], subnet_v6['id'])
 
     def test_create_ip_address_failure_8(self):
         '''8. Create IP Address with version (10) specified.'''
