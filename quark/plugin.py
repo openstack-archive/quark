@@ -19,6 +19,8 @@ v2 Quantum Plug-in API Quark Implementation
 
 import netaddr
 from sqlalchemy import func as sql_func
+from sqlalchemy.orm import sessionmaker
+from zope.sqlalchemy import ZopeTransactionExtension
 from oslo.config import cfg
 
 from quantum import quantum_plugin_base_v2
@@ -58,8 +60,14 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
     supported_extension_aliases = ["mac_address_ranges", "routes",
                                    "ip_addresses"]
 
+    def _initDBMaker(self):
+        db_api._MAKER = sessionmaker(bind=db_api._ENGINE,
+                                     autocommit=True,
+                                     expire_on_commit=False)
+
     def __init__(self):
         db_api.configure_db()
+        self._initDBMaker()
         self.net_driver = (importutils.import_class(CONF.QUARK.net_driver))()
         self.net_driver.load_config(CONF.QUARK.net_driver_cfg)
         self.ipam_driver = (importutils.import_class(CONF.QUARK.ipam_driver))()
