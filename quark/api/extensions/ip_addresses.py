@@ -62,6 +62,16 @@ class IpAddressesController(wsgi.Controller):
         except exceptions.NotFound:
             raise webob.exc.HTTPNotFound()
 
+    def create(self, request, body=None):
+        body = self._deserialize(request.body, request.get_content_type())
+        return {"ip_addresses":
+                self._plugin.create_ip_address(request.context, body)}
+
+    def update(self, request, id, body=None):
+        body = self._deserialize(request.body, request.get_content_type())
+        return {"ip_addresses":
+                self._plugin.update_ip_address(request.context, id, body)}
+
 
 class Ip_addresses(object):
     """Routes support"""
