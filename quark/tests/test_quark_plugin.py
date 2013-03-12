@@ -222,10 +222,12 @@ class TestIpAddresses(TestQuarkPlugin):
         network_id = self._create_network()['id']
         subnet = self._create_subnet(network_id)['id']
         self._create_mac_address_range()
-        port_id = self._create_port(network_id)['id']
+        port = self._create_port(network_id)
 
         magic_ip = '192.168.10.123'
-        ip_address = {'ip_address': {'port_id': port_id,
+        self.assertNotEqual(magic_ip, port['fixed_ips'][0]['ip_address'])
+
+        ip_address = {'ip_address': {'port_id': port['id'],
                                      'ip_address': magic_ip}}
         response = self.plugin.create_ip_address(self.context,
                                                  ip_address)
@@ -233,7 +235,7 @@ class TestIpAddresses(TestQuarkPlugin):
         self.assertIsNotNone(response['id'])
         self.assertEqual(response['network_id'], network_id)
         self.assertEqual(response['address'], magic_ip)
-        self.assertEqual(response['port_ids'], [port_id])
+        self.assertEqual(response['port_ids'], [port['id']])
         self.assertEqual(response['subnet_id'], subnet['id'])
 
     def test_create_ip_address_success_10(self):
@@ -244,7 +246,7 @@ class TestIpAddresses(TestQuarkPlugin):
         self._create_mac_address_range()
         port = self._create_port(network_id)
 
-        magic_ip = port['fixed_ips'][0]
+        magic_ip = port['fixed_ips'][0]['ip_address']
         ip_address = {'ip_address': {'port_id': port['id'],
                                      'ip_address': magic_ip}}
         response = self.plugin.create_ip_address(self.context,
