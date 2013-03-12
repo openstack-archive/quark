@@ -29,6 +29,7 @@ import test_base
 
 
 class TestQuarkIpamBase(test_base.TestBase):
+    # TODO(amir): test ip_address and version args on ipam.allocate_ip_address
     def setUp(self):
         cfg.CONF.set_override('sql_connection', 'sqlite://', 'DATABASE')
         db_api.configure_db()
