@@ -33,7 +33,7 @@ LOG = logging.getLogger("quantum")
 
 class QuarkIpam(object):
 
-    def _choose_available_subnet(self, net_id, session):
+    def _choose_available_subnet(self, session, net_id):
         subnets = session.query(models.Subnet,
                                 sql_func.count(models.IPAddress.subnet_id).
                                 label('count')).\
@@ -109,7 +109,7 @@ class QuarkIpam(object):
         address = query.first()
 
         if not address:
-            subnet = self._choose_available_subnet(net_id, session)
+            subnet = self._choose_available_subnet(session, net_id)
             highest_addr = session.query(models.IPAddress).\
                 filter(models.IPAddress.subnet_id ==
                        subnet["id"]).\
