@@ -48,6 +48,8 @@ class QuarkIpam(object):
 
         for subnet, ips_in_subnet in subnets:
             ipnet = netaddr.IPNetwork(subnet["cidr"])
+            if ip_address and ip_address not in ipnet:
+                continue
             if ipnet.size > ips_in_subnet:
                 return subnet
 
@@ -110,6 +112,9 @@ class QuarkIpam(object):
         query = query.filter(models.IPAddress.deallocated_at <= reuse)
         if version:
             query = query.filter_by(version=version)
+        if ip_address:
+            ip_address = netaddr.IPAddress(ip_address)
+            query = query.filter_by(address=int(ip_address))
 
         address = query.first()
 
@@ -124,7 +129,16 @@ class QuarkIpam(object):
 
             # TODO(mdietz): Need to honor policies here
             address = models.IPAddress()
-            if highest_addr:
+            if ip_address:
+                query = session.query(models.IPAddress)
+                query = query.filter_by(subnet_id=subnet["id"])
+                query = query.filter_by(address=int(ip_address))
+                address = query.first()
+                if not address:
+                    address = models.IPAddress()
+                    address["address"] = int(ip_address)
+                    address["address_readable"] = str(ip_address)
+            elif highest_addr:
                 next_ip = netaddr.IPAddress(int(highest_addr["address"])) + 1
                 address["address"] = int(next_ip)
                 address["address_readable"] = str(next_ip)

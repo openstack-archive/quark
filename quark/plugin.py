@@ -776,7 +776,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         network_id = ip_address['ip_address'].get('network_id')
         device_id = ip_address['ip_address'].get('device_id')
         ip_version = ip_address['ip_address'].get('version')
-        ip_address = ip_address['ip_address'].get('address')
+        ip_address = ip_address['ip_address'].get('ip_address')
         if network_id and device_id:
             query = context.session.query(models.Port)
             query = query.filter_by(network_id=network_id)
