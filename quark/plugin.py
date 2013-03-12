@@ -61,7 +61,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                                    "ip_addresses"]
 
     def _initDBMaker(self):
-        # This needs to be called after _ENGINE is configured or it doesn't work
+        # This needs to be called after _ENGINE is configured
         db_api._MAKER = scoped_session(sessionmaker(bind=db_api._ENGINE,
                                        twophase=True, autocommit=False,
                                        extension=ZopeTransactionExtension()))
