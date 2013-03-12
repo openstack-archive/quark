@@ -63,7 +63,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
     def _initDBMaker(self):
         # This needs to be called after _ENGINE is configured or it doesn't work
         db_api._MAKER = scoped_session(sessionmaker(bind=db_api._ENGINE,
-                                       twophase=True,
+                                       twophase=True, autocommit=False,
                                        extension=ZopeTransactionExtension()))
 
     def __init__(self):
@@ -212,7 +212,6 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         LOG.info("create_subnet for tenant %s" % context.tenant_id)
         session = context.session
         new_subnet = self._create_subnet(context, subnet, session)
-        session.flush()
         subnet_dict = self._make_subnet_dict(new_subnet)
         return subnet_dict
 
@@ -328,7 +327,6 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             raise exceptions.SubnetNotFound(subnet_id=id)
 
         self._delete_subnet(subnet, context.session)
-        context.session.flush()
 
     def create_network(self, context, network):
         """
@@ -467,19 +465,18 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         """
         LOG.info("delete_network %s for tenant %s" % (id, context.tenant_id))
         session = context.session
-        with session.begin():
-            net = session.query(models.Network).\
-                filter(models.Network.id == id).\
-                filter(models.Network.tenant_id == context.tenant_id).\
-                first()
-            if not net:
-                raise exceptions.NetworkNotFound(net_id=id)
-            if net.ports:
-                raise exceptions.NetworkInUse(net_id=id)
-            self.net_driver.delete_network(context, id)
-            for subnet in net["subnets"]:
-                self._delete_subnet(subnet, session)
-            session.delete(net)
+        net = session.query(models.Network).\
+            filter(models.Network.id == id).\
+            filter(models.Network.tenant_id == context.tenant_id).\
+            first()
+        if not net:
+            raise exceptions.NetworkNotFound(net_id=id)
+        if net.ports:
+            raise exceptions.NetworkInUse(net_id=id)
+        self.net_driver.delete_network(context, id)
+        for subnet in net["subnets"]:
+            self._delete_subnet(subnet, session)
+        session.delete(net)
 
     def create_port(self, context, port):
         """
@@ -500,42 +497,41 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                 port["port"].pop(k)
 
         addresses = []
-        with session.begin():
-            port_id = uuidutils.generate_uuid()
-            net_id = port["port"]["network_id"]
+        port_id = uuidutils.generate_uuid()
+        net_id = port["port"]["network_id"]
 
-            net = session.query(models.Network).\
-                filter(models.Network.id == net_id).\
-                filter(models.Network.tenant_id == context.tenant_id).\
-                first()
-            if not net:
-                raise exceptions.NetworkNotFound(net_id=net_id)
+        net = session.query(models.Network).\
+            filter(models.Network.id == net_id).\
+            filter(models.Network.tenant_id == context.tenant_id).\
+            first()
+        if not net:
+            raise exceptions.NetworkNotFound(net_id=net_id)
 
-            addresses.append(
-                self.ipam_driver.allocate_ip_address(session,
-                                                     net_id,
-                                                     port_id,
-                                                     context.tenant_id,
-                                                     self.ipam_reuse_after))
-            mac = self.ipam_driver.allocate_mac_address(session,
-                                                        net_id,
-                                                        port_id,
-                                                        context.tenant_id,
-                                                        self.ipam_reuse_after)
-            backend_port = self.net_driver.create_port(context, net_id,
-                                                       port_id=port_id)
+        addresses.append(
+            self.ipam_driver.allocate_ip_address(session,
+                                                 net_id,
+                                                 port_id,
+                                                 context.tenant_id,
+                                                 self.ipam_reuse_after))
+        mac = self.ipam_driver.allocate_mac_address(session,
+                                                    net_id,
+                                                    port_id,
+                                                    context.tenant_id,
+                                                    self.ipam_reuse_after)
+        backend_port = self.net_driver.create_port(context, net_id,
+                                                   port_id=port_id)
 
-            new_port = models.Port()
-            new_port.update(port["port"])
-            new_port["id"] = port_id
-            new_port["backend_key"] = backend_port["uuid"]
-            new_port["addresses"] = addresses
-            new_port["mac_address"] = mac["address"]
-            new_port["tenant_id"] = context.tenant_id
-            new_port["ip_addresses"].extend(addresses)
+        new_port = models.Port()
+        new_port.update(port["port"])
+        new_port["id"] = port_id
+        new_port["backend_key"] = backend_port["uuid"]
+        new_port["addresses"] = addresses
+        new_port["mac_address"] = mac["address"]
+        new_port["tenant_id"] = context.tenant_id
+        new_port["ip_addresses"].extend(addresses)
 
-            session.add(mac)
-            session.add(new_port)
+        session.add(mac)
+        session.add(new_port)
 
         new_port["mac_address"] = str(netaddr.EUI(new_port["mac_address"],
                                       dialect=netaddr.mac_unix))
@@ -671,7 +667,6 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         self.ipam_driver.deallocate_ip_address(
             session, id, ipam_reuse_after=self.ipam_reuse_after)
         session.delete(port)
-        session.flush()
         self.net_driver.delete_port(context, backend_key)
 
     def get_mac_address_ranges(self, context):
@@ -689,7 +684,6 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         new_range["last_address"] = last_address
         new_range["tenant_id"] = context.tenant_id
         context.session.add(new_range)
-        context.session.flush()
         return self._make_mac_range_dict(new_range)
 
     def _to_mac_range(self, val):
@@ -744,7 +738,6 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         new_route.update(route)
         new_route["tenant_id"] = context.tenant_id
         context.session.add(new_route)
-        context.session.flush()
         return self._make_route_dict(new_route)
 
     def delete_route(self, context, id):
@@ -759,7 +752,6 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         if not route:
             raise quark_exceptions.RouteNotFound(route_id=id)
         context.session.delete(route)
-        context.session.flush()
 
     def get_ip_addresses(self, context):
         LOG.info("get_ip_addresses for tenant %s" % context.tenant_id)
@@ -802,17 +794,16 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                                           net_id=network_id,
                                           device_id=device_id,
                                           tenant_id=context.tenant_id)
-        with context.session.begin():
-            address = self.ipam_driver.allocate_ip_address(
-                context.session,
-                port['network_id'],
-                port['id'],
-                context.tenant_id,
-                self.ipam_reuse_after,
-                ip_version,
-                ip_address)
-            port["ip_addresses"].append(address)
-            context.session.add(address)
+        address = self.ipam_driver.allocate_ip_address(
+            context.session,
+            port['network_id'],
+            port['id'],
+            context.tenant_id,
+            self.ipam_reuse_after,
+            ip_version,
+            ip_address)
+        port["ip_addresses"].append(address)
+        context.session.add(address)
         return self._make_ip_dict(address)
 
     def update_ip_address(self, context, id, ip_address):
@@ -833,19 +824,18 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         if port_ids is None:
             return self._make_ip_dict(address)
 
-        with context.session.begin():
-            for port in old_ports:
-                port['ip_addresses'].remove(address)
+        for port in old_ports:
+            port['ip_addresses'].remove(address)
 
-            if port_ids:
-                query = context.session.query(models.Port)
-                query = query.filter_by(tenant_id=context.tenant_id)
-                query = query.filter(models.Port.id.in_(port_ids))
-                ports = query.all()
-                if len(ports) != len(port_ids):
-                    raise exceptions.NotFound(
-                        message="All ports not found with ids=%s" % port_ids)
-                for port in ports:
-                    port['ip_addresses'].extend([address])
+        if port_ids:
+            query = context.session.query(models.Port)
+            query = query.filter_by(tenant_id=context.tenant_id)
+            query = query.filter(models.Port.id.in_(port_ids))
+            ports = query.all()
+            if len(ports) != len(port_ids):
+                raise exceptions.NotFound(
+                    message="All ports not found with ids=%s" % port_ids)
+            for port in ports:
+                port['ip_addresses'].extend([address])
 
         return self._make_ip_dict(address)
