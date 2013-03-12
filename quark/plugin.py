@@ -19,7 +19,7 @@ v2 Quantum Plug-in API Quark Implementation
 
 import netaddr
 from sqlalchemy import func as sql_func
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, scoped_session
 from zope.sqlalchemy import ZopeTransactionExtension
 from oslo.config import cfg
 
@@ -61,9 +61,10 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                                    "ip_addresses"]
 
     def _initDBMaker(self):
-        db_api._MAKER = sessionmaker(bind=db_api._ENGINE,
-                                     autocommit=True,
-                                     expire_on_commit=False)
+        # This needs to be called after _ENGINE is configured or it doesn't work
+        db_api._MAKER = scoped_session(sessionmaker(bind=db_api._ENGINE,
+                                       twophase=True,
+                                       extension=ZopeTransactionExtension()))
 
     def __init__(self):
         db_api.configure_db()
