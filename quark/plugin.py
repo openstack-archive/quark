@@ -803,6 +803,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                 ip_version,
                 ip_address)
             port["ip_addresses"].append(address)
+            context.session.add(address)
         return self._make_ip_dict(address)
 
     def update_ip_address(self, context, id, ip_address):
