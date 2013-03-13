@@ -2,4 +2,7 @@
 quark
 =====
 
-Insert text describing your package here.
+Current Build Status
+====================
+
+.. image:: https://api.travis-ci.org/jkoelker/quark.png
