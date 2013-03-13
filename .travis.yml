@@ -1,0 +1,13 @@
+language: python
+python:
+  - "2.7"
+  - "2.6"
+install:
+  - pip install -r tools/pip-requires
+  - pip install -r tools/test-requires
+  - pip install . --use-mirrors
+  - pip install flake8
+before_script:
+  - "flake8 quark"
+script:
+  - nosetests
