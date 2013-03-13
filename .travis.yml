@@ -8,6 +8,6 @@ install:
   - pip install . --use-mirrors
   - pip install flake8
 before_script:
-  - "flake8 quark"
+  - "flake8 --builtins=_ quark"
 script:
   - nosetests
