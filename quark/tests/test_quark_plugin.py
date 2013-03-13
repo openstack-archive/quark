@@ -99,8 +99,7 @@ class TestIpAddresses(TestQuarkPlugin):
         with self.assertRaises(exceptions.PortNotFound):
             ip_address = {'ip_address': {'network_id': 'fake',
                                          'device_id': 'fake'}}
-            response = self.plugin.create_ip_address(self.context,
-                                                     ip_address)
+            self.plugin.create_ip_address(self.context, ip_address)
 
     def test_create_ip_address_success_2(self):
         '''2. Create IP address with port_id.'''
@@ -124,42 +123,38 @@ class TestIpAddresses(TestQuarkPlugin):
         '''2b. Create IP Address with invalid port_id.'''
         with self.assertRaises(exceptions.PortNotFound):
             ip_address = {'ip_address': {'port_id': 'fake'}}
-            response = self.plugin.create_ip_address(self.context,
-                                                     ip_address)
+            self.plugin.create_ip_address(self.context, ip_address)
 
     def test_create_ip_address_failure_3(self):
         '''3. Create IP address with none of network_id, device_id, port_id.'''
         with self.assertRaises(exceptions.PortNotFound):
             ip_address = {'ip_address': {}}
-            response = self.plugin.create_ip_address(self.context,
-                                                     ip_address)
+            self.plugin.create_ip_address(self.context, ip_address)
 
     def test_create_ip_address_failure_4(self):
         '''4. Create IP address with network_id and without device_id.'''
         network_id = self._create_network()['id']
         with self.assertRaises(exceptions.PortNotFound):
             ip_address = {'ip_address': {'network_id': network_id}}
-            response = self.plugin.create_ip_address(self.context,
-                                                     ip_address)
+            self.plugin.create_ip_address(self.context, ip_address)
 
     def test_create_ip_address_failure_5(self):
         '''5. Create IP Address without network_id and with device_id.'''
         network_id = self._create_network()['id']
-        subnet = self._create_subnet(network_id)['id']
+        self._create_subnet(network_id)['id']
         self._create_mac_address_range()
         device_id = 'onetwothree'
-        port_id = self._create_port(network_id, device_id=device_id)['id']
+        self._create_port(network_id, device_id=device_id)['id']
 
         with self.assertRaises(exceptions.PortNotFound):
             ip_address = {'ip_address': {'device_id': device_id}}
-            response = self.plugin.create_ip_address(self.context,
-                                                     ip_address)
+            self.plugin.create_ip_address(self.context, ip_address)
 
     def test_create_ip_address_success_6(self):
         '''6. Create IP Address with version (v4) specified.'''
         network_id = self._create_network()['id']
         subnet_v4 = self._create_subnet(network_id, cidr='192.168.10.1/24')
-        subnet_v6 = self._create_subnet(network_id, cidr='fc00::/7')
+        self._create_subnet(network_id, cidr='fc00::/7')
 
         self._create_mac_address_range()
         device_id = 'onetwothree'
@@ -182,7 +177,7 @@ class TestIpAddresses(TestQuarkPlugin):
         '''7. Create IP address with version (v6) specified.'''
         network_id = self._create_network()['id']
         subnet_v6 = self._create_subnet(network_id, cidr='fc00::/7')
-        subnet_v4 = self._create_subnet(network_id, cidr='192.168.10.1/24')
+        self._create_subnet(network_id, cidr='192.168.10.1/24')
 
         self._create_mac_address_range()
         device_id = 'onetwothree'
@@ -213,8 +208,7 @@ class TestIpAddresses(TestQuarkPlugin):
             ip_address = {'ip_address': {'network_id': network_id,
                                          'device_id': device_id,
                                          'version': 10}}
-            response = self.plugin.create_ip_address(self.context,
-                                                     ip_address)
+            self.plugin.create_ip_address(self.context, ip_address)
 
     def test_create_ip_address_success_9(self):
         '''9. Create IP address with specific ip_address and ip_address doesn't
@@ -278,7 +272,7 @@ class TestIpAddresses(TestQuarkPlugin):
         '''2. Update IP address when specific port_id in port_ids doesn't
         exist.'''
         network_id = self._create_network()['id']
-        subnet = self._create_subnet(network_id)
+        self._create_subnet(network_id)
         self._create_mac_address_range()
         device_id = 'onetwothree'
         self._create_port(network_id, device_id)
@@ -297,7 +291,7 @@ class TestIpAddresses(TestQuarkPlugin):
     def test_update_ip_address_success_3(self):
         '''3. Update IP address to associate with specific port_ids.'''
         network_id = self._create_network()['id']
-        subnet = self._create_subnet(network_id)
+        self._create_subnet(network_id)
         self._create_mac_address_range()
         port = self._create_port(network_id, device_id='abc')
         port_2 = self._create_port(network_id, device_id='def')
@@ -314,7 +308,7 @@ class TestIpAddresses(TestQuarkPlugin):
     def test_update_ip_address_success_4(self):
         '''4. Update IP address with valid id but no port_ids is no-op.'''
         network_id = self._create_network()['id']
-        subnet = self._create_subnet(network_id)
+        self._create_subnet(network_id)
         self._create_mac_address_range()
         port = self._create_port(network_id)
 
@@ -330,7 +324,7 @@ class TestIpAddresses(TestQuarkPlugin):
     def test_update_ip_address_success_5(self):
         '''5. Update IP address with valid id and empty list deletes all.'''
         network_id = self._create_network()['id']
-        subnet = self._create_subnet(network_id)
+        self._create_subnet(network_id)
         self._create_mac_address_range()
         port = self._create_port(network_id)
 
