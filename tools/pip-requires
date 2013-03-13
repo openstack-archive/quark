@@ -1,4 +1,5 @@
 SQLAlchemy>=0.7.8,<=0.7.9
 alembic
-http://tarballs.openstack.org/oslo-config/oslo-config-2013.1b3.tar.gz#egg=oslo-config
+oslo.config
+zope.sqlalchemy
 quantum
