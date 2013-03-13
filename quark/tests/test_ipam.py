@@ -426,11 +426,11 @@ class TestQuarkIpamBase(test_base.TestBase):
                                    net['id'])
 
         with self.assertRaises(exceptions.IpAddressGenerationFailure):
-            ipaddress = self.ipam.allocate_ip_address(self.context.session,
-                                                      net['id'],
-                                                      port['id'],
-                                                      tenant_id,
-                                                      reuse_after)
+            self.ipam.allocate_ip_address(self.context.session,
+                                          net['id'],
+                                          port['id'],
+                                          tenant_id,
+                                          reuse_after)
 
     def test_allocate_ip_address_multiple_subnets(self):
         tenant_id = 'foobar'
@@ -614,9 +614,6 @@ class TestQuarkIpamBase(test_base.TestBase):
         self.assertEqual(len(ipaddress['ports']), 0)
 
     def test_deallocate_ip_address_success_one_port(self):
-        tenant_id = 'foobar'
-        reuse_after = 0
-
         self._create_and_insert_net()
         net = self.context.session.query(models.Network).first()
 
@@ -637,9 +634,6 @@ class TestQuarkIpamBase(test_base.TestBase):
         self.assertEqual(len(ipaddress['ports']), 0)
 
     def test_deallocate_ip_address_success_two_ports(self):
-        tenant_id = 'foobar'
-        reuse_after = 0
-
         self._create_and_insert_net()
         net = self.context.session.query(models.Network).first()
 
