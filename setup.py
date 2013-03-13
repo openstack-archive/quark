@@ -15,15 +15,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from setuptools import setup
+import setuptools
 
 
-setup(
+setuptools.setup(
     name='quark',
     version='0.1',
     author='Ozone',
     author_email='jkoelker@rackspace.com',
-    packages=['quark'],
+    packages=setuptools.find_packages(exclude=['ez_setup',
+                                               'examples', 'tests']),
     url='https://github.com/jkoelker/quark',
     license='Apache Software License',
     description='A quantum plugin plugin',
