@@ -12,6 +12,7 @@ CRUD IP Allocations
 
 Later:
 Maybe implement a straight passthrough driver for testing and debugging purposes
+Separate all SQL alchemy out of the plugin
 
 
 Allocations Controller Extension:
