@@ -16,10 +16,12 @@
 """
 v2 Quantum Plug-in API Quark Implementation
 """
+import inspect
 
 import netaddr
 from sqlalchemy import func as sql_func
 from sqlalchemy.orm import sessionmaker, scoped_session
+from sqlalchemy import event
 from zope.sqlalchemy import ZopeTransactionExtension
 from oslo.config import cfg
 
@@ -55,6 +57,13 @@ if 'api_extensions_path' in CONF:
     CONF.set_override('api_extensions_path', ":".join(extensions.__path__))
 
 
+# NOTE(jkoelker) init event listener that will ensure id is filled in
+#                on object creation (prior to commit).
+def perhaps_generate_id(target, args, kwargs):
+    if hasattr(target, 'id') and target.id is None:
+        target.id = uuidutils.generate_uuid()
+
+
 class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
     # NOTE(mdietz): I hate this
     supported_extension_aliases = ["mac_address_ranges", "routes",
@@ -63,10 +72,17 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
     def _initDBMaker(self):
         # This needs to be called after _ENGINE is configured
         db_api._MAKER = scoped_session(sessionmaker(bind=db_api._ENGINE,
-                                       twophase=True, autocommit=False,
                                        extension=ZopeTransactionExtension()))
 
     def __init__(self):
+        # NOTE(jkoelker) Register the event on all models that have ids
+        for _name, klass in inspect.getmembers(models, inspect.isclass):
+            if klass is models.HasId:
+                continue
+
+            if models.HasId in klass.mro():
+                event.listen(klass, "init", perhaps_generate_id)
+
         db_api.configure_db()
         self._initDBMaker()
         self.net_driver = (importutils.import_class(CONF.QUARK.net_driver))()
