@@ -3,7 +3,7 @@ python:
   - "2.7"
   - "2.6"
 install:
-  - pip install -r tools/pip-requires -r tools/test-requires flake8 . --use-mirrors
+  - pip install -r tools/pip-requires -r tools/test-requires . --use-mirrors
 before_script:
   - "flake8 --builtins=_ quark"
 script:
