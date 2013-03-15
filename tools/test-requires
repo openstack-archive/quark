@@ -3,8 +3,7 @@ distribute>=0.6.24
 mock
 coverage
 discover
-pep8
-pylint
+flake8
 python-subunit
 nose
 unittest2
