@@ -1,0 +1,312 @@
+# Copyright 2013 Openstack Foundation
+# All Rights Reserved.
+#
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
+
+import datetime
+
+from quantum.openstack.common import log as logging
+from quantum.openstack.common import timeutils
+from sqlalchemy import func as sql_func
+from sqlalchemy import orm
+
+from quark.db import models
+
+
+LOG = logging.getLogger("quantum.quark.db.api")
+
+ONE = "one"
+ALL = "all"
+
+
+def _model_query(context, model, filters, query, fields=None):
+    if filters.get("name"):
+        names = filters["name"]
+        if not isinstance(filters["name"], list):
+            names = [names]
+        query = query.filter(
+            model.id.in_(names))
+
+    if filters.get("network_id"):
+        ids = filters["network_id"]
+        if not isinstance(filters["network_id"], list):
+            ids = [ids]
+        query = query.filter(
+            model.network_id.in_(ids))
+
+    if filters.get("device_id"):
+        ids = filters["device_id"]
+        if not isinstance(filters["device_id"], list):
+            ids = [ids]
+        query = query.filter(model.device_id.in_(ids))
+
+    if filters.get("mac_address"):
+        addrs = filters["mac_address"]
+        if not isinstance(filters["mac_address"], list):
+            addrs = [addrs]
+        query = query.filter(
+            model.mac_address.in_(addrs))
+
+    if filters.get("tenant_id"):
+        ids = filters["tenant_id"]
+        if not isinstance(filters["tenant_id"], list):
+            ids = [ids]
+        query = query.filter(
+            model.tenant_id.in_(ids))
+
+    if filters.get("reuse_after"):
+        reuse_after = filters["reuse_after"]
+        reuse = (timeutils.utcnow() -
+                 datetime.timedelta(seconds=reuse_after))
+        query = query.filter(model.deallocated_at <= reuse)
+
+    if filters.get("subnet_id"):
+        query = query.filter(model.subnet_id ==
+                             filters["subnet_id"])
+
+    if filters.get("deallocated"):
+        query = query.filter(model.deallocated ==
+                             filters["deallocated"])
+
+    if filters.get("id"):
+        ids = filters["id"]
+        if not isinstance(filters["id"], list):
+            ids = [ids]
+        query = query.filter(model.id.in_(ids))
+
+    if filters.get("order_by"):
+        query = query.order_by(filters["order_by"])
+
+    if filters.get("address"):
+        query = query.filter(model.address == filters["address"])
+
+    if filters.get("deallocated"):
+        query = query.filter_by(deallocated=True)
+
+    if filters.get("version"):
+        query = query.filter(model.ip_version == filters["version"])
+
+    if filters.get("ip_address"):
+        query = query.filter(model.address == int(filters["ip_address"]))
+
+    if filters.get("mac_address_range_id"):
+        query = query.filter(model.mac_address_range_id ==
+                             filters["mac_address_range_id"])
+    return query
+
+
+def scoped(f):
+    def wrapped(*args, **kwargs):
+        scope = None
+        if "scope" in kwargs:
+            scope = kwargs.pop("scope")
+        if scope not in [None, ALL, ONE]:
+            raise Exception("Invalid scope")
+        res = f(*args, **kwargs)
+        if scope == ALL:
+            return res.all()
+        elif scope == ONE:
+            return res.first()
+        return res
+    return wrapped
+
+
+@scoped
+def port_find(context, fields=None, **filters):
+    if "id" in filters and not isinstance(filters["id"], list):
+        filters["id"] = [filters["id"]]
+    query = context.session.query(models.Port).\
+        options(orm.joinedload(models.Port.ip_addresses))
+    query = _model_query(context, models.Port, filters, fields=fields,
+                         query=query)
+    return query
+
+
+def port_create(context, **port_dict):
+    port = models.Port()
+    port.update(port_dict)
+    port["tenant_id"] = context.tenant_id
+    if "addresses" in port_dict:
+        port["ip_addresses"].extend(port_dict["addresses"])
+    context.session.add(port)
+    return port
+
+
+def port_delete(context, port):
+    context.session.delete(port)
+
+
+def ip_address_update(context, address, **kwargs):
+    address.update(kwargs)
+    context.session.add(address)
+    return address
+
+
+def ip_address_create(context, **address_dict):
+    ip_address = models.IPAddress()
+    address = address_dict.pop("address")
+    ip_address.update(address_dict)
+    ip_address["address"] = int(address)
+    ip_address["address_readable"] = str(address)
+    ip_address["tenant_id"] = context.tenant_id
+    ip_address["_deallocated"] = 0
+    context.session.add(ip_address)
+    return ip_address
+
+
+@scoped
+def ip_address_find(context, **filters):
+    query = context.session.query(models.IPAddress)
+    query = _model_query(context, models.IPAddress, filters, query)
+    return query
+
+
+@scoped
+def mac_address_find(context, **filters):
+    query = context.session.query(models.MacAddress)
+    query = _model_query(context, models.MacAddress, filters, query)
+    return query
+
+
+def mac_address_range_find_allocation_counts(context):
+    query = context.session.query(models.MacAddressRange,
+                                  sql_func.count(models.MacAddress.address).
+                                  label("count")).\
+        outerjoin(models.MacAddress).\
+        group_by(models.MacAddressRange).\
+        order_by("count DESC")
+    return query
+
+
+@scoped
+def mac_address_range_find(context, **filters):
+    query = context.session.query(models.MacAddressRange)
+    query = _model_query(context, models.MacAddressRange, filters, query)
+    return query
+
+
+def mac_address_range_create(context, **range_dict):
+    new_range = models.MacAddressRange()
+    new_range.update(range_dict)
+    new_range["tenant_id"] = context.tenant_id
+    context.session.add(new_range)
+    return new_range
+
+
+def mac_address_update(context, mac, **kwargs):
+    mac.update(kwargs)
+    context.session.add(mac)
+    return mac
+
+
+def mac_address_create(context, **mac_dict):
+    mac_address = models.MacAddress()
+    mac_address.update(mac_dict)
+    mac_address["tenant_id"] = context.tenant_id
+    mac_address["deallocated"] = False
+    mac_address["deallocated_at"] = None
+    context.session.add(mac_address)
+    return mac_address
+
+
+@scoped
+def network_find(context, fields=None, **filters):
+    # TODO(mdietz): we don't support "shared" networks yet. The concept
+    #               is broken
+    if filters.get("shared") and True in filters["shared"]:
+        return []
+    query = context.session.query(models.Network)
+    query = _model_query(context, models.Network, filters, query)
+    return query
+
+
+def network_create(context, **network):
+    new_net = models.Network()
+    new_net.update(network)
+    context.session.add(new_net)
+    return new_net
+
+
+def network_update(context, network, **kwargs):
+    network.update(kwargs)
+    context.session.add(network)
+    return network
+
+
+def network_count_all(context):
+    query = context.session.query(sql_func.count(models.Network.id))
+    return query.filter(models.Network.tenant_id == context.tenant_id).\
+        scalar()
+
+
+def network_delete(context, network):
+    context.session.delete(network)
+
+
+def subnet_find_allocation_counts(context, net_id, **filters):
+    query = context.session.query(models.Subnet,
+                                  sql_func.count(models.IPAddress.subnet_id).
+                                  label('count')).\
+        outerjoin(models.Subnet.allocated_ips).\
+        filter(models.Subnet.network_id == net_id)
+    if "version" in filters:
+        query = query.filter(models.Subnet.ip_version == filters["version"])
+    query = query.group_by(models.IPAddress)
+    query = query.order_by("count DESC")
+    return query
+
+
+@scoped
+def subnet_find(context, **filters):
+    query = context.session.query(models.Subnet).\
+        options(orm.joinedload(models.Subnet.routes))
+    query = _model_query(context, models.Subnet, filters, query)
+    return query
+
+
+def subnet_count_all(context, **filters):
+    query = context.session.query(sql_func.count(models.Subnet.id))
+    if filters.get("network_id"):
+        query = query.filter(
+            models.Subnet.network_id == filters["network_id"])
+    query.filter(models.Subnet.tenant_id == context.tenant_id)
+    return query.scalar()
+
+
+def subnet_delete(context, subnet):
+    context.session.delete(subnet)
+
+
+def subnet_create(context, **subnet_dict):
+    subnet = models.Subnet()
+    subnet.update(subnet_dict)
+    context.session.add(subnet)
+    return subnet
+
+
+@scoped
+def route_find(context, fields=None, **filters):
+    query = context.session.query(models.Route)
+    query = _model_query(context, models.Route, filters, query)
+    return query
+
+
+def route_create(context, **route_dict):
+    new_route = models.Route()
+    new_route.update(route_dict)
+    new_route["tenant_id"] = context.tenant_id
+    context.session.add(new_route)
+
+
+def route_delete(context, route):
+    context.session.delete(route)

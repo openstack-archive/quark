@@ -17,36 +17,29 @@
 Quark Pluggable IPAM
 """
 
-import datetime
-
 import netaddr
 
-from sqlalchemy import func as sql_func
 from quantum.common import exceptions
 from quantum.openstack.common import log as logging
 from quantum.openstack.common import timeutils
-from quark.db import models
+
+from quark.db import api as db_api
 
 
 LOG = logging.getLogger("quantum")
 
 
 class QuarkIpam(object):
-
-    def _choose_available_subnet(self, session, net_id, version, ip_address):
-        query = session.query(models.Subnet,
-                              sql_func.count(models.IPAddress.subnet_id).
-                              label('count'))
-        query = query.outerjoin(models.Subnet.allocated_ips)
-        query = query.filter(models.Subnet.network_id == net_id)
+    def _choose_available_subnet(self, context, net_id, version=None,
+                                 ip_address=None):
+        filters = {}
         if version:
-            query = query.filter(models.Subnet.ip_version == version)
-        query = query.group_by(models.IPAddress)
-        query = query.order_by("count DESC")
-
-        subnets = query.all()
-
+            filters["version"] = version
+        subnets = db_api.subnet_find_allocation_counts(context, net_id,
+                                                       **filters)
         for subnet, ips_in_subnet in subnets:
+            if not subnet:
+                break
             ipnet = netaddr.IPNetwork(subnet["cidr"])
             if ip_address and ip_address not in ipnet:
                 continue
@@ -55,132 +48,89 @@ class QuarkIpam(object):
 
         raise exceptions.IpAddressGenerationFailure(net_id=net_id)
 
-    def allocate_mac_address(self, session, net_id, port_id, tenant_id,
-                             reuse_after):
-        reuse = (timeutils.utcnow() -
-                 datetime.timedelta(seconds=reuse_after))
-        query = session.query(models.MacAddress)
-        query = query.filter_by(deallocated=True)
-        query = query.filter(models.MacAddress.deallocated_at <= reuse)
+    def allocate_mac_address(self, context, net_id, port_id, reuse_after):
 
-        deallocated_mac = query.first()
+        deallocated_mac = db_api.mac_address_find(
+            context, reuse_after=reuse_after, scope=db_api.ONE)
 
         if deallocated_mac:
-            deallocated_mac["deallocated"] = False
-            deallocated_mac["deallocated_at"] = None
+            deallocated_mac = db_api.mac_address_update(
+                context, deallocated_mac, deallocated=False,
+                deallocated_at=None)
             return deallocated_mac
 
-        ranges = session.query(models.MacAddressRange,
-                               sql_func.count(models.MacAddress.address).
-                               label("count")).\
-            outerjoin(models.MacAddress).\
-            group_by(models.MacAddressRange).\
-            order_by("count DESC").\
-            all()
+        ranges = db_api.mac_address_range_find_allocation_counts(context)
 
         for result in ranges:
             rng, addr_count = result
             if rng["last_address"] - rng["first_address"] <= addr_count:
                 continue
-            highest_mac = session.query(models.MacAddress).\
-                filter(models.MacAddress.mac_address_range_id ==
-                       rng["id"]).\
-                order_by("address DESC").\
-                first()
-            address = models.MacAddress()
+            highest_mac = db_api.mac_address_find(
+                context, range_id=rng["id"], order_by="address DESC",
+                scope=db_api.ONE)
+
+            address = None
             if highest_mac:
                 next_mac = netaddr.EUI(highest_mac["address"]).value
-                address["address"] = next_mac + 1
+                address = next_mac + 1
             else:
-                address["address"] = rng["first_address"]
+                address = rng["first_address"]
 
-            address["mac_address_range_id"] = rng["id"]
-            address["tenant_id"] = tenant_id
-            address["deallocated"] = False
-            address["deallocated_at"] = None
+            address = db_api.mac_address_create(context, address=address,
+                                                mac_address_range_id=rng["id"])
             return address
 
         raise exceptions.MacAddressGenerationFailure(net_id=net_id)
 
-    def allocate_ip_address(self, session, net_id, port_id, tenant_id,
-                            reuse_after, version=None, ip_address=None):
-        reuse = (timeutils.utcnow() -
-                 datetime.timedelta(seconds=reuse_after))
-        query = session.query(models.IPAddress)
-        query = query.filter_by(network_id=net_id)
-        query = query.filter_by(deallocated=True)
-        query = query.filter(models.IPAddress.deallocated_at <= reuse)
-        if version:
-            query = query.filter_by(version=version)
+    def allocate_ip_address(self, context, net_id, port_id, reuse_after,
+                            version=None, ip_address=None):
         if ip_address:
             ip_address = netaddr.IPAddress(ip_address)
-            query = query.filter_by(address=int(ip_address))
 
-        address = query.first()
+        address = db_api.ip_address_find(
+            context, network_id=net_id, reuse_after=reuse_after,
+            deallocated=True, scope=db_api.ONE, ip_address=ip_address)
+        if address:
+            return db_api.ip_address_update(
+                context, address, deallocated=False, deallocated_at=None)
 
-        if not address:
-            subnet = self._choose_available_subnet(session, net_id, version,
-                                                   ip_address)
-            highest_addr = session.query(models.IPAddress).\
-                filter(models.IPAddress.subnet_id ==
-                       subnet["id"]).\
-                order_by("address DESC").\
-                first()
+        subnet = self._choose_available_subnet(
+            context, net_id, ip_address=ip_address, version=version)
+
+        # Creating this IP for the first time
+        if ip_address:
+            next_ip = ip_address
+        else:
+            highest_addr = db_api.ip_address_find(
+                context, subnet_id=subnet["id"], order_by="address DESC",
+                scope=db_api.ONE)
 
             # TODO(mdietz): Need to honor policies here
-            address = models.IPAddress()
-            if ip_address:
-                query = session.query(models.IPAddress)
-                query = query.filter_by(subnet_id=subnet["id"])
-                query = query.filter_by(address=int(ip_address))
-                address = query.first()
-                if not address:
-                    address = models.IPAddress()
-                    address["address"] = int(ip_address)
-                    address["address_readable"] = str(ip_address)
-            elif highest_addr:
+            if highest_addr:
                 next_ip = netaddr.IPAddress(int(highest_addr["address"])) + 1
-                address["address"] = int(next_ip)
-                address["address_readable"] = str(next_ip)
             else:
-                first_address = netaddr.IPAddress(int(subnet["first_ip"]))
-                address["address"] = int(first_address)
-                address["address_readable"] = str(first_address)
+                next_ip = netaddr.IPAddress(int(subnet["first_ip"]))
 
-            address["subnet_id"] = subnet["id"]
-            address["version"] = subnet["ip_version"]
-            address["network_id"] = net_id
-            address["tenant_id"] = tenant_id
+        address = db_api.ip_address_create(
+            context, address=next_ip, subnet_id=subnet["id"],
+            version=subnet["ip_version"], network_id=net_id)
 
-        if address:
-            address["port_id"] = port_id
-            address["_deallocated"] = False
-            address["deallocated_at"] = None
-            return address
-        raise exceptions.IpAddressGenerationFailure(net_id=net_id)
+        return address
 
-    def deallocate_ip_address(self, session, port_id, **kwargs):
-        # NOTE(jkoelker) Get on primary key will not cause SQL lookup
-        #                if the object is already in the session
-        port = session.query(models.Port).get(port_id)
-        if not port:
-            raise exceptions.NotFound(
-                message="No port found with id=%s" % port_id)
+    def deallocate_ip_address(self, context, port, **kwargs):
+        for address in port["ip_addresses"]:
+            # Only disassociate from port, don't automatically deallocate
+            address["ports"].remove(port)
+            if len(address["ports"]) > 0:
+                continue
 
-        for address in port['ip_addresses']:
-            # NOTE(jkoelker) Address is used by multiple ports only
-            #                remove it from this port
-            address['ports'].remove(port)
-            if len(address['ports']) == 0:
-                address["deallocated"] = True
+            address["deallocated"] = 1
 
-    def deallocate_mac_address(self, session, address):
-        mac = session.query(models.MacAddress).\
-            filter(models.MacAddress.address == address).\
-            first()
+    def deallocate_mac_address(self, context, address):
+        mac = db_api.mac_address_find(context, address=address,
+                                      scope=db_api.ONE)
         if not mac:
-            mac_pretty = netaddr.EUI(address)
             raise exceptions.NotFound(
-                message="No MAC address %s found" % mac_pretty)
-        mac["deallocated"] = True
-        mac["deallocated_at"] = timeutils.utcnow()
+                message="No MAC address %s found" % netaddr.EUI(address))
+        db_api.mac_address_update(context, mac, deallocated=True,
+                                  dellocated_at=timeutils.utcnow())

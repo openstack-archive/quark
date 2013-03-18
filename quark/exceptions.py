@@ -11,3 +11,7 @@ class RouteNotFound(exceptions.NotFound):
 
 class AmbigiousLswitchCount(exceptions.QuantumException):
     message = _("Too many lswitches for network %(net_id)s.")
+
+
+class IpAddressNotFound(exceptions.QuantumException):
+    message = _("IP Address %(addr_id)s not found.")
