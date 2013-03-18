@@ -132,7 +132,9 @@ class IPAddress(BASEV2, HasId, HasTenant):
     @deallocated.setter
     def deallocated(self, val):
         self._deallocated = val
-        self.deallocated_at = timeutils.utcnow()
+        self.deallocated_at = None
+        if val:
+            self.deallocated_at = timeutils.utcnow()
 
     # TODO(jkoelker) update the expression to use the jointable as well
     @deallocated.expression
@@ -200,7 +202,8 @@ class Subnet(BASEV2, HasId, HasTenant, IsHazTags):
                                      'IPAddress.subnet_id, '
                                      'IPAddress._deallocated!=1)',
                                      backref="subnet")
-    routes = orm.relationship(Route, backref='subnet', cascade='delete')
+    routes = orm.relationship(Route, primaryjoin="Route.subnet_id==Subnet.id",
+                              backref='subnet', cascade='delete')
 
 
 port_ip_association_table = sa.Table(
