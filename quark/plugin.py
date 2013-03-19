@@ -72,7 +72,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
 
     def _initDBMaker(self):
         # This needs to be called after _ENGINE is configured
-        db_api._MAKER = scoped_session(sessionmaker(
+        quantum_db_api._MAKER = scoped_session(sessionmaker(
             bind=quantum_db_api._ENGINE, extension=ZopeTransactionExtension()))
 
     def __init__(self):
@@ -327,28 +327,27 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             quantum/api/v2/attributes.py.  All keys will be populated.
         """
         LOG.info("create_network for tenant %s" % context.tenant_id)
-        with context.session.begin():
-            # Generate a uuid that we're going to hand to the backend and db
-            net_uuid = uuidutils.generate_uuid()
+        # Generate a uuid that we're going to hand to the backend and db
+        net_uuid = uuidutils.generate_uuid()
 
-            #NOTE(mdietz): probably want to abstract this out as we're getting
-            #              too tied to the implementation here
-            self.net_driver.create_network(context,
-                                           network["network"]["name"],
-                                           network_id=net_uuid)
+        #NOTE(mdietz): probably want to abstract this out as we're getting
+        #              too tied to the implementation here
+        self.net_driver.create_network(context,
+                                       network["network"]["name"],
+                                       network_id=net_uuid)
 
-            subnets = []
-            if network["network"].get("subnets"):
-                subnets = network["network"].pop("subnets")
+        subnets = []
+        if network["network"].get("subnets"):
+            subnets = network["network"].pop("subnets")
 
-            network["network"]["id"] = net_uuid
-            network["network"]["tenant_id"] = context.tenant_id
-            new_net = db_api.network_create(context, **network["network"])
+        network["network"]["id"] = net_uuid
+        network["network"]["tenant_id"] = context.tenant_id
+        new_net = db_api.network_create(context, **network["network"])
 
-            for sub in subnets:
-                sub["subnet"]["network_id"] = new_net["id"]
-                sub["subnet"]["tenant_id"] = context.tenant_id
-                db_api.subnet_create(context, **sub["subnet"])
+        for sub in subnets:
+            sub["subnet"]["network_id"] = new_net["id"]
+            sub["subnet"]["tenant_id"] = context.tenant_id
+            db_api.subnet_create(context, **sub["subnet"])
 
         return self._make_network_dict(new_net)
 
@@ -364,11 +363,10 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         """
         LOG.info("update_network %s for tenant %s" %
                 (id, context.tenant_id))
-        with context.session.begin():
-            net = db_api.network_find(context, id=id, scope=db_api.ONE)
-            if not net:
-                raise exceptions.NetworkNotFound(net_id=id)
-            net = db_api.network_update(context, net, **network["network"])
+        net = db_api.network_find(context, id=id, scope=db_api.ONE)
+        if not net:
+            raise exceptions.NetworkNotFound(net_id=id)
+        net = db_api.network_update(context, net, **network["network"])
 
         return self._make_network_dict(net)
 
@@ -732,7 +730,6 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             ip_version,
             ip_address)
         port["ip_addresses"].append(address)
-        context.session.add(address)
         return self._make_ip_dict(address)
 
     def update_ip_address(self, context, id, ip_address):
