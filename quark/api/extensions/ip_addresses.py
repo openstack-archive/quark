@@ -64,13 +64,21 @@ class IpAddressesController(wsgi.Controller):
 
     def create(self, request, body=None):
         body = self._deserialize(request.body, request.get_content_type())
-        return {"ip_addresses":
-                self._plugin.create_ip_address(request.context, body)}
+        try:
+            return {"ip_addresses": self._plugin.create_ip_address(
+                    request.context, body)}
+        except exceptions.NotFound:
+            raise webob.exc.HTTPNotFound()
+        except exceptions.Conflict:
+            raise webob.exc.HTTPConflict()
 
     def update(self, request, id, body=None):
         body = self._deserialize(request.body, request.get_content_type())
-        return {"ip_addresses":
-                self._plugin.update_ip_address(request.context, id, body)}
+        try:
+            return {"ip_addresses": self._plugin.update_ip_address(
+                    request.context, id, body)}
+        except exceptions.NotFound:
+            raise webob.exc.HTTPNotFound()
 
 
 class Ip_addresses(object):
