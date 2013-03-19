@@ -35,7 +35,7 @@ def _model_query(context, model, filters, query, fields=None):
         if not isinstance(filters["name"], list):
             names = [names]
         query = query.filter(
-            model.id.in_(names))
+            model.name.in_(names))
 
     if filters.get("network_id"):
         ids = filters["network_id"]
