@@ -4,3 +4,4 @@ oslo.config
 zope.sqlalchemy
 mysql-python
 http://tarballs.openstack.org/quantum/quantum-master.tar.gz#egg=quantum
+aiclib
