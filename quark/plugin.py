@@ -717,11 +717,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             port = db_api.port_find(context, id=port_id, scope=db_api.ONE)
 
         if not port:
-            raise exceptions.PortNotFound(id=port_id,
-                                          net_id=network_id,
-                                          device_id=device_id,
-                                          tenant_id=context.tenant_id)
-
+            raise exceptions.PortNotFound(port_id=port_id,
+                                          net_id=network_id)
         address = self.ipam_driver.allocate_ip_address(
             context,
             port['network_id'],
