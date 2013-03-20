@@ -68,9 +68,9 @@ class NVPDriver(base.BaseDriver):
             conn["connection"] = aiclib.nvp.Connection(uri)
         return conn["connection"]
 
-    def create_network(self, tenant_id, network_name, tags=None,
+    def create_network(self, context, network_name, tags=None,
                        network_id=None, **kwargs):
-        return self._lswitch_create(tenant_id, network_name, tags,
+        return self._lswitch_create(context, network_name, tags,
                                     network_id, **kwargs)
 
     def delete_network(self, context, network_id):
@@ -84,8 +84,6 @@ class NVPDriver(base.BaseDriver):
         tenant_id = context.tenant_id
         lswitch = self._create_or_choose_lswitch(context, network_id)
         connection = self.get_connection()
-        if not connection:
-            raise
         port = connection.lswitch_port(lswitch)
         port.admin_status_enabled(status)
         tags = [dict(tag=network_id, scope="quantum_net_id"),
