@@ -84,6 +84,8 @@ class NVPDriver(base.BaseDriver):
         tenant_id = context.tenant_id
         lswitch = self._create_or_choose_lswitch(context, network_id)
         connection = self.get_connection()
+        if not connection:
+            raise
         port = connection.lswitch_port(lswitch)
         port.admin_status_enabled(status)
         tags = [dict(tag=network_id, scope="quantum_net_id"),
