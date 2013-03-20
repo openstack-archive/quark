@@ -88,13 +88,30 @@ class TestNVPDriverCreatePort(TestNVPDriver):
             port = self.driver.create_port(self.context, self.net_id,
                                            self.port_id)
             self.assertTrue("uuid" in port)
-            self.assertEqual(self.lport_uuid, port["uuid"])
-            self.assertEqual(self.lswitch_uuid, port["lswitch"])
+            self.assertFalse(connection.lswitch().create.called)
+            self.assertTrue(connection.lswitch_port().create.called)
+            status_args, kwargs = connection.lswitch_port().\
+                admin_status_enabled.call_args
+            self.assertTrue(True in status_args)
 
     def test_create_port_switch_not_exists(self):
         with self._stubs(has_lswitch=False) as (connection):
             port = self.driver.create_port(self.context, self.net_id,
                                            self.port_id)
             self.assertTrue("uuid" in port)
-            self.assertEqual(self.lport_uuid, port["uuid"])
-            self.assertEqual(self.lswitch_uuid, port["lswitch"])
+            self.assertTrue(connection.lswitch().create.called)
+            self.assertTrue(connection.lswitch_port().create.called)
+            status_args, kwargs = connection.lswitch_port().\
+                admin_status_enabled.call_args
+            self.assertTrue(True in status_args)
+
+    def test_create_disabled_port_switch_not_exists(self):
+        with self._stubs(has_lswitch=False) as (connection):
+            port = self.driver.create_port(self.context, self.net_id,
+                                           self.port_id, False)
+            self.assertTrue("uuid" in port)
+            self.assertTrue(connection.lswitch().create.called)
+            self.assertTrue(connection.lswitch_port().create.called)
+            status_args, kwargs = connection.lswitch_port().\
+                admin_status_enabled.call_args
+            self.assertTrue(False in status_args)
