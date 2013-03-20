@@ -7,4 +7,3 @@ flake8
 python-subunit
 nose
 unittest2
-aiclib
