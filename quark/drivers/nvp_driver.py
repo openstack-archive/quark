@@ -21,6 +21,7 @@ import ConfigParser
 
 import sqlalchemy as sa
 from sqlalchemy import orm
+from oslo.config import cfg
 
 import aiclib
 from quantum.openstack.common import log as logging
@@ -32,6 +33,20 @@ from quark.drivers import base
 
 LOG = logging.getLogger("quantum.quark.nvplib")
 
+CONF = cfg.CONF
+
+nvp_opts = [
+    cfg.IntOpt('max_ports_per_switch',
+               default=0,
+               help=_('Maximum amount of NVP ports on an NVP lswitch')),
+    cfg.StrOpt('DEFAULT_TZ_UUID',
+               help=_('The default transport zone UUID')),
+    cfg.StrOpt('NVP_CONTROLLER_CONNECTIONS',
+               help=_('NVP Controller connection string')),
+]
+
+CONF.register_opts(nvp_opts, "NVP")
+
 
 class NVPDriver(base.BaseDriver):
     def __init__(self):
@@ -42,10 +57,9 @@ class NVPDriver(base.BaseDriver):
     def load_config(self, path):
         config = ConfigParser.ConfigParser()
         config.read(path)
-        default_tz = config.get("NVP", "DEFAULT_TZ_UUID")
-        connections = config.get("NVP", "NVP_CONTROLLER_CONNECTIONS")
-        self.max_ports_per_switch = int(config.get("NVP",
-                                        "max_ports_per_switch"))
+        default_tz = CONF.NVP.DEFAULT_TZ_UUID
+        connections = CONF.NVP.NVP_CONTROLLER_CONNECTIONS
+        self.max_ports_per_switch = CONF.NVP.max_ports_per_switch
         for conn in connections.split():
             (ip, port, user, pw, req_timeout,
              http_timeout, retries, redirects) =\
@@ -68,9 +82,9 @@ class NVPDriver(base.BaseDriver):
             conn["connection"] = aiclib.nvp.Connection(uri)
         return conn["connection"]
 
-    def create_network(self, tenant_id, network_name, tags=None,
+    def create_network(self, context, network_name, tags=None,
                        network_id=None, **kwargs):
-        return self._lswitch_create(tenant_id, network_name, tags,
+        return self._lswitch_create(context, network_name, tags,
                                     network_id, **kwargs)
 
     def delete_network(self, context, network_id):
