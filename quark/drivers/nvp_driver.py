@@ -19,8 +19,6 @@ NVP client driver for Quark
 
 from oslo.config import cfg
 
-from oslo.config import cfg
-
 import sqlalchemy as sa
 from sqlalchemy import orm
 
