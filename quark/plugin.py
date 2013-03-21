@@ -115,13 +115,13 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         # TODO(mdietz): this is a hack to get nova to boot. We want to get the
         #               "default" route out of the database and use that
         gateway_ip = "0.0.0.0"
-        subnet["allocation_pools"] = subnet.get("allocation_pools") or {}
-        subnet["dns_nameservers"] = subnet.get("dns_nameservers") or {}
         return {"id": subnet.get('id'),
                 "name": subnet.get('id'),
                 "tenant_id": subnet.get('tenant_id'),
                 "network_id": subnet.get('network_id'),
                 "ip_version": subnet.get('ip_version'),
+                "allocation_pools": subnet.get("allocation_pools") or [],
+                "dns_nameservers": subnet.get("dns_nameservers") or [],
                 "cidr": subnet.get('cidr'),
                 "enable_dhcp": subnet.get('enable_dhcp'),
                 "gateway_ip": gateway_ip}
@@ -129,19 +129,6 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
     def _make_subnet_dict(self, subnet, fields=None):
         res = self._subnet_dict(subnet, fields)
         res["routes"] = [self._make_route_dict(r) for r in subnet["routes"]]
-               #'dns_nameservers': [dns.get('address')
-               #                    for dns in subnet.get('dns_nameservers')],
-               #'host_routes': [{'destination': route.get('destination'),
-               #                 'nexthop': route.get('nexthop')}
-               #                for route in subnet.get('routes', [])],
-               #'shared': subnet.get('shared')
-               #}
-               #'allocation_pools': [{'start': pool.get('first_ip'),
-               #                      'end': pool.get('last_ip')}
-               #                for pool in subnet.get('allocation_pools')],
-               #}
-        #if subnet.get('gateway_ip'):
-        #    res['gateway_ip'] = subnet.get('gateway_ip')
         return res
 
     def _port_dict(self, port, fields=None):
@@ -179,17 +166,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             port_dict["fixed_ips"] = [self._make_port_address_dict(addr)
                                       for addr in port.ip_addresses]
             ports.append(port_dict)
-        LOG.critical(ports)
         return ports
-        #for port_dict, addr_dict in query:
-        #    port_id = port_dict["id"]
-        #    if port_id not in ports:
-        #        ports[port_id] = self._port_dict(port_dict, fields)
-        #        ports[port_id]["fixed_ips"] = []
-        #    if addr_dict:
-        #        ports[port_id]["fixed_ips"].append(
-        #            self._make_port_address_dict(addr_dict))
-        #return ports.values()
 
     def _make_subnets_list(self, query, fields=None):
         subnets = []
@@ -229,7 +206,11 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             quantum/api/v2/attributes.py.  All keys will be populated.
         """
         LOG.info("create_subnet for tenant %s" % context.tenant_id)
-        subnet["subnet"]["tenant_id"] = context.tenant_id
+        net_id = subnet["subnet"]["network_id"]
+        net = db_api.network_find(context, net_id, scope=db_api.ONE)
+        if not net:
+            raise exceptions.NetworkNotFound(net_id=net_id)
+
         new_subnet = db_api.subnet_create(context, **subnet["subnet"])
         subnet_dict = self._make_subnet_dict(new_subnet)
         return subnet_dict
@@ -582,7 +563,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         """
         LOG.info("get_ports for tenant %s filters %s fields %s" %
                 (context.tenant_id, filters, fields))
-        query = db_api.port_find(context, fields, **filters)
+        query = db_api.port_find(context, fields, filters)
         return self._make_ports_list(query, fields)
 
     def get_ports_count(self, context, filters=None):

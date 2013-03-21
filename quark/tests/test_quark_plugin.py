@@ -13,13 +13,17 @@
 # License for the specific language governing permissions and limitations
 #  under the License.
 
-import netaddr
+import uuid
 
+import contextlib
+import mock
+import netaddr
 from oslo.config import cfg
 from quantum.common import exceptions
 from quantum import context
 from quantum.db import api as db_api
 
+from quark.db import models
 import quark.plugin
 
 from quark.tests import test_base
@@ -54,20 +58,108 @@ class TestQuarkPlugin(test_base.TestBase):
         db_api.clear_db()
 
 
-class TestSubnets(TestQuarkPlugin):
-    def test_allocated_ips_only(self):
-        network_id = self._create_network()['id']
-        self._create_subnet(network_id)
-        self._create_mac_address_range()
+class TestQuarkGetSubnets(TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, subnets=None, routes=None):
+        route_models = []
+        for route in routes:
+            r = models.Route()
+            r.update(route)
+            route_models.append(r)
 
-        port = self._create_port(network_id)
-        self.assertTrue(len(port['fixed_ips']) >= 1)
+        if isinstance(subnets, list):
+            subnet_models = []
+            for subnet in subnets:
+                s_dict = subnet.copy()
+                s_dict["routes"] = route_models
+                s = models.Subnet()
+                s.update(s_dict)
+                subnet_models.append(s)
+        else:
+            mod = models.Subnet()
+            mod.update(subnets)
+            mod["routes"] = route_models
+            subnet_models = mod
 
-        self.plugin.delete_port(self.context, port['id'])
+        with mock.patch("quark.db.api.subnet_find") as subnet_find:
+            subnet_find.return_value = subnet_models
+            yield
 
-        # TODO(jkoelker) once the ip_addresses controller is in the api
-        #                grab the fixed_ip from that and make sure it has
-        #                no ports
+    def test_subnets_list(self):
+        subnet_id = str(uuid.uuid4())
+        route = dict(id=1, cidr="192.168.0.0/24", gateway="192.168.0.1",
+                     subnet_id=subnet_id)
+
+        subnet = dict(id=subnet_id, network_id=1, name=subnet_id,
+                      tenant_id=self.context.tenant_id, ip_version=4,
+                      cidr="172.16.0.0/24", gateway_ip="0.0.0.0",
+                      allocation_pools=[], dns_nameservers=[],
+                      enable_dhcp=True)
+
+        with self._stubs(subnets=[subnet], routes=[route]):
+            res = self.plugin.get_subnets(self.context, {}, {})
+
+            # Compare routes separately
+            routes = res[0].pop("routes")
+            for key in subnet.keys():
+                self.assertEqual(res[0][key], subnet[key])
+            for key in route.keys():
+                self.assertEqual(routes[0][key], route[key])
+
+    def test_subnet_show(self):
+        subnet_id = str(uuid.uuid4())
+        route = dict(id=1, cidr="192.168.0.0/24", gateway="192.168.0.1",
+                     subnet_id=subnet_id)
+
+        subnet = dict(id=subnet_id, network_id=1, name=subnet_id,
+                      tenant_id=self.context.tenant_id, ip_version=4,
+                      cidr="172.16.0.0/24", gateway_ip="0.0.0.0",
+                      allocation_pools=[], dns_nameservers=[],
+                      enable_dhcp=True)
+
+        with self._stubs(subnets=subnet, routes=[route]):
+            res = self.plugin.get_subnet(self.context, subnet_id)
+
+            # Compare routes separately
+            routes = res.pop("routes")
+            for key in subnet.keys():
+                self.assertEqual(res[key], subnet[key])
+            for key in route.keys():
+                self.assertEqual(routes[0][key], route[key])
+
+
+class TestQuarkCreateSubnet(TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, subnet=None, network=None):
+        subnet_mod = models.Subnet()
+        subnet_mod.update(subnet)
+        with contextlib.nested(
+            mock.patch("quark.db.api.subnet_create"),
+            mock.patch("quark.db.api.network_find"),
+        ) as (subnet_create, net_find):
+            subnet_create.return_value = subnet_mod
+            net_find.return_value = network
+            yield
+
+    def test_create_subnet(self):
+        subnet = dict(
+            subnet=dict(network_id=1,
+                        tenant_id=self.context.tenant_id, ip_version=4,
+                        cidr="172.16.0.0/24", gateway_ip="0.0.0.0",
+                        allocation_pools=[], dns_nameservers=[],
+                        enable_dhcp=None))
+        network = dict(network_id=1)
+        with self._stubs(subnet=subnet["subnet"], network=network):
+            res = self.plugin.create_subnet(self.context, subnet)
+            for key in subnet["subnet"].keys():
+                print key
+                self.assertEqual(res[key], subnet["subnet"][key])
+
+    def test_create_subnet_no_network_fails(self):
+        subnet = dict(subnet=dict(network_id=1))
+        with self._stubs(subnet=dict(), network=None):
+            with self.assertRaises(exceptions.NetworkNotFound):
+                self.plugin.create_subnet(self.context, subnet)
 
 
 class TestIpAddresses(TestQuarkPlugin):
@@ -315,3 +407,167 @@ class TestIpAddresses(TestQuarkPlugin):
                                                  response['id'],
                                                  ip_address)
         self.assertEqual(response['port_ids'], [])
+
+
+class TestQuarkGetPorts(TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, ports=None):
+        port_models = []
+        if isinstance(ports, list):
+            for port in ports:
+                port_model = models.Port()
+                port_model.update(port)
+                port_models.append(port_model)
+        elif ports is None:
+            port_models = None
+        else:
+            port_model = models.Port()
+            port_model.update(ports)
+            port_models = port_model
+
+        db_mod = "quark.db.api"
+        with contextlib.nested(
+            mock.patch("%s.port_find" % db_mod)
+        ) as (port_find,):
+            port_find.return_value = port_models
+            yield
+
+    def test_port_list_no_ports(self):
+        with self._stubs(ports=[]):
+            ports = self.plugin.get_ports(self.context, filters=None,
+                                          fields=None)
+            self.assertEqual(ports, [])
+
+    def test_port_list_with_ports(self):
+        port = dict(mac_address="AA:BB:CC:DD:EE:FF", network_id=1,
+                    tenant_id=self.context.tenant_id, device_id=2)
+        expected = {'status': None,
+                    'device_owner': None,
+                    'mac_address': 'AA:BB:CC:DD:EE:FF',
+                    'network_id': 1,
+                    'tenant_id': self.context.tenant_id,
+                    'admin_state_up': None,
+                    'fixed_ips': [],
+                    'device_id': 2}
+        with self._stubs(ports=[port]):
+            ports = self.plugin.get_ports(self.context, filters=None,
+                                          fields=None)
+            self.assertEqual(len(ports), 1)
+            for key in expected.keys():
+                self.assertEqual(ports[0][key], expected[key])
+
+    def test_port_show(self):
+        port = dict(mac_address="AA:BB:CC:DD:EE:FF", network_id=1,
+                    tenant_id=self.context.tenant_id, device_id=2)
+        expected = {'status': None,
+                    'device_owner': None,
+                    'mac_address': 'AA:BB:CC:DD:EE:FF',
+                    'network_id': 1,
+                    'tenant_id': self.context.tenant_id,
+                    'admin_state_up': None,
+                    'fixed_ips': [],
+                    'device_id': 2}
+        with self._stubs(ports=port):
+            result = self.plugin.get_port(self.context, 1)
+            for key in expected.keys():
+                self.assertEqual(result[key], expected[key])
+
+    def test_port_show_not_found(self):
+        with self._stubs(ports=None):
+            with self.assertRaises(exceptions.PortNotFound):
+                self.plugin.get_port(self.context, 1)
+
+
+class TestQuarkCreatePort(TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, port=None, network=None, addr=None, mac=None):
+        port_model = models.Port()
+        port_model.update(port)
+        port_models = port_model
+
+        db_mod = "quark.db.api"
+        ipam = "quark.ipam.QuarkIpam"
+        with contextlib.nested(
+            mock.patch("%s.port_create" % db_mod),
+            mock.patch("%s.network_find" % db_mod),
+            mock.patch("%s.allocate_ip_address" % ipam),
+            mock.patch("%s.allocate_mac_address" % ipam),
+        ) as (port_create, net_find, alloc_ip, alloc_mac):
+            port_create.return_value = port_models
+            net_find.return_value = network
+            alloc_ip.return_value = addr
+            alloc_mac.return_value = mac
+            yield port_create
+
+    def test_create_port(self):
+        network = dict(id=1)
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
+        ip = dict()
+        port = dict(port=dict(mac_address=mac["address"], network_id=1,
+                              tenant_id=self.context.tenant_id, device_id=2))
+        expected = {'status': None,
+                    'device_owner': None,
+                    'mac_address': mac["address"],
+                    'network_id': network["id"],
+                    'tenant_id': self.context.tenant_id,
+                    'admin_state_up': None,
+                    'fixed_ips': [],
+                    'device_id': 2}
+        with self._stubs(port=port["port"], network=network, addr=ip,
+                         mac=mac) as port_create:
+            result = self.plugin.create_port(self.context, port)
+            self.assertTrue(port_create.called)
+            for key in expected.keys():
+                self.assertEqual(result[key], expected[key])
+
+    def test_create_port_no_network_found(self):
+        port = dict(port=dict(network_id=1, tenant_id=self.context.tenant_id,
+                              device_id=2))
+        with self._stubs(network=None, port=port["port"]):
+            with self.assertRaises(exceptions.NetworkNotFound):
+                self.plugin.create_port(self.context, port)
+
+
+class TestQuarkUpdatePort(TestQuarkPlugin):
+    def test_update_not_implemented(self):
+        with self.assertRaises(NotImplementedError):
+            self.plugin.update_port(self.context, 1, {})
+
+
+class TestQuarkDeletePort(TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, port=None, addr=None, mac=None):
+        port_models = None
+        if port:
+            port_model = models.Port()
+            port_model.update(port)
+            port_models = port_model
+
+        db_mod = "quark.db.api"
+        ipam = "quark.ipam.QuarkIpam"
+        with contextlib.nested(
+            mock.patch("%s.port_find" % db_mod),
+            mock.patch("%s.deallocate_ip_address" % ipam),
+            mock.patch("%s.deallocate_mac_address" % ipam),
+            mock.patch("%s.port_delete" % db_mod),
+            mock.patch("quark.drivers.base.BaseDriver.delete_port")
+        ) as (port_find, dealloc_ip, dealloc_mac, db_port_del,
+              driver_port_del):
+            port_find.return_value = port_models
+            dealloc_ip.return_value = addr
+            dealloc_mac.return_value = mac
+            yield db_port_del, driver_port_del
+
+    def test_port_delete(self):
+        port = dict(port=dict(network_id=1, tenant_id=self.context.tenant_id,
+                              device_id=2, mac_address="AA:BB:CC:DD:EE:FF",
+                              backend_key="foo"))
+        with self._stubs(port=port["port"]) as (db_port_del, driver_port_del):
+            self.plugin.delete_port(self.context, 1)
+            self.assertTrue(db_port_del.called)
+            driver_port_del.assert_called_with(self.context, "foo")
+
+    def test_port_delete_port_not_found_fails(self):
+        with self._stubs(port=None) as (db_port_del, driver_port_del):
+            with self.assertRaises(exceptions.PortNotFound):
+                self.plugin.delete_port(self.context, 1)

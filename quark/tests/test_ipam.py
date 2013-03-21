@@ -192,7 +192,8 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
         subnet = dict(id=1, first_ip=0, last_ip=255,
                       cidr="0.0.0.0/24", ip_version=4)
         with self._stubs(subnets=[(subnet, 0)], addresses=[None, None]):
-            address = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
+            address = self.ipam.allocate_ip_address(self.context, 0, 0, 0,
+                                                    version=4)
             self.assertEqual(address["address"], 0)
 
     def test_allocate_new_ip_in_partially_allocated_range(self):
@@ -277,14 +278,13 @@ class QuarkIPAddressAllocateDeallocated(QuarkIpamBaseTest):
                 addr_find.side_effect = [None, updated_address]
                 addr_update.return_value = updated_address
             choose_subnet.return_value = subnet
-            yield
+            yield choose_subnet
 
     def test_allocate_finds_deallocated_ip_succeeds(self):
-        with self._stubs():
+        with self._stubs() as choose_subnet:
             ipaddress = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
             self.assertIsNotNone(ipaddress['id'])
-            self.assertFalse(
-                quark.ipam.QuarkIpam._choose_available_subnet.called)
+            self.assertFalse(choose_subnet.called)
 
     def test_allocate_finds_no_deallocated_creates_new_ip(self):
         '''Fails based on the choice of reuse_after argument.
@@ -292,8 +292,7 @@ class QuarkIPAddressAllocateDeallocated(QuarkIpamBaseTest):
         Allocates new ip address instead of previously deallocated mac
         address.
         '''
-        with self._stubs(ip_find=False):
+        with self._stubs(ip_find=False) as choose_subnet:
             ipaddress = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
             self.assertIsNone(ipaddress['id'])
-            self.assertTrue(
-                quark.ipam.QuarkIpam._choose_available_subnet.called)
+            self.assertTrue(choose_subnet.called)
