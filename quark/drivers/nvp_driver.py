@@ -17,11 +17,10 @@
 NVP client driver for Quark
 """
 
-import ConfigParser
+from oslo.config import cfg
 
 import sqlalchemy as sa
 from sqlalchemy import orm
-from oslo.config import cfg
 
 import aiclib
 from quantum.openstack.common import log as logging
@@ -39,9 +38,9 @@ nvp_opts = [
     cfg.IntOpt('max_ports_per_switch',
                default=0,
                help=_('Maximum amount of NVP ports on an NVP lswitch')),
-    cfg.StrOpt('DEFAULT_TZ_UUID',
+    cfg.StrOpt('default_tz',
                help=_('The default transport zone UUID')),
-    cfg.StrOpt('NVP_CONTROLLER_CONNECTIONS',
+    cfg.StrOpt('controller_connections',
                help=_('NVP Controller connection string')),
 ]
 
@@ -55,15 +54,13 @@ class NVPDriver(base.BaseDriver):
         self.max_ports_per_switch = 0
 
     def load_config(self, path):
-        config = ConfigParser.ConfigParser()
-        config.read(path)
-        default_tz = CONF.NVP.DEFAULT_TZ_UUID
-        connections = CONF.NVP.NVP_CONTROLLER_CONNECTIONS
+        default_tz = CONF.NVP.default_tz
+        connections = CONF.NVP.controller_connections
         self.max_ports_per_switch = CONF.NVP.max_ports_per_switch
         for conn in connections.split():
             (ip, port, user, pw, req_timeout,
-             http_timeout, retries, redirects) =\
-                config.get("NVP", conn).split(":")
+             http_timeout, retries, redirects) = conn.split(":")
+
             self.nvp_connections.append(dict(ip_address=ip,
                                         port=port,
                                         username=user,
