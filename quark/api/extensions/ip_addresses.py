@@ -16,8 +16,8 @@
 import webob
 
 from quantum.api import extensions
-from quantum.manager import QuantumManager
 from quantum.common import exceptions
+from quantum import manager
 from quantum.openstack.common import log as logging
 from quantum import wsgi
 
@@ -82,10 +82,10 @@ class IpAddressesController(wsgi.Controller):
 
 
 class Ip_addresses(object):
-    """Routes support"""
+    """IP Addresses support."""
     @classmethod
     def get_name(cls):
-        return "IP Aaddresses for a tenant"
+        return "IP Addresses for a tenant"
 
     @classmethod
     def get_alias(cls):
@@ -112,8 +112,8 @@ class Ip_addresses(object):
 
     @classmethod
     def get_resources(cls):
-        """ Returns Ext Resources """
-        controller = IpAddressesController(QuantumManager.get_plugin())
+        """Returns Ext Resources."""
+        controller = IpAddressesController(manager.QuantumManager.get_plugin())
         return [extensions.ResourceExtension(
             Ip_addresses.get_alias(),
             controller)]

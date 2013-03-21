@@ -19,15 +19,18 @@ v2 Quantum Plug-in API Quark Implementation
 import inspect
 
 import netaddr
+
+from oslo.config import cfg
+
 from sqlalchemy import func as sql_func
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy import event
-from zope.sqlalchemy import ZopeTransactionExtension
-from oslo.config import cfg
+from zope import sqlalchemy as zsa
 
-from quantum import quantum_plugin_base_v2
 from quantum.common import exceptions
 from quantum.db import api as quantum_db_api
+from quantum import quantum_plugin_base_v2
+
 from quantum.openstack.common import importutils
 from quantum.openstack.common import log as logging
 from quantum.openstack.common import uuidutils
@@ -72,16 +75,17 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
 
     def _initDBMaker(self):
         # This needs to be called after _ENGINE is configured
-        quantum_db_api._MAKER = scoped_session(sessionmaker(
-            bind=quantum_db_api._ENGINE, extension=ZopeTransactionExtension()))
+        session_maker = sessionmaker(bind=quantum_db_api._ENGINE,
+                                     extension=zsa.ZopeTransactionExtension())
+        quantum_db_api._MAKER = scoped_session(session_maker)
 
     def __init__(self):
         # NOTE(jkoelker) Register the event on all models that have ids
         for _name, klass in inspect.getmembers(models, inspect.isclass):
-            if klass is models.HasId:
+            if klass is models.models.HasId:
                 continue
 
-            if models.HasId in klass.mro():
+            if models.models.HasId in klass.mro():
                 event.listen(klass, "init", perhaps_generate_id)
 
         quantum_db_api.configure_db()
@@ -214,9 +218,11 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                 "subnet_id": address["subnet_id"]}
 
     def create_subnet(self, context, subnet):
-        """
-        Create a subnet, which represents a range of IP addresses
+        """Create a subnet.
+
+        Create a subnet which represents a range of IP addresses
         that can be allocated to devices
+
         : param context: quantum api request context
         : param subnet: dictionary describing the subnet, with keys
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
@@ -229,8 +235,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         return subnet_dict
 
     def update_subnet(self, context, id, subnet):
-        """
-        Update values of a subnet.
+        """Update values of a subnet.
+
         : param context: quantum api request context
         : param id: UUID representing the subnet to update.
         : param subnet: dictionary with keys indicating fields to update.
@@ -244,8 +250,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         raise NotImplementedError()
 
     def get_subnet(self, context, id, fields=None):
-        """
-        Retrieve a subnet.
+        """Retrieve a subnet.
+
         : param context: quantum api request context
         : param id: UUID representing the subnet to fetch.
         : param fields: a list of strings that are valid keys in a
@@ -259,10 +265,11 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         return self._make_subnet_dict(subnet)
 
     def get_subnets(self, context, filters=None, fields=None):
-        """
-        Retrieve a list of subnets.  The contents of the list depends on
-        the identity of the user making the request (as indicated by the
-        context) as well as any filters.
+        """Retrieve a list of subnets.
+
+        The contents of the list depends on the identity of the user
+        making the request (as indicated by the context) as well as any
+        filters.
         : param context: quantum api request context
         : param filters: a dictionary with keys that are valid keys for
             a subnet as listed in the RESOURCE_ATTRIBUTE_MAP object
@@ -282,10 +289,10 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         return self._make_subnets_list(subnets, fields)
 
     def get_subnets_count(self, context, filters=None):
-        """
-        Return the number of subnets.  The result depends on the identity of
-        the user making the request (as indicated by the context) as well as
-        any filters.
+        """Return the number of subnets.
+
+        The result depends on the identity of the user making the request
+        (as indicated by the context) as well as any filters.
         : param context: quantum api request context
         : param filters: a dictionary with keys that are valid keys for
             a network as listed in the RESOURCE_ATTRIBUTE_MAP object
@@ -308,8 +315,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         db_api.subnet_delete(context, subnet)
 
     def delete_subnet(self, context, id):
-        """
-        Delete a subnet.
+        """Delete a subnet.
+
         : param context: quantum api request context
         : param id: UUID representing the subnet to delete.
         """
@@ -318,8 +325,9 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         self._delete_subnet(context, subnet)
 
     def create_network(self, context, network):
-        """
-        Create a network, which represents an L2 network segment which
+        """Create a network.
+
+        Create a network which represents an L2 network segment which
         can have a set of subnets and ports associated with it.
         : param context: quantum api request context
         : param network: dictionary describing the network, with keys
@@ -352,8 +360,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         return self._make_network_dict(new_net)
 
     def update_network(self, context, id, network):
-        """
-        Update values of a network.
+        """Update values of a network.
+
         : param context: quantum api request context
         : param id: UUID representing the network to update.
         : param network: dictionary with keys indicating fields to update.
@@ -371,8 +379,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         return self._make_network_dict(net)
 
     def get_network(self, context, id, fields=None):
-        """
-        Retrieve a network.
+        """Retrieve a network.
+
         : param context: quantum api request context
         : param id: UUID representing the network to fetch.
         : param fields: a list of strings that are valid keys in a
@@ -388,10 +396,11 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         return self._make_network_dict(network)
 
     def get_networks(self, context, filters=None, fields=None):
-        """
-        Retrieve a list of networks.  The contents of the list depends on
-        the identity of the user making the request (as indicated by the
-        context) as well as any filters.
+        """Retrieve a list of networks.
+
+        The contents of the list depends on the identity of the user
+        making the request (as indicated by the context) as well as any
+        filters.
         : param context: quantum api request context
         : param filters: a dictionary with keys that are valid keys for
             a network as listed in the RESOURCE_ATTRIBUTE_MAP object
@@ -411,10 +420,10 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         return [self._make_network_dict(net) for net in nets]
 
     def get_networks_count(self, context, filters=None):
-        """
-        Return the number of networks.  The result depends on the identity
-        of the user making the request (as indicated by the context) as well
-        as any filters.
+        """Return the number of networks.
+
+        The result depends on the identity of the user making the request
+        (as indicated by the context) as well as any filters.
         : param context: quantum api request context
         : param filters: a dictionary with keys that are valid keys for
             a network as listed in the RESOURCE_ATTRIBUTE_MAP object
@@ -432,8 +441,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         return db_api.network_count_all(context)
 
     def delete_network(self, context, id):
-        """
-        Delete a network.
+        """Delete a network.
+
         : param context: quantum api request context
         : param id: UUID representing the network to delete.
         """
@@ -449,8 +458,9 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         db_api.network_delete(context, net)
 
     def create_port(self, context, port):
-        """
-        Create a port, which is a connection point of a device (e.g., a VM
+        """Create a port
+
+        Create a port which is a connection point of a device (e.g., a VM
         NIC) to attach to a L2 Quantum network.
         : param context: quantum api request context
         : param port: dictionary describing the port, with keys
@@ -493,8 +503,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         return self._make_port_dict(new_port)
 
     def update_port(self, context, id, port):
-        """
-        Update values of a port.
+        """Update values of a port.
+
         : param context: quantum api request context
         : param id: UUID representing the port to update.
         : param port: dictionary with keys indicating fields to update.
@@ -505,8 +515,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         raise NotImplementedError()
 
     def get_port(self, context, id, fields=None):
-        """
-        Retrieve a port.
+        """Retrieve a port.
+
         : param context: quantum api request context
         : param id: UUID representing the port to fetch.
         : param fields: a list of strings that are valid keys in a
@@ -552,10 +562,11 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         return query
 
     def get_ports(self, context, filters=None, fields=None):
-        """
-        Retrieve a list of ports.  The contents of the list depends on
-        the identity of the user making the request (as indicated by the
-        context) as well as any filters.
+        """Retrieve a list of ports.
+
+        The contents of the list depends on the identity of the user
+        making the request (as indicated by the context) as well as any
+        filters.
         : param context: quantum api request context
         : param filters: a dictionary with keys that are valid keys for
             a port as listed in the RESOURCE_ATTRIBUTE_MAP object
@@ -575,10 +586,10 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         return self._make_ports_list(query, fields)
 
     def get_ports_count(self, context, filters=None):
-        """
-        Return the number of ports.  The result depends on the identity of
-        the user making the request (as indicated by the context) as well as
-        any filters.
+        """Return the number of ports.
+
+        The result depends on the identity of the user making the request
+        (as indicated by the context) as well as any filters.
         : param context: quantum api request context
         : param filters: a dictionary with keys that are valid keys for
             a network as listed in the RESOURCE_ATTRIBUTE_MAP object
@@ -597,8 +608,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         return self._ports_query(context, filters, query=query).scalar()
 
     def delete_port(self, context, id):
-        """
-        Delete a port.
+        """Delete a port.
+
         : param context: quantum api request context
         : param id: UUID representing the port to delete.
         """

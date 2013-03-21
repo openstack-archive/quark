@@ -19,14 +19,6 @@ import setuptools
 
 
 setuptools.setup(
-    name='quark',
-    version='0.1',
-    author='Ozone',
-    author_email='jkoelker@rackspace.com',
-    packages=setuptools.find_packages(exclude=['ez_setup',
-                                               'examples', 'tests']),
-    url='https://github.com/jkoelker/quark',
-    license='Apache Software License',
-    description='A quantum plugin plugin',
-    long_description=open('README.rst').read(),
+    setup_requires=['d2to1', 'pbr'],
+    d2to1=True,
 )

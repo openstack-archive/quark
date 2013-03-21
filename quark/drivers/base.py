@@ -19,9 +19,9 @@ LOG = logging.getLogger("quantum.quark.base")
 
 
 class BaseDriver(object):
-    """
-    Base interface for all Quark drivers. Usable as a replacement
-    for the sample plugin
+    """Base interface for all Quark drivers.
+
+    Usable as a replacement for the sample plugin.
     """
     def load_config(self, path):
         LOG.info("load_config %s" % path)

@@ -22,7 +22,7 @@ from quantum.db import api as db_api
 
 import quark.drivers.nvp_driver
 
-import test_base
+from quark.tests import test_base
 
 
 class TestNVPDriver(test_base.TestBase):
