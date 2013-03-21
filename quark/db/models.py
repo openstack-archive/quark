@@ -17,14 +17,15 @@ import netaddr
 
 import sqlalchemy as sa
 from sqlalchemy import orm
+
 from sqlalchemy.ext import associationproxy
 from sqlalchemy.ext import declarative
 from sqlalchemy.ext import hybrid
 
 import quantum.db.model_base
-from quantum.db.models_v2 import HasTenant, HasId
-from quantum.openstack.common import timeutils
+from quantum.db import models_v2 as models
 from quantum.openstack.common import log as logging
+from quantum.openstack.common import timeutils
 
 from quark.db import custom_types
 
@@ -54,7 +55,7 @@ class QuarkBase(quantum.db.model_base.QuantumBaseV2):
 BASEV2 = declarative.declarative_base(cls=QuarkBase)
 
 
-class TagAssociation(BASEV2, HasId):
+class TagAssociation(BASEV2, models.HasId):
     __tablename__ = "quark_tag_associations"
 
     discriminator = sa.Column(sa.String(255))
@@ -72,7 +73,7 @@ class TagAssociation(BASEV2, HasId):
         return getattr(self, "%s_parent" % self.discriminator)
 
 
-class Tag(BASEV2, HasId, HasTenant):
+class Tag(BASEV2, models.HasId, models.HasTenant):
     __tablename__ = "quark_tags"
     association_uuid = sa.Column(sa.String(36),
                                  sa.ForeignKey(TagAssociation.id),
@@ -102,10 +103,12 @@ class IsHazTags(object):
         return orm.relationship("TagAssociation", backref=backref)
 
 
-class IPAddress(BASEV2, HasId, HasTenant):
+class IPAddress(BASEV2, models.HasId, models.HasTenant):
     """More closely emulate the melange version of the IP table.
+
     We always mark the record as deallocated rather than deleting it.
-    Gives us an IP address owner audit log for free, essentially"""
+    Gives us an IP address owner audit log for free, essentially.
+    """
 
     __tablename__ = "quark_ip_addresses"
 
@@ -150,16 +153,15 @@ class IPAddress(BASEV2, HasId, HasTenant):
     deallocated_at = sa.Column(sa.DateTime())
 
 
-class Route(BASEV2, HasTenant, HasId, IsHazTags):
+class Route(BASEV2, models.HasTenant, models.HasId, IsHazTags):
     __tablename__ = "quark_routes"
     cidr = sa.Column(sa.String(64))
     gateway = sa.Column(sa.String(64))
     subnet_id = sa.Column(sa.String(36), sa.ForeignKey("quark_subnets.id"))
 
 
-class Subnet(BASEV2, HasId, HasTenant, IsHazTags):
-    """
-    Upstream model for IPs
+class Subnet(BASEV2, models.HasId, models.HasTenant, IsHazTags):
+    """Upstream model for IPs.
 
     Subnet -> has_many(IPAllocationPool)
     IPAllocationPool -> has_many(IPAvailabilityRange)
@@ -215,7 +217,7 @@ port_ip_association_table = sa.Table(
               sa.ForeignKey("quark_ip_addresses.id")))
 
 
-class Port(BASEV2, HasTenant, HasId):
+class Port(BASEV2, models.HasTenant, models.HasId):
     __tablename__ = "quark_ports"
     id = sa.Column(sa.String(36), primary_key=True)
     network_id = sa.Column(sa.String(36), sa.ForeignKey("quark_networks.id"),
@@ -236,7 +238,7 @@ class Port(BASEV2, HasTenant, HasId):
                                 backref="ports")
 
 
-class MacAddress(BASEV2, HasTenant):
+class MacAddress(BASEV2, models.HasTenant):
     __tablename__ = "quark_mac_addresses"
     address = sa.Column(sa.BigInteger(), primary_key=True)
     mac_address_range_id = sa.Column(
@@ -247,14 +249,14 @@ class MacAddress(BASEV2, HasTenant):
     orm.relationship(Port, backref="mac_address")
 
 
-class MacAddressRange(BASEV2, HasId):
+class MacAddressRange(BASEV2, models.HasId):
     __tablename__ = "quark_mac_address_ranges"
     cidr = sa.Column(sa.String(255), nullable=False)
     first_address = sa.Column(sa.BigInteger(), nullable=False)
     last_address = sa.Column(sa.BigInteger(), nullable=False)
 
 
-class Network(BASEV2, HasTenant, HasId):
+class Network(BASEV2, models.HasTenant, models.HasId):
     __tablename__ = "quark_networks"
     name = sa.Column(sa.String(255))
     ports = orm.relationship(Port, backref='network')

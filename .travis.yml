@@ -3,8 +3,8 @@ python:
   - "2.7"
   - "2.6"
 install:
-  - pip install -r tools/pip-requires -r tools/test-requires . --use-mirrors
+  - pip install -r requirements.txt -r test-requirements.txt hacking . --use-mirrors
 before_script:
-  - "flake8 --builtins=_ quark"
+  - "flake8 --show-source --builtins=_ quark"
 script:
   - nosetests

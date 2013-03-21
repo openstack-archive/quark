@@ -16,8 +16,8 @@
 import webob
 
 from quantum.api import extensions
-from quantum.manager import QuantumManager
 from quantum.common import exceptions
+from quantum import manager
 from quantum.openstack.common import log as logging
 from quantum import wsgi
 
@@ -52,7 +52,7 @@ class RoutesController(wsgi.Controller):
         body = self._deserialize(request.body, request.get_content_type())
         keys = ["subnet_id", "gateway", "cidr"]
         for k in keys:
-            if not k in body[RESOURCE_NAME]:
+            if k not in body[RESOURCE_NAME]:
                 raise webob.exc.HTTPUnprocessableEntity()
 
         return {"route":
@@ -79,7 +79,7 @@ class RoutesController(wsgi.Controller):
 
 
 class Routes(object):
-    """Routes support"""
+    """Routes support."""
     @classmethod
     def get_name(cls):
         return "Routes for a tenant"
@@ -108,8 +108,8 @@ class Routes(object):
 
     @classmethod
     def get_resources(cls):
-        """ Returns Ext Resources """
-        controller = RoutesController(QuantumManager.get_plugin())
+        """Returns Ext Resources."""
+        controller = RoutesController(manager.QuantumManager.get_plugin())
         return [extensions.ResourceExtension(
             Routes.get_alias(),
             controller)]

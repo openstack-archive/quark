@@ -19,13 +19,13 @@ NVP client driver for Quark
 
 import ConfigParser
 
+from oslo.config import cfg
+
 import sqlalchemy as sa
 from sqlalchemy import orm
-from oslo.config import cfg
 
 import aiclib
 from quantum.openstack.common import log as logging
-from quantum.db.models_v2 import HasId
 
 from quark.db import models
 from quark.drivers import base
@@ -76,7 +76,7 @@ class NVPDriver(base.BaseDriver):
 
     def get_connection(self):
         conn = self.nvp_connections[self.conn_index]
-        if not "connection" in conn:
+        if "connection" not in conn:
             scheme = conn["port"] == "443" and "https" or "http"
             uri = "%s://%s:%s" % (scheme, conn["ip_address"], conn["port"])
             conn["connection"] = aiclib.nvp.Connection(uri)
@@ -248,7 +248,7 @@ class OptimizedNVPDriver(NVPDriver):
         return switches
 
 
-class LSwitchPort(models.BASEV2, HasId):
+class LSwitchPort(models.BASEV2, models.models.HasId):
     __tablename__ = "quark_nvp_driver_lswitchport"
     port_id = sa.Column(sa.String(255), nullable=False)
     switch_id = sa.Column(sa.String(255),
@@ -256,7 +256,7 @@ class LSwitchPort(models.BASEV2, HasId):
                           nullable=False)
 
 
-class LSwitch(models.BASEV2, HasId):
+class LSwitch(models.BASEV2, models.models.HasId):
     __tablename__ = "quark_nvp_driver_lswitch"
     nvp_id = sa.Column(sa.String(255), nullable=False)
     network_id = sa.Column(sa.String(255), nullable=False)

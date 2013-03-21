@@ -16,14 +16,14 @@
 import contextlib
 import mock
 from oslo.config import cfg
-from quantum import context
 from quantum.common import exceptions
+from quantum import context
 from quantum.db import api as quantum_db_api
 
 from quark.db import models
 import quark.ipam
 
-import test_base
+from quark.tests import test_base
 
 
 class QuarkIpamBaseTest(test_base.TestBase):
@@ -287,8 +287,11 @@ class QuarkIPAddressAllocateDeallocated(QuarkIpamBaseTest):
                 quark.ipam.QuarkIpam._choose_available_subnet.called)
 
     def test_allocate_finds_no_deallocated_creates_new_ip(self):
-        '''Fails based on the choice of reuse_after argument. Allocates new ip
-        address instead of previously deallocated mac address.'''
+        '''Fails based on the choice of reuse_after argument.
+
+        Allocates new ip address instead of previously deallocated mac
+        address.
+        '''
         with self._stubs(ip_find=False):
             ipaddress = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
             self.assertIsNone(ipaddress['id'])

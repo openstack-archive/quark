@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from sqlalchemy import types
 from sqlalchemy.dialects import sqlite
+from sqlalchemy import types
 
 
 class INET(types.TypeDecorator):

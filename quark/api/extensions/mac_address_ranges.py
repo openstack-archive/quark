@@ -16,7 +16,7 @@
 import webob
 
 from quantum.api import extensions
-from quantum.manager import QuantumManager
+from quantum import manager
 from quantum.openstack.common import log as logging
 from quantum import wsgi
 
@@ -47,7 +47,7 @@ class MacAddressRangesController(wsgi.Controller):
 
     def create(self, request, body=None):
         body = self._deserialize(request.body, request.get_content_type())
-        if not "cidr" in body[RESOURCE_NAME]:
+        if "cidr" not in body[RESOURCE_NAME]:
             raise webob.exc.HTTPUnprocessableEntity()
         return {"mac_address_range":
                 self._plugin.create_mac_address_range(request.context, body)}
@@ -68,7 +68,7 @@ class MacAddressRangesController(wsgi.Controller):
 
 
 class Mac_address_ranges(object):
-    """Routes support"""
+    """Mac Address Range support."""
     @classmethod
     def get_name(cls):
         return "MAC Address Ranges for a tenant"
@@ -99,8 +99,8 @@ class Mac_address_ranges(object):
 
     @classmethod
     def get_resources(cls):
-        """ Returns Ext Resources """
-        controller = MacAddressRangesController(QuantumManager.get_plugin())
-        return [extensions.ResourceExtension(
-            Mac_address_ranges.get_alias(),
-            controller)]
+        """Returns Ext Resources."""
+        plugin = manager.QuantumManager.get_plugin()
+        controller = MacAddressRangesController(plugin)
+        return [extensions.ResourceExtension(Mac_address_ranges.get_alias(),
+                                             controller)]
