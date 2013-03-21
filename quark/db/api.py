@@ -30,39 +30,34 @@ ALL = "all"
 
 
 def _model_query(context, model, filters, query, fields=None):
+    filters = filters or {}
+    for key in ["name", "network_id", "id", "device_id", "tenant_id",
+                "mac_address"]:
+        if key in filters:
+            if not filters[key]:
+                continue
+            listified = filters[key]
+            if not isinstance(listified, list):
+                listified = [listified]
+            filters[key] = listified
+
     if filters.get("name"):
-        names = filters["name"]
-        if not isinstance(filters["name"], list):
-            names = [names]
-        query = query.filter(
-            model.name.in_(names))
+        query = query.filter(model.name.in_(filters["name"]))
 
     if filters.get("network_id"):
-        ids = filters["network_id"]
-        if not isinstance(filters["network_id"], list):
-            ids = [ids]
-        query = query.filter(
-            model.network_id.in_(ids))
+        query = query.filter(model.network_id.in_(filters["network_id"]))
 
     if filters.get("device_id"):
-        ids = filters["device_id"]
-        if not isinstance(filters["device_id"], list):
-            ids = [ids]
-        query = query.filter(model.device_id.in_(ids))
+        query = query.filter(model.device_id.in_(filters["device_id"]))
 
     if filters.get("mac_address"):
-        addrs = filters["mac_address"]
-        if not isinstance(filters["mac_address"], list):
-            addrs = [addrs]
-        query = query.filter(
-            model.mac_address.in_(addrs))
+        query = query.filter(model.mac_address.in_(filters["mac_address"]))
 
     if filters.get("tenant_id"):
-        ids = filters["tenant_id"]
-        if not isinstance(filters["tenant_id"], list):
-            ids = [ids]
-        query = query.filter(
-            model.tenant_id.in_(ids))
+        query = query.filter(model.tenant_id.in_(filters["tenant_id"]))
+
+    if filters.get("id"):
+        query = query.filter(model.id.in_(filters["id"]))
 
     if filters.get("reuse_after"):
         reuse_after = filters["reuse_after"]
@@ -77,12 +72,6 @@ def _model_query(context, model, filters, query, fields=None):
     if filters.get("deallocated"):
         query = query.filter(model.deallocated ==
                              filters["deallocated"])
-
-    if filters.get("id"):
-        ids = filters["id"]
-        if not isinstance(filters["id"], list):
-            ids = [ids]
-        query = query.filter(model.id.in_(ids))
 
     if filters.get("order_by"):
         query = query.order_by(filters["order_by"])
@@ -122,13 +111,10 @@ def scoped(f):
 
 
 @scoped
-def port_find(context, fields=None, **filters):
-    if "id" in filters and not isinstance(filters["id"], list):
-        filters["id"] = [filters["id"]]
+def port_find(context, **filters):
     query = context.session.query(models.Port).\
         options(orm.joinedload(models.Port.ip_addresses))
-    query = _model_query(context, models.Port, filters, fields=fields,
-                         query=query)
+    query = _model_query(context, models.Port, filters, query=query)
     return query
 
 
@@ -290,6 +276,7 @@ def subnet_delete(context, subnet):
 def subnet_create(context, **subnet_dict):
     subnet = models.Subnet()
     subnet.update(subnet_dict)
+    subnet["tenant_id"] = context.tenant_id
     context.session.add(subnet)
     return subnet
 

@@ -36,10 +36,9 @@ class QuarkIpam(object):
         if version:
             filters["version"] = version
         subnets = db_api.subnet_find_allocation_counts(context, net_id,
+                                                       scope=db_api.ALL,
                                                        **filters)
         for subnet, ips_in_subnet in subnets:
-            if not subnet:
-                break
             ipnet = netaddr.IPNetwork(subnet["cidr"])
             if ip_address and ip_address not in ipnet:
                 continue
