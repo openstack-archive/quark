@@ -21,26 +21,32 @@ from quantum import context
 from quantum.db import api as db_api
 
 import quark.drivers.nvp_driver
+from quark.db import models
 
 from quark.tests import test_base
 
 
 class TestNVPDriver(test_base.TestBase):
     def setUp(self):
+        if not hasattr(self, 'driver'):
+            self.driver = quark.drivers.nvp_driver.NVPDriver()
         cfg.CONF.set_override('sql_connection', 'sqlite://', 'DATABASE')
+        self.driver.max_ports_per_switch = 0
         db_api.configure_db()
+        models.BASEV2.metadata.create_all(db_api._ENGINE)
         self.context = context.get_admin_context()
-        self.driver = quark.drivers.nvp_driver.NVPDriver()
         self.lswitch_uuid = "12345678-1234-1234-1234-123456781234"
         self.context.tenant_id = "tid"
         self.lport_uuid = "12345678-0000-0000-0000-123456781234"
         self.net_id = "12345678-1234-1234-1234-123412341234"
         self.port_id = "12345678-0000-0000-0000-123412341234"
         self.d_pkg = "quark.drivers.nvp_driver.NVPDriver"
+        self.max_spanning = 3
 
-    def _create_connection(self, switch_count=1):
+    def _create_connection(self, switch_count=1,
+                           has_switches=False, maxed_ports=False):
         connection = mock.Mock()
-        lswitch = self._create_lswitch()
+        lswitch = self._create_lswitch(has_switches, maxed_ports=maxed_ports)
         lswitchport = self._create_lswitch_port(self.lswitch_uuid,
                                                 switch_count)
         connection.lswitch_port = mock.Mock(return_value=lswitchport)
@@ -64,18 +70,29 @@ class TestNVPDriver(test_base.TestBase):
         query.results = mock.Mock(return_value=port_query)
         return query
 
-    def _create_lswitch(self):
+    def _create_lswitch(self, switches_available, maxed_ports):
         lswitch = mock.Mock()
-        lswitch.query = mock.Mock(return_value=self._create_lswitch_query())
+        lswitch.query = mock.Mock(
+            return_value=self.
+            _create_lswitch_query(switches_available, maxed_ports))
         lswitch.create = mock.Mock(return_value={'uuid': self.lswitch_uuid})
         lswitch.delete = mock.Mock(return_value=None)
         return lswitch
 
-    def _create_lswitch_query(self):
+    def _create_lswitch_query(self, switches_available, maxed_ports):
         query = mock.Mock()
-        lswitch_list = [{'uuid': 'abcd'}]
+        port_count = 0
+        if maxed_ports:
+            port_count = self.max_spanning
+        lswitch_list = [{'uuid': 'abcd',
+                        '_relations': {
+                        'LogicalSwitchStatus': {
+                        'lport_count': port_count
+                        }}}]
+        if not switches_available:
+            lswitch_list = []
         lswitch_query = {"results": lswitch_list}
-
+        query.relations = mock.Mock(return_value=None)
         query.results = mock.Mock(return_value=lswitch_query)
         return query
 
@@ -127,18 +144,17 @@ class TestNVPDriverDeleteNetwork(TestNVPDriver):
 
 
 class TestNVPDriverCreatePort(TestNVPDriver):
+    '''In all cases an lswitch should be queried'''
     @contextlib.contextmanager
-    def _stubs(self, has_lswitch=True):
+    def _stubs(self, has_lswitch=True, maxed_ports=False):
         with contextlib.nested(
             mock.patch("%s.get_connection" % self.d_pkg),
-            mock.patch("%s._lswitch_select_open" % self.d_pkg),
-        ) as (get_connection, select_open):
-            connection = self._create_connection()
+            mock.patch("%s._lswitches_for_network" % self.d_pkg),
+        ) as (get_connection, get_switches):
+            connection = self._create_connection(has_switches=has_lswitch,
+                                                 maxed_ports=maxed_ports)
             get_connection.return_value = connection
-            if has_lswitch:
-                select_open.return_value = self.lswitch_uuid
-            else:
-                select_open.return_value = None
+            get_switches.return_value = connection.lswitch().query()
             yield connection
 
     def test_create_port_switch_exists(self):
@@ -148,6 +164,7 @@ class TestNVPDriverCreatePort(TestNVPDriver):
             self.assertTrue("uuid" in port)
             self.assertFalse(connection.lswitch().create.called)
             self.assertTrue(connection.lswitch_port().create.called)
+            self.assertTrue(connection.lswitch().query.called)
             status_args, kwargs = connection.lswitch_port().\
                 admin_status_enabled.call_args
             self.assertTrue(True in status_args)
@@ -159,6 +176,7 @@ class TestNVPDriverCreatePort(TestNVPDriver):
             self.assertTrue("uuid" in port)
             self.assertTrue(connection.lswitch().create.called)
             self.assertTrue(connection.lswitch_port().create.called)
+            self.assertTrue(connection.lswitch().query.called)
             status_args, kwargs = connection.lswitch_port().\
                 admin_status_enabled.call_args
             self.assertTrue(True in status_args)
@@ -170,6 +188,46 @@ class TestNVPDriverCreatePort(TestNVPDriver):
             self.assertTrue("uuid" in port)
             self.assertTrue(connection.lswitch().create.called)
             self.assertTrue(connection.lswitch_port().create.called)
+            self.assertTrue(connection.lswitch().query.called)
+            status_args, kwargs = connection.lswitch_port().\
+                admin_status_enabled.call_args
+            self.assertTrue(False in status_args)
+
+    def test_create_port_switch_exists_spanning(self):
+        with self._stubs(maxed_ports=True) as (connection):
+            self.driver.max_ports_per_switch = self.max_spanning
+            port = self.driver.create_port(self.context, self.net_id,
+                                           self.port_id)
+            self.assertTrue("uuid" in port)
+            self.assertTrue(connection.lswitch().create.called)
+            self.assertTrue(connection.lswitch_port().create.called)
+            self.assertTrue(connection.lswitch().query.called)
+            status_args, kwargs = connection.lswitch_port().\
+                admin_status_enabled.call_args
+            self.assertTrue(True in status_args)
+
+    def test_create_port_switch_not_exists_spanning(self):
+        with self._stubs(has_lswitch=False, maxed_ports=True) as (connection):
+            self.driver.max_ports_per_switch = self.max_spanning
+            port = self.driver.create_port(self.context, self.net_id,
+                                           self.port_id)
+            self.assertTrue("uuid" in port)
+            self.assertTrue(connection.lswitch().create.called)
+            self.assertTrue(connection.lswitch_port().create.called)
+            self.assertTrue(connection.lswitch().query.called)
+            status_args, kwargs = connection.lswitch_port().\
+                admin_status_enabled.call_args
+            self.assertTrue(True in status_args)
+
+    def test_create_disabled_port_switch_not_exists_spanning(self):
+        with self._stubs(has_lswitch=False, maxed_ports=True) as (connection):
+            self.driver.max_ports_per_switch = self.max_spanning
+            port = self.driver.create_port(self.context, self.net_id,
+                                           self.port_id, False)
+            self.assertTrue("uuid" in port)
+            self.assertTrue(connection.lswitch().create.called)
+            self.assertTrue(connection.lswitch_port().create.called)
+            self.assertTrue(connection.lswitch().query.called)
             status_args, kwargs = connection.lswitch_port().\
                 admin_status_enabled.call_args
             self.assertTrue(False in status_args)

@@ -185,9 +185,7 @@ class OptimizedNVPDriver(NVPDriver):
             create_port(context, network_id,
                         port_id, status)
         switch_nvp_id = nvp_port["lswitch"]
-        switch = context.session.query(LSwitch).\
-            filter(LSwitch.nvp_id == switch_nvp_id).\
-            first()
+        switch = self._lswitch_select_by_nvp_id(switch_nvp_id)
         new_port = LSwitchPort(port_id=nvp_port["uuid"],
                                switch_id=switch.id)
         context.session.add(new_port)
@@ -195,16 +193,22 @@ class OptimizedNVPDriver(NVPDriver):
         return nvp_port
 
     def delete_port(self, context, port_id, lswitch_uuid=None):
-        port = context.session.query(LSwitchPort).\
-            filter(LSwitchPort.port_id == port_id).\
-            first()
+        port = self._lport_select_by_id(context, port_id)
         switch = port.switch
+        print switch
+        print switch.port_count
         super(OptimizedNVPDriver, self).\
             delete_port(context, port_id, lswitch_uuid=switch.nvp_id)
         context.session.delete(port)
         switch.port_count = switch.port_count - 1
         if switch.port_count == 0:
             self._lswitch_delete(context, switch.nvp_id)
+
+    def _lport_select_by_id(self, context, port_id):
+        port = context.session.query(LSwitchPort).\
+            filter(LSwitchPort.port_id == port_id).\
+            first()
+        return port
 
     def _lswitch_delete(self, context, lswitch_uuid):
         switch = context.session.query(LSwitch).\
@@ -214,14 +218,27 @@ class OptimizedNVPDriver(NVPDriver):
             _lswitch_delete(context, lswitch_uuid)
         context.session.delete(switch)
 
+    def _lswitch_select_by_nvp_id(self, context, nvp_id):
+        switch = context.session.query(LSwitch).\
+            filter(LSwitch.nvp_id == nvp_id).\
+            first()
+        return switch
+
+    def _lswitch_select_first(self, context):
+        return context.session.query(LSwitch).first()
+
+    def _lswitch_select_free(self, context):
+        switch = context.session.query(LSwitch).\
+            filter(LSwitch.port_count < self.max_ports_per_switch).\
+            order_by(LSwitch.port_count).\
+            first()
+        return switch
+
     def _lswitch_select_open(self, context, network_id):
         if self.max_ports_per_switch == 0:
-            switch = context.session.query(LSwitch).first()
+            switch = self._lswitch_select_first(context)
         else:
-            switch = context.session.query(LSwitch).\
-                filter(LSwitch.port_count < self.max_ports_per_switch).\
-                order_by(LSwitch.port_count).\
-                first()
+            switch = self._lswitch_select_free(context)
         if not switch:
             LOG.debug("Could not find optimized switch")
             return None
@@ -232,10 +249,14 @@ class OptimizedNVPDriver(NVPDriver):
         nvp_id = super(OptimizedNVPDriver, self).\
             _lswitch_create(context, network_name, tags,
                             network_id, **kwargs)
+        return self._lswitch_create_optimized(context, nvp_id,
+                                              network_id).nvp_id
+
+    def _lswitch_create_optimized(self, context, nvp_id, network_id):
         new_switch = LSwitch(nvp_id=nvp_id, network_id=network_id,
                              port_count=0)
         context.session.add(new_switch)
-        return new_switch.nvp_id
+        return new_switch
 
     def _lswitches_for_network(self, context, network_id):
         switches = context.session.query(LSwitch).\
