@@ -58,6 +58,13 @@ class TestQuarkPlugin(test_base.TestBase):
         db_api.clear_db()
 
 
+class TestQuarkGetSubnetCount(TestQuarkPlugin):
+    def test_get_subnet_count(self):
+        """This isn't really testable."""
+        with mock.patch("quark.db.api.subnet_count_all"):
+            self.plugin.get_subnets_count(self.context, {})
+
+
 class TestQuarkGetSubnets(TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, subnets=None, routes=None):
@@ -160,6 +167,243 @@ class TestQuarkCreateSubnet(TestQuarkPlugin):
         with self._stubs(subnet=dict(), network=None):
             with self.assertRaises(exceptions.NetworkNotFound):
                 self.plugin.create_subnet(self.context, subnet)
+
+
+class TestQuarkUpdateSubnet(TestQuarkPlugin):
+    def test_update_not_implemented(self):
+        with self.assertRaises(NotImplementedError):
+            self.plugin.update_subnet(self.context, 1, {})
+
+
+class TestQuarkDeleteSubnet(TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, subnet, ips):
+        ip_mods = []
+        subnet_mod = None
+        if subnet:
+            subnet_mod = models.Subnet()
+            subnet_mod.update(subnet)
+        for ip in ips:
+            ip_mod = models.IPAddress()
+            ip_mod.update(ip)
+            ip_mods.append(ip_mod)
+
+        db_mod = "quark.db.api"
+        with contextlib.nested(
+            mock.patch("%s.subnet_find" % db_mod),
+            mock.patch("%s.subnet_delete" % db_mod)
+        ) as (sub_find, sub_delete):
+            if subnet_mod:
+                subnet_mod.allocated_ips = ip_mods
+            sub_find.return_value = subnet_mod
+            yield sub_delete
+
+    def test_delete_subnet(self):
+        subnet = dict(id=1)
+        with self._stubs(subnet=subnet, ips=[]) as sub_delete:
+            self.plugin.delete_subnet(self.context, 1)
+            self.assertTrue(sub_delete.called)
+
+    def test_delete_subnet_no_subnet_fails(self):
+        with self._stubs(subnet=None, ips=[]):
+            with self.assertRaises(exceptions.SubnetNotFound):
+                self.plugin.delete_subnet(self.context, 1)
+
+    def test_delete_subnet_has_allocated_ips_fails(self):
+        subnet = dict(id=1)
+        with self._stubs(subnet=subnet, ips=[{}]):
+            with self.assertRaises(exceptions.SubnetInUse):
+                self.plugin.delete_subnet(self.context, 1)
+
+
+class TestQuarkGetNetworks(TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, nets=None, subnets=None):
+        net_mods = []
+        subnet_mods = []
+
+        for subnet in subnets:
+            subnet_mod = models.Subnet()
+            subnet_mod.update(subnet)
+            subnet_mods.append(subnet_mod)
+
+        if isinstance(nets, list):
+            for net in nets:
+                net_mod = models.Network()
+                net_mod.update(net)
+                net_mod["subnets"] = subnet_mods
+                net_mods.append(net_mod)
+        else:
+            if nets:
+                net_mods = nets.copy()
+                net_mods["subnets"] = subnet_mods
+            else:
+                net_mods = nets
+
+        db_mod = "quark.db.api"
+        with mock.patch("%s.network_find" % db_mod) as net_find:
+            net_find.return_value = net_mods
+            yield
+
+    def test_get_networks(self):
+        subnet = dict(id=1)
+        net = dict(id=1, tenant_id=self.context.tenant_id, name="public",
+                   status="active")
+        with self._stubs(nets=[net], subnets=[subnet]):
+            nets = self.plugin.get_networks(self.context, {})
+            for key in net.keys():
+                self.assertEqual(nets[0][key], net[key])
+            self.assertEqual(nets[0]["subnets"][0], 1)
+
+    def test_get_network(self):
+        subnet = dict(id=1)
+        net = dict(id=1, tenant_id=self.context.tenant_id, name="public",
+                   status="active")
+        expected = net.copy()
+        expected["admin_state_up"] = None
+        expected["shared"] = None
+        expected["status"] = "active"
+        with self._stubs(nets=net, subnets=[subnet]):
+            res = self.plugin.get_network(self.context, 1)
+            for key in expected.keys():
+                self.assertEqual(res[key], expected[key])
+            self.assertEqual(res["subnets"][0], 1)
+
+    def test_get_network_no_network_fails(self):
+        with self._stubs(nets=None, subnets=[]):
+            with self.assertRaises(exceptions.NetworkNotFound):
+                self.plugin.get_network(self.context, 1)
+
+
+class TestQuarkUpdateNetwork(TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, net=None):
+        net_mod = net
+        if net:
+            net_mod = net.copy()
+
+        db_mod = "quark.db.api"
+        with contextlib.nested(
+            mock.patch("%s.network_find" % db_mod),
+            mock.patch("%s.network_update" % db_mod)
+        ) as (net_find, net_update):
+            net_find.return_value = net_mod
+            net_update.return_value = net_mod
+            yield net_update
+
+    def test_update_network(self):
+        net = dict(id=1)
+        with self._stubs(net=net) as net_update:
+            self.plugin.update_network(self.context, 1, dict(network=net))
+            self.assertTrue(net_update.called)
+
+    def test_update_network_not_found_fails(self):
+        with self._stubs(net=None):
+            with self.assertRaises(exceptions.NetworkNotFound):
+                self.plugin.update_network(self.context, 1, None)
+
+
+class TestQuarkDeleteNetwork(TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, net=None, ports=None, subnets=None):
+        subnets = subnets or []
+        net_mod = net
+        port_mods = []
+        subnet_mods = []
+
+        for port in ports:
+            port_model = models.Port()
+            port_model.update(port)
+            port_mods.append(port_model)
+
+        for subnet in subnets:
+            subnet_mod = models.Subnet()
+            subnet_mod.update(subnet)
+            subnet_mods.append(subnet_mod)
+
+        if net:
+            net_mod = models.Network()
+            net_mod.update(net)
+            net_mod.ports = port_mods
+            net_mod["subnets"] = subnet_mods
+
+        db_mod = "quark.db.api"
+        with contextlib.nested(
+            mock.patch("%s.network_find" % db_mod),
+            mock.patch("%s.network_delete" % db_mod),
+            mock.patch("quark.drivers.base.BaseDriver.delete_network"),
+            mock.patch("%s.subnet_delete" % db_mod)
+        ) as (net_find, net_delete, driver_net_delete, subnet_del):
+            net_find.return_value = net_mod
+            yield net_delete
+
+    def test_delete_network(self):
+        net = dict(id=1)
+        with self._stubs(net=net, ports=[]) as net_delete:
+            self.plugin.delete_network(self.context, 1)
+            self.assertTrue(net_delete.called)
+
+    def test_delete_network_with_ports_fails(self):
+        net = dict(id=1)
+        port = dict(id=2)
+        with self._stubs(net=net, ports=[port]):
+            with self.assertRaises(exceptions.NetworkInUse):
+                self.plugin.delete_network(self.context, 1)
+
+    def test_delete_network_not_found_fails(self):
+        with self._stubs(net=None, ports=[]):
+            with self.assertRaises(exceptions.NetworkNotFound):
+                self.plugin.delete_network(self.context, 1)
+
+    def test_delete_network_with_subnets_passes(self):
+        net = dict(id=1)
+        subnet = dict(id=1)
+        with self._stubs(net=net, ports=[], subnets=[subnet]) as net_delete:
+            self.plugin.delete_network(self.context, 1)
+            self.assertTrue(net_delete.called)
+
+
+class TestQuarkCreateNetwork(TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, net=None, subnet=None, ports=None):
+        net_mod = net
+        subnet_mod = None
+        if net:
+            net_mod = models.Network()
+            net_mod.update(net)
+
+        if subnet:
+            subnet_mod = models.Subnet()
+            subnet_mod.update(subnet)
+
+        db_mod = "quark.db.api"
+        with contextlib.nested(
+            mock.patch("%s.network_create" % db_mod),
+            mock.patch("%s.subnet_create" % db_mod),
+            mock.patch("quark.drivers.base.BaseDriver.create_network"),
+        ) as (net_create, sub_create, driver_net_create):
+            net_create.return_value = net_mod
+            sub_create.return_value = subnet_mod
+            yield net_create
+
+    def test_create_network(self):
+        net = dict(id=1, name="public")
+        with self._stubs(net=net) as net_create:
+            net = self.plugin.create_network(self.context, dict(network=net))
+            self.assertTrue(net_create.called)
+
+    def test_create_network_with_subnets(self):
+        net = dict(id=1, name="public")
+        subnet = dict(subnet=dict(id=1, network_id=net["id"],
+                      tenant_id=self.context.tenant_id))
+        with self._stubs(net=net, subnet=subnet["subnet"]) as net_create:
+            net_dict = dict(network=net.copy())
+            net_dict["network"]["subnets"] = [subnet]
+            res = self.plugin.create_network(self.context, net_dict)
+            self.assertTrue(net_create.called)
+            self.assertEqual(res["id"], net["id"])
+            self.assertEqual(res["name"], net["name"])
+            self.assertEqual(res["subnets"][0], net["id"])
 
 
 class TestIpAddresses(TestQuarkPlugin):

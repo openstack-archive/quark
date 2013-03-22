@@ -303,6 +303,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         """
         LOG.info("delete_subnet %s for tenant %s" % (id, context.tenant_id))
         subnet = db_api.subnet_find(context, id=id, scope=db_api.ONE)
+        if not subnet:
+            raise exceptions.SubnetNotFound(subnet_id=id)
         self._delete_subnet(context, subnet)
 
     def create_network(self, context, network):
@@ -333,11 +335,13 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         network["network"]["tenant_id"] = context.tenant_id
         new_net = db_api.network_create(context, **network["network"])
 
+        new_subnets = []
         for sub in subnets:
             sub["subnet"]["network_id"] = new_net["id"]
             sub["subnet"]["tenant_id"] = context.tenant_id
-            db_api.subnet_create(context, **sub["subnet"])
-
+            s = db_api.subnet_create(context, **sub["subnet"])
+            new_subnets.append(s)
+        new_net["subnets"] = new_subnets
         return self._make_network_dict(new_net)
 
     def update_network(self, context, id, network):
