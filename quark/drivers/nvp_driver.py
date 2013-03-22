@@ -211,9 +211,7 @@ class OptimizedNVPDriver(NVPDriver):
         return port
 
     def _lswitch_delete(self, context, lswitch_uuid):
-        switch = context.session.query(LSwitch).\
-            filter(LSwitch.nvp_id == lswitch_uuid).\
-            first()
+        switch = self._lswitch_select_by_nvp_id(context, lswitch_uuid)
         super(OptimizedNVPDriver, self).\
             _lswitch_delete(context, lswitch_uuid)
         context.session.delete(switch)

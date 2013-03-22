@@ -28,16 +28,15 @@ class TestOptimizedNVPDriver(test_nvp_driver.TestNVPDriver):
         self.d_pkg = "quark.drivers.nvp_driver.OptimizedNVPDriver"
         self.context.session.add = mock.Mock(return_value=None)
 
-    def _create_lswitch_mock(self, current_port_count=0):
-        lswitch = mock.Mock(id=self.lswitch_uuid,
-                            port_count=1)
+    def _create_lswitch_mock(self):
+        lswitch = mock.Mock(id=self.lswitch_uuid, port_count=1)
         return lswitch
 
-    def _create_lport_mock(self):
-        lport = mock.Mock(id=self.lport_uuid)
-        lswitch = self._create_lswitch_mock()
-        switch = mock.PropertyMock(return_value=lswitch)
-        lport.switch = switch
+    def _create_lport_mock(self, port_count):
+        lport = mock.Mock()
+        lport.id = self.lport_uuid
+        lport.switch.id = self.lswitch_uuid
+        lport.switch.port_count = port_count
         return lport
 
 
@@ -52,15 +51,32 @@ class TestOptimizedNVPDriverDeletePort(TestOptimizedNVPDriver):
         with contextlib.nested(
             mock.patch("%s.get_connection" % self.d_pkg),
             mock.patch("%s._lport_select_by_id" % self.d_pkg),
-        ) as (get_connection, select_port):
+            mock.patch("%s._lswitch_select_by_nvp_id" % self.d_pkg),
+        ) as (get_connection, select_port, select_switch):
             connection = self._create_connection()
-            select_port = self._create_lport_mock()
+            port = self._create_lport_mock(port_count)
+            switch = self._create_lswitch_mock()
+            get_connection.return_value = connection
+            select_port.return_value = port
+            select_switch.return_value = switch
             self.context.session.delete = mock.Mock(return_value=None)
-            yield connection, select_port
+            yield connection, self.context.session.delete
 
     def test_delete_ports_not_empty(self):
-        with self._stubs() as (connection, select_port):
+        '''Ensure that the switch is not deleted'''
+        with self._stubs() as (connection, context_delete):
             self.driver.delete_port(self.context, self.port_id)
+            self.assertEquals(1, context_delete.call_count)
+            self.assertFalse(connection.lswitch().delete.called)
+            self.assertTrue(connection.lswitch_port().delete.called)
+
+    def test_delete_ports_is_empty(self):
+        '''Ensure that the switch is deleted'''
+        with self._stubs(port_count=1) as (connection, context_delete):
+            self.driver.delete_port(self.context, self.port_id)
+            self.assertEquals(2, context_delete.call_count)
+            self.assertTrue(connection.lswitch_port().delete.called)
+            self.assertTrue(connection.lswitch().delete.called)
 
 
 class TestOptimizedNVPDriverCreatePort(TestOptimizedNVPDriver):
