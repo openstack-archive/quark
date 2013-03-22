@@ -27,6 +27,7 @@ class TestOptimizedNVPDriver(test_nvp_driver.TestNVPDriver):
         super(TestOptimizedNVPDriver, self).setUp()
         self.d_pkg = "quark.drivers.nvp_driver.OptimizedNVPDriver"
         self.context.session.add = mock.Mock(return_value=None)
+        self.net_id = "12345678-1234-0000-1234-123412341234"
 
     def _create_lswitch_mock(self):
         lswitch = mock.Mock(id=self.lswitch_uuid, port_count=1)
@@ -41,7 +42,54 @@ class TestOptimizedNVPDriver(test_nvp_driver.TestNVPDriver):
 
 
 class TestOptimizedNVPDriverDeleteNetwork(TestOptimizedNVPDriver):
-    pass
+    '''Need to ensure that network of X switches deletes X switches'''
+    @contextlib.contextmanager
+    def _stubs(self, switch_count=1):
+        with contextlib.nested(
+            mock.patch("%s.get_connection" % self.d_pkg),
+            mock.patch("%s._lswitch_select_by_nvp_id" % self.d_pkg),
+            mock.patch("%s._lswitches_for_network" % self.d_pkg),
+        ) as (get_connection, select_switch, get_switches):
+            connection = self._create_connection()
+            switch = self._create_lswitch_mock()
+            get_connection.return_value = connection
+            select_switch.return_value = switch
+            get_switches.return_value = [switch] * switch_count
+            self.context.session.delete = mock.Mock(return_value=None)
+            yield connection, self.context.session.delete
+
+    def test_delete_network_no_switches(self):
+        '''Testing that X switches deleted with X switches; X = 0'''
+        switch_count = 0
+        with self._stubs(
+                switch_count=switch_count
+        ) as (connection, context_delete):
+            self.driver.delete_network(self.context, self.net_id)
+            self.assertEquals(switch_count,
+                              connection.lswitch().delete.call_count)
+            self.assertEquals(switch_count, context_delete.call_count)
+
+    def test_delete_network_single_switch(self):
+        '''Testing that X switches deleted with X switches; X = 1'''
+        switch_count = 1
+        with self._stubs(
+                switch_count=switch_count
+        ) as (connection, context_delete):
+            self.driver.delete_network(self.context, self.net_id)
+            self.assertEquals(switch_count,
+                              connection.lswitch().delete.call_count)
+            self.assertEquals(switch_count, context_delete.call_count)
+
+    def test_delete_network_multi_switch(self):
+        '''Testing that X switches deleted with X switches; X > 1'''
+        switch_count = 3
+        with self._stubs(
+                switch_count=switch_count
+        ) as (connection, context_delete):
+            self.driver.delete_network(self.context, self.net_id)
+            self.assertEquals(switch_count,
+                              connection.lswitch().delete.call_count)
+            self.assertEquals(switch_count, context_delete.call_count)
 
 
 class TestOptimizedNVPDriverDeletePort(TestOptimizedNVPDriver):
@@ -63,7 +111,7 @@ class TestOptimizedNVPDriverDeletePort(TestOptimizedNVPDriver):
             yield connection, self.context.session.delete
 
     def test_delete_ports_not_empty(self):
-        '''Ensure that the switch is not deleted'''
+        '''Ensure that the switch is not deleted if ports exist'''
         with self._stubs() as (connection, context_delete):
             self.driver.delete_port(self.context, self.port_id)
             self.assertEquals(1, context_delete.call_count)
@@ -71,7 +119,7 @@ class TestOptimizedNVPDriverDeletePort(TestOptimizedNVPDriver):
             self.assertTrue(connection.lswitch_port().delete.called)
 
     def test_delete_ports_is_empty(self):
-        '''Ensure that the switch is deleted'''
+        '''Ensure that the switch is deleted if empty'''
         with self._stubs(port_count=1) as (connection, context_delete):
             self.driver.delete_port(self.context, self.port_id)
             self.assertEquals(2, context_delete.call_count)
