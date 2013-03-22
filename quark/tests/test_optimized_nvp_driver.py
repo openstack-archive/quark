@@ -42,7 +42,7 @@ class TestOptimizedNVPDriver(test_nvp_driver.TestNVPDriver):
 
 
 class TestOptimizedNVPDriverDeleteNetwork(TestOptimizedNVPDriver):
-    '''Need to ensure that network of X switches deletes X switches'''
+    '''Need to ensure that network of X switches deletes X switches.'''
     @contextlib.contextmanager
     def _stubs(self, switch_count=1):
         with contextlib.nested(
@@ -59,7 +59,7 @@ class TestOptimizedNVPDriverDeleteNetwork(TestOptimizedNVPDriver):
             yield connection, self.context.session.delete
 
     def test_delete_network_no_switches(self):
-        '''Testing that X switches deleted with X switches; X = 0'''
+        '''Testing that X switches deleted with X switches; X = 0.'''
         switch_count = 0
         with self._stubs(
                 switch_count=switch_count
@@ -70,7 +70,7 @@ class TestOptimizedNVPDriverDeleteNetwork(TestOptimizedNVPDriver):
             self.assertEquals(switch_count, context_delete.call_count)
 
     def test_delete_network_single_switch(self):
-        '''Testing that X switches deleted with X switches; X = 1'''
+        '''Testing that X switches deleted with X switches; X = 1.'''
         switch_count = 1
         with self._stubs(
                 switch_count=switch_count
@@ -81,7 +81,7 @@ class TestOptimizedNVPDriverDeleteNetwork(TestOptimizedNVPDriver):
             self.assertEquals(switch_count, context_delete.call_count)
 
     def test_delete_network_multi_switch(self):
-        '''Testing that X switches deleted with X switches; X > 1'''
+        '''Testing that X switches deleted with X switches; X > 1.'''
         switch_count = 3
         with self._stubs(
                 switch_count=switch_count
@@ -93,7 +93,7 @@ class TestOptimizedNVPDriverDeleteNetwork(TestOptimizedNVPDriver):
 
 
 class TestOptimizedNVPDriverDeletePort(TestOptimizedNVPDriver):
-    '''Need to test if ports on switch = 0 delete switch'''
+    '''Need to test if ports on switch = 0 delete switch.'''
     @contextlib.contextmanager
     def _stubs(self, port_count=2):
         with contextlib.nested(
@@ -111,7 +111,7 @@ class TestOptimizedNVPDriverDeletePort(TestOptimizedNVPDriver):
             yield connection, self.context.session.delete
 
     def test_delete_ports_not_empty(self):
-        '''Ensure that the switch is not deleted if ports exist'''
+        '''Ensure that the switch is not deleted if ports exist.'''
         with self._stubs() as (connection, context_delete):
             self.driver.delete_port(self.context, self.port_id)
             self.assertEquals(1, context_delete.call_count)
@@ -119,7 +119,7 @@ class TestOptimizedNVPDriverDeletePort(TestOptimizedNVPDriver):
             self.assertTrue(connection.lswitch_port().delete.called)
 
     def test_delete_ports_is_empty(self):
-        '''Ensure that the switch is deleted if empty'''
+        '''Ensure that the switch is deleted if empty.'''
         with self._stubs(port_count=1) as (connection, context_delete):
             self.driver.delete_port(self.context, self.port_id)
             self.assertEquals(2, context_delete.call_count)
@@ -128,7 +128,7 @@ class TestOptimizedNVPDriverDeletePort(TestOptimizedNVPDriver):
 
 
 class TestOptimizedNVPDriverCreatePort(TestOptimizedNVPDriver):
-    '''In no case should the optimized driver query for an lswitch'''
+    '''In no case should the optimized driver query for an lswitch.'''
     @contextlib.contextmanager
     def _stubs(self, has_lswitch=True, maxed_ports=False):
         with contextlib.nested(
@@ -155,7 +155,7 @@ class TestOptimizedNVPDriverCreatePort(TestOptimizedNVPDriver):
             yield connection, create_opt
 
     def test_create_port_and_maxed_switch_spanning(self):
-        '''Testing to ensure a switch is made when maxed'''
+        '''Testing to ensure a switch is made when maxed.'''
         with self._stubs(maxed_ports=True) as (
                 connection, create_opt):
             self.driver.max_ports_per_switch = self.max_spanning
@@ -172,7 +172,7 @@ class TestOptimizedNVPDriverCreatePort(TestOptimizedNVPDriver):
             self.assertTrue(True in status_args)
 
     def test_create_port_and_create_switch_spanning(self):
-        '''Testing to ensure a switch is made when no switch available'''
+        '''Testing to ensure a switch is made when no switch available.'''
         with self._stubs(has_lswitch=False) as (connection, create_opt):
             self.driver.max_ports_per_switch = self.max_spanning
             port = self.driver.create_port(self.context, self.net_id,
@@ -188,7 +188,7 @@ class TestOptimizedNVPDriverCreatePort(TestOptimizedNVPDriver):
             self.assertTrue(True in status_args)
 
     def test_create_port_and_no_create_switch_spanning(self):
-        '''Testing to ensure a switch is not made when max ports not met'''
+        '''Testing to ensure a switch is not made when max ports not met.'''
         with self._stubs() as (connection, create_opt):
             self.driver.max_ports_per_switch = self.max_spanning
             port = self.driver.create_port(self.context, self.net_id,
@@ -204,7 +204,7 @@ class TestOptimizedNVPDriverCreatePort(TestOptimizedNVPDriver):
             self.assertTrue(True in status_args)
 
     def test_create_disabled_port_and_no_create_switch_spanning(self):
-        '''Testing to ensure a port is made and disabled'''
+        '''Testing to ensure a port is made and disabled.'''
         with self._stubs() as (connection, create_opt):
             self.driver.max_ports_per_switch = self.max_spanning
             port = self.driver.create_port(self.context, self.net_id,
@@ -220,7 +220,7 @@ class TestOptimizedNVPDriverCreatePort(TestOptimizedNVPDriver):
             self.assertTrue(False in status_args)
 
     def test_create_port_and_create_switch(self):
-        '''Testing to ensure a switch is made when no switch available'''
+        '''Testing to ensure a switch is made when no switch available.'''
         with self._stubs(has_lswitch=False) as (connection, create_opt):
             port = self.driver.create_port(self.context, self.net_id,
                                            self.port_id)
@@ -235,7 +235,7 @@ class TestOptimizedNVPDriverCreatePort(TestOptimizedNVPDriver):
             self.assertTrue(True in status_args)
 
     def test_create_port_and_no_create_switch(self):
-        '''Testing to ensure a switch is not made when available'''
+        '''Testing to ensure a switch is not made when available.'''
         with self._stubs() as (connection, create_opt):
             port = self.driver.create_port(self.context, self.net_id,
                                            self.port_id)
@@ -250,7 +250,7 @@ class TestOptimizedNVPDriverCreatePort(TestOptimizedNVPDriver):
             self.assertTrue(True in status_args)
 
     def test_create_disabled_port_and_no_create_switch(self):
-        '''Testing to ensure a port is made and disabled'''
+        '''Testing to ensure a port is made and disabled.'''
         with self._stubs() as (connection, create_opt):
             port = self.driver.create_port(self.context, self.net_id,
                                            self.port_id, False)

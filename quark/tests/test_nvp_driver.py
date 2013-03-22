@@ -20,9 +20,8 @@ from oslo.config import cfg
 from quantum import context
 from quantum.db import api as db_api
 
-import quark.drivers.nvp_driver
 from quark.db import models
-
+import quark.drivers.nvp_driver
 from quark.tests import test_base
 
 
@@ -144,7 +143,7 @@ class TestNVPDriverDeleteNetwork(TestNVPDriver):
 
 
 class TestNVPDriverCreatePort(TestNVPDriver):
-    '''In all cases an lswitch should be queried'''
+    '''In all cases an lswitch should be queried.'''
     @contextlib.contextmanager
     def _stubs(self, has_lswitch=True, maxed_ports=False):
         with contextlib.nested(
