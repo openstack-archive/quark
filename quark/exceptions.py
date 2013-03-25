@@ -15,3 +15,7 @@ class AmbigiousLswitchCount(exceptions.QuantumException):
 
 class IpAddressNotFound(exceptions.QuantumException):
     message = _("IP Address %(addr_id)s not found.")
+
+
+class RouteConflict(exceptions.QuantumException):
+    message = _("Route overlaps existing route %(route_id)s with %(cidr)s")

@@ -118,6 +118,12 @@ def port_find(context, **filters):
     return query
 
 
+def port_count_all(context, **filters):
+    query = context.session.query(sql_func.count(models.Port.id))
+    query = _model_query(context, models.Port, filters, query=query)
+    return query.scalar()
+
+
 def port_create(context, **port_dict):
     port = models.Port()
     port.update(port_dict)
