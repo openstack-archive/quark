@@ -24,6 +24,7 @@ from quantum import context
 from quantum.db import api as db_api
 
 from quark.db import models
+from quark import exceptions as quark_exceptions
 import quark.plugin
 
 from quark.tests import test_base
@@ -273,6 +274,13 @@ class TestQuarkGetNetworks(TestQuarkPlugin):
         with self._stubs(nets=None, subnets=[]):
             with self.assertRaises(exceptions.NetworkNotFound):
                 self.plugin.get_network(self.context, 1)
+
+
+class TestQuarkGetNetworkCount(TestQuarkPlugin):
+    def test_get_port_count(self):
+        """This isn't really testable."""
+        with mock.patch("quark.db.api.network_count_all"):
+            self.plugin.get_networks_count(self.context, {})
 
 
 class TestQuarkUpdateNetwork(TestQuarkPlugin):
@@ -683,11 +691,11 @@ class TestQuarkGetPorts(TestQuarkPlugin):
             self.assertEqual(ports, [])
 
     def test_port_list_with_ports(self):
-        port = dict(mac_address="AA:BB:CC:DD:EE:FF", network_id=1,
+        port = dict(mac_address="aa:bb:cc:dd:ee:ff", network_id=1,
                     tenant_id=self.context.tenant_id, device_id=2)
         expected = {'status': None,
                     'device_owner': None,
-                    'mac_address': 'AA:BB:CC:DD:EE:FF',
+                    'mac_address': 'aa:bb:cc:dd:ee:ff',
                     'network_id': 1,
                     'tenant_id': self.context.tenant_id,
                     'admin_state_up': None,
@@ -706,6 +714,22 @@ class TestQuarkGetPorts(TestQuarkPlugin):
         expected = {'status': None,
                     'device_owner': None,
                     'mac_address': 'AA:BB:CC:DD:EE:FF',
+                    'network_id': 1,
+                    'tenant_id': self.context.tenant_id,
+                    'admin_state_up': None,
+                    'fixed_ips': [],
+                    'device_id': 2}
+        with self._stubs(ports=port):
+            result = self.plugin.get_port(self.context, 1)
+            for key in expected.keys():
+                self.assertEqual(result[key], expected[key])
+
+    def test_port_show_with_int_mac(self):
+        port = dict(mac_address=187723572702975L, network_id=1,
+                    tenant_id=self.context.tenant_id, device_id=2)
+        expected = {'status': None,
+                    'device_owner': None,
+                    'mac_address': 'aa:bb:cc:dd:ee:ff',
                     'network_id': 1,
                     'tenant_id': self.context.tenant_id,
                     'admin_state_up': None,
@@ -745,7 +769,7 @@ class TestQuarkCreatePort(TestQuarkPlugin):
 
     def test_create_port(self):
         network = dict(id=1)
-        mac = dict(address="AA:BB:CC:DD:EE:FF")
+        mac = dict(address="aa:bb:cc:dd:ee:ff")
         ip = dict()
         port = dict(port=dict(mac_address=mac["address"], network_id=1,
                               tenant_id=self.context.tenant_id, device_id=2))
@@ -776,6 +800,13 @@ class TestQuarkUpdatePort(TestQuarkPlugin):
     def test_update_not_implemented(self):
         with self.assertRaises(NotImplementedError):
             self.plugin.update_port(self.context, 1, {})
+
+
+class TestQuarkGetPortCount(TestQuarkPlugin):
+    def test_get_port_count(self):
+        """This isn't really testable."""
+        with mock.patch("quark.db.api.port_count_all"):
+            self.plugin.get_ports_count(self.context, {})
 
 
 class TestQuarkDeletePort(TestQuarkPlugin):
@@ -815,3 +846,190 @@ class TestQuarkDeletePort(TestQuarkPlugin):
         with self._stubs(port=None) as (db_port_del, driver_port_del):
             with self.assertRaises(exceptions.PortNotFound):
                 self.plugin.delete_port(self.context, 1)
+
+
+class TestQuarkGetMacAddressRanges(TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, mac_range):
+        db_mod = "quark.db.api"
+        with mock.patch("%s.mac_address_range_find" % db_mod) as mar_find:
+            mar_find.return_value = [mac_range]
+            yield
+
+    def test_find_mac_ranges(self):
+        mar = dict(id=1, cidr="AA:BB:CC/24")
+        with self._stubs(mar):
+            res = self.plugin.get_mac_address_ranges(self.context)
+            self.assertEqual(res[0]["id"], mar["id"])
+            self.assertEqual(res[0]["cidr"], mar["cidr"])
+
+
+class TestQuarkCreateMacAddressRanges(TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, mac_range):
+        db_mod = "quark.db.api"
+        with mock.patch("%s.mac_address_range_create" % db_mod) as mar_create:
+            mar_create.return_value = mac_range
+            yield
+
+    def test_create_range(self):
+        mar = dict(mac_address_range=dict(id=1, cidr="AA:BB:CC/24"))
+        with self._stubs(mar["mac_address_range"]):
+            res = self.plugin.create_mac_address_range(self.context, mar)
+            self.assertEqual(res["id"], mar["mac_address_range"]["id"])
+            self.assertEqual(res["cidr"], mar["mac_address_range"]["cidr"])
+
+    def test_to_mac_range_cidr_format(self):
+        cidr, first, last = self.plugin._to_mac_range("AA:BB:CC/24")
+        first_mac = str(netaddr.EUI(first, dialect=netaddr.mac_unix))
+        last_mac = str(netaddr.EUI(last, dialect=netaddr.mac_unix))
+        self.assertEqual(cidr, "AA:BB:CC:00:00:00/24")
+        self.assertEqual(first_mac, "aa:bb:cc:0:0:0")
+        self.assertEqual(last_mac, "aa:bb:cd:0:0:0")
+
+    def test_to_mac_range_just_prefix(self):
+        cidr, first, last = self.plugin._to_mac_range("AA:BB:CC")
+        first_mac = str(netaddr.EUI(first, dialect=netaddr.mac_unix))
+        last_mac = str(netaddr.EUI(last, dialect=netaddr.mac_unix))
+        self.assertEqual(cidr, "AA:BB:CC:00:00:00/24")
+        self.assertEqual(first_mac, "aa:bb:cc:0:0:0")
+        self.assertEqual(last_mac, "aa:bb:cd:0:0:0")
+
+    def test_to_mac_range_unix_format(self):
+        cidr, first, last = self.plugin._to_mac_range("AA-BB-CC")
+        first_mac = str(netaddr.EUI(first, dialect=netaddr.mac_unix))
+        last_mac = str(netaddr.EUI(last, dialect=netaddr.mac_unix))
+        self.assertEqual(cidr, "AA:BB:CC:00:00:00/24")
+        self.assertEqual(first_mac, "aa:bb:cc:0:0:0")
+        self.assertEqual(last_mac, "aa:bb:cd:0:0:0")
+
+    def test_to_mac_range_unix_cidr_format(self):
+        cidr, first, last = self.plugin._to_mac_range("AA-BB-CC/24")
+        first_mac = str(netaddr.EUI(first, dialect=netaddr.mac_unix))
+        last_mac = str(netaddr.EUI(last, dialect=netaddr.mac_unix))
+        self.assertEqual(cidr, "AA:BB:CC:00:00:00/24")
+        self.assertEqual(first_mac, "aa:bb:cc:0:0:0")
+        self.assertEqual(last_mac, "aa:bb:cd:0:0:0")
+
+    def test_to_mac_prefix_too_short_fails(self):
+        with self.assertRaises(quark_exceptions.InvalidMacAddressRange):
+            cidr, first, last = self.plugin._to_mac_range("AA-BB")
+
+    def test_to_mac_prefix_too_long_fails(self):
+        with self.assertRaises(quark_exceptions.InvalidMacAddressRange):
+            cidr, first, last = self.plugin._to_mac_range("AA-BB-CC-DD-EE-F0")
+
+    def test_to_mac_prefix_is_garbage_fails(self):
+        with self.assertRaises(quark_exceptions.InvalidMacAddressRange):
+            cidr, first, last = self.plugin._to_mac_range("F0-0-BAR")
+
+
+class TestQuarkGetRoutes(TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, routes):
+        with mock.patch("quark.db.api.route_find") as route_find:
+            route_find.return_value = routes
+            yield
+
+    def test_get_routes(self):
+        route = dict(id=1, cidr="192.168.0.0/24", gateway="192.168.0.1",
+                     subnet_id=2)
+        with self._stubs(routes=[route]):
+            res = self.plugin.get_routes(self.context)
+            for key in route.keys():
+                self.assertEqual(res[0][key], route[key])
+
+    def test_get_route(self):
+        route = dict(id=1, cidr="192.168.0.0/24", gateway="192.168.0.1",
+                     subnet_id=2)
+        with self._stubs(routes=route):
+            res = self.plugin.get_route(self.context, 1)
+            for key in route.keys():
+                self.assertEqual(res[key], route[key])
+
+    def test_get_route_not_found_fails(self):
+        with self._stubs(routes=None):
+            with self.assertRaises(quark_exceptions.RouteNotFound):
+                self.plugin.get_route(self.context, 1)
+
+
+class TestQuarkCreateRoutes(TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, create_route, find_routes, subnet):
+        db_mod = "quark.db.api"
+        with contextlib.nested(
+            mock.patch("%s.route_create" % db_mod),
+            mock.patch("%s.route_find" % db_mod),
+            mock.patch("%s.subnet_find" % db_mod)
+        ) as (route_create, route_find, subnet_find):
+            route_create.return_value = create_route
+            route_find.return_value = find_routes
+            subnet_find.return_value = subnet
+            yield
+
+    def test_create_route(self):
+        subnet = dict(id=2)
+        create_route = dict(id=1, cidr="172.16.0.0/24", gateway="172.16.0.1",
+                            subnet_id=subnet["id"])
+        route = dict(id=1, cidr="192.168.0.0/24", gateway="192.168.0.1",
+                     subnet_id=subnet["id"])
+        with self._stubs(create_route=create_route, find_routes=[route],
+                         subnet=subnet):
+            res = self.plugin.create_route(self.context,
+                                           dict(route=create_route))
+            for key in create_route.keys():
+                self.assertEqual(res[key], create_route[key])
+
+    def test_create_route_no_subnet_fails(self):
+        subnet = dict(id=2)
+        route = dict(id=1, cidr="192.168.0.0/24", gateway="192.168.0.1",
+                     subnet_id=subnet["id"])
+        with self._stubs(create_route=route, find_routes=[], subnet=None):
+            with self.assertRaises(exceptions.SubnetNotFound):
+                self.plugin.create_route(self.context, dict(route=route))
+
+    def test_create_no_other_routes(self):
+        subnet = dict(id=2)
+        create_route = dict(id=1, cidr="192.168.0.0/24", gateway="192.168.0.1",
+                            subnet_id=subnet["id"])
+        with self._stubs(create_route=create_route, find_routes=[],
+                         subnet=subnet):
+            res = self.plugin.create_route(self.context,
+                                           dict(route=create_route))
+            self.assertEqual(res["cidr"], create_route["cidr"])
+
+    def test_create_conflicting_route_raises(self):
+        subnet = dict(id=2)
+        create_route = dict(id=1, cidr="192.168.0.0/24", gateway="192.168.0.1",
+                            subnet_id=subnet["id"])
+        route = dict(id=1, cidr="192.168.0.0/24", gateway="192.168.0.1",
+                     subnet_id=subnet["id"])
+        with self._stubs(create_route=create_route, find_routes=[route],
+                         subnet=subnet):
+            with self.assertRaises(quark_exceptions.RouteConflict):
+                self.plugin.create_route(self.context,
+                                         dict(route=create_route))
+
+
+class TestQuarkDeleteRoutes(TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, route):
+        db_mod = "quark.db.api"
+        with contextlib.nested(
+            mock.patch("%s.route_delete" % db_mod),
+            mock.patch("%s.route_find" % db_mod),
+        ) as (route_delete, route_find):
+            route_find.return_value = route
+            yield route_delete
+
+    def test_delete_route(self):
+        route = dict(id=1, cidr="192.168.0.0/24", gateway="192.168.0.1",
+                     subnet_id=2)
+        with self._stubs(route=route) as route_delete:
+            self.plugin.delete_route(self.context, 1)
+            self.assertTrue(route_delete.called)
+
+    def test_delete_route_not_found_fails(self):
+        with self._stubs(route=None):
+            with self.assertRaises(quark_exceptions.RouteNotFound):
+                self.plugin.delete_route(self.context, 1)

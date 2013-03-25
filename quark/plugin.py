@@ -22,7 +22,6 @@ import netaddr
 
 from oslo.config import cfg
 
-from sqlalchemy import func as sql_func
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy import event
 from zope import sqlalchemy as zsa
@@ -132,14 +131,11 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         return res
 
     def _port_dict(self, port, fields=None):
-        mac = ""
-        if port.get("mac_address"):
-            mac = str(netaddr.EUI(port["mac_address"])).replace("-", ":")
         res = {"id": port.get("id"),
                "name": port.get('id'),
                "network_id": port.get("network_id"),
                "tenant_id": port.get('tenant_id'),
-               "mac_address": mac,
+               "mac_address": port.get("mac_address"),
                "admin_state_up": port.get("admin_state_up"),
                "status": port.get("status"),
                "device_id": port.get("device_id"),
@@ -519,33 +515,6 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
 
         return self._make_port_dict(results)
 
-    def _ports_query(self, context, filters, query, fields=None):
-        if filters.get("id"):
-            query = query.filter(
-                models.Port.id.in_(filters["id"]))
-
-        if filters.get("name"):
-            query = query.filter(
-                models.Port.id.in_(filters["name"]))
-
-        if filters.get("network_id"):
-            query = query.filter(
-                models.Port.network_id.in_(filters["network_id"]))
-
-        if filters.get("device_id"):
-            query = query.filter(models.Port.device_id.in_(
-                filters["device_id"]))
-
-        if filters.get("mac_address"):
-            query = query.filter(
-                models.Port.mac_address.in_(filters["mac_address"]))
-
-        if filters.get("tenant_id"):
-            query = query.filter(
-                models.Port.tenant_id.in_(filters["tenant_id"]))
-
-        return query
-
     def get_ports(self, context, filters=None, fields=None):
         """Retrieve a list of ports.
 
@@ -589,8 +558,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         """
         LOG.info("get_ports_count for tenant %s filters %s" %
                 (context.tenant_id, filters))
-        query = context.session.query(sql_func.count(models.Port.id))
-        return self._ports_query(context, filters, query=query).scalar()
+        return db_api.port_count_all(context, **filters)
 
     def delete_port(self, context, id):
         """Delete a port.
@@ -644,8 +612,11 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             mask = 48 - diff * 4
         mask_size = 1 << (48 - mask)
         prefix = "%s%s" % (prefix, "0" * diff)
+        try:
+            cidr = "%s/%s" % (str(netaddr.EUI(prefix)).replace("-", ":"), mask)
+        except netaddr.AddrFormatError:
+            raise quark_exceptions.InvalidMacAddressRange(cidr=val)
         prefix_int = int(prefix, base=16)
-        cidr = "%s/%s" % (str(netaddr.EUI(prefix)).replace("-", ":"), mask)
         return cidr, prefix_int, prefix_int + mask_size
 
     def get_route(self, context, id):
@@ -668,7 +639,17 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         if not subnet:
             raise exceptions.SubnetNotFound(subnet_id=subnet_id)
 
-        new_route = db_api.route_create(context, **route["route"])
+        # TODO(anyone): May need to denormalize the cidr values to achieve
+        #               single db lookup
+        route_cidr = netaddr.IPNetwork(route["cidr"])
+        subnet_routes = db_api.route_find(context, subnet_id=subnet_id)
+        for sub_route in subnet_routes:
+            sub_route_cidr = netaddr.IPNetwork(sub_route["cidr"])
+            if route_cidr in sub_route_cidr or sub_route_cidr in route_cidr:
+                raise quark_exceptions.RouteConflict(route_id=sub_route["id"],
+                                                     cidr=str(route_cidr))
+
+        new_route = db_api.route_create(context, **route)
         return self._make_route_dict(new_route)
 
     def delete_route(self, context, id):
