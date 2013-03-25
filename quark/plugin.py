@@ -81,10 +81,10 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
     def __init__(self):
         # NOTE(jkoelker) Register the event on all models that have ids
         for _name, klass in inspect.getmembers(models, inspect.isclass):
-            if klass is models.models.HasId:
+            if klass is models.HasId:
                 continue
 
-            if models.models.HasId in klass.mro():
+            if models.HasId in klass.mro():
                 event.listen(klass, "init", perhaps_generate_id)
 
         quantum_db_api.configure_db()
