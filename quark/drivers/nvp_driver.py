@@ -39,8 +39,9 @@ nvp_opts = [
                help=_('Maximum amount of NVP ports on an NVP lswitch')),
     cfg.StrOpt('default_tz',
                help=_('The default transport zone UUID')),
-    cfg.StrOpt('controller_connections',
-               help=_('NVP Controller connection string')),
+    cfg.MultiStrOpt('controller_connection',
+                    default=[],
+                    help=_('NVP Controller connection string')),
 ]
 
 CONF.register_opts(nvp_opts, "NVP")
@@ -54,9 +55,9 @@ class NVPDriver(base.BaseDriver):
 
     def load_config(self, path):
         default_tz = CONF.NVP.default_tz
-        connections = CONF.NVP.controller_connections
+        connections = CONF.NVP.controller_connection
         self.max_ports_per_switch = CONF.NVP.max_ports_per_switch
-        for conn in connections.split():
+        for conn in connections:
             (ip, port, user, pw, req_timeout,
              http_timeout, retries, redirects) = conn.split(":")
 
