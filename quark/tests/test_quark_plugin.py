@@ -66,6 +66,17 @@ class TestQuarkGetSubnetCount(TestQuarkPlugin):
             self.plugin.get_subnets_count(self.context, {})
 
 
+class TestQuarkAPIExtensions(TestQuarkPlugin):
+    """Adds coverage for appending the API extension path."""
+    def test_append_quark_extensions(self):
+        quark.plugin.append_quark_extensions({})
+
+    def test_append_no_extension_path(self):
+        opts = [cfg.StrOpt("api_extensions_path")]
+        quark.plugin.CONF.register_opts(opts)
+        quark.plugin.append_quark_extensions(quark.plugin.CONF)
+
+
 class TestQuarkGetSubnets(TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, subnets=None, routes=None):
@@ -415,266 +426,168 @@ class TestQuarkCreateNetwork(TestQuarkPlugin):
 
 
 class TestIpAddresses(TestQuarkPlugin):
-    # TODO(amir): add test to check filter for tenant_id
+    @contextlib.contextmanager
+    def _stubs(self, port, addr):
+        port_model = None
+        addr_model = None
+        if port:
+            port_model = models.Port()
+            port_model.update(port)
+        if addr:
+            addr_model = models.IPAddress()
+            addr_model.update(addr)
+        with contextlib.nested(
+            mock.patch("quark.db.api.port_find"),
+            mock.patch("quark.ipam.QuarkIpam.allocate_ip_address")
+        ) as (port_find, alloc_ip):
+            port_find.return_value = port_model
+            alloc_ip.return_value = addr_model
+            yield
 
-    def test_create_ip_address_network_and_device(self):
-        network_id = self._create_network()['id']
-        subnet = self._create_subnet(network_id)
-        self._create_mac_address_range()
-        device_id = 'onetwothree'
-        port_id = self._create_port(network_id, device_id)['id']
+    def test_create_ip_address_by_network_and_device(self):
+        port = dict(id=1, network_id=2, ip_addresses=[])
+        ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
+                  subnet_id=1, network_id=2, version=4)
+        with self._stubs(port=port, addr=ip):
+            ip_address = dict(network_id=ip["network_id"],
+                              device_id=4)
+            response = self.plugin.create_ip_address(
+                self.context, dict(ip_address=ip_address))
 
-        ip_address = {'ip_address': {'network_id': network_id,
-                                     'device_id': device_id}}
-        response = self.plugin.create_ip_address(self.context,
-                                                 ip_address)
-
-        self.assertIsNotNone(response['id'])
-        self.assertEqual(response['network_id'], network_id)
-        self.assertIn(netaddr.IPAddress(response['address']),
-                      netaddr.IPNetwork(subnet['cidr']))
-        self.assertEqual(response['port_ids'], [port_id])
-        self.assertEqual(response['subnet_id'], subnet['id'])
-
-    def test_create_ip_address_invalid_network_and_device(self):
-        with self.assertRaises(exceptions.PortNotFound):
-            ip_address = {'ip_address': {'network_id': 'fake',
-                                         'device_id': 'fake'}}
-            self.plugin.create_ip_address(self.context, ip_address)
+            self.assertIsNotNone(response['id'])
+            self.assertEqual(response['network_id'], ip_address["network_id"])
+            self.assertEqual(response['port_ids'], [port["id"]])
+            self.assertEqual(response['subnet_id'], ip['subnet_id'])
 
     def test_create_ip_address_with_port(self):
-        network_id = self._create_network()['id']
-        subnet = self._create_subnet(network_id)
-        self._create_mac_address_range()
-        port_id = self._create_port(network_id)['id']
+        port = dict(id=1, network_id=2, ip_addresses=[])
+        ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
+                  subnet_id=1, network_id=2, version=4)
+        with self._stubs(port=port, addr=ip):
+            ip_address = dict(port_id=port["id"])
+            response = self.plugin.create_ip_address(
+                self.context, dict(ip_address=ip_address))
 
-        ip_address = {'ip_address': {'port_id': port_id}}
-        response = self.plugin.create_ip_address(self.context,
-                                                 ip_address)
+            self.assertIsNotNone(response['id'])
+            self.assertEqual(response['network_id'], ip["network_id"])
+            self.assertEqual(response['port_ids'], [port["id"]])
+            self.assertEqual(response['subnet_id'], ip['id'])
 
-        self.assertIsNotNone(response['id'])
-        self.assertEqual(response['network_id'], network_id)
-        self.assertIn(netaddr.IPAddress(response['address']),
-                      netaddr.IPNetwork(subnet['cidr']))
-        self.assertEqual(response['port_ids'], [port_id])
-        self.assertEqual(response['subnet_id'], subnet['id'])
+    def test_create_ip_address_invalid_network_and_device(self):
+        with self._stubs(port=None, addr=None):
+            with self.assertRaises(exceptions.PortNotFound):
+                ip_address = {'ip_address': {'network_id': 'fake',
+                                             'device_id': 'fake'}}
+                self.plugin.create_ip_address(self.context, ip_address)
 
     def test_create_ip_address_invalid_port(self):
-        with self.assertRaises(exceptions.PortNotFound):
-            ip_address = {'ip_address': {'port_id': 'fake'}}
-            self.plugin.create_ip_address(self.context, ip_address)
+        with self._stubs(port=None, addr=None):
+            with self.assertRaises(exceptions.PortNotFound):
+                ip_address = {'ip_address': {'port_id': 'fake'}}
+                self.plugin.create_ip_address(self.context, ip_address)
 
-    def test_create_ip_address_no_fields(self):
-        with self.assertRaises(exceptions.PortNotFound):
-            ip_address = {'ip_address': {}}
-            self.plugin.create_ip_address(self.context, ip_address)
 
-    def test_create_ip_address_no_device(self):
-        network_id = self._create_network()['id']
-        with self.assertRaises(exceptions.PortNotFound):
-            ip_address = {'ip_address': {'network_id': network_id}}
-            self.plugin.create_ip_address(self.context, ip_address)
+class TestQuarkUpdateIPAddress(TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, ports, addr, addr_ports=False):
+        port_models = []
+        addr_model = None
+        for port in ports:
+            port_model = models.Port()
+            port_model.update(port)
+            port_models.append(port_model)
+        if addr:
+            addr_model = models.IPAddress()
+            addr_model.update(addr)
+            if addr_ports:
+                addr_model.ports = port_models
 
-    def test_create_ip_address_no_network(self):
-        network_id = self._create_network()['id']
-        self._create_subnet(network_id)['id']
-        self._create_mac_address_range()
-        device_id = 'onetwothree'
-        self._create_port(network_id, device_id=device_id)['id']
-
-        with self.assertRaises(exceptions.PortNotFound):
-            ip_address = {'ip_address': {'device_id': device_id}}
-            self.plugin.create_ip_address(self.context, ip_address)
-
-    def test_create_ip_address_ipv4(self):
-        network_id = self._create_network()['id']
-        subnet_v4 = self._create_subnet(network_id, cidr='192.168.10.1/24')
-        self._create_subnet(network_id, cidr='fc00::/7')
-
-        self._create_mac_address_range()
-        device_id = 'onetwothree'
-        port_id = self._create_port(network_id, device_id)['id']
-
-        ip_address = {'ip_address': {'network_id': network_id,
-                                     'device_id': device_id,
-                                     'version': 4}}
-        response = self.plugin.create_ip_address(self.context,
-                                                 ip_address)
-
-        self.assertIsNotNone(response['id'])
-        self.assertEqual(response['network_id'], network_id)
-        self.assertIn(netaddr.IPAddress(response['address']),
-                      netaddr.IPNetwork(subnet_v4['cidr']))
-        self.assertEqual(response['port_ids'], [port_id])
-        self.assertEqual(response['subnet_id'], subnet_v4['id'])
-
-    def test_create_ip_address_ipv6(self):
-        network_id = self._create_network()['id']
-        subnet_v6 = self._create_subnet(network_id, cidr='fc00::/7')
-        self._create_subnet(network_id, cidr='192.168.10.1/24')
-
-        self._create_mac_address_range()
-        device_id = 'onetwothree'
-        port_id = self._create_port(network_id, device_id)['id']
-
-        ip_address = {'ip_address': {'network_id': network_id,
-                                     'device_id': device_id,
-                                     'version': 6}}
-        response = self.plugin.create_ip_address(self.context,
-                                                 ip_address)
-
-        self.assertIsNotNone(response['id'])
-        self.assertEqual(response['network_id'], network_id)
-        self.assertIn(netaddr.IPAddress(response['address']),
-                      netaddr.IPNetwork(subnet_v6['cidr']))
-        self.assertEqual(response['port_ids'], [port_id])
-        self.assertEqual(response['subnet_id'], subnet_v6['id'])
-
-    def test_create_ip_address_invalid_version(self):
-        network_id = self._create_network()['id']
-        self._create_subnet(network_id)
-        self._create_mac_address_range()
-        device_id = 'onetwothree'
-        self._create_port(network_id, device_id)
-
-        with self.assertRaises(exceptions.IpAddressGenerationFailure):
-            ip_address = {'ip_address': {'network_id': network_id,
-                                         'device_id': device_id,
-                                         'version': 10}}
-            self.plugin.create_ip_address(self.context, ip_address)
-
-    def test_create_ip_address_new(self):
-        network_id = self._create_network()['id']
-        subnet = self._create_subnet(network_id)
-        self._create_mac_address_range()
-        port = self._create_port(network_id)
-
-        magic_ip = '192.168.10.123'
-        self.assertNotEqual(magic_ip, port['fixed_ips'][0]['ip_address'])
-
-        ip_address = {'ip_address': {'port_id': port['id'],
-                                     'ip_address': magic_ip}}
-        response = self.plugin.create_ip_address(self.context,
-                                                 ip_address)
-
-        self.assertIsNotNone(response['id'])
-        self.assertEqual(response['network_id'], network_id)
-        self.assertEqual(response['address'], magic_ip)
-        self.assertEqual(response['port_ids'], [port['id']])
-        self.assertEqual(response['subnet_id'], subnet['id'])
-
-    def test_create_ip_address_new_with_port(self):
-        network_id = self._create_network()['id']
-        subnet = self._create_subnet(network_id)
-        self._create_mac_address_range()
-        port = self._create_port(network_id)
-
-        magic_ip = port['fixed_ips'][0]['ip_address']
-        ip_address = {'ip_address': {'port_id': port['id'],
-                                     'ip_address': magic_ip}}
-        response = self.plugin.create_ip_address(self.context,
-                                                 ip_address)
-
-        self.assertIsNotNone(response['id'])
-        self.assertEqual(response['network_id'], network_id)
-        self.assertEqual(response['address'], magic_ip)
-        self.assertEqual(response['port_ids'], [port['id']])
-        self.assertEqual(response['subnet_id'], subnet['id'])
-
-    def test_get_ip_address_success(self):
-        pass
-
-    def test_get_ip_address_failure(self):
-        pass
-
-    def test_get_ip_addresses_success(self):
-        pass
+        db_mod = "quark.db.api"
+        with contextlib.nested(
+            mock.patch("%s.port_find" % db_mod),
+            mock.patch("%s.ip_address_find" % db_mod),
+        ) as (port_find, ip_find):
+            port_find.return_value = port_models
+            ip_find.return_value = addr_model
+            yield
 
     def test_update_ip_address_does_not_exist(self):
-        with self.assertRaises(exceptions.NotFound):
-            self.plugin.update_ip_address(self.context,
-                                          'no_ip_address_id',
-                                          {'ip_address': {'port_ids': []}})
+        with self._stubs(ports=[], addr=None):
+            with self.assertRaises(exceptions.NotFound):
+                self.plugin.update_ip_address(self.context,
+                                              'no_ip_address_id',
+                                              {'ip_address': {'port_ids': []}})
 
     def test_update_ip_address_port_not_found(self):
-        network_id = self._create_network()['id']
-        self._create_subnet(network_id)
-        self._create_mac_address_range()
-        device_id = 'onetwothree'
-        self._create_port(network_id, device_id)
-
-        ip_address = {'ip_address': {'network_id': network_id,
-                                     'device_id': device_id}}
-        response = self.plugin.create_ip_address(self.context,
-                                                 ip_address)
-
-        with self.assertRaises(exceptions.NotFound):
-            ip_address = {'ip_address': {'port_ids': ['fake']}}
-            self.plugin.update_ip_address(self.context,
-                                          response['id'],
-                                          ip_address)
+        ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
+                  subnet_id=1, network_id=2, version=4)
+        with self._stubs(ports=[], addr=ip):
+            with self.assertRaises(exceptions.NotFound):
+                ip_address = {'ip_address': {'port_ids': ['fake']}}
+                self.plugin.update_ip_address(self.context,
+                                              ip["id"],
+                                              ip_address)
 
     def test_update_ip_address_specify_ports(self):
-        network_id = self._create_network()['id']
-        self._create_subnet(network_id)
-        self._create_mac_address_range()
-        port = self._create_port(network_id, device_id='abc')
-        port_2 = self._create_port(network_id, device_id='def')
-
-        ip_address = {'ip_address': {'port_id': port['id']}}
-        response = self.plugin.create_ip_address(self.context,
-                                                 ip_address)
-        ip_address = {'ip_address': {'port_ids': [port_2['id']]}}
-        response = self.plugin.update_ip_address(self.context,
-                                                 response['id'],
-                                                 ip_address)
-        self.assertEqual(response['port_ids'], [port_2['id']])
+        port = dict(id=1, network_id=2, ip_addresses=[])
+        ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
+                  subnet_id=1, network_id=2, version=4)
+        with self._stubs(ports=[port], addr=ip):
+            ip_address = {'ip_address': {'port_ids': [port['id']]}}
+            response = self.plugin.update_ip_address(self.context,
+                                                     ip['id'],
+                                                     ip_address)
+            self.assertEqual(response['port_ids'], [port['id']])
 
     def test_update_ip_address_no_ports(self):
-        network_id = self._create_network()['id']
-        self._create_subnet(network_id)
-        self._create_mac_address_range()
-        port = self._create_port(network_id)
-
-        ip_address = {'ip_address': {'port_id': port['id']}}
-        response = self.plugin.create_ip_address(self.context,
-                                                 ip_address)
-        ip_address = {'ip_address': {}}
-        response = self.plugin.update_ip_address(self.context,
-                                                 response['id'],
-                                                 ip_address)
-        self.assertEqual(response['port_ids'], [port['id']])
+        port = dict(id=1, network_id=2, ip_addresses=[])
+        ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
+                  subnet_id=1, network_id=2, version=4)
+        with self._stubs(ports=[port], addr=ip):
+            ip_address = {'ip_address': {}}
+            response = self.plugin.update_ip_address(self.context,
+                                                     ip['id'],
+                                                     ip_address)
+            self.assertEqual(response['port_ids'], [])
 
     def test_update_ip_address_empty_ports_delete(self):
-        network_id = self._create_network()['id']
-        self._create_subnet(network_id)
-        self._create_mac_address_range()
-        port = self._create_port(network_id)
-
-        ip_address = {'ip_address': {'port_id': port['id']}}
-        response = self.plugin.create_ip_address(self.context,
-                                                 ip_address)
-        ip_address = {'ip_address': {'port_ids': []}}
-        response = self.plugin.update_ip_address(self.context,
-                                                 response['id'],
-                                                 ip_address)
-        self.assertEqual(response['port_ids'], [])
+        port = dict(id=1, network_id=2, ip_addresses=[])
+        ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
+                  subnet_id=1, network_id=2, version=4)
+        with self._stubs(ports=[port], addr=ip, addr_ports=True):
+            ip_address = {'ip_address': {'port_ids': []}}
+            response = self.plugin.update_ip_address(self.context,
+                                                     ip['id'],
+                                                     ip_address)
+            self.assertEqual(response['port_ids'], [])
 
 
 class TestQuarkGetPorts(TestQuarkPlugin):
     @contextlib.contextmanager
-    def _stubs(self, ports=None):
+    def _stubs(self, ports=None, addrs=None):
         port_models = []
+        addr_models = None
+        if addrs:
+            addr_models = []
+            for address in addrs:
+                a = models.IPAddress()
+                a.update(address)
+                addr_models.append(a)
+
         if isinstance(ports, list):
             for port in ports:
                 port_model = models.Port()
                 port_model.update(port)
+                if addr_models:
+                    port_model.ip_addresses = addr_models
                 port_models.append(port_model)
         elif ports is None:
             port_models = None
         else:
             port_model = models.Port()
             port_model.update(ports)
+            if addr_models:
+                port_model.ip_addresses = addr_models
             port_models = port_model
 
         db_mod = "quark.db.api"
@@ -691,6 +604,8 @@ class TestQuarkGetPorts(TestQuarkPlugin):
             self.assertEqual(ports, [])
 
     def test_port_list_with_ports(self):
+        ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
+                  subnet_id=1, network_id=2, version=4)
         port = dict(mac_address="aa:bb:cc:dd:ee:ff", network_id=1,
                     tenant_id=self.context.tenant_id, device_id=2)
         expected = {'status': None,
@@ -699,16 +614,21 @@ class TestQuarkGetPorts(TestQuarkPlugin):
                     'network_id': 1,
                     'tenant_id': self.context.tenant_id,
                     'admin_state_up': None,
-                    'fixed_ips': [],
                     'device_id': 2}
-        with self._stubs(ports=[port]):
+        with self._stubs(ports=[port], addrs=[ip]):
             ports = self.plugin.get_ports(self.context, filters=None,
                                           fields=None)
             self.assertEqual(len(ports), 1)
+            fixed_ips = ports[0].pop("fixed_ips")
             for key in expected.keys():
                 self.assertEqual(ports[0][key], expected[key])
+            self.assertEqual(fixed_ips[0]["subnet_id"], ip["subnet_id"])
+            self.assertEqual(fixed_ips[0]["ip_address"],
+                             ip["address_readable"])
 
     def test_port_show(self):
+        ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
+                  subnet_id=1, network_id=2, version=4)
         port = dict(mac_address="AA:BB:CC:DD:EE:FF", network_id=1,
                     tenant_id=self.context.tenant_id, device_id=2)
         expected = {'status': None,
@@ -717,12 +637,16 @@ class TestQuarkGetPorts(TestQuarkPlugin):
                     'network_id': 1,
                     'tenant_id': self.context.tenant_id,
                     'admin_state_up': None,
-                    'fixed_ips': [],
                     'device_id': 2}
-        with self._stubs(ports=port):
+        with self._stubs(ports=port, addrs=[ip]):
             result = self.plugin.get_port(self.context, 1)
+            fixed_ips = result.pop("fixed_ips")
             for key in expected.keys():
                 self.assertEqual(result[key], expected[key])
+            print fixed_ips
+            self.assertEqual(fixed_ips[0]["subnet_id"], ip["subnet_id"])
+            self.assertEqual(fixed_ips[0]["ip_address"],
+                             ip["address_readable"])
 
     def test_port_show_with_int_mac(self):
         port = dict(mac_address=187723572702975L, network_id=1,
@@ -1033,3 +957,64 @@ class TestQuarkDeleteRoutes(TestQuarkPlugin):
         with self._stubs(route=None):
             with self.assertRaises(quark_exceptions.RouteNotFound):
                 self.plugin.delete_route(self.context, 1)
+
+
+class TestQuarkGetIpAddresses(TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, ips, ports):
+        with mock.patch("quark.db.api.ip_address_find") as ip_find:
+            ip_models = []
+            port_models = []
+            for port in ports:
+                p = models.Port()
+                p.update(port)
+                port_models.append(p)
+            if isinstance(ips, list):
+                for ip in ips:
+                    version = ip.pop("version")
+                    ip_mod = models.IPAddress()
+                    ip_mod.update(ip)
+                    ip_mod.version = version
+                    ip_mod.ports = port_models
+                    ip_models.append(ip_mod)
+                ip_find.return_value = ip_models
+            else:
+                if ips:
+                    version = ips.pop("version")
+                    ip_mod = models.IPAddress()
+                    ip_mod.update(ips)
+                    ip_mod.version = version
+                    ip_mod.ports = port_models
+                    ip_find.return_value = ip_mod
+                else:
+                    ip_find.return_value = ips
+            yield
+
+    def test_get_ip_addresses(self):
+        port = dict(id=100)
+        ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
+                  subnet_id=1, network_id=2, version=4)
+        with self._stubs(ips=[ip], ports=[port]):
+            res = self.plugin.get_ip_addresses(self.context)
+            addr_res = res[0]
+            self.assertEqual(ip["id"], addr_res["id"])
+            self.assertEqual(ip["subnet_id"], addr_res["subnet_id"])
+            self.assertEqual(ip["address_readable"], addr_res["address"])
+            self.assertEqual(addr_res["port_ids"][0], port["id"])
+
+    def test_get_ip_address(self):
+        port = dict(id=100)
+        ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
+                  subnet_id=1, network_id=2, version=4)
+        with self._stubs(ips=ip, ports=[port]):
+            res = self.plugin.get_ip_address(self.context, 1)
+            self.assertEqual(ip["id"], res["id"])
+            self.assertEqual(ip["subnet_id"], res["subnet_id"])
+            self.assertEqual(ip["address_readable"], res["address"])
+            self.assertEqual(res["port_ids"][0], port["id"])
+
+    def test_get_ip_address_no_ip_fails(self):
+        port = dict(id=100)
+        with self._stubs(ips=None, ports=[port]):
+            with self.assertRaises(quark_exceptions.IpAddressNotFound):
+                self.plugin.get_ip_address(self.context, 1)
