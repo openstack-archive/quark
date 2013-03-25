@@ -55,9 +55,17 @@ quark_opts = [
                help=_("Path to the config for the net driver"))
 ]
 
+
+def append_quark_extensions(conf):
+    """Adds the Quark API Extensions to the extension path.
+
+    Pulled out for test coveage.
+    """
+    if 'api_extensions_path' in conf:
+        conf.set_override('api_extensions_path', ":".join(extensions.__path__))
+
 CONF.register_opts(quark_opts, "QUARK")
-if 'api_extensions_path' in CONF:
-    CONF.set_override('api_extensions_path', ":".join(extensions.__path__))
+append_quark_extensions(CONF)
 
 
 # NOTE(jkoelker) init event listener that will ensure id is filled in
@@ -428,7 +436,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         : param id: UUID representing the network to delete.
         """
         LOG.info("delete_network %s for tenant %s" % (id, context.tenant_id))
-        net = db_api.network_find(context, id=id)
+        net = db_api.network_find(context, id=id, scope=db_api.ONE)
         if not net:
             raise exceptions.NetworkNotFound(net_id=id)
         if net.ports:
@@ -737,5 +745,4 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                     message="No ports not found with ids=%s" % port_ids)
             for port in ports:
                 port['ip_addresses'].extend([address])
-
         return self._make_ip_dict(address)
