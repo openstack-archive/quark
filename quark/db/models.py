@@ -29,6 +29,8 @@ from quantum.openstack.common import timeutils
 
 from quark.db import custom_types
 
+HasId = models.HasId
+
 LOG = logging.getLogger("quantum.quark.db.models")
 
 

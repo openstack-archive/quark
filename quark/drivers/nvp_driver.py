@@ -266,7 +266,7 @@ class OptimizedNVPDriver(NVPDriver):
         return switches
 
 
-class LSwitchPort(models.BASEV2, models.models.HasId):
+class LSwitchPort(models.BASEV2, models.HasId):
     __tablename__ = "quark_nvp_driver_lswitchport"
     port_id = sa.Column(sa.String(255), nullable=False)
     switch_id = sa.Column(sa.String(255),
@@ -274,7 +274,7 @@ class LSwitchPort(models.BASEV2, models.models.HasId):
                           nullable=False)
 
 
-class LSwitch(models.BASEV2, models.models.HasId):
+class LSwitch(models.BASEV2, models.HasId):
     __tablename__ = "quark_nvp_driver_lswitch"
     nvp_id = sa.Column(sa.String(255), nullable=False)
     network_id = sa.Column(sa.String(255), nullable=False)
