@@ -75,7 +75,11 @@ class NVPDriver(base.BaseDriver):
         if "connection" not in conn:
             scheme = conn["port"] == "443" and "https" or "http"
             uri = "%s://%s:%s" % (scheme, conn["ip_address"], conn["port"])
-            conn["connection"] = aiclib.nvp.Connection(uri)
+            user = conn['username']
+            passwd = conn['password']
+            conn["connection"] = aiclib.nvp.Connection(uri,
+                                                       username=user,
+                                                       password=passwd)
         return conn["connection"]
 
     def create_network(self, context, network_name, tags=None,
