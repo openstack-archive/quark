@@ -544,7 +544,9 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         """
         LOG.info("get_ports for tenant %s filters %s fields %s" %
                 (context.tenant_id, filters, fields))
-        query = db_api.port_find(context, fields, filters)
+        if filters is None:
+            filters = {}
+        query = db_api.port_find(context, fields=fields, **filters)
         return self._make_ports_list(query, fields)
 
     def get_ports_count(self, context, filters=None):
