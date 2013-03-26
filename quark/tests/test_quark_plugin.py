@@ -37,24 +37,6 @@ class TestQuarkPlugin(test_base.TestBase):
         self.context = context.get_admin_context()
         self.plugin = quark.plugin.Plugin()
 
-    def _create_network(self, name='test'):
-        network = {'network': {'name': name}}
-        return self.plugin.create_network(self.context, network)
-
-    def _create_subnet(self, network_id, cidr='192.168.10.1/24'):
-        subnet = {'subnet': {'cidr': cidr,
-                             'network_id': network_id}}
-        return self.plugin.create_subnet(self.context, subnet)
-
-    def _create_mac_address_range(self, cidr='01:23:45/24'):
-        mac_range = {'mac_address_range': {'cidr': cidr}}
-        return self.plugin.create_mac_address_range(self.context, mac_range)
-
-    def _create_port(self, network_id, device_id=''):
-        port = {'port': {'network_id': network_id,
-                         'device_id': device_id}}
-        return self.plugin.create_port(self.context, port)
-
     def tearDown(self):
         db_api.clear_db()
 
@@ -171,7 +153,6 @@ class TestQuarkCreateSubnet(TestQuarkPlugin):
         with self._stubs(subnet=subnet["subnet"], network=network):
             res = self.plugin.create_subnet(self.context, subnet)
             for key in subnet["subnet"].keys():
-                print key
                 self.assertEqual(res[key], subnet["subnet"][key])
 
     def test_create_subnet_no_network_fails(self):
@@ -643,7 +624,6 @@ class TestQuarkGetPorts(TestQuarkPlugin):
             fixed_ips = result.pop("fixed_ips")
             for key in expected.keys():
                 self.assertEqual(result[key], expected[key])
-            print fixed_ips
             self.assertEqual(fixed_ips[0]["subnet_id"], ip["subnet_id"])
             self.assertEqual(fixed_ips[0]["ip_address"],
                              ip["address_readable"])
