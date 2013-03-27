@@ -78,7 +78,7 @@ def perhaps_generate_id(target, args, kwargs):
 class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
     # NOTE(mdietz): I hate this
     supported_extension_aliases = ["mac_address_ranges", "routes",
-                                   "ip_addresses"]
+                                   "ip_addresses", "ports_quark"]
 
     def _initDBMaker(self):
         # This needs to be called after _ENGINE is configured
