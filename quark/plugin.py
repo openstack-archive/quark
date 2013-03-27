@@ -592,6 +592,27 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         db_api.port_delete(context, port)
         self.net_driver.delete_port(context, backend_key)
 
+    def disassociate_port(self, context, id, ip_address_id):
+        """Disassociates a port from an IP address.
+
+        : param context: quantum api request context
+        : param id: UUID representing the port to disassociate.
+        : param ip_address_id: UUID representing the IP address to
+        disassociate.
+        """
+        LOG.info("disassociate_port %s for tenant %s ip_address_id %s" %
+                (id, context.tenant_id, ip_address_id))
+        port = db_api.port_find(context, id=id, ip_address_id=[ip_address_id],
+                                scope=db_api.ONE)
+
+        if not port:
+            raise exceptions.PortNotFound(port_id=id, net_id='')
+
+        port["ip_addresses"] = [address for address in port["ip_addresses"]
+                                if address.id != ip_address_id]
+
+        return self._make_port_dict(port)
+
     def get_mac_address_ranges(self, context):
         LOG.info("get_mac_address_ranges for tenant %s" % context.tenant_id)
         ranges = db_api.mac_address_range_find(context)
