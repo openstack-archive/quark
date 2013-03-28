@@ -115,6 +115,9 @@ def port_find(context, **filters):
     query = context.session.query(models.Port).\
         options(orm.joinedload(models.Port.ip_addresses))
     query = _model_query(context, models.Port, filters, query=query)
+    if filters.get("ip_address_id"):
+        query = query.filter(models.Port.ip_addresses.any(
+            models.IPAddress.id.in_(filters["ip_address_id"])))
     return query
 
 
