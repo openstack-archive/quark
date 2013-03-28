@@ -701,6 +701,13 @@ class TestQuarkCreatePort(TestQuarkPlugin):
 
 
 class TestQuarkUpdatePort(TestQuarkPlugin):
+    # port: port doesn't exit - > PortNotFound
+    # port: { "fixed_ips": [{}] } -> creates ip on network
+    # port: { "fixed_ips": [{"ip_id": uuid}]} -> doesn't exist fails
+    # -> does exist succeeds and associates
+    # port : " " "ip": address -> bad ip address fails
+    # -> bad ip (no subnet) fails
+    # -> good ip, good subnet, success
     def test_update_not_implemented(self):
         with self.assertRaises(NotImplementedError):
             self.plugin.update_port(self.context, 1, {})
