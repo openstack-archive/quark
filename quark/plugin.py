@@ -509,6 +509,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         port = port["port"]
         if "fixed_ips" in port and port["fixed_ips"]:
             for ip in port["fixed_ips"]:
+                address = None
                 if ip:
                     if "ip_id" in ip:
                         ip_id = ip["ip_id"]
@@ -539,6 +540,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                         id,
                         self.ipam_reuse_after)
 
+            address["deallocated"] = 0
             port_db["ip_addresses"].extend([address])
         return self._make_port_dict(port_db)
 
