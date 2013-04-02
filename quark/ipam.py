@@ -97,18 +97,19 @@ class QuarkIpam(object):
             context, net_id, ip_address=ip_address, version=version)
 
         # Creating this IP for the first time
+        next_ip = None
         if ip_address:
             next_ip = ip_address
         else:
-            highest_addr = db_api.ip_address_find(
-                context, subnet_id=subnet["id"], order_by="address DESC",
-                scope=db_api.ONE)
-
-            # TODO(mdietz): Need to honor policies here
-            if highest_addr:
-                next_ip = netaddr.IPAddress(int(highest_addr["address"])) + 1
-            else:
-                next_ip = netaddr.IPAddress(int(subnet["first_ip"]))
+            address = True
+            while address:
+                next_ip_int = int(subnet["next_auto_assign_ip"])
+                next_ip = netaddr.IPAddress(next_ip_int)
+                subnet["next_auto_assign_ip"] = next_ip_int + 1
+                address = db_api.ip_address_find(context,
+                                                 network_id=net_id,
+                                                 scope=db_api.ONE,
+                                                 ip_address=next_ip)
 
         address = db_api.ip_address_create(
             context, address=next_ip, subnet_id=subnet["id"],

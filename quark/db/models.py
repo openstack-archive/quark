@@ -192,6 +192,7 @@ class Subnet(BASEV2, models.HasId, models.HasTenant, IsHazTags):
         ip = netaddr.IPNetwork(val).ipv6()
         self.first_ip = ip.first
         self.last_ip = ip.last
+        self.next_auto_assign_ip = self.first_ip
 
     @cidr.expression
     def cidr(cls):
@@ -200,6 +201,7 @@ class Subnet(BASEV2, models.HasId, models.HasTenant, IsHazTags):
     first_ip = sa.Column(custom_types.INET())
     last_ip = sa.Column(custom_types.INET())
     ip_version = sa.Column(sa.Integer())
+    next_auto_assign_ip = sa.Column(custom_types.INET())
 
     allocated_ips = orm.relationship(IPAddress,
                                      primaryjoin='and_(Subnet.id=='
