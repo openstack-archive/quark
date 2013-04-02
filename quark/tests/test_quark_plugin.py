@@ -729,6 +729,15 @@ class TestQuarkUpdatePort(TestQuarkPlugin):
         with self.assertRaises(exceptions.PortNotFound):
             self.plugin.update_port(self.context, 1, {})
 
+    def test_update_port_fixed_ips_empty_body(self):
+        port = dict(port=dict(network_id=1, tenant_id=self.context.tenant_id,
+                              device_id=2))
+        with self._stubs(port=port, addr=None):
+            with self.assertRaises(exceptions.BadRequest):
+                self.plugin.update_port(self.context, 1, {})
+            with self.assertRaises(exceptions.BadRequest):
+                self.plugin.update_port(self.context, 1, {"port": {}})
+
     def test_update_port_fixed_ips_ip(self):
         new_port_ip = dict(port=dict(fixed_ips=[dict()]))
         port = dict(port=dict(network_id=1, tenant_id=self.context.tenant_id,

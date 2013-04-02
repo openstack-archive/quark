@@ -506,7 +506,10 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         if not port_db:
             raise exceptions.PortNotFound(port_id=id, net_id="")
 
+        if "port" not in port or not port["port"]:
+            raise exceptions.BadRequest()
         port = port["port"]
+
         if "fixed_ips" in port and port["fixed_ips"]:
             for ip in port["fixed_ips"]:
                 address = None
