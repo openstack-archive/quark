@@ -105,11 +105,15 @@ class QuarkIpam(object):
             while address:
                 next_ip_int = int(subnet["next_auto_assign_ip"])
                 next_ip = netaddr.IPAddress(next_ip_int)
-                subnet["next_auto_assign_ip"] = next_ip_int + 1
-                address = db_api.ip_address_find(context,
-                                                 network_id=net_id,
-                                                 scope=db_api.ONE,
-                                                 ip_address=next_ip)
+                if subnet["ip_version"] == 4:
+                    next_ip = next_ip.ipv4()
+                subnet["next_auto_assign_ip"] += 1
+                address = db_api.ip_address_find(
+                    context,
+                    network_id=net_id,
+                    ip_address=next_ip,
+                    tenant_id=context.tenant_id,
+                    scope=db_api.ONE)
 
         address = db_api.ip_address_create(
             context, address=next_ip, subnet_id=subnet["id"],

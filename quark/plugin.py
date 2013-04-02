@@ -526,7 +526,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                         net_address = netaddr.IPAddress(ip_address)
                         address = db_api.ip_address_find(
                             context,
-                            address=net_address,
+                            ip_address=net_address,
+                            network_id=port_db["network_id"],
                             tenant_id=context.tenant_id,
                             scope=db_api.ONE)
                         if not address:
@@ -544,7 +545,15 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                         self.ipam_reuse_after)
 
             address["deallocated"] = 0
-            port_db["ip_addresses"].extend([address])
+
+            already_contained = False
+            for port_address in port_db["ip_addresses"]:
+                if address["id"] == port_address["id"]:
+                    already_contained = True
+                    break
+
+            if not already_contained:
+                port_db["ip_addresses"].append(address)
         return self._make_port_dict(port_db)
 
     def get_port(self, context, id, fields=None):
