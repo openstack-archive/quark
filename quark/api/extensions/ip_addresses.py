@@ -52,7 +52,7 @@ class IpAddressesController(wsgi.Controller):
     def index(self, request):
         context = request.context
         return {"ip_addresses":
-                self._plugin.get_ip_addresses(context)}
+                self._plugin.get_ip_addresses(context, **request.GET)}
 
     def show(self, request, id):
         context = request.context
