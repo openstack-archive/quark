@@ -522,24 +522,23 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                         net_address = netaddr.IPAddress(ip_address)
                         address = db_api.ip_address_find(
                             context,
-                            address=ip_address,
-                            deallocated=False,
+                            address=net_address,
                             tenant_id=context.tenant_id,
                             scope=db_api.ONE)
                         if not address:
                             address = self.ipam_driver.allocate_ip_address(
                                 context,
-                                net_id,
-                                port_id,
+                                port_db["network_id"],
+                                id,
                                 self.ipam_reuse_after,
                                 ip_address=ip_address)
                 else:
                     address = self.ipam_driver.allocate_ip_address(
                         context,
-                        net_id,
-                        port_id,
+                        port_db["network_id"],
+                        id,
                         self.ipam_reuse_after)
-                    
+
             port_db["ip_addresses"].extend([address])
         return self._make_port_dict(port_db)
 
