@@ -666,7 +666,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         LOG.info("create_route for tenant %s" % context.tenant_id)
         route = route["route"]
         subnet_id = route["subnet_id"]
-        subnet = db_api.subnet_find(context, id)
+        subnet = db_api.subnet_find(context, id=id)
         if not subnet:
             raise exceptions.SubnetNotFound(subnet_id=subnet_id)
 

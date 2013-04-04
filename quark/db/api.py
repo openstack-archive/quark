@@ -302,6 +302,7 @@ def route_create(context, **route_dict):
     new_route.update(route_dict)
     new_route["tenant_id"] = context.tenant_id
     context.session.add(new_route)
+    return new_route
 
 
 def route_delete(context, route):
