@@ -501,7 +501,60 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.
         """
-        raise NotImplementedError()
+        LOG.info("update_port %s for tenant %s" % (id, context.tenant_id))
+        port_db = db_api.port_find(context, id=id, scope=db_api.ONE)
+        if not port_db:
+            raise exceptions.PortNotFound(port_id=id, net_id="")
+
+        if "port" not in port or not port["port"]:
+            raise exceptions.BadRequest()
+        port = port["port"]
+
+        if "fixed_ips" in port and port["fixed_ips"]:
+            for ip in port["fixed_ips"]:
+                address = None
+                if ip:
+                    if "ip_id" in ip:
+                        ip_id = ip["ip_id"]
+                        address = db_api.ip_address_find(
+                            context,
+                            id=ip_id,
+                            tenant_id=context.tenant_id,
+                            scope=db_api.ONE)
+                    elif "ip_address" in ip:
+                        ip_address = ip["ip_address"]
+                        net_address = netaddr.IPAddress(ip_address)
+                        address = db_api.ip_address_find(
+                            context,
+                            ip_address=net_address,
+                            network_id=port_db["network_id"],
+                            tenant_id=context.tenant_id,
+                            scope=db_api.ONE)
+                        if not address:
+                            address = self.ipam_driver.allocate_ip_address(
+                                context,
+                                port_db["network_id"],
+                                id,
+                                self.ipam_reuse_after,
+                                ip_address=ip_address)
+                else:
+                    address = self.ipam_driver.allocate_ip_address(
+                        context,
+                        port_db["network_id"],
+                        id,
+                        self.ipam_reuse_after)
+
+            address["deallocated"] = 0
+
+            already_contained = False
+            for port_address in port_db["ip_addresses"]:
+                if address["id"] == port_address["id"]:
+                    already_contained = True
+                    break
+
+            if not already_contained:
+                port_db["ip_addresses"].append(address)
+        return self._make_port_dict(port_db)
 
     def get_port(self, context, id, fields=None):
         """Retrieve a port.
