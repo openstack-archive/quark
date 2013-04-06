@@ -22,11 +22,14 @@ from quark.db import api as db_api
 
 from quark.tests import test_base
 
+from sqlalchemy.orm import configure_mappers
+
 
 class TestDBAPI(test_base.TestBase):
     def setUp(self):
         cfg.CONF.set_override('sql_connection', 'sqlite://', 'DATABASE')
         quantum_db_api.configure_db()
+        configure_mappers()
         self.context = context.get_admin_context()
 
     def test_port_find_ip_address_id(self):
@@ -34,4 +37,11 @@ class TestDBAPI(test_base.TestBase):
         db_api.port_find(self.context, ip_address_id="fake")
         query_obj = self.context.session.query.return_value
         filter_fn = query_obj.options.return_value.filter
+        self.assertEqual(filter_fn.call_count, 1)
+
+    def test_ip_address_find_device_id(self):
+        self.context.session.query = mock.Mock()
+        db_api.ip_address_find(self.context, device_id="foo")
+        query_obj = self.context.session.query.return_value
+        filter_fn = query_obj.filter
         self.assertEqual(filter_fn.call_count, 1)

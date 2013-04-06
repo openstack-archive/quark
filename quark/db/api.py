@@ -47,9 +47,6 @@ def _model_query(context, model, filters, query, fields=None):
     if filters.get("network_id"):
         query = query.filter(model.network_id.in_(filters["network_id"]))
 
-    if filters.get("device_id"):
-        query = query.filter(model.device_id.in_(filters["device_id"]))
-
     if filters.get("mac_address"):
         query = query.filter(model.mac_address.in_(filters["mac_address"]))
 
@@ -115,6 +112,8 @@ def port_find(context, **filters):
     query = context.session.query(models.Port).\
         options(orm.joinedload(models.Port.ip_addresses))
     query = _model_query(context, models.Port, filters, query=query)
+    if filters.get("device_id"):
+        query = query.filter(models.Port.device_id.in_(filters["device_id"]))
     if filters.get("ip_address_id"):
         query = query.filter(models.Port.ip_addresses.any(
             models.IPAddress.id.in_(filters["ip_address_id"])))
@@ -163,6 +162,9 @@ def ip_address_create(context, **address_dict):
 def ip_address_find(context, **filters):
     query = context.session.query(models.IPAddress)
     query = _model_query(context, models.IPAddress, filters, query)
+    if filters.get("device_id"):
+        query = query.filter(models.IPAddress.ports.any(
+            models.Port.device_id.in_(filters["device_id"])))
     return query
 
 
