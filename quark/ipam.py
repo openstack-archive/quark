@@ -107,7 +107,7 @@ class QuarkIpam(object):
                 next_ip = netaddr.IPAddress(next_ip_int)
                 if subnet["ip_version"] == 4:
                     next_ip = next_ip.ipv4()
-                subnet["next_auto_assign_ip"] += 1
+                subnet["next_auto_assign_ip"] = next_ip_int + 1
                 address = db_api.ip_address_find(
                     context,
                     network_id=net_id,
