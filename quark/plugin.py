@@ -215,6 +215,12 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         if not net:
             raise exceptions.NetworkNotFound(net_id=net_id)
 
+        # TODO(mdietz): do something clever with these
+        garbage = ["allocation_pools", "dns_nameservers"]
+        for k in garbage:
+            if k in subnet["subnet"]:
+                subnet["subnet"].pop(k)
+
         new_subnet = db_api.subnet_create(context, **subnet["subnet"])
         subnet_dict = self._make_subnet_dict(new_subnet)
         return subnet_dict
