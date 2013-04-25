@@ -55,8 +55,6 @@ class TestQuarkAPIExtensions(TestQuarkPlugin):
         quark.plugin.append_quark_extensions({})
 
     def test_append_no_extension_path(self):
-        opts = [cfg.StrOpt("api_extensions_path")]
-        quark.plugin.CONF.register_opts(opts)
         quark.plugin.append_quark_extensions(quark.plugin.CONF)
 
 
