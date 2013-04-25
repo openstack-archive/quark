@@ -15,7 +15,6 @@
 
 import mock
 from oslo.config import cfg
-from quantum import context
 from quantum.db import api as quantum_db_api
 
 from quark.db import api as db_api
@@ -27,10 +26,11 @@ from sqlalchemy.orm import configure_mappers
 
 class TestDBAPI(test_base.TestBase):
     def setUp(self):
+        super(TestDBAPI, self).setUp()
+
         cfg.CONF.set_override('sql_connection', 'sqlite://', 'DATABASE')
         quantum_db_api.configure_db()
         configure_mappers()
-        self.context = context.get_admin_context()
 
     def test_port_find_ip_address_id(self):
         self.context.session.query = mock.Mock()

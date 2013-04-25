@@ -15,7 +15,12 @@
 
 import unittest2
 
+from quantum import context
+
 
 class TestBase(unittest2.TestCase):
     '''Class to decide which unit test class to inherit from uniformly.'''
-    pass
+
+    def setUp(self):
+        super(TestBase, self).setUp()
+        self.context = context.Context('fake', 'fake', is_admin=False)

@@ -17,7 +17,6 @@ import contextlib
 import mock
 
 from oslo.config import cfg
-from quantum import context
 from quantum.db import api as db_api
 
 from quark.db import models
@@ -27,13 +26,16 @@ from quark.tests import test_base
 
 class TestNVPDriver(test_base.TestBase):
     def setUp(self):
+        super(TestNVPDriver, self).setUp()
+
         if not hasattr(self, 'driver'):
             self.driver = quark.drivers.nvp_driver.NVPDriver()
+
         cfg.CONF.set_override('sql_connection', 'sqlite://', 'DATABASE')
         self.driver.max_ports_per_switch = 0
         db_api.configure_db()
         models.BASEV2.metadata.create_all(db_api._ENGINE)
-        self.context = context.get_admin_context()
+
         self.lswitch_uuid = "12345678-1234-1234-1234-123456781234"
         self.context.tenant_id = "tid"
         self.lport_uuid = "12345678-0000-0000-0000-123456781234"
