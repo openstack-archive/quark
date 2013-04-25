@@ -20,7 +20,6 @@ import mock
 import netaddr
 from oslo.config import cfg
 from quantum.common import exceptions
-from quantum import context
 from quantum.db import api as db_api
 
 from quark.db import api as quark_db_api
@@ -33,9 +32,10 @@ from quark.tests import test_base
 
 class TestQuarkPlugin(test_base.TestBase):
     def setUp(self):
+        super(TestQuarkPlugin, self).setUp()
+
         cfg.CONF.set_override('sql_connection', 'sqlite://', 'DATABASE')
         db_api.configure_db()
-        self.context = context.get_admin_context()
         self.plugin = quark.plugin.Plugin()
 
     def tearDown(self):

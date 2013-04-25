@@ -17,7 +17,6 @@ import contextlib
 import mock
 from oslo.config import cfg
 from quantum.common import exceptions
-from quantum import context
 from quantum.db import api as quantum_db_api
 
 from quark.db import models
@@ -28,11 +27,12 @@ from quark.tests import test_base
 
 class QuarkIpamBaseTest(test_base.TestBase):
     def setUp(self):
+        super(QuarkIpamBaseTest, self).setUp()
+
         cfg.CONF.set_override('sql_connection', 'sqlite://', 'DATABASE')
         quantum_db_api.configure_db()
         models.BASEV2.metadata.create_all(quantum_db_api._ENGINE)
         self.ipam = quark.ipam.QuarkIpam()
-        self.context = context.get_admin_context()
 
     def tearDown(self):
         quantum_db_api.clear_db()
