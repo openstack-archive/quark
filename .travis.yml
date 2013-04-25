@@ -6,6 +6,5 @@ install:
   - pip install -r requirements.txt -r test-requirements.txt hacking . --use-mirrors
 before_script:
   - "flake8 --show-source --builtins=_ quark"
-  - "wget -O policy.json https://raw.github.com/openstack/quantum/master/etc/policy.json"
 script:
   - nosetests
