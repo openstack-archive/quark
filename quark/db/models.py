@@ -237,12 +237,15 @@ port_ip_association_table = sa.Table(
 class Port(BASEV2, models.HasTenant, models.HasId):
     __tablename__ = "quark_ports"
     id = sa.Column(sa.String(36), primary_key=True)
+    name = sa.Column(sa.String(255))
+    admin_state_up = sa.Column(sa.Boolean(), default=True)
     network_id = sa.Column(sa.String(36), sa.ForeignKey("quark_networks.id"),
                            nullable=False)
 
     backend_key = sa.Column(sa.String(36), nullable=False)
     mac_address = sa.Column(sa.BigInteger())
     device_id = sa.Column(sa.String(255), nullable=False)
+    device_owner = sa.Column(sa.String(255))
 
     @declarative.declared_attr
     def ip_addresses(cls):

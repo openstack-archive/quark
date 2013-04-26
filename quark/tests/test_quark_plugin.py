@@ -1072,6 +1072,59 @@ class TestQuarkCreatePort(TestQuarkPlugin):
 
 class TestQuarkUpdatePort(TestQuarkPlugin):
     @contextlib.contextmanager
+    def _stubs(self, port):
+        port_model = None
+        if port:
+            port_model = models.Port()
+            port_model.update(port)
+        with contextlib.nested(
+            mock.patch("quark.db.api.port_find"),
+            mock.patch("quark.db.api.port_update"),
+            mock.patch("quark.ipam.QuarkIpam.allocate_ip_address")
+        ) as (port_find, port_update, alloc_ip):
+            port_find.return_value = port_model
+            yield port_find, port_update, alloc_ip
+
+    def test_update_port_not_found(self):
+        with self._stubs(port=None):
+            with self.assertRaises(exceptions.PortNotFound):
+                self.plugin.update_port(self.context, 1, {})
+
+    def test_update_port(self):
+        with self._stubs(
+            port=dict(id=1, name="myport")
+        ) as (port_find, port_update, alloc_ip):
+            new_port = dict(port=dict(name="ourport"))
+            self.plugin.update_port(self.context, 1, new_port)
+            self.assertEqual(port_find.call_count, 1)
+            port_update.assert_called_once_with(
+                self.context,
+                port_find(),
+                name="ourport")
+
+    def test_update_port_fixed_ip_bad_request(self):
+        with self._stubs(
+            port=dict(id=1, name="myport")
+        ) as (port_find, port_update, alloc_ip):
+            new_port = dict(port=dict(
+                fixed_ips=[dict(subnet_id=None,
+                                ip_address=None)]))
+            with self.assertRaises(exceptions.BadRequest):
+                self.plugin.update_port(self.context, 1, new_port)
+
+    def test_update_port_fixed_ip(self):
+        with self._stubs(
+            port=dict(id=1, name="myport")
+        ) as (port_find, port_update, alloc_ip):
+            new_port = dict(port=dict(
+                fixed_ips=[dict(subnet_id=1,
+                                ip_address="1.1.1.1")]))
+            self.plugin.update_port(self.context, 1, new_port)
+            self.assertEqual(alloc_ip.call_count, 1)
+
+
+class TestQuarkPostUpdatePort(TestQuarkPlugin):
+    @contextlib.contextmanager
     def _stubs(self, port, addr, addr2=None):
         port_model = None
         addr_model = None
