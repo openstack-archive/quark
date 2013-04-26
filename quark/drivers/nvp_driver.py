@@ -190,7 +190,7 @@ class OptimizedNVPDriver(NVPDriver):
             create_port(context, network_id,
                         port_id, status)
         switch_nvp_id = nvp_port["lswitch"]
-        switch = self._lswitch_select_by_nvp_id(switch_nvp_id)
+        switch = self._lswitch_select_by_nvp_id(context, switch_nvp_id)
         new_port = LSwitchPort(port_id=nvp_port["uuid"],
                                switch_id=switch.id)
         context.session.add(new_port)
@@ -215,7 +215,6 @@ class OptimizedNVPDriver(NVPDriver):
 
     def _lswitch_delete(self, context, lswitch_uuid):
         switch = self._lswitch_select_by_nvp_id(context, lswitch_uuid)
-        print switch
         super(OptimizedNVPDriver, self).\
             _lswitch_delete(context, lswitch_uuid)
         context.session.delete(switch)
