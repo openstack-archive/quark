@@ -16,6 +16,7 @@
 import webob
 
 from quantum.api import extensions
+from quantum.api.v2 import attributes
 from quantum.api.v2 import base
 from quantum.api.v2 import resource
 from quantum.common import exceptions
@@ -41,10 +42,43 @@ class QuarkPortsIPAddressController(wsgi.Controller):
             raise webob.exc.HTTPNotFound()
 
 
+class QuarkPortsUpdateHandler(object):
+    def __init__(self, plugin):
+        self._plugin = plugin
+
+    def handle(self, request, response):
+        xml_deserializer = wsgi.XMLDeserializer(attributes.get_attr_metadata())
+        deserializers = {'application/xml': xml_deserializer,
+                         'application/json': wsgi.JSONDeserializer()}
+        xml_serializer = wsgi.XMLDictSerializer(attributes.get_attr_metadata())
+        serializers = {'application/xml': xml_serializer,
+                       'application/json': wsgi.JSONDictSerializer()}
+        format_types = {'xml': 'application/xml',
+                        'json': 'application/json'}
+
+        path = [part for part in request.path_url.split("/") if part]
+        id = path[-1].split('.')[0]
+
+        content_type = format_types.get(None,
+                                        request.best_match_content_type())
+        deserializer = deserializers.get(content_type)
+        serializer = serializers.get(content_type)
+
+        body = None
+        if request.body:
+            body = deserializer.deserialize(request.body)['body']
+
+        api_response = self._plugin.post_update_port(request.context,
+                                                     id,
+                                                     body)
+        return serializer.serialize(api_response)
+
+
 class Ports_quark(object):
     """Extends ports for quark API purposes.
 
     * Allows for DELETE (disassociation of port) with IP address
+    * Allows for POST with fixed_ip in body to associate additional IPs
     """
 
     @classmethod
@@ -89,6 +123,18 @@ class Ports_quark(object):
             "ip_address",
             quark_ports_ip_address_controller,
             parent)
+        exts.append(extension)
+        return exts
+
+    @classmethod
+    def get_request_extensions(cls):
+        exts = []
+
+        quark_ports_update_handler = QuarkPortsUpdateHandler(
+            manager.QuantumManager.get_plugin())
+        extension = extensions.RequestExtension(
+            "POST", "/ports/:(id)",
+            quark_ports_update_handler.handle)
         exts.append(extension)
 
         return exts

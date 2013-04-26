@@ -724,48 +724,50 @@ class TestQuarkUpdatePort(TestQuarkPlugin):
             ip_find.return_value = addr_model
             yield port_find, alloc_ip, ip_find
 
-    def test_update_port_no_ports(self):
+    def test_post_update_port_no_ports(self):
         with self.assertRaises(exceptions.PortNotFound):
-            self.plugin.update_port(self.context, 1, {})
+            self.plugin.post_update_port(self.context, 1, {})
 
-    def test_update_port_fixed_ips_empty_body(self):
+    def test_post_update_port_fixed_ips_empty_body(self):
         port = dict(port=dict(network_id=1, tenant_id=self.context.tenant_id,
                               device_id=2))
         with self._stubs(port=port, addr=None):
             with self.assertRaises(exceptions.BadRequest):
-                self.plugin.update_port(self.context, 1, {})
+                self.plugin.post_update_port(self.context, 1, {})
             with self.assertRaises(exceptions.BadRequest):
-                self.plugin.update_port(self.context, 1, {"port": {}})
+                self.plugin.post_update_port(self.context, 1, {"port": {}})
 
-    def test_update_port_fixed_ips_ip(self):
+    def test_post_update_port_fixed_ips_ip(self):
         new_port_ip = dict(port=dict(fixed_ips=[dict()]))
         port = dict(port=dict(network_id=1, tenant_id=self.context.tenant_id,
                               device_id=2))
         ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
                   subnet_id=1, network_id=2, version=4, deallocated=True)
         with self._stubs(port=port, addr=ip) as (port_find, alloc_ip, ip_find):
-            response = self.plugin.update_port(self.context, 1, new_port_ip)
+            response = self.plugin.post_update_port(self.context, 1,
+                                                    new_port_ip)
             self.assertEqual(port_find.call_count, 1)
             self.assertEqual(alloc_ip.call_count, 1)
             self.assertEqual(ip_find.call_count, 0)
             self.assertEqual(response["fixed_ips"][0]["ip_address"],
                              "192.168.1.100")
 
-    def test_update_port_fixed_ips_ip_id(self):
+    def test_post_update_port_fixed_ips_ip_id(self):
         new_port_ip = dict(port=dict(fixed_ips=[dict(ip_id=1)]))
         port = dict(port=dict(network_id=1, tenant_id=self.context.tenant_id,
                               device_id=2))
         ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
                   subnet_id=1, network_id=2, version=4, deallocated=True)
         with self._stubs(port=port, addr=ip) as (port_find, alloc_ip, ip_find):
-            response = self.plugin.update_port(self.context, 1, new_port_ip)
+            response = self.plugin.post_update_port(self.context, 1,
+                                                    new_port_ip)
             self.assertEqual(port_find.call_count, 1)
             self.assertEqual(alloc_ip.call_count, 0)
             self.assertEqual(ip_find.call_count, 1)
             self.assertEqual(response["fixed_ips"][0]["ip_address"],
                              "192.168.1.100")
 
-    def test_update_port_fixed_ips_ip_address_exists(self):
+    def test_post_update_port_fixed_ips_ip_address_exists(self):
         new_port_ip = dict(port=dict(fixed_ips=[dict(
             ip_address="192.168.1.100")]))
         port = dict(port=dict(network_id=1, tenant_id=self.context.tenant_id,
@@ -773,14 +775,15 @@ class TestQuarkUpdatePort(TestQuarkPlugin):
         ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
                   subnet_id=1, network_id=2, version=4, deallocated=True)
         with self._stubs(port=port, addr=ip) as (port_find, alloc_ip, ip_find):
-            response = self.plugin.update_port(self.context, 1, new_port_ip)
+            response = self.plugin.post_update_port(self.context, 1,
+                                                    new_port_ip)
             self.assertEqual(port_find.call_count, 1)
             self.assertEqual(alloc_ip.call_count, 0)
             self.assertEqual(ip_find.call_count, 1)
             self.assertEqual(response["fixed_ips"][0]["ip_address"],
                              "192.168.1.100")
 
-    def test_update_port_fixed_ips_ip_address_doesnt_exist(self):
+    def test_post_update_port_fixed_ips_ip_address_doesnt_exist(self):
         new_port_ip = dict(port=dict(fixed_ips=[dict(
             ip_address="192.168.1.101")]))
         port = dict(port=dict(network_id=1, tenant_id=self.context.tenant_id,
@@ -789,7 +792,8 @@ class TestQuarkUpdatePort(TestQuarkPlugin):
                   subnet_id=1, network_id=2, version=4, deallocated=True)
         with self._stubs(port=port, addr=None, addr2=ip) as \
                 (port_find, alloc_ip, ip_find):
-            response = self.plugin.update_port(self.context, 1, new_port_ip)
+            response = self.plugin.post_update_port(self.context, 1,
+                                                    new_port_ip)
             self.assertEqual(port_find.call_count, 1)
             self.assertEqual(alloc_ip.call_count, 1)
             self.assertEqual(ip_find.call_count, 1)

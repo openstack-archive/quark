@@ -505,7 +505,10 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.
         """
-        LOG.info("update_port %s for tenant %s" % (id, context.tenant_id))
+        raise NotImplementedError()
+
+    def post_update_port(self, context, id, port):
+        LOG.info("post_update_port %s for tenant %s" % (id, context.tenant_id))
         port_db = db_api.port_find(context, id=id, scope=db_api.ONE)
         if not port_db:
             raise exceptions.PortNotFound(port_id=id, net_id="")
