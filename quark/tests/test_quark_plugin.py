@@ -54,10 +54,21 @@ class TestQuarkGetSubnetCount(TestQuarkPlugin):
 class TestQuarkAPIExtensions(TestQuarkPlugin):
     """Adds coverage for appending the API extension path."""
     def test_append_quark_extensions(self):
-        quark.plugin.append_quark_extensions({})
+        conf = mock.MagicMock()
+        conf.__contains__.return_value = False
+        quark.plugin.append_quark_extensions(conf)
+        self.assertEqual(conf.set_override.call_count, 0)
 
     def test_append_no_extension_path(self):
-        quark.plugin.append_quark_extensions(quark.plugin.CONF)
+        conf = mock.MagicMock()
+        conf.__contains__.return_value = True
+        with mock.patch("quark.plugin.extensions") as extensions:
+            extensions.__path__ = ["apple", "banana", "carrot"]
+            quark.plugin.append_quark_extensions(conf)
+            conf.__contains__.assert_called_once_with("api_extensions_path")
+            conf.set_override.assert_called_once_with(
+                "api_extensions_path",
+                "apple:banana:carrot")
 
 
 class TestQuarkGetSubnets(TestQuarkPlugin):
