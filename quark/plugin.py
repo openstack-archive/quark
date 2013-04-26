@@ -492,8 +492,6 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             context, addresses=addresses, mac_address=mac["address"],
             backend_key=backend_port["uuid"], **port["port"])
 
-        new_port["mac_address"] = str(netaddr.EUI(new_port["mac_address"],
-                                      dialect=netaddr.mac_unix))
         LOG.debug("Port created %s" % new_port)
         return self._make_port_dict(new_port)
 
