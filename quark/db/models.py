@@ -162,6 +162,12 @@ class Route(BASEV2, models.HasTenant, models.HasId, IsHazTags):
     subnet_id = sa.Column(sa.String(36), sa.ForeignKey("quark_subnets.id"))
 
 
+class DNSNameserver(BASEV2, models.HasTenant, models.HasId, IsHazTags):
+    __tablename__ = "quark_dns_nameservers"
+    ip = sa.Column(custom_types.INET())
+    subnet_id = sa.Column(sa.String(36), sa.ForeignKey("quark_subnets.id"))
+
+
 class Subnet(BASEV2, models.HasId, models.HasTenant, IsHazTags):
     """Upstream model for IPs.
 
@@ -177,6 +183,7 @@ class Subnet(BASEV2, models.HasId, models.HasTenant, IsHazTags):
     for your subnet
     """
     __tablename__ = "quark_subnets"
+    name = sa.Column(sa.String(255))
     network_id = sa.Column(sa.String(36), sa.ForeignKey('quark_networks.id'))
     _cidr = sa.Column(sa.String(64), nullable=False)
 
@@ -210,6 +217,12 @@ class Subnet(BASEV2, models.HasId, models.HasTenant, IsHazTags):
                                      backref="subnet")
     routes = orm.relationship(Route, primaryjoin="Route.subnet_id==Subnet.id",
                               backref='subnet', cascade='delete')
+    enable_dhcp = sa.Column(sa.Boolean(), default=False)
+    dns_nameservers = orm.relationship(
+        DNSNameserver,
+        primaryjoin="DNSNameserver.subnet_id==Subnet.id",
+        backref='subnet',
+        cascade='delete')
 
 
 port_ip_association_table = sa.Table(

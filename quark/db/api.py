@@ -88,6 +88,10 @@ def _model_query(context, model, filters, query, fields=None):
     if filters.get("mac_address_range_id"):
         query = query.filter(model.mac_address_range_id ==
                              filters["mac_address_range_id"])
+
+    if filters.get("cidr"):
+        query = query.filter(model.cidr == filters["cidr"])
+
     return query
 
 
@@ -292,6 +296,12 @@ def subnet_create(context, **subnet_dict):
     return subnet
 
 
+def subnet_update(context, subnet, **kwargs):
+    subnet.update(kwargs)
+    context.session.add(subnet)
+    return subnet
+
+
 @scoped
 def route_find(context, fields=None, **filters):
     query = context.session.query(models.Route)
@@ -307,5 +317,25 @@ def route_create(context, **route_dict):
     return new_route
 
 
+def route_update(context, route, **kwargs):
+    route.update(kwargs)
+    context.session.add(route)
+    return route
+
+
 def route_delete(context, route):
     context.session.delete(route)
+
+
+def dns_create(context, **dns_dict):
+    dns_nameserver = models.DNSNameserver()
+    ip = dns_dict.pop("ip")
+    dns_nameserver.update(dns_dict)
+    dns_nameserver["ip"] = int(ip)
+    dns_nameserver["tenant_id"] = context.tenant_id
+    context.session.add(dns_nameserver)
+    return dns_nameserver
+
+
+def dns_delete(context, dns):
+    context.session.delete(dns)

@@ -26,6 +26,7 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy import event
 from zope import sqlalchemy as zsa
 
+from quantum.api.v2 import attributes
 from quantum.common import exceptions
 from quantum.db import api as quantum_db_api
 from quantum import quantum_plugin_base_v2
@@ -41,6 +42,8 @@ from quark import exceptions as quark_exceptions
 
 LOG = logging.getLogger("quantum.quark")
 CONF = cfg.CONF
+DEFAULT_ROUTE = netaddr.IPNetwork("0.0.0.0/0")
+
 
 quark_opts = [
     cfg.StrOpt('net_driver',
@@ -52,7 +55,7 @@ quark_opts = [
                 help=_("Time in seconds til IP and MAC reuse"
                        "after deallocation.")),
     cfg.StrOpt('net_driver_cfg', default='/etc/quantum/quark.ini',
-               help=_("Path to the config for the net driver"))
+               help=_("Path to the config for the net driver")),
 ]
 
 
@@ -78,7 +81,8 @@ def perhaps_generate_id(target, args, kwargs):
 class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
     # NOTE(mdietz): I hate this
     supported_extension_aliases = ["mac_address_ranges", "routes",
-                                   "ip_addresses", "ports_quark"]
+                                   "ip_addresses", "ports_quark",
+                                   "subnets_quark"]
 
     def _initDBMaker(self):
         # This needs to be called after _ENGINE is configured
@@ -119,23 +123,30 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         return res
 
     def _subnet_dict(self, subnet, fields=None):
-        # TODO(mdietz): this is a hack to get nova to boot. We want to get the
-        #               "default" route out of the database and use that
-        gateway_ip = "0.0.0.0"
+        dns_nameservers = [str(netaddr.IPAddress(dns["ip"]))
+                           for dns in subnet.get("dns_nameservers")]
         return {"id": subnet.get('id'),
-                "name": subnet.get('id'),
+                "name": subnet.get('name'),
                 "tenant_id": subnet.get('tenant_id'),
                 "network_id": subnet.get('network_id'),
                 "ip_version": subnet.get('ip_version'),
-                "allocation_pools": subnet.get("allocation_pools") or [],
-                "dns_nameservers": subnet.get("dns_nameservers") or [],
+                "allocation_pools": [],
+                "dns_nameservers": dns_nameservers or [],
                 "cidr": subnet.get('cidr'),
-                "enable_dhcp": subnet.get('enable_dhcp'),
-                "gateway_ip": gateway_ip}
+                "enable_dhcp": subnet.get('enable_dhcp')}
 
     def _make_subnet_dict(self, subnet, fields=None):
         res = self._subnet_dict(subnet, fields)
         res["routes"] = [self._make_route_dict(r) for r in subnet["routes"]]
+
+        def _host_route(route):
+            return {"destination": route["cidr"],
+                    "nexthop": route["gateway"]}
+        res["host_routes"] = [_host_route(r) for r in subnet["routes"]]
+        for route in subnet["routes"]:
+            if netaddr.IPNetwork(route["cidr"]) == DEFAULT_ROUTE:
+                res["gateway_ip"] = route["gateway"]
+                break
         return res
 
     def _port_dict(self, port, fields=None):
@@ -174,10 +185,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
 
     def _make_subnets_list(self, query, fields=None):
         subnets = []
-        for res in query:
-            subnet_dict = self._subnet_dict(res)
-            subnet_dict["routes"] = [self._make_route_dict(route)
-                                     for route in res.routes]
+        for subnet in query:
+            subnet_dict = self._make_subnet_dict(subnet, fields)
             subnets.append(subnet_dict)
         return subnets
 
@@ -215,14 +224,55 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         if not net:
             raise exceptions.NetworkNotFound(net_id=net_id)
 
-        # TODO(mdietz): do something clever with these
-        garbage = ["allocation_pools", "dns_nameservers"]
-        for k in garbage:
-            if k in subnet["subnet"]:
-                subnet["subnet"].pop(k)
+        s = subnet["subnet"]
 
-        new_subnet = db_api.subnet_create(context, **subnet["subnet"])
+        cidr = netaddr.IPNetwork(s["cidr"])
+        gateway_ip = s.pop("gateway_ip")
+        if gateway_ip is attributes.ATTR_NOT_SPECIFIED:
+            gateway_ip = str(netaddr.IPAddress(cidr.first + 1))
+
+        dns_ips = []
+        if s["dns_nameservers"] is attributes.ATTR_NOT_SPECIFIED:
+            s.pop("dns_nameservers")
+        else:
+            dns_ips = s.pop("dns_nameservers", [])
+
+        routes = []
+        if s.get("host_routes"):
+            if s["host_routes"] is attributes.ATTR_NOT_SPECIFIED:
+                s.pop("host_routes")
+            else:
+                routes = s.pop("host_routes")
+
+        default_route = None
+        for route in routes:
+            if netaddr.IPNetwork(route["destination"]) == DEFAULT_ROUTE:
+                default_route = route
+                break
+        if default_route is None:
+            routes.append(dict(destination=str(DEFAULT_ROUTE),
+                               nexthop=gateway_ip))
+        else:
+            gateway_ip = default_route["nexthop"]
+
+        new_subnet = db_api.subnet_create(context, **s)
         subnet_dict = self._make_subnet_dict(new_subnet)
+
+        for dns_ip in dns_ips:
+            db_api.dns_create(context,
+                              ip=netaddr.IPAddress(dns_ip),
+                              subnet_id=new_subnet["id"])
+            subnet_dict["dns_nameservers"].append(dns_ip)
+
+        for route in routes:
+            db_api.route_create(context,
+                                cidr=route["destination"],
+                                gateway=route["nexthop"],
+                                subnet_id=new_subnet["id"])
+            subnet_dict["host_routes"].append(route)
+
+        subnet_dict["gateway_ip"] = gateway_ip
+
         return subnet_dict
 
     def update_subnet(self, context, id, subnet):
@@ -234,11 +284,72 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             valid keys are those that have a value of True for 'allow_put'
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.
-
-        Raises NotImplemented, as there are no attributes one can safely
-        update on a subnet
         """
-        raise NotImplementedError()
+        LOG.info("update_subnet %s for tenant %s" %
+                 (id, context.tenant_id))
+
+        subnet_db = db_api.subnet_find(context, id=id, scope=db_api.ONE)
+        if not subnet_db:
+            raise exceptions.SubnetNotFound(id=id)
+
+        s = subnet["subnet"]
+
+        dns_ips = s.pop("dns_nameservers", [])
+        routes = s.pop("host_routes", [])
+        gateway_ip = s.pop("gateway_ip", None)
+
+        if gateway_ip:
+            default_route = None
+            for route in routes:
+                if netaddr.IPNetwork(route["destination"]) == DEFAULT_ROUTE:
+                    default_route = route
+                    break
+            if default_route is None:
+                route_model = db_api.route_find(
+                    context,
+                    cidr=str(DEFAULT_ROUTE),
+                    subnet_id=id,
+                    scope=db_api.ONE)
+                if route_model:
+                    db_api.route_update(context,
+                                        route_model,
+                                        gateway=gateway_ip)
+                else:
+                    db_api.route_create(context,
+                                        cidr=str(DEFAULT_ROUTE),
+                                        gateway=gateway_ip,
+                                        subnet_id=id)
+
+        subnet = db_api.subnet_update(context, subnet_db, **s)
+        subnet_dict = self._make_subnet_dict(subnet)
+
+        if dns_ips:
+            dns_models = subnet_db["dns_nameservers"]
+            for dns_model in dns_models:
+                db_api.dns_delete(context, dns_model)
+            subnet_dict["dns_nameservers"] = []
+        for dns_ip in dns_ips:
+            db_api.dns_create(context,
+                              ip=netaddr.IPAddress(dns_ip),
+                              subnet_id=subnet["id"])
+            subnet_dict["dns_nameservers"].append(dns_ip)
+
+        if routes:
+            route_models = subnet_db["routes"]
+            for route_model in route_models:
+                db_api.route_delete(context, route_model)
+            subnet_dict["host_routes"] = []
+            subnet_dict["gateway_ip"] = None
+        for route in routes:
+            db_api.route_create(context,
+                                cidr=route["destination"],
+                                gateway=route["nexthop"],
+                                subnet_id=subnet["id"])
+            if netaddr.IPNetwork(route["destination"]) == DEFAULT_ROUTE:
+                subnet_dict["gateway_ip"] = route["nexthop"]
+            subnet_dict["host_routes"].append(route)
+
+        return subnet_dict
 
     def get_subnet(self, context, id, fields=None):
         """Retrieve a subnet.

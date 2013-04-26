@@ -16,9 +16,11 @@
 import uuid
 
 import contextlib
+import copy
 import mock
 import netaddr
 from oslo.config import cfg
+from quantum.api.v2 import attributes as quantum_attrs
 from quantum.common import exceptions
 from quantum.db import api as db_api
 
@@ -87,12 +89,12 @@ class TestQuarkGetSubnets(TestQuarkPlugin):
 
     def test_subnets_list(self):
         subnet_id = str(uuid.uuid4())
-        route = dict(id=1, cidr="192.168.0.0/24", gateway="192.168.0.1",
+        route = dict(id=1, cidr="0.0.0.0/0", gateway="192.168.0.1",
                      subnet_id=subnet_id)
 
         subnet = dict(id=subnet_id, network_id=1, name=subnet_id,
                       tenant_id=self.context.tenant_id, ip_version=4,
-                      cidr="172.16.0.0/24", gateway_ip="0.0.0.0",
+                      cidr="192.168.0.0/24", gateway_ip="192.168.0.1",
                       allocation_pools=[], dns_nameservers=[],
                       enable_dhcp=True)
 
@@ -108,12 +110,12 @@ class TestQuarkGetSubnets(TestQuarkPlugin):
 
     def test_subnet_show(self):
         subnet_id = str(uuid.uuid4())
-        route = dict(id=1, cidr="192.168.0.0/24", gateway="192.168.0.1",
+        route = dict(id=1, cidr="0.0.0.0/0", gateway="192.168.0.1",
                      subnet_id=subnet_id)
 
         subnet = dict(id=subnet_id, network_id=1, name=subnet_id,
                       tenant_id=self.context.tenant_id, ip_version=4,
-                      cidr="172.16.0.0/24", gateway_ip="0.0.0.0",
+                      cidr="192.168.0.0/24", gateway_ip="192.168.0.1",
                       allocation_pools=[], dns_nameservers=[],
                       enable_dhcp=True)
 
@@ -128,31 +130,58 @@ class TestQuarkGetSubnets(TestQuarkPlugin):
                 self.assertEqual(routes[0][key], route[key])
 
 
+# TODO(amir): Refactor the tests to test individual subnet attributes.
+# * copy.deepcopy was necessary to maintain tests on keys, which is a bit ugly.
+# * workaround is also in place for lame ATTR_NOT_SPECIFIED object()
 class TestQuarkCreateSubnet(TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, subnet=None, network=None):
         subnet_mod = models.Subnet()
+        dns_ips = subnet.pop("dns_nameservers", [])
+        host_routes = subnet.pop("host_routes", [])
         subnet_mod.update(subnet)
+        subnet["dns_nameservers"] = dns_ips
+        subnet["host_routes"] = host_routes
         with contextlib.nested(
             mock.patch("quark.db.api.subnet_create"),
             mock.patch("quark.db.api.network_find"),
-        ) as (subnet_create, net_find):
+            mock.patch("quark.db.api.dns_create"),
+            mock.patch("quark.db.api.route_create"),
+        ) as (subnet_create, net_find, dns_create, route_create):
             subnet_create.return_value = subnet_mod
             net_find.return_value = network
-            yield
+            yield subnet_create, dns_create, route_create
 
     def test_create_subnet(self):
         subnet = dict(
             subnet=dict(network_id=1,
                         tenant_id=self.context.tenant_id, ip_version=4,
                         cidr="172.16.0.0/24", gateway_ip="0.0.0.0",
-                        allocation_pools=[], dns_nameservers=[],
+                        allocation_pools=[],
+                        dns_nameservers=quantum_attrs.ATTR_NOT_SPECIFIED,
+                        host_routes=quantum_attrs.ATTR_NOT_SPECIFIED,
                         enable_dhcp=None))
         network = dict(network_id=1)
-        with self._stubs(subnet=subnet["subnet"], network=network):
-            res = self.plugin.create_subnet(self.context, subnet)
+        with self._stubs(
+            subnet=subnet["subnet"],
+            network=network
+        ) as (subnet_create, dns_create, route_create):
+            dns_nameservers = subnet["subnet"].pop("dns_nameservers")
+            host_routes = subnet["subnet"].pop("host_routes")
+            subnet_request = copy.deepcopy(subnet)
+            subnet_request["subnet"]["dns_nameservers"] = dns_nameservers
+            subnet_request["subnet"]["host_routes"] = host_routes
+            res = self.plugin.create_subnet(self.context,
+                                            subnet_request)
+            self.assertEqual(subnet_create.call_count, 1)
+            self.assertEqual(dns_create.call_count, 0)
+            self.assertEqual(route_create.call_count, 1)
             for key in subnet["subnet"].keys():
-                self.assertEqual(res[key], subnet["subnet"][key])
+                if key == "host_routes":
+                    self.assertEqual(res[key][0]["destination"], "0.0.0.0/0")
+                    self.assertEqual(res[key][0]["nexthop"], "0.0.0.0")
+                else:
+                    self.assertEqual(res[key], subnet["subnet"][key])
 
     def test_create_subnet_no_network_fails(self):
         subnet = dict(subnet=dict(network_id=1))
@@ -160,11 +189,342 @@ class TestQuarkCreateSubnet(TestQuarkPlugin):
             with self.assertRaises(exceptions.NetworkNotFound):
                 self.plugin.create_subnet(self.context, subnet)
 
+    def test_create_subnet_no_gateway_ip_defaults(self):
+        subnet = dict(
+            subnet=dict(network_id=1,
+                        tenant_id=self.context.tenant_id, ip_version=4,
+                        cidr="172.16.0.0/24",
+                        gateway_ip=quantum_attrs.ATTR_NOT_SPECIFIED,
+                        allocation_pools=[],
+                        dns_nameservers=quantum_attrs.ATTR_NOT_SPECIFIED,
+                        enable_dhcp=None))
+        network = dict(network_id=1)
+        with self._stubs(
+            subnet=subnet["subnet"],
+            network=network
+        ) as (subnet_create, dns_create, route_create):
+            dns_nameservers = subnet["subnet"].pop("dns_nameservers")
+            gateway_ip = subnet["subnet"].pop("gateway_ip")
+            subnet_request = copy.deepcopy(subnet)
+            subnet_request["subnet"]["dns_nameservers"] = dns_nameservers
+            subnet_request["subnet"]["gateway_ip"] = gateway_ip
+            res = self.plugin.create_subnet(self.context, subnet_request)
+            self.assertEqual(subnet_create.call_count, 1)
+            self.assertEqual(dns_create.call_count, 0)
+            self.assertEqual(route_create.call_count, 1)
+            for key in subnet["subnet"].keys():
+                if key == "gateway_ip":
+                    self.assertEqual(res[key], "172.16.0.1")
+                elif key == "host_routes":
+                    self.assertEqual(res[key][0]["destination"], "0.0.0.0/0")
+                    self.assertEqual(res[key][0]["nexthop"], "172.16.0.1")
+                else:
+                    self.assertEqual(res[key], subnet["subnet"][key])
+
+    def test_create_subnet_dns_nameservers(self):
+        subnet = dict(
+            subnet=dict(network_id=1,
+                        tenant_id=self.context.tenant_id, ip_version=4,
+                        cidr="172.16.0.0/24", gateway_ip="0.0.0.0",
+                        allocation_pools=[],
+                        dns_nameservers=["4.2.2.1", "4.2.2.2"],
+                        enable_dhcp=None))
+        network = dict(network_id=1)
+        with self._stubs(
+            subnet=subnet["subnet"],
+            network=network
+        ) as (subnet_create, dns_create, route_create):
+            res = self.plugin.create_subnet(self.context,
+                                            copy.deepcopy(subnet))
+            self.assertEqual(subnet_create.call_count, 1)
+            self.assertEqual(dns_create.call_count, 2)
+            self.assertEqual(route_create.call_count, 1)
+            for key in subnet["subnet"].keys():
+                if key == "host_routes":
+                    self.assertEqual(res[key][0]["destination"], "0.0.0.0/0")
+                    self.assertEqual(res[key][0]["nexthop"], "0.0.0.0")
+                else:
+                    self.assertEqual(res[key], subnet["subnet"][key])
+
+    def test_create_subnet_routes(self):
+        subnet = dict(
+            subnet=dict(network_id=1,
+                        tenant_id=self.context.tenant_id, ip_version=4,
+                        cidr="172.16.0.0/24", gateway_ip="0.0.0.0",
+                        allocation_pools=[],
+                        dns_nameservers=quantum_attrs.ATTR_NOT_SPECIFIED,
+                        host_routes=[{"destination": "1.1.1.1/8",
+                                      "nexthop": "172.16.0.4"}],
+                        enable_dhcp=None))
+        network = dict(network_id=1)
+        with self._stubs(
+            subnet=subnet["subnet"],
+            network=network
+        ) as (subnet_create, dns_create, route_create):
+            dns_nameservers = subnet["subnet"].pop("dns_nameservers")
+            subnet_request = copy.deepcopy(subnet)
+            subnet_request["subnet"]["dns_nameservers"] = dns_nameservers
+            res = self.plugin.create_subnet(self.context, subnet_request)
+            self.assertEqual(subnet_create.call_count, 1)
+            self.assertEqual(dns_create.call_count, 0)
+            self.assertEqual(route_create.call_count, 2)
+            for key in subnet["subnet"].keys():
+                if key == "host_routes":
+                    res_tuples = [(r["destination"], r["nexthop"])
+                                  for r in res[key]]
+                    self.assertIn(("1.1.1.1/8", "172.16.0.4"), res_tuples)
+                    self.assertIn(("0.0.0.0/0", "0.0.0.0"), res_tuples)
+                    self.assertEqual(2, len(res_tuples))
+                else:
+                    self.assertEqual(res[key], subnet["subnet"][key])
+
+    def test_create_subnet_default_route(self):
+        subnet = dict(
+            subnet=dict(network_id=1,
+                        tenant_id=self.context.tenant_id, ip_version=4,
+                        cidr="172.16.0.0/24",
+                        gateway_ip=quantum_attrs.ATTR_NOT_SPECIFIED,
+                        allocation_pools=[],
+                        dns_nameservers=quantum_attrs.ATTR_NOT_SPECIFIED,
+                        host_routes=[{"destination": "0.0.0.0/0",
+                                      "nexthop": "172.16.0.4"}],
+                        enable_dhcp=None))
+        network = dict(network_id=1)
+        with self._stubs(
+            subnet=subnet["subnet"],
+            network=network
+        ) as (subnet_create, dns_create, route_create):
+            dns_nameservers = subnet["subnet"].pop("dns_nameservers")
+            gateway_ip = subnet["subnet"].pop("gateway_ip")
+            subnet_request = copy.deepcopy(subnet)
+            subnet_request["subnet"]["dns_nameservers"] = dns_nameservers
+            subnet_request["subnet"]["gateway_ip"] = gateway_ip
+            res = self.plugin.create_subnet(self.context, subnet_request)
+            self.assertEqual(subnet_create.call_count, 1)
+            self.assertEqual(dns_create.call_count, 0)
+            self.assertEqual(route_create.call_count, 1)
+            for key in subnet["subnet"].keys():
+                if key == "host_routes":
+                    res_tuples = [(r["destination"], r["nexthop"])
+                                  for r in res[key]]
+                    self.assertEqual([("0.0.0.0/0", "172.16.0.4")], res_tuples)
+                elif key == "gateway_ip":
+                    self.assertEqual(res[key], "172.16.0.4")
+                else:
+                    self.assertEqual(res[key], subnet["subnet"][key])
+
+    def test_create_subnet_default_route_gateway_ip(self):
+        """If default route (host_routes) and gateway_ip are both provided,
+        then host_route takes precedence.
+        """
+        subnet = dict(
+            subnet=dict(network_id=1,
+                        tenant_id=self.context.tenant_id, ip_version=4,
+                        cidr="172.16.0.0/24",
+                        gateway_ip="172.16.0.3",
+                        allocation_pools=[],
+                        dns_nameservers=quantum_attrs.ATTR_NOT_SPECIFIED,
+                        host_routes=[{"destination": "0.0.0.0/0",
+                                      "nexthop": "172.16.0.4"}],
+                        enable_dhcp=None))
+        network = dict(network_id=1)
+        with self._stubs(
+            subnet=subnet["subnet"],
+            network=network
+        ) as (subnet_create, dns_create, route_create):
+            dns_nameservers = subnet["subnet"].pop("dns_nameservers")
+            subnet_request = copy.deepcopy(subnet)
+            subnet_request["subnet"]["dns_nameservers"] = dns_nameservers
+            res = self.plugin.create_subnet(self.context, subnet_request)
+            self.assertEqual(subnet_create.call_count, 1)
+            self.assertEqual(dns_create.call_count, 0)
+            self.assertEqual(route_create.call_count, 1)
+            for key in subnet["subnet"].keys():
+                if key == "host_routes":
+                    res_tuples = [(r["destination"], r["nexthop"])
+                                  for r in res[key]]
+                    self.assertEqual([("0.0.0.0/0", "172.16.0.4")], res_tuples)
+                elif key == "gateway_ip":
+                    self.assertEqual(res[key], "172.16.0.4")
+                else:
+                    self.assertEqual(res[key], subnet["subnet"][key])
+
 
 class TestQuarkUpdateSubnet(TestQuarkPlugin):
-    def test_update_not_implemented(self):
-        with self.assertRaises(NotImplementedError):
+    @contextlib.contextmanager
+    def _stubs(self, host_routes=[], new_routes=None, find_routes=True):
+        if host_routes is None:
+            host_routes = []
+        elif not host_routes:
+            host_routes = [dict(destination="0.0.0.0/0",
+                                nexthop="172.16.0.1")]
+        if new_routes:
+            new_routes = [models.Route(cidr=r["destination"],
+                                       gateway=r["nexthop"],
+                                       subnet_id=1)
+                          for r in new_routes]
+
+        subnet = dict(
+            id=1,
+            network_id=1,
+            tenant_id=self.context.tenant_id, ip_version=4,
+            cidr="172.16.0.0/24",
+            allocation_pools=[],
+            host_routes=host_routes,
+            dns_nameservers=["4.2.2.1", "4.2.2.2"],
+            enable_dhcp=None)
+
+        dns_ips = subnet.pop("dns_nameservers", [])
+        host_routes = subnet.pop("host_routes", [])
+        subnet_mod = models.Subnet()
+
+        subnet_mod.update(subnet)
+
+        subnet_mod["dns_nameservers"] = [models.DNSNameserver(ip=ip)
+                                         for ip in dns_ips]
+        subnet_mod["routes"] = [models.Route(cidr=r["destination"],
+                                             gateway=r["nexthop"],
+                                             subnet_id=subnet_mod["id"])
+                                for r in host_routes]
+        with contextlib.nested(
+            mock.patch("quark.db.api.subnet_find"),
+            mock.patch("quark.db.api.subnet_update"),
+            mock.patch("quark.db.api.dns_delete"),
+            mock.patch("quark.db.api.dns_create"),
+            mock.patch("quark.db.api.route_find"),
+            mock.patch("quark.db.api.route_update"),
+            mock.patch("quark.db.api.route_delete"),
+            mock.patch("quark.db.api.route_create"),
+        ) as (subnet_find, subnet_update,
+              dns_delete, dns_create,
+              route_find, route_update, route_delete, route_create):
+            subnet_find.return_value = subnet_mod
+            route_find.return_value = subnet_mod["routes"][0] \
+                if subnet_mod["routes"] and find_routes else None
+            new_subnet_mod = copy.deepcopy(subnet_mod)
+            if new_routes:
+                new_subnet_mod["routes"] = new_routes
+            subnet_update.return_value = new_subnet_mod
+            yield dns_delete, dns_create, \
+                route_update, route_delete, route_create
+
+    def test_update_subnet_not_found(self):
+        with self.assertRaises(exceptions.SubnetNotFound):
             self.plugin.update_subnet(self.context, 1, {})
+
+    def test_update_subnet_dns_nameservers(self):
+        with self._stubs(
+        ) as (dns_delete, dns_create,
+              route_update, route_delete, route_create):
+            req = dict(subnet=dict(dns_nameservers=["1.1.1.2"]))
+            res = self.plugin.update_subnet(self.context,
+                                            1,
+                                            req)
+            self.assertEqual(dns_delete.call_count, 2)
+            self.assertEqual(dns_create.call_count, 1)
+            self.assertEqual(route_delete.call_count, 0)
+            self.assertEqual(route_create.call_count, 0)
+            self.assertEqual(res["dns_nameservers"], ["1.1.1.2"])
+
+    def test_update_subnet_routes(self):
+        with self._stubs(
+        ) as (dns_delete, dns_create,
+              route_update, route_delete, route_create):
+            req = dict(subnet=dict(
+                host_routes=[dict(destination="10.0.0.0/24",
+                                  nexthop="1.1.1.1")]))
+            res = self.plugin.update_subnet(self.context, 1, req)
+            self.assertEqual(dns_delete.call_count, 0)
+            self.assertEqual(dns_create.call_count, 0)
+            self.assertEqual(route_delete.call_count, 1)
+            self.assertEqual(route_create.call_count, 1)
+            self.assertEqual(len(res["host_routes"]), 1)
+            self.assertEqual(res["host_routes"][0]["destination"],
+                             "10.0.0.0/24")
+            self.assertEqual(res["host_routes"][0]["nexthop"],
+                             "1.1.1.1")
+            self.assertIsNone(res["gateway_ip"])
+
+    def test_update_subnet_gateway_ip_with_default_route_in_db(self):
+        with self._stubs(
+            new_routes=[dict(destination="0.0.0.0/0", nexthop="1.2.3.4")]
+        ) as (dns_delete, dns_create,
+              route_update, route_delete, route_create):
+            req = dict(subnet=dict(gateway_ip="1.2.3.4"))
+            res = self.plugin.update_subnet(self.context, 1, req)
+            self.assertEqual(dns_delete.call_count, 0)
+            self.assertEqual(dns_create.call_count, 0)
+            self.assertEqual(route_delete.call_count, 0)
+            self.assertEqual(route_create.call_count, 0)
+            self.assertEqual(route_update.call_count, 1)
+            self.assertEqual(len(res["host_routes"]), 1)
+            self.assertEqual(res["host_routes"][0]["destination"],
+                             "0.0.0.0/0")
+            self.assertEqual(res["host_routes"][0]["nexthop"],
+                             "1.2.3.4")
+            self.assertEqual(res["gateway_ip"], "1.2.3.4")
+
+    def test_update_subnet_gateway_ip_with_non_default_route_in_db(self):
+        with self._stubs(
+            host_routes=[dict(destination="1.1.1.1/8", nexthop="9.9.9.9")],
+            find_routes=False,
+            new_routes=[dict(destination="1.1.1.1/8", nexthop="9.9.9.9"),
+                        dict(destination="0.0.0.0/0", nexthop="1.2.3.4")]
+        ) as (dns_delete, dns_create,
+              route_update, route_delete, route_create):
+            req = dict(subnet=dict(gateway_ip="1.2.3.4"))
+            res = self.plugin.update_subnet(self.context, 1, req)
+            self.assertEqual(dns_delete.call_count, 0)
+            self.assertEqual(dns_create.call_count, 0)
+            self.assertEqual(route_delete.call_count, 0)
+            self.assertEqual(route_create.call_count, 1)
+
+            self.assertEqual(res["gateway_ip"], "1.2.3.4")
+
+            self.assertEqual(len(res["host_routes"]), 2)
+            res_tuples = [(r["destination"], r["nexthop"])
+                          for r in res["host_routes"]]
+            self.assertIn(("0.0.0.0/0", "1.2.3.4"), res_tuples)
+            self.assertIn(("1.1.1.1/8", "9.9.9.9"), res_tuples)
+
+    def test_update_subnet_gateway_ip_without_default_route_in_db(self):
+        with self._stubs(
+            host_routes=None,
+            new_routes=[dict(destination="0.0.0.0/0", nexthop="1.2.3.4")]
+        ) as (dns_delete, dns_create,
+              route_update, route_delete, route_create):
+            req = dict(subnet=dict(gateway_ip="1.2.3.4"))
+            res = self.plugin.update_subnet(self.context, 1, req)
+            self.assertEqual(dns_delete.call_count, 0)
+            self.assertEqual(dns_create.call_count, 0)
+            self.assertEqual(route_delete.call_count, 0)
+            self.assertEqual(route_create.call_count, 1)
+            self.assertEqual(len(res["host_routes"]), 1)
+            self.assertEqual(res["host_routes"][0]["destination"],
+                             "0.0.0.0/0")
+            self.assertEqual(res["host_routes"][0]["nexthop"],
+                             "1.2.3.4")
+            self.assertEqual(res["gateway_ip"], "1.2.3.4")
+
+    def test_update_subnet_gateway_ip_with_default_route_in_args(self):
+        with self._stubs(
+        ) as (dns_delete, dns_create,
+              route_update, route_delete, route_create):
+            req = dict(subnet=dict(
+                host_routes=[dict(destination="0.0.0.0/0",
+                                  nexthop="4.3.2.1")],
+                gateway_ip="1.2.3.4"))
+            res = self.plugin.update_subnet(self.context, 1, req)
+            self.assertEqual(dns_delete.call_count, 0)
+            self.assertEqual(dns_create.call_count, 0)
+            self.assertEqual(route_delete.call_count, 1)
+            self.assertEqual(route_create.call_count, 1)
+            self.assertEqual(len(res["host_routes"]), 1)
+            self.assertEqual(res["host_routes"][0]["destination"],
+                             "0.0.0.0/0")
+            self.assertEqual(res["host_routes"][0]["nexthop"],
+                             "4.3.2.1")
+            self.assertEqual(res["gateway_ip"], "4.3.2.1")
 
 
 class TestQuarkDeleteSubnet(TestQuarkPlugin):
