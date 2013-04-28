@@ -266,6 +266,13 @@ class OptimizedNVPDriver(NVPDriver):
         return switches
 
 
+class QOS(models.BASEV2, models.HasId):
+    __tablename__ = "quark_nvp_driver_qos"
+    display_name = sa.Column(sa.String(255), nullable=False)
+    max_bandwidth_rate = sa.Column(sa.Integer(), nullable=False)
+    min_baddwidth_rate = sa.Column(sa.Integer(), nullable=False)
+
+
 class LSwitchPort(models.BASEV2, models.HasId):
     __tablename__ = "quark_nvp_driver_lswitchport"
     port_id = sa.Column(sa.String(255), nullable=False)
