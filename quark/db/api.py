@@ -140,6 +140,14 @@ def port_create(context, **port_dict):
     return port
 
 
+def port_update(context, port, **kwargs):
+    if "addresses" in kwargs:
+        port["ip_addresses"] = kwargs.pop("addresses")
+    port.update(kwargs)
+    context.session.add(port)
+    return port
+
+
 def port_delete(context, port):
     context.session.delete(port)
 

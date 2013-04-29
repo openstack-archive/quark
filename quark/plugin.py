@@ -151,7 +151,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
 
     def _port_dict(self, port, fields=None):
         res = {"id": port.get("id"),
-               "name": port.get('id'),
+               "name": port.get("name"),
                "network_id": port.get("network_id"),
                "tenant_id": port.get('tenant_id'),
                "mac_address": port.get("mac_address"),
@@ -576,7 +576,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         LOG.info("create_port for tenant %s" % context.tenant_id)
 
         #TODO(mdietz): do something clever with these
-        garbage = ["fixed_ips", "mac_address", "device_owner"]
+        garbage = ["fixed_ips", "mac_address"]
         for k in garbage:
             if k in port["port"]:
                 port["port"].pop(k)
@@ -616,7 +616,32 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
             quantum/api/v2/attributes.py.
         """
-        raise NotImplementedError()
+        LOG.info("update_port %s for tenant %s" % (id, context.tenant_id))
+        port_db = db_api.port_find(context, id=id, scope=db_api.ONE)
+        if not port_db:
+            raise exceptions.PortNotFound(port_id=id)
+
+        fixed_ips = port["port"].pop("fixed_ips", None)
+        if fixed_ips:
+            addresses = []
+            for fixed_ip in fixed_ips:
+                subnet_id = fixed_ip.get("subnet_id")
+                ip_address = fixed_ip.get("ip_address")
+                if not (subnet_id and ip_address):
+                    raise exceptions.BadRequest(
+                        resource="fixed_ips",
+                        msg="subnet_id and ip_address required")
+                # Note: we don't allow overlapping subnets, thus subnet_id is
+                #       ignored.
+                addresses.append(self.ipam_driver.allocate_ip_address(
+                    context, port_db["network_id"], id,
+                    self.ipam_reuse_after, ip_address=ip_address))
+            port["port"]["addresses"] = addresses
+
+        port = db_api.port_update(context,
+                                  port_db,
+                                  **port["port"])
+        return self._make_port_dict(port)
 
     def post_update_port(self, context, id, port):
         LOG.info("post_update_port %s for tenant %s" % (id, context.tenant_id))
