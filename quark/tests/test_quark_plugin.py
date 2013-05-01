@@ -1062,6 +1062,68 @@ class TestQuarkCreatePort(TestQuarkPlugin):
             for key in expected.keys():
                 self.assertEqual(result[key], expected[key])
 
+    def test_create_port_mac_address_not_specified(self):
+        network = dict(id=1)
+        mac = dict(address="aa:bb:cc:dd:ee:ff")
+        ip = dict()
+        port = dict(port=dict(mac_address=mac["address"], network_id=1,
+                              tenant_id=self.context.tenant_id, device_id=2))
+        expected = {'status': None,
+                    'device_owner': None,
+                    'mac_address': mac["address"],
+                    'network_id': network["id"],
+                    'tenant_id': self.context.tenant_id,
+                    'admin_state_up': None,
+                    'fixed_ips': [],
+                    'device_id': 2}
+        with self._stubs(port=port["port"], network=network, addr=ip,
+                         mac=mac) as port_create:
+            port["port"]["mac_address"] = quantum_attrs.ATTR_NOT_SPECIFIED
+            result = self.plugin.create_port(self.context, port)
+            self.assertTrue(port_create.called)
+            for key in expected.keys():
+                self.assertEqual(result[key], expected[key])
+
+    def test_create_port_fixed_ips(self):
+        network = dict(id=1)
+        mac = dict(address="aa:bb:cc:dd:ee:ff")
+        ip = mock.MagicMock()
+        ip.get = lambda x: 1 if x == "subnet_id" else None
+        ip.formatted = lambda: "192.168.10.45"
+        fixed_ips = [dict(subnet_id=1, ip_address="192.168.10.45")]
+        port = dict(port=dict(mac_address=mac["address"], network_id=1,
+                              tenant_id=self.context.tenant_id, device_id=2,
+                              fixed_ips=fixed_ips, ip_addresses=[ip]))
+        expected = {'status': None,
+                    'device_owner': None,
+                    'mac_address': mac["address"],
+                    'network_id': network["id"],
+                    'tenant_id': self.context.tenant_id,
+                    'admin_state_up': None,
+                    'fixed_ips': fixed_ips,
+                    'device_id': 2}
+        with self._stubs(port=port["port"], network=network, addr=ip,
+                         mac=mac) as port_create:
+            result = self.plugin.create_port(self.context, port)
+            self.assertTrue(port_create.called)
+            for key in expected.keys():
+                self.assertEqual(result[key], expected[key])
+
+    def test_create_port_fixed_ips_bad_request(self):
+        network = dict(id=1)
+        mac = dict(address="aa:bb:cc:dd:ee:ff")
+        ip = mock.MagicMock()
+        ip.get = lambda x: 1 if x == "subnet_id" else None
+        ip.formatted = lambda: "192.168.10.45"
+        fixed_ips = [dict()]
+        port = dict(port=dict(mac_address=mac["address"], network_id=1,
+                              tenant_id=self.context.tenant_id, device_id=2,
+                              fixed_ips=fixed_ips, ip_addresses=[ip]))
+        with self._stubs(port=port["port"], network=network, addr=ip,
+                         mac=mac):
+            with self.assertRaises(exceptions.BadRequest):
+                self.plugin.create_port(self.context, port)
+
     def test_create_port_no_network_found(self):
         port = dict(port=dict(network_id=1, tenant_id=self.context.tenant_id,
                               device_id=2))

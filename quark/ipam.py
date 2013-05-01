@@ -47,35 +47,39 @@ class QuarkIpam(object):
 
         raise exceptions.IpAddressGenerationFailure(net_id=net_id)
 
-    def allocate_mac_address(self, context, net_id, port_id, reuse_after):
+    def allocate_mac_address(self, context, net_id, port_id, reuse_after,
+                             mac_address=None):
+        if mac_address:
+            mac_address = netaddr.EUI(mac_address).value
 
         deallocated_mac = db_api.mac_address_find(
-            context, reuse_after=reuse_after, scope=db_api.ONE)
-
+            context, reuse_after=reuse_after, scope=db_api.ONE,
+            address=mac_address)
         if deallocated_mac:
-            deallocated_mac = db_api.mac_address_update(
+            return db_api.mac_address_update(
                 context, deallocated_mac, deallocated=False,
                 deallocated_at=None)
-            return deallocated_mac
 
-        ranges = db_api.mac_address_range_find_allocation_counts(context)
-
+        ranges = db_api.mac_address_range_find_allocation_counts(
+            context, address=mac_address)
         for result in ranges:
             rng, addr_count = result
             if rng["last_address"] - rng["first_address"] <= addr_count:
                 continue
-            highest_mac = db_api.mac_address_find(
-                context, range_id=rng["id"], order_by="address DESC",
-                scope=db_api.ONE)
 
-            address = None
-            if highest_mac:
-                next_mac = netaddr.EUI(highest_mac["address"]).value
-                address = next_mac + 1
+            next_address = None
+            if mac_address:
+                next_address = mac_address
             else:
-                address = rng["first_address"]
+                address = True
+                while address:
+                    next_address = rng["next_auto_assign_mac"]
+                    rng["next_auto_assign_mac"] = next_address + 1
+                    address = db_api.mac_address_find(
+                        context, tenant_id=context.tenant_id,
+                        scope=db_api.ONE, address=next_address)
 
-            address = db_api.mac_address_create(context, address=address,
+            address = db_api.mac_address_create(context, address=next_address,
                                                 mac_address_range_id=rng["id"])
             return address
 
