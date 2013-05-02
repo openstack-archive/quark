@@ -26,8 +26,8 @@ from quantum import wsgi
 RESOURCE_NAME = "port"
 RESOURCE_COLLECTION = RESOURCE_NAME + "s"
 EXTENDED_ATTRIBUTES_2_0 = {
-    RESOURCE_COLLECTION: {}
-}
+    RESOURCE_COLLECTION: {
+        "segment_id": {"allow_post": True, "default": False}}}
 
 
 class QuarkPortsIPAddressController(wsgi.Controller):

@@ -87,18 +87,19 @@ class QuarkIpam(object):
 
     def allocate_ip_address(self, context, net_id, port_id, reuse_after,
                             version=None, ip_address=None):
+        elevated = context.elevated()
         if ip_address:
             ip_address = netaddr.IPAddress(ip_address)
 
         address = db_api.ip_address_find(
-            context, network_id=net_id, reuse_after=reuse_after,
+            elevated, network_id=net_id, reuse_after=reuse_after,
             deallocated=True, scope=db_api.ONE, ip_address=ip_address)
         if address:
             return db_api.ip_address_update(
-                context, address, deallocated=False, deallocated_at=None)
+                elevated, address, deallocated=False, deallocated_at=None)
 
         subnet = self._choose_available_subnet(
-            context, net_id, ip_address=ip_address, version=version)
+            elevated, net_id, ip_address=ip_address, version=version)
 
         # Creating this IP for the first time
         next_ip = None
@@ -113,14 +114,14 @@ class QuarkIpam(object):
                     next_ip = next_ip.ipv4()
                 subnet["next_auto_assign_ip"] = next_ip_int + 1
                 address = db_api.ip_address_find(
-                    context,
+                    elevated,
                     network_id=net_id,
                     ip_address=next_ip,
-                    tenant_id=context.tenant_id,
+                    tenant_id=elevated.tenant_id,
                     scope=db_api.ONE)
 
         address = db_api.ip_address_create(
-            context, address=next_ip, subnet_id=subnet["id"],
+            elevated, address=next_ip, subnet_id=subnet["id"],
             version=subnet["ip_version"], network_id=net_id)
 
         return address
@@ -141,4 +142,4 @@ class QuarkIpam(object):
             raise exceptions.NotFound(
                 message="No MAC address %s found" % netaddr.EUI(address))
         db_api.mac_address_update(context, mac, deallocated=True,
-                                  dellocated_at=timeutils.utcnow())
+                                  deallocated_at=timeutils.utcnow())

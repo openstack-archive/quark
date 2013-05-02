@@ -39,6 +39,7 @@ from quark.api import extensions
 from quark.db import api as db_api
 from quark.db import models
 from quark import exceptions as quark_exceptions
+from quark import network_strategy
 
 LOG = logging.getLogger("quantum.quark")
 CONF = cfg.CONF
@@ -54,9 +55,24 @@ quark_opts = [
     cfg.BoolOpt('ipam_reuse_after', default=7200,
                 help=_("Time in seconds til IP and MAC reuse"
                        "after deallocation.")),
+    cfg.StrOpt("strategy_driver",
+               default='quark.network_strategy.JSONStrategy',
+               help=_("Tree of network assignment strategy")),
     cfg.StrOpt('net_driver_cfg', default='/etc/quantum/quark.ini',
-               help=_("Path to the config for the net driver")),
+               help=_("Path to the config for the net driver"))
 ]
+
+
+STRATEGY = network_strategy.STRATEGY
+
+CONF.register_opts(quark_opts, "QUARK")
+
+
+# NOTE(jkoelker) init event listener that will ensure id is filled in
+#                on object creation (prior to commit).
+def perhaps_generate_id(target, args, kwargs):
+    if hasattr(target, 'id') and target.id is None:
+        target.id = uuidutils.generate_uuid()
 
 
 def append_quark_extensions(conf):
@@ -67,15 +83,7 @@ def append_quark_extensions(conf):
     if 'api_extensions_path' in conf:
         conf.set_override('api_extensions_path', ":".join(extensions.__path__))
 
-CONF.register_opts(quark_opts, "QUARK")
 append_quark_extensions(CONF)
-
-
-# NOTE(jkoelker) init event listener that will ensure id is filled in
-#                on object creation (prior to commit).
-def perhaps_generate_id(target, args, kwargs):
-    if hasattr(target, 'id') and target.id is None:
-        target.id = uuidutils.generate_uuid()
 
 
 class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
@@ -108,35 +116,34 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         models.BASEV2.metadata.create_all(quantum_db_api._ENGINE)
 
     def _make_network_dict(self, network, fields=None):
-        res = {'id': network.get('id'),
+        shared_net = STRATEGY.is_parent_network(network["id"])
+        res = {'id': network["id"],
                'name': network.get('name'),
                'tenant_id': network.get('tenant_id'),
                'admin_state_up': network.get('admin_state_up'),
                'status': network.get('status'),
-               'shared': network.get('shared'),
+               'shared': shared_net,
                #TODO(mdietz): this is the expected return. Then the client
                #              foolishly turns around and asks for the entire
                #              subnet list anyway! Plz2fix
                'subnets': [s["id"] for s in network.get("subnets", [])]}
-               #'subnets': [self._make_subnet_dict(subnet)
-               #            for subnet in network.get('subnets', [])]}
         return res
 
-    def _subnet_dict(self, subnet, fields=None):
+    def _make_subnet_dict(self, subnet, fields=None):
         dns_nameservers = [str(netaddr.IPAddress(dns["ip"]))
                            for dns in subnet.get("dns_nameservers")]
-        return {"id": subnet.get('id'),
-                "name": subnet.get('name'),
-                "tenant_id": subnet.get('tenant_id'),
-                "network_id": subnet.get('network_id'),
-                "ip_version": subnet.get('ip_version'),
-                "allocation_pools": [],
-                "dns_nameservers": dns_nameservers or [],
-                "cidr": subnet.get('cidr'),
-                "enable_dhcp": subnet.get('enable_dhcp')}
-
-    def _make_subnet_dict(self, subnet, fields=None):
-        res = self._subnet_dict(subnet, fields)
+        # TODO(mdietz): this is a hack to get nova to boot. We want to get the
+        #               "default" route out of the database and use that
+        net_id = STRATEGY.get_parent_network(subnet["network_id"])
+        res = {"id": subnet.get('id'),
+               "name": subnet.get('name'),
+               "tenant_id": subnet.get('tenant_id'),
+               "network_id": net_id,
+               "ip_version": subnet.get('ip_version'),
+               "allocation_pools": [],
+               "dns_nameservers": dns_nameservers or [],
+               "cidr": subnet.get('cidr'),
+               "enable_dhcp": subnet.get('enable_dhcp')}
         res["routes"] = [self._make_route_dict(r) for r in subnet["routes"]]
 
         def _host_route(route):
@@ -151,8 +158,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
 
     def _port_dict(self, port, fields=None):
         res = {"id": port.get("id"),
-               "name": port.get("name"),
-               "network_id": port.get("network_id"),
+               "name": port.get('id'),
+               "network_id": STRATEGY.get_parent_network(port["network_id"]),
                "tenant_id": port.get('tenant_id'),
                "mac_address": port.get("mac_address"),
                "admin_state_up": port.get("admin_state_up"),
@@ -201,8 +208,9 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                 "subnet_id": route["subnet_id"]}
 
     def _make_ip_dict(self, address):
+        net_id = STRATEGY.get_parent_network(address["network_id"])
         return {"id": address["id"],
-                "network_id": address["network_id"],
+                "network_id": net_id,
                 "address": address.formatted(),
                 "port_ids": [port["id"] for port in address["ports"]],
                 "subnet_id": address["subnet_id"]}
@@ -220,6 +228,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         """
         LOG.info("create_subnet for tenant %s" % context.tenant_id)
         net_id = subnet["subnet"]["network_id"]
+
         net = db_api.network_find(context, net_id, scope=db_api.ONE)
         if not net:
             raise exceptions.NetworkNotFound(net_id=net_id)
@@ -364,6 +373,14 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         LOG.info("get_subnet %s for tenant %s with fields %s" %
                 (id, context.tenant_id, fields))
         subnet = db_api.subnet_find(context, id=id, scope=db_api.ONE)
+        if not subnet:
+            raise exceptions.SubnetNotFound(subnet_id=id)
+
+        # Check the network_id against the strategies
+        net_id = subnet["network_id"]
+        net_id = STRATEGY.get_parent_network(net_id)
+        subnet["network_id"] = net_id
+
         return self._make_subnet_dict(subnet)
 
     def get_subnets(self, context, filters=None, fields=None):
@@ -496,7 +513,9 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         """
         LOG.info("get_network %s for tenant %s fields %s" %
                 (id, context.tenant_id, fields))
+
         network = db_api.network_find(context, id=id, scope=db_api.ONE)
+
         if not network:
             raise exceptions.NetworkNotFound(net_id=id)
         return self._make_network_dict(network)
@@ -578,13 +597,16 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         mac_address = port["port"].pop("mac_address", None)
         if mac_address and mac_address is attributes.ATTR_NOT_SPECIFIED:
             mac_address = None
+        segment_id = port["port"].pop("segment_id", None)
+
         addresses = []
         port_id = uuidutils.generate_uuid()
         net_id = port["port"]["network_id"]
 
-        net = db_api.network_find(context, id=net_id)
+        net = db_api.network_find(context, id=net_id, shared=True,
+                                  segment_id=segment_id, scope=db_api.ONE)
         if not net:
-            raise exceptions.NetworkNotFound(net_id=net_id)
+            raise exceptions.NetworkNotFound(net_id=port["port"]["network_id"])
 
         fixed_ips = port["port"].pop("fixed_ips", None)
         if fixed_ips and fixed_ips is not attributes.ATTR_NOT_SPECIFIED:
@@ -603,20 +625,20 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         else:
             addresses.append(self.ipam_driver.allocate_ip_address(
                 context, net_id, port_id, self.ipam_reuse_after))
+
         mac = self.ipam_driver.allocate_mac_address(context,
-                                                    net_id,
+                                                    net["id"],
                                                     port_id,
                                                     self.ipam_reuse_after,
                                                     mac_address=mac_address)
         backend_port = self.net_driver.create_port(context, net_id,
                                                    port_id=port_id)
 
+        port["port"]["network_id"] = net["id"]
         port["port"]["id"] = port_id
         new_port = db_api.port_create(
             context, addresses=addresses, mac_address=mac["address"],
             backend_key=backend_port["uuid"], **port["port"])
-
-        LOG.debug("Port created %s" % new_port)
         return self._make_port_dict(new_port)
 
     def update_port(self, context, id, port):
