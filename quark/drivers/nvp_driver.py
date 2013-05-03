@@ -173,9 +173,8 @@ class NVPDriver(base.BaseDriver):
     def _lswitches_for_network(self, context, network_id):
         connection = self.get_connection()
         query = connection.lswitch().query()
-        tags = [dict(tag=network_id, scope="quantum_net_id"),
-                dict(tag=context.tenant_id, scope="os_tid")]
-        query.tags(tags)
+        query.tagscopes(['os_tid', 'quantum_net_id'])
+        query.tags([context.tenant_id, network_id])
         return query
 
 
@@ -270,7 +269,7 @@ class QOS(models.BASEV2, models.HasId):
     __tablename__ = "quark_nvp_driver_qos"
     display_name = sa.Column(sa.String(255), nullable=False)
     max_bandwidth_rate = sa.Column(sa.Integer(), nullable=False)
-    min_baddwidth_rate = sa.Column(sa.Integer(), nullable=False)
+    min_bandwidth_rate = sa.Column(sa.Integer(), nullable=False)
 
 
 class LSwitchPort(models.BASEV2, models.HasId):
