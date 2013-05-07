@@ -187,13 +187,16 @@ def mac_address_find(context, **filters):
     return query
 
 
-def mac_address_range_find_allocation_counts(context):
+def mac_address_range_find_allocation_counts(context, address=None):
     query = context.session.query(models.MacAddressRange,
                                   sql_func.count(models.MacAddress.address).
-                                  label("count")).\
-        outerjoin(models.MacAddress).\
-        group_by(models.MacAddressRange).\
-        order_by("count DESC")
+                                  label("count"))
+    query = query.outerjoin(models.MacAddress)
+    query = query.group_by(models.MacAddressRange)
+    query = query.order_by("count DESC")
+    if address:
+        query = query.filter(models.MacAddressRange.last_address >= address)
+        query = query.filter(models.MacAddressRange.first_address <= address)
     return query
 
 

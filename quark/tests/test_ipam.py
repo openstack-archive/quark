@@ -42,7 +42,8 @@ class QuarkMacAddressAllocateDeallocated(QuarkIpamBaseTest):
     @contextlib.contextmanager
     def _stubs(self, mac_find=True):
         address = dict(id=1, address=0)
-        mac_range = dict(id=1, first_address=0, last_address=255)
+        mac_range = dict(id=1, first_address=0, last_address=255,
+                         next_auto_assign_mac=0)
         db_mod = "quark.db.api"
         with contextlib.nested(
             mock.patch("%s.mac_address_find" % db_mod),
@@ -85,22 +86,33 @@ class QuarkNewMacAddressAllocation(QuarkIpamBaseTest):
             mac_range_count.return_value = ranges
             yield
 
+    def test_allocate_new_mac_address_specific(self):
+        mar = dict(id=1, first_address=0, last_address=255,
+                   next_auto_assign_mac=0)
+        with self._stubs(ranges=[(mar, 0)], addresses=[None, None]):
+            address = self.ipam.allocate_mac_address(self.context, 0, 0, 0,
+                                                     mac_address=254)
+            self.assertEqual(address["address"], 254)
+
     def test_allocate_new_mac_address_in_empty_range(self):
-        mar = dict(id=1, first_address=0, last_address=255)
+        mar = dict(id=1, first_address=0, last_address=255,
+                   next_auto_assign_mac=0)
         with self._stubs(ranges=[(mar, 0)], addresses=[None, None]):
             address = self.ipam.allocate_mac_address(self.context, 0, 0, 0)
             self.assertEqual(address["address"], 0)
 
     def test_allocate_new_mac_in_partially_allocated_range(self):
-        mac = dict(id=1, address=0)
-        mar = dict(id=1, first_address=0, last_address=255)
-        with self._stubs(ranges=[(mar, 0)], addresses=[None, mac]):
+        mar = dict(id=1, first_address=0, last_address=255,
+                   next_auto_assign_mac=1)
+        with self._stubs(ranges=[(mar, 0)], addresses=[None, None]):
             address = self.ipam.allocate_mac_address(self.context, 0, 0, 0)
             self.assertEqual(address["address"], 1)
 
     def test_allocate_mac_one_full_one_open_range(self):
-        mar1 = dict(id=1, first_address=0, last_address=1)
-        mar2 = dict(id=2, first_address=2, last_address=255)
+        mar1 = dict(id=1, first_address=0, last_address=1,
+                    next_auto_assign_mac=0)
+        mar2 = dict(id=2, first_address=2, last_address=255,
+                    next_auto_assign_mac=2)
         ranges = [(mar1, 1), (mar2, 0)]
         with self._stubs(ranges=ranges, addresses=[None, None]):
             address = self.ipam.allocate_mac_address(self.context, 0, 0, 0)
@@ -113,15 +125,18 @@ class QuarkNewMacAddressAllocation(QuarkIpamBaseTest):
                 self.ipam.allocate_mac_address(self.context, 0, 0, 0)
 
     def test_allocate_mac_no_available_range_fails(self):
-        mar = dict(id=1, first_address=0, last_address=0)
+        mar = dict(id=1, first_address=0, last_address=0,
+                   next_auto_assign_mac=0)
         ranges = [(mar, 0)]
         with self._stubs(ranges=ranges):
             with self.assertRaises(exceptions.MacAddressGenerationFailure):
                 self.ipam.allocate_mac_address(self.context, 0, 0, 0)
 
     def test_allocate_mac_two_open_ranges_chooses_first(self):
-        mar1 = dict(id=1, first_address=0, last_address=255)
-        mar2 = dict(id=2, first_address=256, last_address=510)
+        mar1 = dict(id=1, first_address=0, last_address=255,
+                    next_auto_assign_mac=0)
+        mar2 = dict(id=2, first_address=256, last_address=510,
+                    next_auto_assign_mac=256)
         ranges = [(mar1, 0), (mar2, 0)]
         with self._stubs(ranges=ranges, addresses=[None, None]):
             address = self.ipam.allocate_mac_address(self.context, 0, 0, 0)

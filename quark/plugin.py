@@ -575,12 +575,9 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         """
         LOG.info("create_port for tenant %s" % context.tenant_id)
 
-        #TODO(mdietz): do something clever with these
-        garbage = ["fixed_ips", "mac_address"]
-        for k in garbage:
-            if k in port["port"]:
-                port["port"].pop(k)
-
+        mac_address = port["port"].pop("mac_address", None)
+        if mac_address and mac_address is attributes.ATTR_NOT_SPECIFIED:
+            mac_address = None
         addresses = []
         port_id = uuidutils.generate_uuid()
         net_id = port["port"]["network_id"]
@@ -589,12 +586,28 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         if not net:
             raise exceptions.NetworkNotFound(net_id=net_id)
 
-        addresses.append(self.ipam_driver.allocate_ip_address(
-            context, net_id, port_id, self.ipam_reuse_after))
+        fixed_ips = port["port"].pop("fixed_ips", None)
+        if fixed_ips and fixed_ips is not attributes.ATTR_NOT_SPECIFIED:
+            for fixed_ip in fixed_ips:
+                subnet_id = fixed_ip.get("subnet_id")
+                ip_address = fixed_ip.get("ip_address")
+                if not (subnet_id and ip_address):
+                    raise exceptions.BadRequest(
+                        resource="fixed_ips",
+                        msg="subnet_id and ip_address required")
+                # Note: we don't allow overlapping subnets, thus subnet_id is
+                #       ignored.
+                addresses.append(self.ipam_driver.allocate_ip_address(
+                    context, net_id, port_id, self.ipam_reuse_after,
+                    ip_address=ip_address))
+        else:
+            addresses.append(self.ipam_driver.allocate_ip_address(
+                context, net_id, port_id, self.ipam_reuse_after))
         mac = self.ipam_driver.allocate_mac_address(context,
                                                     net_id,
                                                     port_id,
-                                                    self.ipam_reuse_after)
+                                                    self.ipam_reuse_after,
+                                                    mac_address=mac_address)
         backend_port = self.net_driver.create_port(context, net_id,
                                                    port_id=port_id)
 
@@ -820,7 +833,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         cidr, first_address, last_address = self._to_mac_range(cidr)
         new_range = db_api.mac_address_range_create(
             context, cidr=cidr, first_address=first_address,
-            last_address=last_address)
+            last_address=last_address, next_auto_assign_mac=first_address)
         return self._make_mac_range_dict(new_range)
 
     def _to_mac_range(self, val):

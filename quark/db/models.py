@@ -274,6 +274,7 @@ class MacAddressRange(BASEV2, models.HasId):
     cidr = sa.Column(sa.String(255), nullable=False)
     first_address = sa.Column(sa.BigInteger(), nullable=False)
     last_address = sa.Column(sa.BigInteger(), nullable=False)
+    next_auto_assign_mac = sa.Column(sa.BigInteger(), nullable=False)
 
 
 class Network(BASEV2, models.HasTenant, models.HasId):
