@@ -624,7 +624,7 @@ class TestQuarkGetNetworks(TestQuarkPlugin):
                    status="active")
         expected = net.copy()
         expected["admin_state_up"] = None
-        expected["shared"] = None
+        expected["shared"] = False
         expected["status"] = "active"
         with self._stubs(nets=net, subnets=[subnet]):
             res = self.plugin.get_network(self.context, 1)

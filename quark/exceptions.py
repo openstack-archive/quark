@@ -9,6 +9,10 @@ class RouteNotFound(exceptions.NotFound):
     message = _("Route %(route_id)s not found.")
 
 
+class AmbiguousNetworkId(exceptions.QuantumException):
+    message = _("Segment ID required for network %(net_id)s.")
+
+
 class AmbigiousLswitchCount(exceptions.QuantumException):
     message = _("Too many lswitches for network %(net_id)s.")
 

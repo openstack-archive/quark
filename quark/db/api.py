@@ -18,21 +18,23 @@ import datetime
 from quantum.openstack.common import log as logging
 from quantum.openstack.common import timeutils
 from sqlalchemy import func as sql_func
-from sqlalchemy import orm
+from sqlalchemy import orm, or_
 
 from quark.db import models
+from quark import exceptions as quark_exc
+from quark import network_strategy
 
 
+STRATEGY = network_strategy.STRATEGY
 LOG = logging.getLogger("quantum.quark.db.api")
 
 ONE = "one"
 ALL = "all"
 
 
-def _model_query(context, model, filters, query, fields=None):
-    filters = filters or {}
+def _listify(filters):
     for key in ["name", "network_id", "id", "device_id", "tenant_id",
-                "mac_address"]:
+                "mac_address", "shared"]:
         if key in filters:
             if not filters[key]:
                 continue
@@ -41,58 +43,67 @@ def _model_query(context, model, filters, query, fields=None):
                 listified = [listified]
             filters[key] = listified
 
+
+def _model_query(context, model, filters, fields=None):
+    filters = filters or {}
+    model_filters = []
+
+    if "shared" in filters and True in filters["shared"]:
+        return model_filters
+
+    # Inject the tenant id if none is set. We don't need unqualified queries
+    if not (context.is_admin or "tenant_id" in filters):
+        filters["tenant_id"] = [context.tenant_id]
+
     if filters.get("name"):
-        query = query.filter(model.name.in_(filters["name"]))
+        model_filters.append(model.name.in_(filters["name"]))
 
     if filters.get("network_id"):
-        query = query.filter(model.network_id.in_(filters["network_id"]))
+        model_filters.append(model.network_id.in_(filters["network_id"]))
 
     if filters.get("mac_address"):
-        query = query.filter(model.mac_address.in_(filters["mac_address"]))
+        model_filters.append(model.mac_address.in_(filters["mac_address"]))
 
     if filters.get("tenant_id"):
-        query = query.filter(model.tenant_id.in_(filters["tenant_id"]))
+        model_filters.append(model.tenant_id.in_(filters["tenant_id"]))
 
     if filters.get("id"):
-        query = query.filter(model.id.in_(filters["id"]))
+        model_filters.append(model.id.in_(filters["id"]))
 
     if filters.get("reuse_after"):
         reuse_after = filters["reuse_after"]
         reuse = (timeutils.utcnow() -
                  datetime.timedelta(seconds=reuse_after))
-        query = query.filter(model.deallocated_at <= reuse)
+        model_filters.append(model.deallocated_at <= reuse)
 
     if filters.get("subnet_id"):
-        query = query.filter(model.subnet_id ==
+        model_filters.append(model.subnet_id ==
                              filters["subnet_id"])
 
     if filters.get("deallocated"):
-        query = query.filter(model.deallocated ==
+        model_filters.append(model.deallocated ==
                              filters["deallocated"])
 
-    if filters.get("order_by"):
-        query = query.order_by(filters["order_by"])
+    if filters.get("device_id"):
+        model_filters.append(models.Port.device_id.in_(filters["device_id"]))
 
     if filters.get("address"):
-        query = query.filter(model.address == filters["address"])
-
-    if filters.get("deallocated"):
-        query = query.filter_by(deallocated=True)
+        model_filters.append(model.address == filters["address"])
 
     if filters.get("version"):
-        query = query.filter(model.ip_version == filters["version"])
+        model_filters.append(model.ip_version == filters["version"])
 
     if filters.get("ip_address"):
-        query = query.filter(model.address == int(filters["ip_address"]))
+        model_filters.append(model.address == int(filters["ip_address"]))
 
     if filters.get("mac_address_range_id"):
-        query = query.filter(model.mac_address_range_id ==
+        model_filters.append(model.mac_address_range_id ==
                              filters["mac_address_range_id"])
 
     if filters.get("cidr"):
-        query = query.filter(model.cidr == filters["cidr"])
+        model_filters.append(model.cidr == filters["cidr"])
 
-    return query
+    return model_filters
 
 
 def scoped(f):
@@ -102,7 +113,12 @@ def scoped(f):
             scope = kwargs.pop("scope")
         if scope not in [None, ALL, ONE]:
             raise Exception("Invalid scope")
+        _listify(kwargs)
+
         res = f(*args, **kwargs)
+        if "order_by" in kwargs:
+            res = res.order_by(kwargs["order_by"])
+
         if scope == ALL:
             return res.all()
         elif scope == ONE:
@@ -115,19 +131,19 @@ def scoped(f):
 def port_find(context, **filters):
     query = context.session.query(models.Port).\
         options(orm.joinedload(models.Port.ip_addresses))
-    query = _model_query(context, models.Port, filters, query=query)
-    if filters.get("device_id"):
-        query = query.filter(models.Port.device_id.in_(filters["device_id"]))
+    model_filters = _model_query(context, models.Port, filters)
+
     if filters.get("ip_address_id"):
-        query = query.filter(models.Port.ip_addresses.any(
+        model_filters.append(models.Port.ip_addresses.any(
             models.IPAddress.id.in_(filters["ip_address_id"])))
-    return query
+
+    return query.filter(*model_filters)
 
 
 def port_count_all(context, **filters):
     query = context.session.query(sql_func.count(models.Port.id))
-    query = _model_query(context, models.Port, filters, query=query)
-    return query.scalar()
+    model_filters = _model_query(context, models.Port, filters)
+    return query.filter(*model_filters).scalar()
 
 
 def port_create(context, **port_dict):
@@ -173,18 +189,18 @@ def ip_address_create(context, **address_dict):
 @scoped
 def ip_address_find(context, **filters):
     query = context.session.query(models.IPAddress)
-    query = _model_query(context, models.IPAddress, filters, query)
+    model_filters = _model_query(context, models.IPAddress, filters)
     if filters.get("device_id"):
-        query = query.filter(models.IPAddress.ports.any(
+        model_filters.append(models.IPAddress.ports.any(
             models.Port.device_id.in_(filters["device_id"])))
-    return query
+    return query.filter(*model_filters)
 
 
 @scoped
 def mac_address_find(context, **filters):
     query = context.session.query(models.MacAddress)
-    query = _model_query(context, models.MacAddress, filters, query)
-    return query
+    model_filters = _model_query(context, models.MacAddress, filters)
+    return query.filter(*model_filters)
 
 
 def mac_address_range_find_allocation_counts(context, address=None):
@@ -203,8 +219,8 @@ def mac_address_range_find_allocation_counts(context, address=None):
 @scoped
 def mac_address_range_find(context, **filters):
     query = context.session.query(models.MacAddressRange)
-    query = _model_query(context, models.MacAddressRange, filters, query)
-    return query
+    model_filters = _model_query(context, models.MacAddressRange, filters)
+    return query.filter(*model_filters)
 
 
 def mac_address_range_create(context, **range_dict):
@@ -233,12 +249,35 @@ def mac_address_create(context, **mac_dict):
 
 @scoped
 def network_find(context, fields=None, **filters):
-    # TODO(mdietz): we don't support "shared" networks yet. The concept
-    #               is broken
-    if filters.get("shared") and True in filters["shared"]:
-        return []
+    ids = []
+    defaults = []
+    if "id" in filters:
+        ids, defaults = STRATEGY.split_network_ids(context, filters["id"])
+        filters["ids"] = ids
+
+    if "shared" in filters and True in filters["shared"]:
+        defaults = STRATEGY.get_assignable_networks(context)
+        if ids:
+            defaults = [net for net in ids if net in defaults]
+            filters.pop("id")
+        if not defaults:
+            return []
+
+        if "segment_id" in filters and filters["segment_id"]:
+            # Ambiguous search, say we can't find anything
+            if len(defaults) > 1:
+                raise quark_exc.AmbiguousNetworkId()
+            defaults = [STRATEGY.best_match_network_id(
+                context, filters["id"][0], filters["segment_id"])]
+
     query = context.session.query(models.Network)
-    query = _model_query(context, models.Network, filters, query)
+    model_filters = _model_query(context, models.Network, filters, query)
+
+    if defaults:
+        query = query.filter(or_(models.Network.id.in_(defaults),
+                             *model_filters))
+    else:
+        query = query.filter(*model_filters)
     return query
 
 
@@ -280,10 +319,12 @@ def subnet_find_allocation_counts(context, net_id, **filters):
 
 @scoped
 def subnet_find(context, **filters):
+    if "shared" in filters and True in filters["shared"]:
+        return []
     query = context.session.query(models.Subnet).\
         options(orm.joinedload(models.Subnet.routes))
-    query = _model_query(context, models.Subnet, filters, query)
-    return query
+    model_filters = _model_query(context, models.Subnet, filters)
+    return query.filter(*model_filters)
 
 
 def subnet_count_all(context, **filters):
@@ -316,8 +357,8 @@ def subnet_update(context, subnet, **kwargs):
 @scoped
 def route_find(context, fields=None, **filters):
     query = context.session.query(models.Route)
-    query = _model_query(context, models.Route, filters, query)
-    return query
+    model_filters = _model_query(context, models.Route, filters)
+    return query.filter(*model_filters)
 
 
 def route_create(context, **route_dict):
