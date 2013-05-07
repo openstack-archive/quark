@@ -210,28 +210,28 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
         with self._stubs(subnets=[(subnet, 0)], addresses=[None, None]):
             address = self.ipam.allocate_ip_address(self.context, 0, 0, 0,
                                                     version=4)
-            self.assertEqual(address["address"], 0)
+            self.assertEqual(address["address"], 2)
 
     def test_allocate_new_ip_in_partially_allocated_range(self):
-        addr = dict(id=1, address=0)
+        addr = dict(id=1, address=3)
         subnet = dict(id=1, first_ip=0, last_ip=255,
                       cidr="0.0.0.0/24", ip_version=4,
-                      next_auto_assign_ip=0)
+                      next_auto_assign_ip=2)
         with self._stubs(subnets=[(subnet, 0)], addresses=[None, addr, None]):
             address = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
-            self.assertEqual(address["address"], 1)
+            self.assertEqual(address["address"], 3)
 
     def test_allocate_ip_one_full_one_open_subnet(self):
         subnet1 = dict(id=1, first_ip=0, last_ip=0,
                        cidr="0.0.0.0/32", ip_version=4,
                        next_auto_assign_ip=0)
-        subnet2 = dict(id=2, first_ip=2, last_ip=255,
-                       cidr="0.0.0.0/24", ip_version=4,
+        subnet2 = dict(id=2, first_ip=256, last_ip=512,
+                       cidr="0.0.1.0/24", ip_version=4,
                        next_auto_assign_ip=2)
         subnets = [(subnet1, 1), (subnet2, 0)]
         with self._stubs(subnets=subnets, addresses=[None, None]):
             address = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
-            self.assertEqual(address["address"], 2)
+            self.assertEqual(address["address"], 258)
             self.assertEqual(address["subnet_id"], 2)
 
     def test_allocate_ip_no_subnet_fails(self):
@@ -256,7 +256,7 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
         subnets = [(subnet1, 1), (subnet2, 1)]
         with self._stubs(subnets=subnets, addresses=[None, None]):
             address = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
-            self.assertEqual(address["address"], 0)
+            self.assertEqual(address["address"], 2)
             self.assertEqual(address["subnet_id"], 1)
 
     def test_find_requested_ip_subnet(self):
@@ -298,7 +298,8 @@ class QuarkIPAddressAllocateDeallocated(QuarkIpamBaseTest):
             yield choose_subnet
 
     def test_allocate_finds_deallocated_ip_succeeds(self):
-        subnet = dict(id=1, ip_version=4, next_auto_assign_ip=0)
+        subnet = dict(id=1, ip_version=4, next_auto_assign_ip=0,
+                      cidr="0.0.0.0/24")
         address = dict(id=1, address=0)
         addresses_found = [None, address, None]
         with self._stubs(
@@ -314,7 +315,8 @@ class QuarkIPAddressAllocateDeallocated(QuarkIpamBaseTest):
         Allocates new ip address instead of previously deallocated mac
         address.
         '''
-        subnet = dict(id=1, ip_version=4, next_auto_assign_ip=0)
+        subnet = dict(id=1, ip_version=4, next_auto_assign_ip=0,
+                      cidr="0.0.0.0/24", first_ip=0, last_ip=255)
         address = dict(id=1, address=0)
         addresses_found = [None, address, None]
         with self._stubs(
@@ -330,7 +332,8 @@ class QuarkIPAddressAllocateDeallocated(QuarkIpamBaseTest):
         This edge case occurs because users are allowed to select a specific IP
         address to create.
         """
-        subnet = dict(id=1, ip_version=4, next_auto_assign_ip=0)
+        subnet = dict(id=1, ip_version=4, next_auto_assign_ip=0,
+                      cidr="0.0.0.0/24", first_ip=0, last_ip=255)
         address0 = dict(id=1, address=0)
         address1 = dict(id=1, address=1)
         addresses_found = [None, address0, address1, None]

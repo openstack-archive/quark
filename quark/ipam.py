@@ -42,7 +42,8 @@ class QuarkIpam(object):
             ipnet = netaddr.IPNetwork(subnet["cidr"])
             if ip_address and ip_address not in ipnet:
                 continue
-            if ipnet.size > ips_in_subnet:
+            # TODO(mdietz): IP allocation hack, remove +3 later
+            if ipnet.size > (ips_in_subnet + 3):
                 return subnet
 
         raise exceptions.IpAddressGenerationFailure(net_id=net_id)
@@ -119,6 +120,16 @@ class QuarkIpam(object):
                     ip_address=next_ip,
                     tenant_id=elevated.tenant_id,
                     scope=db_api.ONE)
+
+        # TODO(mdietz): this is a hack until we have IP policies
+        ip_int = int(next_ip)
+        diff = ip_int - subnet["first_ip"]
+        if diff < 2:
+            next_ip = netaddr.IPAddress(ip_int + (2 - diff))
+        if ip_int == subnet["last_ip"]:
+            raise exceptions.IpAddressGenerationFailure(net_id=net_id)
+        if next_ip not in netaddr.IPNetwork(subnet["cidr"]):
+            raise exceptions.IpAddressGenerationFailure(net_id=net_id)
 
         address = db_api.ip_address_create(
             elevated, address=next_ip, subnet_id=subnet["id"],
