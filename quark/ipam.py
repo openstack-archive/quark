@@ -123,10 +123,18 @@ class QuarkIpam(object):
 
         # TODO(mdietz): this is a hack until we have IP policies
         ip_int = int(next_ip)
-        diff = ip_int - subnet["first_ip"]
+        first_ip = netaddr.IPAddress(int(subnet["first_ip"]))
+        last_ip = netaddr.IPAddress(int(subnet["last_ip"]))
+        if subnet["ip_version"] == 4:
+            first_ip = first_ip.ipv4()
+            last_ip = last_ip.ipv4()
+        first_ip = int(first_ip)
+        last_ip = int(last_ip)
+
+        diff = ip_int - first_ip
         if diff < 2:
             next_ip = netaddr.IPAddress(ip_int + (2 - diff))
-        if ip_int == subnet["last_ip"]:
+        if ip_int == last_ip:
             raise exceptions.IpAddressGenerationFailure(net_id=net_id)
         if next_ip not in netaddr.IPNetwork(subnet["cidr"]):
             raise exceptions.IpAddressGenerationFailure(net_id=net_id)
