@@ -606,7 +606,10 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
         net = db_api.network_find(context, id=net_id, shared=True,
                                   segment_id=segment_id, scope=db_api.ONE)
         if not net:
-            raise exceptions.NetworkNotFound(net_id=port["port"]["network_id"])
+            # Maybe it's a tenant network
+            net = db_api.network_find(context, id=net_id, scope=db_api.ONE)
+            if not net:
+                raise exceptions.NetworkNotFound(net_id=net_id)
 
         fixed_ips = port["port"].pop("fixed_ips", None)
         if fixed_ips and fixed_ips is not attributes.ATTR_NOT_SPECIFIED:
@@ -620,18 +623,18 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                 # Note: we don't allow overlapping subnets, thus subnet_id is
                 #       ignored.
                 addresses.append(self.ipam_driver.allocate_ip_address(
-                    context, net_id, port_id, self.ipam_reuse_after,
+                    context, net["id"], port_id, self.ipam_reuse_after,
                     ip_address=ip_address))
         else:
             addresses.append(self.ipam_driver.allocate_ip_address(
-                context, net_id, port_id, self.ipam_reuse_after))
+                context, net["id"], port_id, self.ipam_reuse_after))
 
         mac = self.ipam_driver.allocate_mac_address(context,
                                                     net["id"],
                                                     port_id,
                                                     self.ipam_reuse_after,
                                                     mac_address=mac_address)
-        backend_port = self.net_driver.create_port(context, net_id,
+        backend_port = self.net_driver.create_port(context, net["id"],
                                                    port_id=port_id)
 
         port["port"]["network_id"] = net["id"]

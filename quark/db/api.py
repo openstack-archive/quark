@@ -116,6 +116,8 @@ def scoped(f):
         _listify(kwargs)
 
         res = f(*args, **kwargs)
+        if not res:
+            return
         if "order_by" in kwargs:
             res = res.order_by(kwargs["order_by"])
 
