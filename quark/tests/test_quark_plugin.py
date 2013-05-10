@@ -863,7 +863,8 @@ class TestIpAddresses(TestQuarkPlugin):
     def test_create_ip_address_by_network_and_device(self):
         port = dict(id=1, network_id=2, ip_addresses=[])
         ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
-                  subnet_id=1, network_id=2, version=4)
+                  subnet_id=1, network_id=2, version=4,
+                  tenant_id=self.context.tenant_id)
         with self._stubs(port=port, addr=ip):
             ip_address = dict(network_id=ip["network_id"],
                               device_id=4)
@@ -874,6 +875,7 @@ class TestIpAddresses(TestQuarkPlugin):
             self.assertEqual(response['network_id'], ip_address["network_id"])
             self.assertEqual(response['port_ids'], [port["id"]])
             self.assertEqual(response['subnet_id'], ip['subnet_id'])
+            self.assertEqual(response["tenant_id"], self.context.tenant_id)
 
     def test_create_ip_address_with_port(self):
         port = dict(id=1, network_id=2, ip_addresses=[])
