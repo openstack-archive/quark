@@ -20,7 +20,7 @@ from quantum.api.v2 import attributes
 
 EXTENDED_ATTRIBUTES_2_0 = {
     'subnets': {
-        "allocation_pools": {'allow_post': False, 'allow_put': False,
+        "allocation_pools": {'allow_post': True, 'allow_put': True,
                              'default': attributes.ATTR_NOT_SPECIFIED,
                              'is_visible': False},
         "enable_dhcp": {'allow_post': False, 'allow_put': False,
@@ -34,7 +34,6 @@ class Subnets_quark(extensions.ExtensionDescriptor):
     """Extends subnets for quark API purposes.
 
     * Shunts enable_dhcp to false
-    * Disables allocation_pools
     """
 
     @classmethod
