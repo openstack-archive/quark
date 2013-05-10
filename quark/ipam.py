@@ -134,6 +134,7 @@ class QuarkIpam(object):
         diff = ip_int - first_ip
         if diff < 2:
             next_ip = netaddr.IPAddress(ip_int + (2 - diff))
+            subnet["next_auto_assign_ip"] = int(next_ip) + 1
         if ip_int == last_ip:
             raise exceptions.IpAddressGenerationFailure(net_id=net_id)
         if next_ip not in netaddr.IPNetwork(subnet["cidr"]):
