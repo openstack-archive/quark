@@ -1044,10 +1044,13 @@ class TestQuarkCreatePort(TestQuarkPlugin):
     def test_create_port(self):
         network = dict(id=1)
         mac = dict(address="aa:bb:cc:dd:ee:ff")
+        port_name = "foobar"
         ip = dict()
         port = dict(port=dict(mac_address=mac["address"], network_id=1,
-                              tenant_id=self.context.tenant_id, device_id=2))
+                              tenant_id=self.context.tenant_id, device_id=2,
+                              name=port_name))
         expected = {'status': None,
+                    'name': port_name,
                     'device_owner': None,
                     'mac_address': mac["address"],
                     'network_id': network["id"],

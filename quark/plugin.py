@@ -158,9 +158,9 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
 
     def _port_dict(self, port, fields=None):
         res = {"id": port.get("id"),
-               "name": port.get('id'),
+               "name": port.get("name"),
                "network_id": STRATEGY.get_parent_network(port["network_id"]),
-               "tenant_id": port.get('tenant_id'),
+               "tenant_id": port.get("tenant_id"),
                "mac_address": port.get("mac_address"),
                "admin_state_up": port.get("admin_state_up"),
                "status": port.get("status"),
