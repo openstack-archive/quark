@@ -215,6 +215,35 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                 "port_ids": [port["id"] for port in address["ports"]],
                 "subnet_id": address["subnet_id"]}
 
+    def _validate_subnet_cidr(self, context, network, new_subnet_cidr):
+        """Validate the CIDR for a subnet.
+
+        Verifies the specified CIDR does not overlap with the ones defined
+        for the other subnets specified for this network, or with any other
+        CIDR if overlapping IPs are disabled.
+
+        """
+        new_subnet_ipset = netaddr.IPSet([new_subnet_cidr])
+        if CONF.allow_overlapping_ips:
+            subnet_list = network.subnets
+        else:
+            subnet_list = db_api.subnet_find(context.elevated())
+        for subnet in subnet_list:
+            if (netaddr.IPSet([subnet.cidr]) & new_subnet_ipset):
+                # don't give out details of the overlapping subnet
+                err_msg = (_("Requested subnet with cidr: %(cidr)s for "
+                             "network: %(network_id)s overlaps with another "
+                             "subnet") %
+                           {'cidr': new_subnet_cidr,
+                            'network_id': network.id})
+                LOG.error(_("Validation for CIDR: %(new_cidr)s failed - "
+                            "overlaps with subnet %(subnet_id)s "
+                            "(CIDR: %(cidr)s)"),
+                          {'new_cidr': new_subnet_cidr,
+                           'subnet_id': subnet.id,
+                           'cidr': subnet.cidr})
+                raise exceptions.InvalidInput(error_message=err_msg)
+
     def create_subnet(self, context, subnet):
         """Create a subnet.
 
@@ -234,7 +263,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             raise exceptions.NetworkNotFound(net_id=net_id)
 
         s = subnet["subnet"]
-
+        self._validate_subnet_cidr(context, net, s["cidr"])
         cidr = netaddr.IPNetwork(s["cidr"])
         gateway_ip = s.pop("gateway_ip")
         if gateway_ip is attributes.ATTR_NOT_SPECIFIED:

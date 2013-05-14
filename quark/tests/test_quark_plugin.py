@@ -74,6 +74,8 @@ class TestQuarkAPIExtensions(TestQuarkPlugin):
 class TestQuarkGetSubnets(TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, subnets=None, routes=None):
+        if routes is None:
+            routes = []
         route_models = []
         for route in routes:
             r = models.Route()
@@ -88,11 +90,13 @@ class TestQuarkGetSubnets(TestQuarkPlugin):
                 s = models.Subnet()
                 s.update(s_dict)
                 subnet_models.append(s)
-        else:
+        elif subnets:
             mod = models.Subnet()
             mod.update(subnets)
             mod["routes"] = route_models
             subnet_models = mod
+        else:
+            subnet_models = None
 
         with mock.patch("quark.db.api.subnet_find") as subnet_find:
             subnet_find.return_value = subnet_models
@@ -119,6 +123,11 @@ class TestQuarkGetSubnets(TestQuarkPlugin):
             for key in route.keys():
                 self.assertEqual(routes[0][key], route[key])
 
+    def test_subnet_show_fail(self):
+        with self._stubs():
+            with self.assertRaises(exceptions.SubnetNotFound):
+                self.plugin.get_subnet(self.context, 1)
+
     def test_subnet_show(self):
         subnet_id = str(uuid.uuid4())
         route = dict(id=1, cidr="0.0.0.0/0", gateway="192.168.0.1",
@@ -139,6 +148,58 @@ class TestQuarkGetSubnets(TestQuarkPlugin):
                 self.assertEqual(res[key], subnet[key])
             for key in route.keys():
                 self.assertEqual(routes[0][key], route[key])
+
+
+class TestQuarkCreateSubnetOverlapping(TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, subnets=None):
+        if subnets is None:
+            subnets = []
+        subnet_models = []
+        for subnet in subnets:
+            s = models.Subnet()
+            s.update(subnet)
+            subnet_models.append(s)
+        network = models.Network()
+        network.update(dict(id=1, subnets=subnet_models))
+        with contextlib.nested(
+            mock.patch("quark.db.api.network_find"),
+            mock.patch("quark.db.api.subnet_find"),
+            mock.patch("quark.db.api.subnet_create")
+        ) as (net_find, subnet_find, subnet_create):
+            net_find.return_value = network
+            subnet_find.return_value = subnet_models
+            yield subnet_create
+
+    def test_create_subnet_overlapping_true(self):
+        cfg.CONF.set_override('allow_overlapping_ips', True)
+        with self._stubs() as subnet_create:
+            s = dict(subnet=dict(
+                gateway_ip=quantum_attrs.ATTR_NOT_SPECIFIED,
+                dns_nameservers=quantum_attrs.ATTR_NOT_SPECIFIED,
+                cidr="192.168.1.1/8",
+                network_id=1))
+            self.plugin.create_subnet(self.context, s)
+            self.assertEqual(subnet_create.call_count, 1)
+
+    def test_create_subnet_overlapping_false(self):
+        cfg.CONF.set_override('allow_overlapping_ips', False)
+        with self._stubs() as subnet_create:
+            s = dict(subnet=dict(
+                gateway_ip=quantum_attrs.ATTR_NOT_SPECIFIED,
+                dns_nameservers=quantum_attrs.ATTR_NOT_SPECIFIED,
+                cidr="192.168.1.1/8",
+                network_id=1))
+            self.plugin.create_subnet(self.context, s)
+            self.assertEqual(subnet_create.call_count, 1)
+
+    def test_create_subnet_overlapping_conflict(self):
+        cfg.CONF.set_override('allow_overlapping_ips', False)
+        with self._stubs(subnets=[dict(cidr="192.168.10.1/24")]):
+            with self.assertRaises(exceptions.InvalidInput):
+                s = dict(subnet=dict(cidr="192.168.1.1/8",
+                                     network_id=1))
+                self.plugin.create_subnet(self.context, s)
 
 
 # TODO(amir): Refactor the tests to test individual subnet attributes.
@@ -362,13 +423,13 @@ class TestQuarkCreateSubnet(TestQuarkPlugin):
 
 
 class TestQuarkUpdateSubnet(TestQuarkPlugin):
+    DEFAULT_ROUTE = [dict(destination="0.0.0.0/0",
+                          nexthop="172.16.0.1")]
+
     @contextlib.contextmanager
-    def _stubs(self, host_routes=[], new_routes=None, find_routes=True):
+    def _stubs(self, host_routes=None, new_routes=None, find_routes=True):
         if host_routes is None:
             host_routes = []
-        elif not host_routes:
-            host_routes = [dict(destination="0.0.0.0/0",
-                                nexthop="172.16.0.1")]
         if new_routes:
             new_routes = [models.Route(cidr=r["destination"],
                                        gateway=r["nexthop"],
@@ -425,6 +486,7 @@ class TestQuarkUpdateSubnet(TestQuarkPlugin):
 
     def test_update_subnet_dns_nameservers(self):
         with self._stubs(
+            host_routes=self.DEFAULT_ROUTE
         ) as (dns_delete, dns_create,
               route_update, route_delete, route_create):
             req = dict(subnet=dict(dns_nameservers=["1.1.1.2"]))
@@ -439,6 +501,7 @@ class TestQuarkUpdateSubnet(TestQuarkPlugin):
 
     def test_update_subnet_routes(self):
         with self._stubs(
+            host_routes=self.DEFAULT_ROUTE
         ) as (dns_delete, dns_create,
               route_update, route_delete, route_create):
             req = dict(subnet=dict(
@@ -458,6 +521,7 @@ class TestQuarkUpdateSubnet(TestQuarkPlugin):
 
     def test_update_subnet_gateway_ip_with_default_route_in_db(self):
         with self._stubs(
+            host_routes=self.DEFAULT_ROUTE,
             new_routes=[dict(destination="0.0.0.0/0", nexthop="1.2.3.4")]
         ) as (dns_delete, dns_create,
               route_update, route_delete, route_create):
@@ -519,6 +583,7 @@ class TestQuarkUpdateSubnet(TestQuarkPlugin):
 
     def test_update_subnet_gateway_ip_with_default_route_in_args(self):
         with self._stubs(
+            host_routes=self.DEFAULT_ROUTE
         ) as (dns_delete, dns_create,
               route_update, route_delete, route_create):
             req = dict(subnet=dict(
