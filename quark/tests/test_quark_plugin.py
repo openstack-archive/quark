@@ -867,7 +867,7 @@ class TestIpAddresses(TestQuarkPlugin):
                   tenant_id=self.context.tenant_id)
         with self._stubs(port=port, addr=ip):
             ip_address = dict(network_id=ip["network_id"],
-                              device_id=4)
+                              device_ids=[4])
             response = self.plugin.create_ip_address(
                 self.context, dict(ip_address=ip_address))
 
@@ -882,7 +882,7 @@ class TestIpAddresses(TestQuarkPlugin):
         ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
                   subnet_id=1, network_id=2, version=4)
         with self._stubs(port=port, addr=ip):
-            ip_address = dict(port_id=port["id"])
+            ip_address = dict(port_ids=[port["id"]])
             response = self.plugin.create_ip_address(
                 self.context, dict(ip_address=ip_address))
 
