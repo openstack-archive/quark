@@ -1127,3 +1127,6 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
                 (context.tenant_id))
         rules = db_api.security_group_rule_find(context, filters=filters)
         return [self._make_security_group_rule_dict(rule) for rule in rules]
+
+    def update_security_group(self, context, id, security_group):
+        raise NotImplementedError()
