@@ -707,6 +707,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
 
         fixed_ips = port["port"].pop("fixed_ips", None)
         if fixed_ips:
+            self.ipam_driver.deallocate_ip_address(
+                context, port_db, ipam_reuse_after=self.ipam_reuse_after)
             addresses = []
             for fixed_ip in fixed_ips:
                 subnet_id = fixed_ip.get("subnet_id")
