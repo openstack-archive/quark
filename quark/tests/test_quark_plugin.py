@@ -1658,7 +1658,7 @@ class TestQuarkGetIpAddresses(TestQuarkPlugin):
             yield
 
     def test_get_ip_addresses(self):
-        port = dict(id=100)
+        port = dict(id=100, device_id="foobar")
         ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
                   subnet_id=1, network_id=2, version=4)
         with self._stubs(ips=[ip], ports=[port]):
@@ -1668,6 +1668,7 @@ class TestQuarkGetIpAddresses(TestQuarkPlugin):
             self.assertEqual(ip["subnet_id"], addr_res["subnet_id"])
             self.assertEqual(ip["address_readable"], addr_res["address"])
             self.assertEqual(addr_res["port_ids"][0], port["id"])
+            self.assertEqual(addr_res["device_ids"][0], port["device_id"])
 
     def test_get_ip_address(self):
         port = dict(id=100)

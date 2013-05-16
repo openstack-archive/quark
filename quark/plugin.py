@@ -213,6 +213,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
                 "network_id": net_id,
                 "address": address.formatted(),
                 "port_ids": [port["id"] for port in address["ports"]],
+                "device_ids": [port["device_id"] for port in address["ports"]],
                 "subnet_id": address["subnet_id"],
                 "tenant_id": address["tenant_id"]}
 
