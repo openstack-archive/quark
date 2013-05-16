@@ -61,10 +61,12 @@ class MacAddressRangesController(wsgi.Controller):
 
     def show(self, request, id):
         context = request.context
-        tenant_id = id
-        if not tenant_id:
-            raise webob.exc.HTTPBadRequest('invalid tenant')
-        return self._plugin.get_mac_address_range(context, id)
+        return {"mac_address_range":
+                self._plugin.get_mac_address_range(context, id)}
+
+    def delete(self, request, id, **kwargs):
+        context = request.context
+        return self._plugin.delete_mac_address_range(context, id)
 
 
 class Mac_address_ranges(object):

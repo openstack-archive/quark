@@ -252,6 +252,10 @@ def mac_address_range_create(context, **range_dict):
     return new_range
 
 
+def mac_address_range_delete(context, mac_address_range):
+    context.session.delete(mac_address_range)
+
+
 def mac_address_update(context, mac, **kwargs):
     mac.update(kwargs)
     context.session.add(mac)

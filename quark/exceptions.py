@@ -5,6 +5,14 @@ class InvalidMacAddressRange(exceptions.QuantumException):
     message = _("Invalid MAC address range %(cidr)s.")
 
 
+class MacAddressRangeNotFound(exceptions.NotFound):
+    message = _("MAC address range %(mac_address_range_id) not found.")
+
+
+class MacAddressRangeInUse(exceptions.InUse):
+    message = _("MAC address range %(mac_address_range_id) in use.")
+
+
 class RouteNotFound(exceptions.NotFound):
     message = _("Route %(route_id)s not found.")
 

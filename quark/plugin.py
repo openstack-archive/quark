@@ -893,6 +893,27 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
 
         return self._make_port_dict(port)
 
+    def get_mac_address_range(self, context, id, fields=None):
+        """Retrieve a mac_address_range.
+
+        : param context: quantum api request context
+        : param id: UUID representing the network to fetch.
+        : param fields: a list of strings that are valid keys in a
+            network dictionary as listed in the RESOURCE_ATTRIBUTE_MAP
+            object in quantum/api/v2/attributes.py. Only these fields
+            will be returned.
+        """
+        LOG.info("get_mac_address_range %s for tenant %s fields %s" %
+                (id, context.tenant_id, fields))
+
+        mac_address_range = db_api.mac_address_range_find(
+            context, id=id, scope=db_api.ONE)
+
+        if not mac_address_range:
+            raise quark_exceptions.MacAddressRangeNotFound(
+                mac_address_range_id=id)
+        return self._make_mac_range_dict(mac_address_range)
+
     def get_mac_address_ranges(self, context):
         LOG.info("get_mac_address_ranges for tenant %s" % context.tenant_id)
         ranges = db_api.mac_address_range_find(context)
@@ -929,6 +950,26 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
             raise quark_exceptions.InvalidMacAddressRange(cidr=val)
         prefix_int = int(prefix, base=16)
         return cidr, prefix_int, prefix_int + mask_size
+
+    def _delete_mac_address_range(self, context, mac_address_range):
+        if mac_address_range.allocated_macs:
+            raise quark_exceptions.MacAddressRangeInUse(
+                mac_address_range_id=mac_address_range["id"])
+        db_api.mac_address_range_delete(context, mac_address_range)
+
+    def delete_mac_address_range(self, context, id):
+        """Delete a mac_address_range.
+
+        : param context: quantum api request context
+        : param id: UUID representing the mac_address_range to delete.
+        """
+        LOG.info("delete_mac_address_range %s for tenant %s" %
+                 (id, context.tenant_id))
+        mar = db_api.mac_address_range_find(context, id=id, scope=db_api.ONE)
+        if not mar:
+            raise quark_exceptions.MacAddressRangeNotFound(
+                mac_address_range_id=id)
+        self._delete_mac_address_range(context, mar)
 
     def get_route(self, context, id):
         LOG.info("get_route %s for tenant %s" % (id, context.tenant_id))

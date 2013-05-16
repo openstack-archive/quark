@@ -306,7 +306,8 @@ class MacAddress(BASEV2, models.HasTenant):
     __tablename__ = "quark_mac_addresses"
     address = sa.Column(sa.BigInteger(), primary_key=True)
     mac_address_range_id = sa.Column(
-        sa.String(36), sa.ForeignKey("quark_mac_address_ranges.id"),
+        sa.String(36),
+        sa.ForeignKey("quark_mac_address_ranges.id", ondelete="CASCADE"),
         nullable=False)
     deallocated = sa.Column(sa.Boolean())
     deallocated_at = sa.Column(sa.DateTime())
@@ -319,6 +320,11 @@ class MacAddressRange(BASEV2, models.HasId):
     first_address = sa.Column(sa.BigInteger(), nullable=False)
     last_address = sa.Column(sa.BigInteger(), nullable=False)
     next_auto_assign_mac = sa.Column(sa.BigInteger(), nullable=False)
+    allocated_macs = orm.relationship(MacAddress,
+                                      primaryjoin='and_(MacAddressRange.id=='
+                                      'MacAddress.mac_address_range_id, '
+                                      'MacAddress.deallocated!=1)',
+                                      backref="mac_address_range")
 
 
 class Network(BASEV2, models.HasTenant, models.HasId):

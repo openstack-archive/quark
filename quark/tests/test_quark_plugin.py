@@ -1466,15 +1466,27 @@ class TestQuarkGetMacAddressRanges(TestQuarkPlugin):
     def _stubs(self, mac_range):
         db_mod = "quark.db.api"
         with mock.patch("%s.mac_address_range_find" % db_mod) as mar_find:
-            mar_find.return_value = [mac_range]
+            mar_find.return_value = mac_range
             yield
 
     def test_find_mac_ranges(self):
         mar = dict(id=1, cidr="AA:BB:CC/24")
-        with self._stubs(mar):
+        with self._stubs([mar]):
             res = self.plugin.get_mac_address_ranges(self.context)
             self.assertEqual(res[0]["id"], mar["id"])
             self.assertEqual(res[0]["cidr"], mar["cidr"])
+
+    def test_find_mac_range(self):
+        mar = dict(id=1, cidr="AA:BB:CC/24")
+        with self._stubs(mar):
+            res = self.plugin.get_mac_address_range(self.context, 1)
+            self.assertEqual(res["id"], mar["id"])
+            self.assertEqual(res["cidr"], mar["cidr"])
+
+    def test_find_mac_range_fail(self):
+        with self._stubs(None):
+            with self.assertRaises(quark_exceptions.MacAddressRangeNotFound):
+                self.plugin.get_mac_address_range(self.context, 1)
 
 
 class TestQuarkCreateMacAddressRanges(TestQuarkPlugin):
@@ -1535,6 +1547,40 @@ class TestQuarkCreateMacAddressRanges(TestQuarkPlugin):
     def test_to_mac_prefix_is_garbage_fails(self):
         with self.assertRaises(quark_exceptions.InvalidMacAddressRange):
             cidr, first, last = self.plugin._to_mac_range("F0-0-BAR")
+
+
+class TestQuarkDeleteMacAddressRanges(TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, mac_range):
+        db_mod = "quark.db.api"
+        with contextlib.nested(
+            mock.patch("%s.mac_address_range_find" % db_mod),
+            mock.patch("%s.mac_address_range_delete" % db_mod),
+        ) as (mar_find, mar_delete):
+            mar_find.return_value = mac_range
+            yield mar_delete
+
+    def test_mac_address_range_delete_not_found(self):
+        with self._stubs(None):
+            with self.assertRaises(quark_exceptions.MacAddressRangeNotFound):
+                self.plugin.delete_mac_address_range(self.context, 1)
+
+    def test_mac_address_range_delete_in_use(self):
+        mar = mock.MagicMock()
+        mar.id = 1
+        mar.allocated_macs = 1
+        with self._stubs(mar):
+            with self.assertRaises(quark_exceptions.MacAddressRangeInUse):
+                self.plugin.delete_mac_address_range(self.context, 1)
+
+    def test_mac_address_range_delete_success(self):
+        mar = mock.MagicMock()
+        mar.id = 1
+        mar.allocated_macs = 0
+        with self._stubs(mar) as mar_delete:
+            resp = self.plugin.delete_mac_address_range(self.context, 1)
+            self.assertIsNone(resp)
+            mar_delete.assert_called_once_with(self.context, mar)
 
 
 class TestQuarkGetRoutes(TestQuarkPlugin):
