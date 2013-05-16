@@ -258,6 +258,26 @@ class Port(BASEV2, models.HasTenant, models.HasId):
                                 backref="ports")
 
 
+class SecurityGroupRule(BASEV2, models.HasId, models.HasTenant):
+    group_id = sa.Column(sa.String(36),
+                         sa.ForeignKey("quark_security_groups.id"),
+                         nullable=False)
+    direction = sa.Column(sa.String(10), nullable=False)
+    ethertype = sa.Column(sa.String(4), nullable=False)
+    port_range_max = sa.Column(sa.Integer(), nullable=True)
+    port_range_min = sa.Column(sa.Integer(), nullable=True)
+    protocol = sa.Column(sa.String(32), nullable=True)
+
+
+class SecurityGroup(BASEV2, models.HasId, models.HasTenant):
+    __tablename__ = "quark_security_group"
+    name = sa.Column(sa.String(255), nullable=False)
+    description = sa.Column(sa.String(255), nullable=False)
+    join = "SecurityGroupRule.group_id==SecurityGroup.id"
+    routes = orm.relationship(Route, primaryjoin=join,
+                              backref='group', cascade='delete')
+
+
 class MacAddress(BASEV2, models.HasTenant):
     __tablename__ = "quark_mac_addresses"
     address = sa.Column(sa.BigInteger(), primary_key=True)
