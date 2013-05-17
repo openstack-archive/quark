@@ -1059,7 +1059,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
     def create_security_group(self, context, security_group):
         LOG.info("create_security_group for tenant %s" %
                 (context.tenant_id))
-        group = db_api.security_group_create(context, **security_group)
+        g = security_group["security_group"]
+        group = db_api.security_group_create(context, **g)
         return self._make_security_group_dict(group)
 
     def create_security_group_rule(self, context, security_group_rule):

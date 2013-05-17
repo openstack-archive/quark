@@ -404,8 +404,7 @@ def security_group_find(context, **filters):
 
 def security_group_create(context, **sec_group_dict):
     new_group = models.SecurityGroup()
-    print sec_group_dict["security_group"]
-    new_group.update(sec_group_dict["security_group"])
+    new_group.update(sec_group_dict)
     new_group["tenant_id"] = context.tenant_id
     context.session.add(new_group)
     return new_group
