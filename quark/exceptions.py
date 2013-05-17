@@ -55,3 +55,11 @@ class ProvidernetParamError(exceptions.NeutronException):
 
 class BadNVPState(exceptions.NeutronException):
     message = _("No networking information found for network %(net_id)s")
+
+
+class IPPolicyNotFound(exceptions.NeutronException):
+    message = _("IP Policy %(id)s not found.")
+
+
+class IPPolicyAlreadyExists(exceptions.NeutronException):
+    message = _("IP Policy %(id)s already exists for %(n_id)s")

@@ -165,3 +165,12 @@ def _make_ip_dict(address):
             "tenant_id": address["tenant_id"],
             "version": address["version"],
             "shared": len(address["ports"]) > 1}
+
+
+def _make_ip_policy_dict(ipp):
+    excludes = [str(netaddr.IPNetwork((int(ippr["address"]), ippr["prefix"])))
+                for ippr in ipp["exclude"]]
+    return {"id": ipp["id"],
+            "subnet_id": ipp["subnet_id"],
+            "network_id": ipp["network_id"],
+            "exclude": excludes}

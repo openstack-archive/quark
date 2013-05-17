@@ -252,7 +252,6 @@ def mac_address_range_find(context, **filters):
 def mac_address_range_create(context, **range_dict):
     new_range = models.MacAddressRange()
     new_range.update(range_dict)
-    new_range["tenant_id"] = context.tenant_id
     context.session.add(new_range)
     return new_range
 
@@ -467,3 +466,27 @@ def security_group_rule_create(context, **rule_dict):
 
 def security_group_rule_delete(context, rule):
     context.session.delete(rule)
+
+
+def ip_policy_create(context, **ip_policy_dict):
+    new_policy = models.IPPolicy()
+    exclude_set = ip_policy_dict.pop("exclude")
+    for ip_cidr in exclude_set.iter_cidrs():
+        new_policy["exclude"].append(models.IPPolicyRule(
+            address=int(ip_cidr.ip),
+            prefix=ip_cidr.prefixlen))
+
+    new_policy.update(ip_policy_dict)
+    context.session.add(new_policy)
+    return new_policy
+
+
+@scoped
+def ip_policy_find(context, **filters):
+    query = context.session.query(models.IPPolicy)
+    model_filters = _model_query(context, models.IPPolicy, filters)
+    return query.filter(*model_filters)
+
+
+def ip_policy_delete(context, ip_policy):
+    context.session.delete(ip_policy)
