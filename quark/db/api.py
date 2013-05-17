@@ -393,3 +393,53 @@ def dns_create(context, **dns_dict):
 
 def dns_delete(context, dns):
     context.session.delete(dns)
+
+
+@scoped
+def security_group_find(context, **filters):
+    query = context.session.query(models.SecurityGroup)
+    model_filters = _model_query(context, models.SecurityGroup, filters)
+    return query.filter(*model_filters)
+
+
+def security_group_create(context, **sec_group_dict):
+    new_group = models.SecurityGroup()
+    print sec_group_dict["security_group"]
+    new_group.update(sec_group_dict["security_group"])
+    new_group["tenant_id"] = context.tenant_id
+    context.session.add(new_group)
+    return new_group
+
+
+def security_group_update(context, group, **kwargs):
+    group.update(kwargs["security_group"])
+    context.session.add(group)
+    return group
+
+
+def security_group_delete(context, group):
+    context.session.delete(group)
+
+
+@scoped
+def security_group_rule_find(context, **filters):
+    query = context.session.query(models.SecurityGroupRule)
+    model_filters = _model_query(context, models.SecurityGroupRule, filters)
+    return query.filter(*model_filters)
+
+
+def security_group_rule_create(context, **rule_dict):
+    new_rule = models.SecurityGroupRule()
+    new_rule.update(rule_dict)
+    context.session.add(new_rule)
+    return new_rule
+
+
+def security_group_rule_update(context, rule, **kwargs):
+    rule.update(kwargs)
+    context.session.add(rule)
+    return rule
+
+
+def security_group_rule_delete(context, rule):
+    context.session.delete(rule)

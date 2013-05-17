@@ -245,6 +245,7 @@ port_rule_association_table = sa.Table(
 
 class SecurityGroupRule(BASEV2, models.HasId, models.HasTenant):
     __tablename__ = "quark_security_group_rule"
+    id = sa.Column(sa.String(36), primary_key=True)
     group_id = sa.Column(sa.String(36),
                          sa.ForeignKey("quark_security_groups.id"),
                          nullable=False)
@@ -291,11 +292,12 @@ class Port(BASEV2, models.HasTenant, models.HasId):
 
 class SecurityGroup(BASEV2, models.HasId, models.HasTenant):
     __tablename__ = "quark_security_groups"
+    id = sa.Column(sa.String(36), primary_key=True)
     name = sa.Column(sa.String(255), nullable=False)
     description = sa.Column(sa.String(255), nullable=False)
     join = "SecurityGroupRule.group_id==SecurityGroup.id"
-    routes = orm.relationship(Route, primaryjoin=join,
-                              backref='group', cascade='delete')
+    rules = orm.relationship(SecurityGroupRule, backref='group',
+                             cascade='delete', primaryjoin=join)
 
 
 class MacAddress(BASEV2, models.HasTenant):

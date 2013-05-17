@@ -29,6 +29,7 @@ from zope import sqlalchemy as zsa
 from quantum.api.v2 import attributes
 from quantum.common import exceptions
 from quantum.db import api as quantum_db_api
+from quantum.extensions import securitygroup as sg_ext
 from quantum import quantum_plugin_base_v2
 
 from quantum.openstack.common import importutils
@@ -86,10 +87,12 @@ def append_quark_extensions(conf):
 append_quark_extensions(CONF)
 
 
-class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
+class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
+             sg_ext.SecurityGroupPluginBase):
     # NOTE(mdietz): I hate this
     supported_extension_aliases = ["mac_address_ranges", "routes",
                                    "ip_addresses", "ports_quark",
+                                   "security-group",
                                    "subnets_quark"]
 
     def _initDBMaker(self):
@@ -154,6 +157,25 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             if netaddr.IPNetwork(route["cidr"]) == DEFAULT_ROUTE:
                 res["gateway_ip"] = route["gateway"]
                 break
+        return res
+
+    def _make_security_group_dict(self, security_group, fields=None):
+        res = {"id": security_group.get("id"),
+               "description": security_group.get("description"),
+               "name": security_group.get("name"),
+               "tenant_id": security_group.get("tenant_id")}
+        return res
+
+    def _make_security_group_rule_dict(self, security_rule, fields=None):
+        res = {"id": security_rule.get("id"),
+               "direction": security_rule.get("direction"),
+               "tenant_id": security_rule.get("tenant_id"),
+               "port_range_max": security_rule.get("port_range_max"),
+               "port_range_mid": security_rule.get("port_range_mid"),
+               "protocol": security_rule.get("protocol"),
+               "remote_ip_prefix": security_rule.get("remote_ip_prefix"),
+               "security_group_id": security_rule.get("security_group_id"),
+               "remote_group_id": security_rule.get("remote_group_id")}
         return res
 
     def _port_dict(self, port, fields=None):
@@ -1033,3 +1055,65 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2):
             for port in ports:
                 port['ip_addresses'].extend([address])
         return self._make_ip_dict(address)
+
+    def create_security_group(self, context, security_group):
+        LOG.info("create_security_group for tenant %s" %
+                (context.tenant_id))
+        group = db_api.security_group_create(context, **security_group)
+        return self._make_security_group_dict(group)
+
+    def create_security_group_rule(self, context, security_group_rule):
+        LOG.info("create_security_group for tenant %s" %
+                (context.tenant_id))
+        group_id = security_group_rule["security_group_id"]
+        group = db_api.security_group_find(context, id=group_id)
+        if not group:
+            raise exceptions.SecurityGroupNotFound(group_id=group_id)
+        rule = db_api.security_group_rule_create(context, security_group_rule)
+        return self._make_security_group_rule_dict(rule)
+
+    def delete_security_group(self, context, id):
+        LOG.info("delete_security_group %s for tenant %s" %
+                (id, context.tenant_id))
+        group = db_api.security_group_find(context, id=id)
+        if not group:
+            raise exceptions.SecurityGroupNotFound(group_id=id)
+        db_api.security_group_delete(context, group)
+
+    def delete_security_group_rule(self, context, id):
+        LOG.info("delete_security_group %s for tenant %s" %
+                (id, context.tenant_id))
+        rule = db_api.security_group_rule_find(context, id=id)
+        if not rule:
+            raise exceptions.SecurityGroupRuleNotFound(group_id=id)
+        db_api.security_group_rule_delete(context, rule)
+
+    def get_security_group(self, context, id, fields=None):
+        LOG.info("get_security_group %s for tenant %s" %
+                (id, context.tenant_id))
+        group = db_api.security_group_find(context, id=id)
+        if not group:
+            raise exceptions.SecurityGroupNotFound(group_id=id)
+        return self._make_security_group_dict(group, fields)
+
+    def get_security_group_rule(self, context, id, fields=None):
+        LOG.info("get_security_group_rule %s for tenant %s" %
+                (id, context.tenant_id))
+        rule = db_api.security_group_rule_find(context, id=id)
+        if not rule:
+            raise exceptions.SecurityGroupRuleNotFound(rule_id=id)
+        return self._make_security_group_rule_dict(rule, fields)
+
+    def get_security_groups(self, context, filters=None, fields=None,
+                            sorts=None, limit=None, marker=None,
+                            page_reverse=False):
+        LOG.info("get_security_groups for tenant %s" %
+                (context.tenant_id))
+        groups = db_api.security_group_find(context, filters=filters)
+        return [self._make_security_group_dict(group) for group in groups]
+
+    def get_security_group_rules(self, context, filters=None, fields=None,
+                                 sorts=None, limit=None, marker=None,
+                                 page_reverse=False):
+        LOG.info("get_security_group_rules for tenant %s" %
+                (context.tenant_id))

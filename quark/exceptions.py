@@ -21,5 +21,13 @@ class IpAddressNotFound(exceptions.QuantumException):
     message = _("IP Address %(addr_id)s not found.")
 
 
+class SecurityGroupNotFound(exceptions.NotFound):
+    message = _("Security Group %(group_id)s not found.")
+
+
+class SecurityGroupRuleNotFound(exceptions.NotFound):
+    message = _("Security Group Rule %(rule_id)s not found.")
+
+
 class RouteConflict(exceptions.QuantumException):
     message = _("Route overlaps existing route %(route_id)s with %(cidr)s")
