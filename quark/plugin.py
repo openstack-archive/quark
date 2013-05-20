@@ -164,6 +164,9 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
                "description": security_group.get("description"),
                "name": security_group.get("name"),
                "tenant_id": security_group.get("tenant_id")}
+        res["security_group_rules"] =\
+            [self._make_security_group_rule_dict(r)
+                for r in security_group['rules']]
         return res
 
     def _make_security_group_rule_dict(self, security_rule, fields=None):
@@ -1066,43 +1069,46 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
     def create_security_group_rule(self, context, security_group_rule):
         LOG.info("create_security_group for tenant %s" %
                 (context.tenant_id))
-        group_id = security_group_rule["security_group_id"]
+        r = security_group_rule["security_group_rule"]
+        group_id = r["security_group_id"]
         group = db_api.security_group_find(context, id=group_id)
         if not group:
-            raise exceptions.SecurityGroupNotFound(group_id=group_id)
-        rule = db_api.security_group_rule_create(context, security_group_rule)
+            raise sg_ext.SecurityGroupNotFound(group_id=group_id)
+        rule = db_api.security_group_rule_create(context, **r)
         return self._make_security_group_rule_dict(rule)
 
     def delete_security_group(self, context, id):
         LOG.info("delete_security_group %s for tenant %s" %
                 (id, context.tenant_id))
-        group = db_api.security_group_find(context, id=id)
+        group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
         if not group:
-            raise exceptions.SecurityGroupNotFound(group_id=id)
+            raise sg_ext.SecurityGroupNotFound(group_id=id)
         db_api.security_group_delete(context, group)
 
     def delete_security_group_rule(self, context, id):
         LOG.info("delete_security_group %s for tenant %s" %
                 (id, context.tenant_id))
-        rule = db_api.security_group_rule_find(context, id=id)
+        rule = db_api.security_group_rule_find(context, id=id,
+                                               scope=db_api.ONE)
         if not rule:
-            raise exceptions.SecurityGroupRuleNotFound(group_id=id)
+            raise sg_ext.SecurityGroupRuleNotFound(group_id=id)
         db_api.security_group_rule_delete(context, rule)
 
     def get_security_group(self, context, id, fields=None):
         LOG.info("get_security_group %s for tenant %s" %
                 (id, context.tenant_id))
-        group = db_api.security_group_find(context, id=id)
+        group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
         if not group:
-            raise exceptions.SecurityGroupNotFound(group_id=id)
+            raise sg_ext.SecurityGroupNotFound(group_id=id)
         return self._make_security_group_dict(group, fields)
 
     def get_security_group_rule(self, context, id, fields=None):
         LOG.info("get_security_group_rule %s for tenant %s" %
                 (id, context.tenant_id))
-        rule = db_api.security_group_rule_find(context, id=id)
+        rule = db_api.security_group_rule_find(context, id=id,
+                                               scope=db_api.ONE)
         if not rule:
-            raise exceptions.SecurityGroupRuleNotFound(rule_id=id)
+            raise sg_ext.SecurityGroupRuleNotFound(rule_id=id)
         return self._make_security_group_rule_dict(rule, fields)
 
     def get_security_groups(self, context, filters=None, fields=None,
@@ -1118,3 +1124,5 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
                                  page_reverse=False):
         LOG.info("get_security_group_rules for tenant %s" %
                 (context.tenant_id))
+        rules = db_api.security_group_rule_find(context, filters=filters)
+        return [self._make_security_group_rule_dict(rule) for rule in rules]
