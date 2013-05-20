@@ -55,8 +55,10 @@ class NVPDriver(base.BaseDriver):
 
     def load_config(self, path):
         default_tz = CONF.NVP.default_tz
+        LOG.info("Loading NVP settings " + str(default_tz))
         connections = CONF.NVP.controller_connection
         self.max_ports_per_switch = CONF.NVP.max_ports_per_switch
+        LOG.info("Loading NVP settings " + str(connections))
         for conn in connections:
             (ip, port, user, pw, req_timeout,
              http_timeout, retries, redirects) = conn.split(":")
