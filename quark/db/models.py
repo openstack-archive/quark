@@ -159,13 +159,15 @@ class Route(BASEV2, models.HasTenant, models.HasId, IsHazTags):
     __tablename__ = "quark_routes"
     cidr = sa.Column(sa.String(64))
     gateway = sa.Column(sa.String(64))
-    subnet_id = sa.Column(sa.String(36), sa.ForeignKey("quark_subnets.id"))
+    subnet_id = sa.Column(sa.String(36), sa.ForeignKey("quark_subnets.id",
+                                                       ondelete="CASCADE"))
 
 
 class DNSNameserver(BASEV2, models.HasTenant, models.HasId, IsHazTags):
     __tablename__ = "quark_dns_nameservers"
     ip = sa.Column(custom_types.INET())
-    subnet_id = sa.Column(sa.String(36), sa.ForeignKey("quark_subnets.id"))
+    subnet_id = sa.Column(sa.String(36), sa.ForeignKey("quark_subnets.id",
+                                                       ondelete="CASCADE"))
 
 
 class Subnet(BASEV2, models.HasId, models.HasTenant, IsHazTags):
