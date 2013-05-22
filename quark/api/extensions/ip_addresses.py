@@ -35,14 +35,6 @@ attr_dict[RESOURCE_NAME] = {'allow_post': True,
 LOG = logging.getLogger("quantum.quark.api.extensions.ip_addresses")
 
 
-def ip_dict(address):
-    return dict(subnet_id=address["subnet_id"],
-                network_id=address["network_id"],
-                id=address["id"],
-                address=address["address"],
-                port_id=address["port_id"])
-
-
 class IpAddressesController(wsgi.Controller):
 
     def __init__(self, plugin):

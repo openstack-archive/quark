@@ -1001,22 +1001,30 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
 
         port = None
         ip_dict = ip_address["ip_address"]
-        port_id = ip_dict.get('port_id')
+        port_ids = ip_dict.get('port_ids')
         network_id = ip_dict.get('network_id')
-        device_id = ip_dict.get('device_id')
+        device_ids = ip_dict.get('device_ids')
         ip_version = ip_dict.get('version')
         ip_address = ip_dict.get('ip_address')
 
-        if network_id and device_id:
-            port = db_api.port_find(
-                context, network_id=network_id, device_id=device_id,
-                tenant_id=context.tenant_id, scope=db_api.ONE)
-        elif port_id:
-            port = db_api.port_find(context, id=port_id, scope=db_api.ONE)
+        ports = []
+        if network_id and device_ids:
+            for device_id in device_ids:
+                port = db_api.port_find(
+                    context, network_id=network_id, device_id=device_id,
+                    tenant_id=context.tenant_id, scope=db_api.ONE)
+                ports.append(port)
+        elif port_ids:
+            for port_id in port_ids:
+                port = db_api.port_find(context, id=port_id,
+                                        tenant_id=context.tenant_id,
+                                        scope=db_api.ONE)
+                ports.append(port)
 
-        if not port:
-            raise exceptions.PortNotFound(port_id=port_id,
+        if not ports:
+            raise exceptions.PortNotFound(port_id=port_ids,
                                           net_id=network_id)
+
         address = self.ipam_driver.allocate_ip_address(
             context,
             port['network_id'],
@@ -1024,7 +1032,10 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
             self.ipam_reuse_after,
             ip_version,
             ip_address)
-        port["ip_addresses"].append(address)
+
+        for port in ports:
+            port["ip_addresses"].append(address)
+
         return self._make_ip_dict(address)
 
     def update_ip_address(self, context, id, ip_address):
