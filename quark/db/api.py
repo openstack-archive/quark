@@ -191,10 +191,29 @@ def ip_address_create(context, **address_dict):
 @scoped
 def ip_address_find(context, **filters):
     query = context.session.query(models.IPAddress)
+
+    ip_shared = filters.pop("shared", None)
+    if ip_shared is not None:
+        cnt = sql_func.count(models.port_ip_association_table.c.port_id)
+        stmt = context.session.query(models.IPAddress,
+                                     cnt.label("ports_count"))
+        stmt = stmt.outerjoin(models.port_ip_association_table)
+        stmt = stmt.group_by(models.IPAddress).subquery()
+
+        query = query.outerjoin(stmt, stmt.c.id == models.IPAddress.id)
+
+        #!@# HACK(amir): replace once attributes are configured in ip address
+        #                extension correctly
+        if "True" in ip_shared:
+            query = query.filter(stmt.c.ports_count > 1)
+        else:
+            query = query.filter(stmt.c.ports_count <= 1)
+
     model_filters = _model_query(context, models.IPAddress, filters)
     if filters.get("device_id"):
         model_filters.append(models.IPAddress.ports.any(
             models.Port.device_id.in_(filters["device_id"])))
+
     return query.filter(*model_filters)
 
 

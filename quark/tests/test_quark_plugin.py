@@ -876,6 +876,7 @@ class TestIpAddresses(TestQuarkPlugin):
             self.assertEqual(response['port_ids'], [port["id"]])
             self.assertEqual(response['subnet_id'], ip['subnet_id'])
             self.assertEqual(response["tenant_id"], self.context.tenant_id)
+            self.assertFalse(response["shared"])
 
     def test_create_ip_address_with_port(self):
         port = dict(id=1, network_id=2, ip_addresses=[])
