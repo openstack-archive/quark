@@ -87,6 +87,13 @@ def append_quark_extensions(conf):
 append_quark_extensions(CONF)
 
 
+def _pop_param(attrs, param, default=None):
+    val = attrs.pop(param, default)
+    if val is attributes.ATTR_NOT_SPECIFIED:
+        return default
+    return val
+
+
 class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
              sg_ext.SecurityGroupPluginBase):
     # NOTE(mdietz): I hate this
@@ -147,12 +154,14 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
                "dns_nameservers": dns_nameservers or [],
                "cidr": subnet.get('cidr'),
                "enable_dhcp": subnet.get('enable_dhcp')}
-        res["routes"] = [self._make_route_dict(r) for r in subnet["routes"]]
 
         def _host_route(route):
             return {"destination": route["cidr"],
                     "nexthop": route["gateway"]}
+
         res["host_routes"] = [_host_route(r) for r in subnet["routes"]]
+
+        #TODO(mdietz): really inefficient, should go away
         for route in subnet["routes"]:
             if netaddr.IPNetwork(route["cidr"]) == DEFAULT_ROUTE:
                 res["gateway_ip"] = route["gateway"]
@@ -290,55 +299,34 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         if not net:
             raise exceptions.NetworkNotFound(net_id=net_id)
 
-        s = subnet["subnet"]
-        self._validate_subnet_cidr(context, net, s["cidr"])
-        cidr = netaddr.IPNetwork(s["cidr"])
-        gateway_ip = s.pop("gateway_ip")
-        if gateway_ip is attributes.ATTR_NOT_SPECIFIED:
-            gateway_ip = str(netaddr.IPAddress(cidr.first + 1))
+        sub_attrs = subnet["subnet"]
 
-        dns_ips = []
-        if s["dns_nameservers"] is attributes.ATTR_NOT_SPECIFIED:
-            s.pop("dns_nameservers")
-        else:
-            dns_ips = s.pop("dns_nameservers", [])
+        self._validate_subnet_cidr(context, net, sub_attrs["cidr"])
 
-        routes = []
-        if s.get("host_routes"):
-            if s["host_routes"] is attributes.ATTR_NOT_SPECIFIED:
-                s.pop("host_routes")
-            else:
-                routes = s.pop("host_routes")
+        cidr = netaddr.IPNetwork(sub_attrs["cidr"])
+        gateway_ip = _pop_param(sub_attrs, "gateway_ip", str(cidr[1]))
+        dns_ips = _pop_param(sub_attrs, "dns_nameservers", [])
+        routes = _pop_param(sub_attrs, "host_routes", [])
+
+        new_subnet = db_api.subnet_create(context, **sub_attrs)
 
         default_route = None
         for route in routes:
             if netaddr.IPNetwork(route["destination"]) == DEFAULT_ROUTE:
                 default_route = route
-                break
+                gateway_ip = default_route["nexthop"]
+            new_subnet["routes"].append(db_api.route_create(
+                context, cidr=route["destination"], gateway=route["nexthop"]))
         if default_route is None:
-            routes.append(dict(destination=str(DEFAULT_ROUTE),
-                               nexthop=gateway_ip))
-        else:
-            gateway_ip = default_route["nexthop"]
-
-        new_subnet = db_api.subnet_create(context, **s)
-        subnet_dict = self._make_subnet_dict(new_subnet)
+            new_subnet["routes"].append(db_api.route_create(
+                context, cidr=str(DEFAULT_ROUTE), gateway=gateway_ip))
 
         for dns_ip in dns_ips:
-            db_api.dns_create(context,
-                              ip=netaddr.IPAddress(dns_ip),
-                              subnet_id=new_subnet["id"])
-            subnet_dict["dns_nameservers"].append(dns_ip)
+            new_subnet["dns_nameservers"].append(db_api.dns_create(
+                context, ip=netaddr.IPAddress(dns_ip)))
 
-        for route in routes:
-            db_api.route_create(context,
-                                cidr=route["destination"],
-                                gateway=route["nexthop"],
-                                subnet_id=new_subnet["id"])
-            subnet_dict["host_routes"].append(route)
-
+        subnet_dict = self._make_subnet_dict(new_subnet)
         subnet_dict["gateway_ip"] = gateway_ip
-
         return subnet_dict
 
     def update_subnet(self, context, id, subnet):

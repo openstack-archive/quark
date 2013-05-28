@@ -104,24 +104,24 @@ class TestQuarkGetSubnets(TestQuarkPlugin):
 
     def test_subnets_list(self):
         subnet_id = str(uuid.uuid4())
-        route = dict(id=1, cidr="0.0.0.0/0", gateway="192.168.0.1",
-                     subnet_id=subnet_id)
+        route = dict(id=1, cidr="0.0.0.0/0", gateway="192.168.0.1")
 
         subnet = dict(id=subnet_id, network_id=1, name=subnet_id,
                       tenant_id=self.context.tenant_id, ip_version=4,
                       cidr="192.168.0.0/24", gateway_ip="192.168.0.1",
                       allocation_pools=[], dns_nameservers=[],
                       enable_dhcp=True)
+        expected_route = dict(destination=route["cidr"],
+                              nexthop=route["gateway"])
 
         with self._stubs(subnets=[subnet], routes=[route]):
             res = self.plugin.get_subnets(self.context, {}, {})
-
             # Compare routes separately
-            routes = res[0].pop("routes")
+            routes = res[0].pop("host_routes")
             for key in subnet.keys():
                 self.assertEqual(res[0][key], subnet[key])
-            for key in route.keys():
-                self.assertEqual(routes[0][key], route[key])
+            for key in expected_route.keys():
+                self.assertEqual(routes[0][key], expected_route[key])
 
     def test_subnet_show_fail(self):
         with self._stubs():
@@ -133,6 +133,9 @@ class TestQuarkGetSubnets(TestQuarkPlugin):
         route = dict(id=1, cidr="0.0.0.0/0", gateway="192.168.0.1",
                      subnet_id=subnet_id)
 
+        expected_route = dict(destination=route["cidr"],
+                              nexthop=route["gateway"])
+
         subnet = dict(id=subnet_id, network_id=1, name=subnet_id,
                       tenant_id=self.context.tenant_id, ip_version=4,
                       cidr="192.168.0.0/24", gateway_ip="192.168.0.1",
@@ -143,11 +146,11 @@ class TestQuarkGetSubnets(TestQuarkPlugin):
             res = self.plugin.get_subnet(self.context, subnet_id)
 
             # Compare routes separately
-            routes = res.pop("routes")
+            routes = res.pop("host_routes")
             for key in subnet.keys():
                 self.assertEqual(res[key], subnet[key])
-            for key in route.keys():
-                self.assertEqual(routes[0][key], route[key])
+            for key in expected_route.keys():
+                self.assertEqual(routes[0][key], expected_route[key])
 
 
 class TestQuarkCreateSubnetOverlapping(TestQuarkPlugin):
@@ -207,13 +210,18 @@ class TestQuarkCreateSubnetOverlapping(TestQuarkPlugin):
 # * workaround is also in place for lame ATTR_NOT_SPECIFIED object()
 class TestQuarkCreateSubnet(TestQuarkPlugin):
     @contextlib.contextmanager
-    def _stubs(self, subnet=None, network=None):
+    def _stubs(self, subnet=None, network=None, routes=None, dns=None):
         subnet_mod = models.Subnet()
         dns_ips = subnet.pop("dns_nameservers", [])
         host_routes = subnet.pop("host_routes", [])
         subnet_mod.update(subnet)
         subnet["dns_nameservers"] = dns_ips
         subnet["host_routes"] = host_routes
+        routes = routes or []
+        dns = dns or []
+        route_models = [models.Route(**r) for r in routes]
+        dns_models = [models.DNSNameserver(**d) for d in dns]
+
         with contextlib.nested(
             mock.patch("quark.db.api.subnet_create"),
             mock.patch("quark.db.api.network_find"),
@@ -222,9 +230,12 @@ class TestQuarkCreateSubnet(TestQuarkPlugin):
         ) as (subnet_create, net_find, dns_create, route_create):
             subnet_create.return_value = subnet_mod
             net_find.return_value = network
+            route_create.side_effect = route_models
+            dns_create.side_effect = dns_models
             yield subnet_create, dns_create, route_create
 
     def test_create_subnet(self):
+        routes = [dict(cidr="0.0.0.0/0", gateway="0.0.0.0")]
         subnet = dict(
             subnet=dict(network_id=1,
                         tenant_id=self.context.tenant_id, ip_version=4,
@@ -236,7 +247,8 @@ class TestQuarkCreateSubnet(TestQuarkPlugin):
         network = dict(network_id=1)
         with self._stubs(
             subnet=subnet["subnet"],
-            network=network
+            network=network,
+            routes=routes
         ) as (subnet_create, dns_create, route_create):
             dns_nameservers = subnet["subnet"].pop("dns_nameservers")
             host_routes = subnet["subnet"].pop("host_routes")
@@ -262,6 +274,7 @@ class TestQuarkCreateSubnet(TestQuarkPlugin):
                 self.plugin.create_subnet(self.context, subnet)
 
     def test_create_subnet_no_gateway_ip_defaults(self):
+        routes = [dict(cidr="0.0.0.0/0", gateway="172.16.0.1")]
         subnet = dict(
             subnet=dict(network_id=1,
                         tenant_id=self.context.tenant_id, ip_version=4,
@@ -273,7 +286,8 @@ class TestQuarkCreateSubnet(TestQuarkPlugin):
         network = dict(network_id=1)
         with self._stubs(
             subnet=subnet["subnet"],
-            network=network
+            network=network,
+            routes=routes
         ) as (subnet_create, dns_create, route_create):
             dns_nameservers = subnet["subnet"].pop("dns_nameservers")
             gateway_ip = subnet["subnet"].pop("gateway_ip")
@@ -294,6 +308,8 @@ class TestQuarkCreateSubnet(TestQuarkPlugin):
                     self.assertEqual(res[key], subnet["subnet"][key])
 
     def test_create_subnet_dns_nameservers(self):
+        routes = [dict(cidr="0.0.0.0/0", gateway="0.0.0.0")]
+        dns_ns = [dict(ip="4.2.2.1"), dict(ip="4.2.2.2")]
         subnet = dict(
             subnet=dict(network_id=1,
                         tenant_id=self.context.tenant_id, ip_version=4,
@@ -304,7 +320,9 @@ class TestQuarkCreateSubnet(TestQuarkPlugin):
         network = dict(network_id=1)
         with self._stubs(
             subnet=subnet["subnet"],
-            network=network
+            network=network,
+            routes=routes,
+            dns=dns_ns
         ) as (subnet_create, dns_create, route_create):
             res = self.plugin.create_subnet(self.context,
                                             copy.deepcopy(subnet))
@@ -319,6 +337,8 @@ class TestQuarkCreateSubnet(TestQuarkPlugin):
                     self.assertEqual(res[key], subnet["subnet"][key])
 
     def test_create_subnet_routes(self):
+        routes = [dict(cidr="1.1.1.1/8", gateway="172.16.0.4"),
+                  dict(cidr="0.0.0.0/0", gateway="0.0.0.0")]
         subnet = dict(
             subnet=dict(network_id=1,
                         tenant_id=self.context.tenant_id, ip_version=4,
@@ -331,7 +351,8 @@ class TestQuarkCreateSubnet(TestQuarkPlugin):
         network = dict(network_id=1)
         with self._stubs(
             subnet=subnet["subnet"],
-            network=network
+            network=network,
+            routes=routes
         ) as (subnet_create, dns_create, route_create):
             dns_nameservers = subnet["subnet"].pop("dns_nameservers")
             subnet_request = copy.deepcopy(subnet)
@@ -351,6 +372,7 @@ class TestQuarkCreateSubnet(TestQuarkPlugin):
                     self.assertEqual(res[key], subnet["subnet"][key])
 
     def test_create_subnet_default_route(self):
+        routes = [dict(cidr="0.0.0.0/0", gateway="172.16.0.4")]
         subnet = dict(
             subnet=dict(network_id=1,
                         tenant_id=self.context.tenant_id, ip_version=4,
@@ -364,7 +386,8 @@ class TestQuarkCreateSubnet(TestQuarkPlugin):
         network = dict(network_id=1)
         with self._stubs(
             subnet=subnet["subnet"],
-            network=network
+            network=network,
+            routes=routes
         ) as (subnet_create, dns_create, route_create):
             dns_nameservers = subnet["subnet"].pop("dns_nameservers")
             gateway_ip = subnet["subnet"].pop("gateway_ip")
@@ -389,6 +412,7 @@ class TestQuarkCreateSubnet(TestQuarkPlugin):
         """If default route (host_routes) and gateway_ip are both provided,
         then host_route takes precedence.
         """
+        routes = [dict(cidr="0.0.0.0/0", gateway="172.16.0.4")]
         subnet = dict(
             subnet=dict(network_id=1,
                         tenant_id=self.context.tenant_id, ip_version=4,
@@ -402,7 +426,8 @@ class TestQuarkCreateSubnet(TestQuarkPlugin):
         network = dict(network_id=1)
         with self._stubs(
             subnet=subnet["subnet"],
-            network=network
+            network=network,
+            routes=routes
         ) as (subnet_create, dns_create, route_create):
             dns_nameservers = subnet["subnet"].pop("dns_nameservers")
             subnet_request = copy.deepcopy(subnet)
