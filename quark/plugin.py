@@ -27,6 +27,7 @@ from sqlalchemy import event
 from zope import sqlalchemy as zsa
 
 from quantum.api.v2 import attributes
+from quantum.common import config as quantum_cfg
 from quantum.common import exceptions
 from quantum.db import api as quantum_db_api
 from quantum.extensions import securitygroup as sg_ext
@@ -130,7 +131,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         res = {'id': network["id"],
                'name': network.get('name'),
                'tenant_id': network.get('tenant_id'),
-               'admin_state_up': network.get('admin_state_up'),
+               'admin_state_up': None,
                'status': network.get('status'),
                'shared': shared_net,
                #TODO(mdietz): this is the expected return. Then the client
@@ -153,7 +154,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
                "allocation_pools": [],
                "dns_nameservers": dns_nameservers or [],
                "cidr": subnet.get('cidr'),
-               "enable_dhcp": subnet.get('enable_dhcp')}
+               "enable_dhcp": None}
 
         def _host_route(route):
             return {"destination": route["cidr"],
@@ -261,7 +262,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
 
         """
         new_subnet_ipset = netaddr.IPSet([new_subnet_cidr])
-        if CONF.allow_overlapping_ips:
+        if quantum_cfg.cfg.CONF.allow_overlapping_ips:
             subnet_list = network.subnets
         else:
             subnet_list = db_api.subnet_find(context.elevated())
@@ -295,7 +296,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         LOG.info("create_subnet for tenant %s" % context.tenant_id)
         net_id = subnet["subnet"]["network_id"]
 
-        net = db_api.network_find(context, net_id, scope=db_api.ONE)
+        net = db_api.network_find(context, id=net_id, scope=db_api.ONE)
         if not net:
             raise exceptions.NetworkNotFound(net_id=net_id)
 

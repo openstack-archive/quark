@@ -110,7 +110,7 @@ class TestQuarkGetSubnets(TestQuarkPlugin):
                       tenant_id=self.context.tenant_id, ip_version=4,
                       cidr="192.168.0.0/24", gateway_ip="192.168.0.1",
                       allocation_pools=[], dns_nameservers=[],
-                      enable_dhcp=True)
+                      enable_dhcp=None)
         expected_route = dict(destination=route["cidr"],
                               nexthop=route["gateway"])
 
@@ -140,7 +140,7 @@ class TestQuarkGetSubnets(TestQuarkPlugin):
                       tenant_id=self.context.tenant_id, ip_version=4,
                       cidr="192.168.0.0/24", gateway_ip="192.168.0.1",
                       allocation_pools=[], dns_nameservers=[],
-                      enable_dhcp=True)
+                      enable_dhcp=None)
 
         with self._stubs(subnets=subnet, routes=[route]):
             res = self.plugin.get_subnet(self.context, subnet_id)
@@ -847,23 +847,19 @@ class TestQuarkCreateNetwork(TestQuarkPlugin):
             yield net_create
 
     def test_create_network(self):
-        net = dict(id=1, name="public")
+        net = dict(id=1, name="public", admin_state_up=True,
+                   tenant_id=0)
         with self._stubs(net=net) as net_create:
             net = self.plugin.create_network(self.context, dict(network=net))
             self.assertTrue(net_create.called)
-
-    def test_create_network_with_subnets(self):
-        net = dict(id=1, name="public")
-        subnet = dict(subnet=dict(id=1, network_id=net["id"],
-                      tenant_id=self.context.tenant_id))
-        with self._stubs(net=net, subnet=subnet["subnet"]) as net_create:
-            net_dict = dict(network=net.copy())
-            net_dict["network"]["subnets"] = [subnet]
-            res = self.plugin.create_network(self.context, net_dict)
-            self.assertTrue(net_create.called)
-            self.assertEqual(res["id"], net["id"])
-            self.assertEqual(res["name"], net["name"])
-            self.assertEqual(res["subnets"][0], net["id"])
+            self.assertEqual(len(net.keys()), 7)
+            self.assertIsNotNone(net["id"])
+            self.assertEqual(net["name"], "public")
+            self.assertIsNone(net["admin_state_up"])
+            self.assertIsNone(net["status"])
+            self.assertEqual(net["subnets"], [])
+            self.assertEqual(net["shared"], False)
+            self.assertEqual(net["tenant_id"], 0)
 
 
 class TestIpAddresses(TestQuarkPlugin):
