@@ -452,7 +452,8 @@ class TestQuarkUpdateSubnet(TestQuarkPlugin):
                           nexthop="172.16.0.1")]
 
     @contextlib.contextmanager
-    def _stubs(self, host_routes=None, new_routes=None, find_routes=True):
+    def _stubs(self, host_routes=None, new_routes=None, find_routes=True,
+               new_dns_servers=None):
         if host_routes is None:
             host_routes = []
         if new_routes:
@@ -460,6 +461,10 @@ class TestQuarkUpdateSubnet(TestQuarkPlugin):
                                        gateway=r["nexthop"],
                                        subnet_id=1)
                           for r in new_routes]
+        if new_dns_servers:
+            new_dns_servers = [models.DNSNameserver(
+                ip=ip,
+                subnet_id=1) for ip in new_dns_servers]
 
         subnet = dict(
             id=1,
@@ -486,56 +491,53 @@ class TestQuarkUpdateSubnet(TestQuarkPlugin):
         with contextlib.nested(
             mock.patch("quark.db.api.subnet_find"),
             mock.patch("quark.db.api.subnet_update"),
-            mock.patch("quark.db.api.dns_delete"),
             mock.patch("quark.db.api.dns_create"),
             mock.patch("quark.db.api.route_find"),
             mock.patch("quark.db.api.route_update"),
-            mock.patch("quark.db.api.route_delete"),
             mock.patch("quark.db.api.route_create"),
         ) as (subnet_find, subnet_update,
-              dns_delete, dns_create,
-              route_find, route_update, route_delete, route_create):
+              dns_create,
+              route_find, route_update, route_create):
             subnet_find.return_value = subnet_mod
             route_find.return_value = subnet_mod["routes"][0] \
                 if subnet_mod["routes"] and find_routes else None
             new_subnet_mod = copy.deepcopy(subnet_mod)
             if new_routes:
                 new_subnet_mod["routes"] = new_routes
+            if new_dns_servers:
+                new_subnet_mod["dns_nameservers"] = new_dns_servers
             subnet_update.return_value = new_subnet_mod
-            yield dns_delete, dns_create, \
-                route_update, route_delete, route_create
+            yield dns_create, route_update, route_create
 
     def test_update_subnet_not_found(self):
         with self.assertRaises(exceptions.SubnetNotFound):
             self.plugin.update_subnet(self.context, 1, {})
 
     def test_update_subnet_dns_nameservers(self):
+        new_dns_servers = ["1.1.1.2"]
         with self._stubs(
-            host_routes=self.DEFAULT_ROUTE
-        ) as (dns_delete, dns_create,
-              route_update, route_delete, route_create):
-            req = dict(subnet=dict(dns_nameservers=["1.1.1.2"]))
+            host_routes=self.DEFAULT_ROUTE,
+            new_dns_servers=new_dns_servers
+        ) as (dns_create, route_update, route_create):
+            req = dict(subnet=dict(dns_nameservers=new_dns_servers))
             res = self.plugin.update_subnet(self.context,
                                             1,
                                             req)
-            self.assertEqual(dns_delete.call_count, 2)
             self.assertEqual(dns_create.call_count, 1)
-            self.assertEqual(route_delete.call_count, 0)
             self.assertEqual(route_create.call_count, 0)
-            self.assertEqual(res["dns_nameservers"], ["1.1.1.2"])
+            self.assertEqual(res["dns_nameservers"], new_dns_servers)
 
     def test_update_subnet_routes(self):
+        new_routes = [dict(destination="10.0.0.0/24",
+                           nexthop="1.1.1.1")]
         with self._stubs(
-            host_routes=self.DEFAULT_ROUTE
-        ) as (dns_delete, dns_create,
-              route_update, route_delete, route_create):
+            host_routes=self.DEFAULT_ROUTE,
+            new_routes=new_routes
+        ) as (dns_create, route_update, route_create):
             req = dict(subnet=dict(
-                host_routes=[dict(destination="10.0.0.0/24",
-                                  nexthop="1.1.1.1")]))
+                host_routes=new_routes))
             res = self.plugin.update_subnet(self.context, 1, req)
-            self.assertEqual(dns_delete.call_count, 0)
             self.assertEqual(dns_create.call_count, 0)
-            self.assertEqual(route_delete.call_count, 1)
             self.assertEqual(route_create.call_count, 1)
             self.assertEqual(len(res["host_routes"]), 1)
             self.assertEqual(res["host_routes"][0]["destination"],
@@ -548,13 +550,10 @@ class TestQuarkUpdateSubnet(TestQuarkPlugin):
         with self._stubs(
             host_routes=self.DEFAULT_ROUTE,
             new_routes=[dict(destination="0.0.0.0/0", nexthop="1.2.3.4")]
-        ) as (dns_delete, dns_create,
-              route_update, route_delete, route_create):
+        ) as (dns_create, route_update, route_create):
             req = dict(subnet=dict(gateway_ip="1.2.3.4"))
             res = self.plugin.update_subnet(self.context, 1, req)
-            self.assertEqual(dns_delete.call_count, 0)
             self.assertEqual(dns_create.call_count, 0)
-            self.assertEqual(route_delete.call_count, 0)
             self.assertEqual(route_create.call_count, 0)
             self.assertEqual(route_update.call_count, 1)
             self.assertEqual(len(res["host_routes"]), 1)
@@ -570,13 +569,10 @@ class TestQuarkUpdateSubnet(TestQuarkPlugin):
             find_routes=False,
             new_routes=[dict(destination="1.1.1.1/8", nexthop="9.9.9.9"),
                         dict(destination="0.0.0.0/0", nexthop="1.2.3.4")]
-        ) as (dns_delete, dns_create,
-              route_update, route_delete, route_create):
+        ) as (dns_create, route_update, route_create):
             req = dict(subnet=dict(gateway_ip="1.2.3.4"))
             res = self.plugin.update_subnet(self.context, 1, req)
-            self.assertEqual(dns_delete.call_count, 0)
             self.assertEqual(dns_create.call_count, 0)
-            self.assertEqual(route_delete.call_count, 0)
             self.assertEqual(route_create.call_count, 1)
 
             self.assertEqual(res["gateway_ip"], "1.2.3.4")
@@ -591,13 +587,10 @@ class TestQuarkUpdateSubnet(TestQuarkPlugin):
         with self._stubs(
             host_routes=None,
             new_routes=[dict(destination="0.0.0.0/0", nexthop="1.2.3.4")]
-        ) as (dns_delete, dns_create,
-              route_update, route_delete, route_create):
+        ) as (dns_create, route_update, route_create):
             req = dict(subnet=dict(gateway_ip="1.2.3.4"))
             res = self.plugin.update_subnet(self.context, 1, req)
-            self.assertEqual(dns_delete.call_count, 0)
             self.assertEqual(dns_create.call_count, 0)
-            self.assertEqual(route_delete.call_count, 0)
             self.assertEqual(route_create.call_count, 1)
             self.assertEqual(len(res["host_routes"]), 1)
             self.assertEqual(res["host_routes"][0]["destination"],
@@ -607,18 +600,17 @@ class TestQuarkUpdateSubnet(TestQuarkPlugin):
             self.assertEqual(res["gateway_ip"], "1.2.3.4")
 
     def test_update_subnet_gateway_ip_with_default_route_in_args(self):
+        new_routes = [dict(destination="0.0.0.0/0",
+                           nexthop="4.3.2.1")]
         with self._stubs(
-            host_routes=self.DEFAULT_ROUTE
-        ) as (dns_delete, dns_create,
-              route_update, route_delete, route_create):
+            host_routes=self.DEFAULT_ROUTE,
+            new_routes=new_routes
+        ) as (dns_create, route_update, route_create):
             req = dict(subnet=dict(
-                host_routes=[dict(destination="0.0.0.0/0",
-                                  nexthop="4.3.2.1")],
+                host_routes=new_routes,
                 gateway_ip="1.2.3.4"))
             res = self.plugin.update_subnet(self.context, 1, req)
-            self.assertEqual(dns_delete.call_count, 0)
             self.assertEqual(dns_create.call_count, 0)
-            self.assertEqual(route_delete.call_count, 1)
             self.assertEqual(route_create.call_count, 1)
             self.assertEqual(len(res["host_routes"]), 1)
             self.assertEqual(res["host_routes"][0]["destination"],
