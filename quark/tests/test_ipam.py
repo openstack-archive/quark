@@ -176,17 +176,20 @@ class QuarkIPAddressDeallocation(QuarkIpamBaseTest):
         addr = dict(ports=[port])
         port["ip_addresses"].append(addr)
         self.ipam.deallocate_ip_address(self.context, port)
-        self.assertEqual(len(addr["ports"]), 0)
-        self.assertEqual(addr["deallocated"], True)
+        # ORM takes care of other model if one model is modified
+        self.assertTrue(len(addr["ports"]) == 0 or
+                        len(port["ip_addresses"]) == 0)
+        self.assertTrue(addr["deallocated"])
 
     def test_deallocate_ip_address_multiple_ports_no_deallocation(self):
         port = dict(ip_addresses=[])
         addr = dict(ports=[port, 2], deallocated=False)
         port["ip_addresses"].append(addr)
-
         self.ipam.deallocate_ip_address(self.context, port)
-        self.assertEqual(len(addr["ports"]), 1)
-        self.assertEqual(addr["deallocated"], False)
+        # ORM takes care of other model if one model is modified
+        self.assertTrue(len(addr["ports"]) == 1 or
+                        len(port["ip_addresses"]) == 0)
+        self.assertFalse(addr["deallocated"])
 
 
 class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
