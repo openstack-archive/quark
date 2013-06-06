@@ -769,9 +769,13 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         if not port:
             raise exceptions.PortNotFound(port_id=id, net_id='')
 
+        the_address = [address for address in port["ip_addresses"]
+                       if address["id"] == ip_address_id][0]
         port["ip_addresses"] = [address for address in port["ip_addresses"]
                                 if address.id != ip_address_id]
 
+        if len(the_address["ports"]) == 0:
+            the_address["deallocated"] = 1
         return v._make_port_dict(port)
 
     def get_mac_address_range(self, context, id, fields=None):
@@ -900,6 +904,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
 
     def get_ip_addresses(self, context, **filters):
         LOG.info("get_ip_addresses for tenant %s" % context.tenant_id)
+        filters["_deallocated"] = False
         addrs = db_api.ip_address_find(context, scope=db_api.ALL, **filters)
         return [v._make_ip_dict(ip) for ip in addrs]
 
