@@ -272,6 +272,15 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
             self.assertEqual(address["address"], 240)
             self.assertEqual(address["subnet_id"], 1)
 
+    def test_find_requested_ip_subnet_already_exists_fails(self):
+        subnet1 = dict(id=1, first_ip=0, last_ip=255,
+                       cidr="0.0.0.0/24", ip_version=4)
+        subnets = [(subnet1, 1)]
+        with self._stubs(subnets=subnets, addresses=[None, True]):
+            with self.assertRaises(exceptions.IpAddressGenerationFailure):
+                self.ipam.allocate_ip_address(
+                    self.context, 0, 0, 0, ip_address="0.0.0.240")
+
     def test_no_valid_subnet_for_requested_ip_fails(self):
         subnet1 = dict(id=1, first_ip=0, last_ip=255,
                        cidr="0.0.1.0/24", ip_version=4)
