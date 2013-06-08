@@ -276,15 +276,15 @@ class QOS(models.BASEV2, models.HasId):
 
 class LSwitchPort(models.BASEV2, models.HasId):
     __tablename__ = "quark_nvp_driver_lswitchport"
-    port_id = sa.Column(sa.String(255), nullable=False)
-    switch_id = sa.Column(sa.String(255),
+    port_id = sa.Column(sa.String(36), nullable=False)
+    switch_id = sa.Column(sa.String(36),
                           sa.ForeignKey("quark_nvp_driver_lswitch.id"),
                           nullable=False)
 
 
 class LSwitch(models.BASEV2, models.HasId):
     __tablename__ = "quark_nvp_driver_lswitch"
-    nvp_id = sa.Column(sa.String(255), nullable=False)
-    network_id = sa.Column(sa.String(255), nullable=False)
+    nvp_id = sa.Column(sa.String(36), nullable=False)
+    network_id = sa.Column(sa.String(36), nullable=False)
     port_count = sa.Column(sa.Integer())
     ports = orm.relationship(LSwitchPort, backref='switch')
