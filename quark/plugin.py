@@ -19,7 +19,6 @@ v2 Quantum Plug-in API Quark Implementation
 import inspect
 
 import netaddr
-
 from oslo.config import cfg
 
 from sqlalchemy.orm import sessionmaker, scoped_session
@@ -30,12 +29,12 @@ from quantum.api.v2 import attributes
 from quantum.common import config as quantum_cfg
 from quantum.common import exceptions
 from quantum.db import api as quantum_db_api
+from quantum.extensions import providernet as pnet
 from quantum.extensions import securitygroup as sg_ext
-from quantum import quantum_plugin_base_v2
-
 from quantum.openstack.common import importutils
 from quantum.openstack.common import log as logging
 from quantum.openstack.common import uuidutils
+from quantum import quantum_plugin_base_v2
 
 from quark.api import extensions
 from quark.db import api as db_api
@@ -101,7 +100,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
     supported_extension_aliases = ["mac_address_ranges", "routes",
                                    "ip_addresses", "ports_quark",
                                    "security-group",
-                                   "subnets_quark"]
+                                   "subnets_quark", "provider"]
 
     def _initDBMaker(self):
         # This needs to be called after _ENGINE is configured
@@ -491,6 +490,15 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
             raise exceptions.SubnetNotFound(subnet_id=id)
         self._delete_subnet(context, subnet)
 
+    def _adapt_provider_nets(self, context, network):
+        #TODO(mdietz) going to ignore all the boundary and network
+        #             type checking for now.
+        attrs = network["network"]
+        net_type = _pop_param(attrs, pnet.NETWORK_TYPE)
+        phys_net = _pop_param(attrs, pnet.PHYSICAL_NETWORK)
+        seg_id = _pop_param(attrs, pnet.SEGMENTATION_ID)
+        return net_type, phys_net, seg_id
+
     def create_network(self, context, network):
         """Create a network.
 
@@ -502,18 +510,27 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
             quantum/api/v2/attributes.py.  All keys will be populated.
         """
         LOG.info("create_network for tenant %s" % context.tenant_id)
+
         # Generate a uuid that we're going to hand to the backend and db
         net_uuid = uuidutils.generate_uuid()
 
-        #NOTE(mdietz): probably want to abstract this out as we're getting
-        #              too tied to the implementation here
+        #TODO(mdietz) this will be the first component registry hook, but
+        #             lets make it work first
+        pnet_type, phys_net, seg_id = self._adapt_provider_nets(context,
+                                                                network)
+
+        # NOTE(mdietz) I think ideally we would create the providernet
+        # elsewhere as a separate driver step that could be
+        # kept in a plugin and completely removed if desired. We could
+        # have a pre-callback/observer on the netdriver create_network
+        # that gathers any additional parameters from the network dict
         self.net_driver.create_network(context,
                                        network["network"]["name"],
-                                       network_id=net_uuid)
+                                       network_id=net_uuid,
+                                       phys_type=pnet_type,
+                                       phys_net=phys_net, segment_id=seg_id)
 
-        subnets = []
-        if network["network"].get("subnets"):
-            subnets = network["network"].pop("subnets")
+        subnets = network["network"].pop("subnets", [])
 
         network["network"]["id"] = net_uuid
         network["network"]["tenant_id"] = context.tenant_id
@@ -910,6 +927,9 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
     def _to_mac_range(self, val):
         cidr_parts = val.split("/")
         prefix = cidr_parts[0]
+
+        #FIXME(anyone): replace is slow, but this doesn't really
+        #               get called ever. Fix maybe?
         prefix = prefix.replace(':', '')
         prefix = prefix.replace('-', '')
         prefix_length = len(prefix)

@@ -27,6 +27,7 @@ from quantum.openstack.common import log as logging
 
 from quark.db import models
 from quark.drivers import base
+from quark import exceptions
 
 
 LOG = logging.getLogger("quantum.quark.nvplib")
@@ -44,6 +45,15 @@ nvp_opts = [
                     help=_('NVP Controller connection string')),
 ]
 
+physical_net_type_map = {
+    "stt": "stt",
+    "gre": "gre",
+    "flat": "bridge",
+    "bridge": "bridge",
+    "vlan": "bridge",
+    "local": "local"
+}
+
 CONF.register_opts(nvp_opts, "NVP")
 
 
@@ -54,6 +64,8 @@ class NVPDriver(base.BaseDriver):
         self.max_ports_per_switch = 0
 
     def load_config(self, path):
+        #NOTE(mdietz): What does default_tz actually mean?
+        #              We don't have one default.
         default_tz = CONF.NVP.default_tz
         LOG.info("Loading NVP settings " + str(default_tz))
         connections = CONF.NVP.controller_connection
@@ -126,24 +138,47 @@ class NVPDriver(base.BaseDriver):
         LOG.debug("Deleting port %s from lswitch %s" % (port_id, lswitch_uuid))
         connection.lswitch_port(lswitch_uuid, port_id).delete()
 
+    def _get_network_details(self, switches):
+        name, phys_net, phys_type, segment_id = None, None, None, None
+        for res in switches["results"]:
+            name = res["display_name"]
+            for zone in res["transport_zones"]:
+                phys_net = zone["zone_uuid"]
+                phys_type = zone["transport_type"]
+                if "binding_config" in zone:
+                    binding = zone["binding_config"]
+                    segment_id = binding["vlan_translation"][0]["transport"]
+                break
+            return dict(network_name=name, phys_net=phys_net,
+                        phys_type=phys_type, segment_id=segment_id)
+        return {}
+
     def _create_or_choose_lswitch(self, context, network_id):
-        tenant_id = context.tenant_id
-        LOG.debug("Choosing an appropriate lswitch for %s" % tenant_id)
-        LOG.debug("Max ports per switch %d" % self.max_ports_per_switch)
-        switch = self._lswitch_select_open(context, network_id)
+        switches = self._lswitch_status_query(context, network_id)
+        switch = self._lswitch_select_open(context, switches)
         if switch:
             LOG.debug("Found open switch %s" % switch)
             return switch
 
-        return self._lswitch_create(context, network_id,
-                                    network_id=network_id)
+        switch_details = self._get_network_details(switches)
+        if not switch_details:
+            raise exceptions.BadNVPState(net_id=network_id)
 
-    def _lswitch_select_open(self, context, network_id):
+        return self._lswitch_create(context, network_id=network_id,
+                                    **switch_details)
+
+    def _lswitch_status_query(self, context, network_id):
         query = self._lswitches_for_network(context, network_id)
         query.relations("LogicalSwitchStatus")
         results = query.results()
         LOG.debug("Query results: %s" % results)
-        for res in results["results"]:
+        return results
+
+    def _lswitch_select_open(self, context, switches):
+        """Selects an open lswitch for a network. Note that it does not select
+        the most full switch, but merely one with ports available.
+        """
+        for res in switches["results"]:
             count = res["_relations"]["LogicalSwitchStatus"]["lport_count"]
             if self.max_ports_per_switch == 0 or \
                     count < self.max_ports_per_switch:
@@ -155,13 +190,51 @@ class NVPDriver(base.BaseDriver):
         LOG.debug("Deleting lswitch %s" % lswitch_uuid)
         connection.lswitch(lswitch_uuid).delete()
 
-    def _lswitch_create(self, context, network_name, tags=None,
-                        network_id=None, **kwargs):
+    def _config_provider_attrs(self, connection, switch, phys_net,
+                               net_type, segment_id):
+        if not (phys_net or net_type):
+            return
+        if not phys_net and net_type:
+            raise exceptions.ProvidernetParamError(
+                msg="provider:physical_network parameter required")
+        if phys_net and not net_type:
+            raise exceptions.ProvidernetParamError(
+                msg="provider:network_type parameter required")
+        if not net_type in ("bridge", "vlan") and segment_id:
+            raise exceptions.SegmentIdUnsupported(net_type=net_type)
+        if net_type == "vlan" and not segment_id:
+            raise exceptions.SegmentIdRequired(net_type=net_type)
+
+        phys_type = physical_net_type_map.get(net_type.lower())
+        if not phys_type:
+            raise exceptions.InvalidPhysicalNetworkType(net_type=net_type)
+
+        tz_query = connection.transportzone(phys_net).query()
+        transport_zone = tz_query.results()
+
+        if transport_zone["result_count"] == 0:
+            raise exceptions.PhysicalNetworkNotFound(phys_net=phys_net)
+        switch.transport_zone(zone_uuid=phys_net,
+                              transport_type=phys_type,
+                              vlan_id=segment_id)
+
+    def _lswitch_create(self, context, network_name=None, tags=None,
+                        network_id=None, phys_net=None,
+                        phys_type=None, segment_id=None,
+                        **kwargs):
+        # NOTE(mdietz): physical net uuid maps to the transport zone uuid
+        # physical net type maps to the transport/connector type
+        # if type maps to 'bridge', then segment_id, which maps
+        # to vlan_id, is conditionally provided
         LOG.debug("Creating new lswitch for %s network %s" %
                  (context.tenant_id, network_name))
+
         tenant_id = context.tenant_id
         connection = self.get_connection()
+
         switch = connection.lswitch()
+        if network_name is None:
+            network_name = network_id
         switch.display_name(network_name)
         tags = tags or []
         tags.append({"tag": tenant_id, "scope": "os_tid"})
@@ -169,6 +242,13 @@ class NVPDriver(base.BaseDriver):
             tags.append({"tag": network_id, "scope": "quantum_net_id"})
         switch.tags(tags)
         LOG.debug("Creating lswitch for network %s" % network_id)
+
+        # When connecting to public or snet, we need switches that are
+        # connected to their respective public/private transport zones
+        # using a "bridge" connector. Public uses no VLAN, whereas private
+        # uses VLAN 122 in netdev. Probably need this to be configurable
+        self._config_provider_attrs(connection, switch, phys_net, phys_type,
+                                    segment_id)
         res = switch.create()
         return res["uuid"]
 
@@ -227,6 +307,7 @@ class OptimizedNVPDriver(NVPDriver):
         return switch
 
     def _lswitch_select_first(self, context):
+        #FIXME(mdietz): This will select any switch!
         return context.session.query(LSwitch).first()
 
     def _lswitch_select_free(self, context):
@@ -236,7 +317,13 @@ class OptimizedNVPDriver(NVPDriver):
             first()
         return switch
 
-    def _lswitch_select_open(self, context, network_id):
+    def _lswitch_status_query(self, context, network_id):
+        #TODO(mdietz): This maybe should return a switch
+        #              and we rewrite select_open below
+        pass
+
+    def _lswitch_select_open(self, context, switches):
+        # NOTE(mdietz): the switches are ignored here
         if self.max_ports_per_switch == 0:
             switch = self._lswitch_select_first(context)
         else:
@@ -246,7 +333,10 @@ class OptimizedNVPDriver(NVPDriver):
             return None
         return switch.nvp_id
 
-    def _lswitch_create(self, context, network_name, tags=None,
+    def _get_network_details(self, switches):
+        print "Why is this happening?"
+
+    def _lswitch_create(self, context, network_name=None, tags=None,
                         network_id=None, **kwargs):
         nvp_id = super(OptimizedNVPDriver, self).\
             _lswitch_create(context, network_name, tags,
@@ -288,3 +378,9 @@ class LSwitch(models.BASEV2, models.HasId):
     network_id = sa.Column(sa.String(255), nullable=False)
     port_count = sa.Column(sa.Integer())
     ports = orm.relationship(LSwitchPort, backref='switch')
+
+    #NOTE(mdietz): these won't be used until I hack the optimized
+    #              driver together
+    transport_zone = sa.Column(sa.String(36))
+    transport_connector = sa.Column(sa.String(20))
+    segment_id = sa.Column(sa.Integer())

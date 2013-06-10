@@ -23,3 +23,27 @@ class IpAddressNotFound(exceptions.QuantumException):
 
 class RouteConflict(exceptions.QuantumException):
     message = _("Route overlaps existing route %(route_id)s with %(cidr)s")
+
+
+class InvalidPhysicalNetworkType(exceptions.QuantumException):
+    message = _("Providernet type %(net_type)s is invalid")
+
+
+class SegmentIdUnsupported(exceptions.QuantumException):
+    message = _("Segmentation ID is unsupported for network type %(net_type)s")
+
+
+class SegmentIdRequired(exceptions.QuantumException):
+    message = _("Segmentation ID is required for network type %(net_type)s")
+
+
+class PhysicalNetworkNotFound(exceptions.QuantumException):
+    message = _("Physical network %(phys_net)s not found!")
+
+
+class ProvidernetParamError(exceptions.QuantumException):
+    message = _("%(msg)s")
+
+
+class BadNVPState(exceptions.QuantumException):
+    message = _("No networking information found for network %(net_id)s")

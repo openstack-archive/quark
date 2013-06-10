@@ -21,6 +21,7 @@ from quantum.db import api as db_api
 
 from quark.db import models
 import quark.drivers.nvp_driver
+from quark import exceptions as q_exc
 from quark.tests import test_base
 
 
@@ -117,6 +118,141 @@ class TestNVPDriverCreateNetwork(TestNVPDriver):
             self.assertTrue(connection.lswitch().create.called)
 
 
+class TestNVPDriverProviderNetwork(TestNVPDriver):
+    """Testing all of the network types is unnecessary, but it's nice for piece
+    of mind.
+    """
+    @contextlib.contextmanager
+    def _stubs(self, tz):
+        with contextlib.nested(
+            mock.patch("%s.get_connection" % self.d_pkg),
+        ) as (get_connection,):
+            connection = self._create_connection()
+            switch = self._create_lswitch(1, False)
+            switch.transport_zone = mock.Mock()
+            tz_results = mock.Mock()
+            tz_results.results = mock.Mock(return_value=tz)
+            tz_query = mock.Mock()
+            tz_query.query = mock.Mock(return_value=tz_results)
+            connection.transportzone = mock.Mock(return_value=tz_query)
+            get_connection.return_value = connection
+            yield connection, switch
+
+    def test_config_provider_attrs_flat_net(self):
+        tz = dict(result_count=1)
+        with self._stubs(tz) as (connection, switch):
+            self.driver._config_provider_attrs(
+                connection=connection, switch=switch, phys_net="net_uuid",
+                net_type="flat", segment_id=None)
+            switch.transport_zone.assert_called_with(
+                zone_uuid="net_uuid", transport_type="bridge", vlan_id=None)
+
+    def test_config_provider_attrs_vlan_net(self):
+        tz = dict(result_count=1)
+        with self._stubs(tz) as (connection, switch):
+            self.driver._config_provider_attrs(
+                connection=connection, switch=switch, phys_net="net_uuid",
+                net_type="vlan", segment_id=10)
+            switch.transport_zone.assert_called_with(
+                zone_uuid="net_uuid", transport_type="bridge", vlan_id=10)
+
+    def test_config_provider_attrs_gre_net(self):
+        tz = dict(result_count=1)
+        with self._stubs(tz) as (connection, switch):
+            self.driver._config_provider_attrs(
+                connection=connection, switch=switch, phys_net="net_uuid",
+                net_type="gre", segment_id=None)
+            switch.transport_zone.assert_called_with(
+                zone_uuid="net_uuid", transport_type="gre", vlan_id=None)
+
+    def test_config_provider_attrs_stt_net(self):
+        tz = dict(result_count=1)
+        with self._stubs(tz) as (connection, switch):
+            self.driver._config_provider_attrs(
+                connection=connection, switch=switch, phys_net="net_uuid",
+                net_type="stt", segment_id=None)
+            switch.transport_zone.assert_called_with(
+                zone_uuid="net_uuid", transport_type="stt", vlan_id=None)
+
+    def test_config_provider_attrs_local_net(self):
+        tz = dict(result_count=1)
+        with self._stubs(tz) as (connection, switch):
+            self.driver._config_provider_attrs(
+                connection=connection, switch=switch, phys_net="net_uuid",
+                net_type="local", segment_id=None)
+            switch.transport_zone.assert_called_with(
+                zone_uuid="net_uuid", transport_type="local", vlan_id=None)
+
+    def test_config_provider_attrs_bridge_net(self):
+        """Exists because internal driver calls can also call this method,
+        and they may pass bridge in as the type as that's how it's known
+        to NVP.
+        """
+        tz = dict(result_count=1)
+        with self._stubs(tz) as (connection, switch):
+            self.driver._config_provider_attrs(
+                connection=connection, switch=switch, phys_net="net_uuid",
+                net_type="bridge", segment_id=None)
+            switch.transport_zone.assert_called_with(
+                zone_uuid="net_uuid", transport_type="bridge", vlan_id=None)
+
+    def test_config_provider_attrs_no_phys_net_or_type(self):
+        with self._stubs({}) as (connection, switch):
+            self.driver._config_provider_attrs(
+                connection=connection, switch=switch, phys_net=None,
+                net_type=None, segment_id=None)
+            self.assertFalse(switch.transport_zone.called)
+
+    def test_config_provider_attrs_vlan_net_no_segment_id_fails(self):
+        with self._stubs({}) as (connection, switch):
+            self.assertRaises(
+                q_exc.SegmentIdRequired,
+                self.driver._config_provider_attrs, connection=connection,
+                switch=switch, phys_net="net_uuid", net_type="vlan",
+                segment_id=None)
+
+    def test_config_provider_attrs_non_vlan_net_with_segment_id_fails(self):
+        with self._stubs({}) as (connection, switch):
+            self.assertRaises(
+                q_exc.SegmentIdUnsupported,
+                self.driver._config_provider_attrs, connection=connection,
+                switch=switch, phys_net="net_uuid", net_type="flat",
+                segment_id=10)
+
+    def test_config_phys_net_no_phys_type_fails(self):
+        with self._stubs({}) as (connection, switch):
+            self.assertRaises(
+                q_exc.ProvidernetParamError,
+                self.driver._config_provider_attrs, connection=connection,
+                switch=switch, phys_net="net_uuid", net_type=None,
+                segment_id=None)
+
+    def test_config_no_phys_net_with_phys_type_fails(self):
+        with self._stubs({}) as (connection, switch):
+            self.assertRaises(
+                q_exc.ProvidernetParamError,
+                self.driver._config_provider_attrs, connection=connection,
+                switch=switch, phys_net=None, net_type="flat",
+                segment_id=None)
+
+    def test_config_physical_net_doesnt_exist_fails(self):
+        tz = dict(result_count=0)
+        with self._stubs(tz) as (connection, switch):
+            self.assertRaises(
+                q_exc.PhysicalNetworkNotFound,
+                self.driver._config_provider_attrs, connection=connection,
+                switch=switch, phys_net="net_uuid", net_type="flat",
+                segment_id=None)
+
+    def test_config_physical_net_bad_net_type_fails(self):
+        with self._stubs({}) as (connection, switch):
+            self.assertRaises(
+                q_exc.InvalidPhysicalNetworkType,
+                self.driver._config_provider_attrs, connection=connection,
+                switch=switch, phys_net="net_uuid", net_type="lol",
+                segment_id=None)
+
+
 class TestNVPDriverDeleteNetwork(TestNVPDriver):
     @contextlib.contextmanager
     def _stubs(self, network_exists=True):
@@ -147,19 +283,21 @@ class TestNVPDriverDeleteNetwork(TestNVPDriver):
 class TestNVPDriverCreatePort(TestNVPDriver):
     '''In all cases an lswitch should be queried.'''
     @contextlib.contextmanager
-    def _stubs(self, has_lswitch=True, maxed_ports=False):
+    def _stubs(self, has_lswitch=True, maxed_ports=False, net_details=None):
         with contextlib.nested(
             mock.patch("%s.get_connection" % self.d_pkg),
             mock.patch("%s._lswitches_for_network" % self.d_pkg),
-        ) as (get_connection, get_switches):
+            mock.patch("%s._get_network_details" % self.d_pkg),
+        ) as (get_connection, get_switches, get_net_dets):
             connection = self._create_connection(has_switches=has_lswitch,
                                                  maxed_ports=maxed_ports)
             get_connection.return_value = connection
             get_switches.return_value = connection.lswitch().query()
+            get_net_dets.return_value = net_details
             yield connection
 
     def test_create_port_switch_exists(self):
-        with self._stubs() as (connection):
+        with self._stubs(net_details=dict(foo=3)) as (connection):
             port = self.driver.create_port(self.context, self.net_id,
                                            self.port_id)
             self.assertTrue("uuid" in port)
@@ -171,7 +309,8 @@ class TestNVPDriverCreatePort(TestNVPDriver):
             self.assertTrue(True in status_args)
 
     def test_create_port_switch_not_exists(self):
-        with self._stubs(has_lswitch=False) as (connection):
+        with self._stubs(has_lswitch=False,
+                         net_details=dict(foo=3)) as (connection):
             port = self.driver.create_port(self.context, self.net_id,
                                            self.port_id)
             self.assertTrue("uuid" in port)
@@ -182,8 +321,14 @@ class TestNVPDriverCreatePort(TestNVPDriver):
                 admin_status_enabled.call_args
             self.assertTrue(True in status_args)
 
+    def test_create_port_no_existing_switches_fails(self):
+        with self._stubs(has_lswitch=False):
+            self.assertRaises(q_exc.BadNVPState, self.driver.create_port,
+                              self.context, self.net_id, self.port_id, False)
+
     def test_create_disabled_port_switch_not_exists(self):
-        with self._stubs(has_lswitch=False) as (connection):
+        with self._stubs(has_lswitch=False,
+                         net_details=dict(foo=3)) as (connection):
             port = self.driver.create_port(self.context, self.net_id,
                                            self.port_id, False)
             self.assertTrue("uuid" in port)
@@ -195,7 +340,8 @@ class TestNVPDriverCreatePort(TestNVPDriver):
             self.assertTrue(False in status_args)
 
     def test_create_port_switch_exists_spanning(self):
-        with self._stubs(maxed_ports=True) as (connection):
+        with self._stubs(maxed_ports=True,
+                         net_details=dict(foo=3)) as (connection):
             self.driver.max_ports_per_switch = self.max_spanning
             port = self.driver.create_port(self.context, self.net_id,
                                            self.port_id)
@@ -208,7 +354,8 @@ class TestNVPDriverCreatePort(TestNVPDriver):
             self.assertTrue(True in status_args)
 
     def test_create_port_switch_not_exists_spanning(self):
-        with self._stubs(has_lswitch=False, maxed_ports=True) as (connection):
+        with self._stubs(has_lswitch=False, maxed_ports=True,
+                         net_details=dict(foo=3)) as (connection):
             self.driver.max_ports_per_switch = self.max_spanning
             port = self.driver.create_port(self.context, self.net_id,
                                            self.port_id)
@@ -221,7 +368,8 @@ class TestNVPDriverCreatePort(TestNVPDriver):
             self.assertTrue(True in status_args)
 
     def test_create_disabled_port_switch_not_exists_spanning(self):
-        with self._stubs(has_lswitch=False, maxed_ports=True) as (connection):
+        with self._stubs(has_lswitch=False, maxed_ports=True,
+                         net_details=dict(foo=3)) as (connection):
             self.driver.max_ports_per_switch = self.max_spanning
             port = self.driver.create_port(self.context, self.net_id,
                                            self.port_id, False)
@@ -232,6 +380,62 @@ class TestNVPDriverCreatePort(TestNVPDriver):
             status_args, kwargs = connection.lswitch_port().\
                 admin_status_enabled.call_args
             self.assertTrue(False in status_args)
+
+
+class TestNVPDriverLswitchesForNetwork(TestNVPDriver):
+    @contextlib.contextmanager
+    def _stubs(self, single_switch=True):
+        with contextlib.nested(
+            mock.patch("%s.get_connection" % self.d_pkg),
+        ) as (get_connection,):
+            connection = self._create_connection(switch_count=1)
+            get_connection.return_value = connection
+            yield connection
+
+    def test_get_lswitches(self):
+        """Test exists for coverage. No decisions are made."""
+        with self._stubs() as connection:
+            query_mock = mock.Mock()
+            query_mock.tags = mock.Mock()
+            query_mock.tagscopes = mock.Mock()
+            connection.query = mock.Mock(return_value=query_mock)
+            self.driver._lswitches_for_network(self.context, "net_uuid")
+
+
+class TestSwitchCopying(TestNVPDriver):
+    def test_no_existing_switches(self):
+        switches = dict(results=[])
+        args = self.driver._get_network_details(switches)
+        self.assertTrue(args == {})
+
+    def test_has_switches_no_transport_zones(self):
+        switch = dict(display_name="public", transport_zones=[])
+        switches = dict(results=[switch])
+        args = self.driver._get_network_details(switches)
+        self.assertEqual(args["network_name"], "public")
+        self.assertEqual(args["phys_net"], None)
+
+    def test_has_switches_and_transport_zones(self):
+        transport_zones = [dict(zone_uuid="zone_uuid",
+                                transport_type="bridge")]
+        switch = dict(display_name="public", transport_zones=transport_zones)
+        switches = dict(results=[switch])
+        args = self.driver._get_network_details(switches)
+        self.assertEqual(args["network_name"], "public")
+        self.assertEqual(args["phys_net"], "zone_uuid")
+        self.assertEqual(args["phys_type"], "bridge")
+
+    def test_has_switches_tz_and_vlan(self):
+        binding = dict(vlan_translation=[dict(transport=10)])
+        transport_zones = [dict(zone_uuid="zone_uuid",
+                                transport_type="bridge",
+                                binding_config=binding)]
+        switch = dict(display_name="public", transport_zones=transport_zones)
+        switches = dict(results=[switch])
+        args = self.driver._get_network_details(switches)
+        self.assertEqual(args["network_name"], "public")
+        self.assertEqual(args["phys_net"], "zone_uuid")
+        self.assertEqual(args["phys_type"], "bridge")
 
 
 class TestNVPDriverDeletePort(TestNVPDriver):
