@@ -137,8 +137,9 @@ class TestOptimizedNVPDriverCreatePort(TestOptimizedNVPDriver):
             mock.patch("%s._lswitch_select_first" % self.d_pkg),
             mock.patch("%s._lswitch_select_by_nvp_id" % self.d_pkg),
             mock.patch("%s._lswitch_create_optimized" % self.d_pkg),
+            mock.patch("%s._get_network_details" % self.d_pkg)
         ) as (get_connection, select_free, select_first,
-              select_by_id, create_opt):
+              select_by_id, create_opt, get_net_dets):
             connection = self._create_connection()
             get_connection.return_value = connection
             if has_lswitch:
@@ -152,6 +153,7 @@ class TestOptimizedNVPDriverCreatePort(TestOptimizedNVPDriver):
                 select_free.return_value = None
 
             select_by_id.return_value = self._create_lswitch_mock()
+            get_net_dets.return_value = dict(foo=3)
             yield connection, create_opt
 
     def test_create_port_and_maxed_switch_spanning(self):
