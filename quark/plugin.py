@@ -166,6 +166,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
             if netaddr.IPNetwork(route["cidr"]) == DEFAULT_ROUTE:
                 res["gateway_ip"] = route["gateway"]
                 break
+        if "gateway_ip" not in res:
+            res["gateway_ip"] = None
         return res
 
     def _make_security_group_dict(self, security_group, fields=None):
@@ -374,36 +376,23 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
                                         gateway=gateway_ip,
                                         subnet_id=id)
 
-        subnet = db_api.subnet_update(context, subnet_db, **s)
-        subnet_dict = self._make_subnet_dict(subnet)
-
         if dns_ips:
-            dns_models = subnet_db["dns_nameservers"]
-            for dns_model in dns_models:
-                db_api.dns_delete(context, dns_model)
-            subnet_dict["dns_nameservers"] = []
+            subnet_db["dns_nameservers"] = []
         for dns_ip in dns_ips:
-            db_api.dns_create(context,
-                              ip=netaddr.IPAddress(dns_ip),
-                              subnet_id=subnet["id"])
-            subnet_dict["dns_nameservers"].append(dns_ip)
+            subnet_db["dns_nameservers"].append(db_api.dns_create(
+                context,
+                ip=netaddr.IPAddress(dns_ip)))
 
         if routes:
-            route_models = subnet_db["routes"]
-            for route_model in route_models:
-                db_api.route_delete(context, route_model)
-            subnet_dict["host_routes"] = []
-            subnet_dict["gateway_ip"] = None
+            subnet_db["routes"] = []
         for route in routes:
-            db_api.route_create(context,
-                                cidr=route["destination"],
-                                gateway=route["nexthop"],
-                                subnet_id=subnet["id"])
-            if netaddr.IPNetwork(route["destination"]) == DEFAULT_ROUTE:
-                subnet_dict["gateway_ip"] = route["nexthop"]
-            subnet_dict["host_routes"].append(route)
+            subnet_db["routes"].append(db_api.route_create(
+                context,
+                cidr=route["destination"],
+                gateway=route["nexthop"]))
 
-        return subnet_dict
+        subnet = db_api.subnet_update(context, subnet_db, **s)
+        return self._make_subnet_dict(subnet)
 
     def get_subnet(self, context, id, fields=None):
         """Retrieve a subnet.
