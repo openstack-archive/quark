@@ -147,13 +147,11 @@ class QuarkIpam(object):
         return address
 
     def deallocate_ip_address(self, context, port, **kwargs):
-        for address in port["ip_addresses"]:
-            # Only disassociate from port, don't automatically deallocate
-            address["ports"].remove(port)
-            if len(address["ports"]) > 0:
-                continue
-
-            address["deallocated"] = 1
+        for addr in port["ip_addresses"]:
+            # Note: only deallocate ip if this is the only port mapped to it
+            if len(addr["ports"]) == 1:
+                addr["deallocated"] = 1
+        port["ip_addresses"] = []
 
     def deallocate_mac_address(self, context, address):
         mac = db_api.mac_address_find(context, address=address,
