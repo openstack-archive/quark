@@ -1,0 +1,3 @@
+[submodule "quark.wiki"]
+	path = quark.wiki
+	url = git://github.com/jkoelker/quark.wiki
