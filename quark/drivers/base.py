@@ -37,10 +37,30 @@ class BaseDriver(object):
     def delete_network(self, context, network_id):
         LOG.info("delete_network %s" % network_id)
 
-    def create_port(self, context, network_id, port_id, status=True):
+    def create_port(self, context, network_id, port_id, **kwargs):
         LOG.info("create_port %s %s %s" % (context.tenant_id, network_id,
                                            port_id))
         return {"uuid": port_id}
 
-    def delete_port(self, context, port_id, lswitch_uuid=None):
+    def update_port(self, context, port_id, **kwargs):
+        LOG.info("update_port %s %s" % (context.tenant_id, port_id))
+        return {"uuid": port_id}
+
+    def delete_port(self, context, port_id, **kwargs):
         LOG.info("delete_port %s %s" % (context.tenant_id, port_id))
+
+    def create_security_group(self, context, group_name, **group):
+        LOG.info("Creating security profile %s for tenant %s" %
+                 (group_name, context.tenant_id))
+
+    def delete_security_group(self, context, group_id, **kwargs):
+        LOG.info("Deleting security profile %s for tenant %s" %
+                (group_id, context.tenant_id))
+
+    def create_security_group_rule(self, context, group_id, rule):
+        LOG.info("Creating security rule on group %s for tenant %s" %
+                (group_id, context.tenant_id))
+
+    def delete_security_group_rule(self, context, group_id, rule):
+        LOG.info("Deleting security rule on group %s for tenant %s" %
+                (group_id, context.tenant_id))

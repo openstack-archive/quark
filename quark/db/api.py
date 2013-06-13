@@ -439,6 +439,12 @@ def security_group_create(context, **sec_group_dict):
     return new_group
 
 
+def security_group_update(context, group, **kwargs):
+    group.update(kwargs)
+    context.session.add(group)
+    return group
+
+
 def security_group_delete(context, group):
     context.session.delete(group)
 

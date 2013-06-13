@@ -32,10 +32,13 @@ class OptimizedNVPDriver(NVPDriver):
         for switch in lswitches:
             self._lswitch_delete(context, switch.nvp_id)
 
-    def create_port(self, context, network_id, port_id, status=True):
+    def create_port(self, context, network_id, port_id,
+                    status=True, security_groups=[], allowed_pairs=[]):
         nvp_port = super(OptimizedNVPDriver, self).\
             create_port(context, network_id,
-                        port_id, status)
+                        port_id, status=status,
+                        security_groups=security_groups,
+                        allowed_pairs=allowed_pairs)
         switch_nvp_id = nvp_port["lswitch"]
 
         # slightly inefficient for the sake of brevity. Lets the
@@ -51,6 +54,17 @@ class OptimizedNVPDriver(NVPDriver):
         switch.port_count = switch.port_count + 1
         return nvp_port
 
+    def update_port(self, context, port_id,
+                    status=True, security_groups=[], allowed_pairs=[]):
+        nvp_port = super(OptimizedNVPDriver, self).\
+            update_port(context, port_id, status=status,
+                        security_groups=security_groups,
+                        allowed_pairs=allowed_pairs)
+        port = context.session.query(LSwitchPort).\
+            filter(LSwitchPort.port_id == port_id).\
+            first()
+        port.update(nvp_port)
+
     def delete_port(self, context, port_id, lswitch_uuid=None):
         port = self._lport_select_by_id(context, port_id)
         switch = port.switch
@@ -60,6 +74,21 @@ class OptimizedNVPDriver(NVPDriver):
         switch.port_count = switch.port_count - 1
         if switch.port_count == 0:
             self._lswitch_delete(context, switch.nvp_id)
+
+    def create_security_group(self, context, group_name, **group):
+        nvp_group = super(OptimizedNVPDriver, self).create_security_group(
+            context, group_name, **group)
+        group_id = group.get('group_id')
+        profile = SecurityProfile(id=group_id, nvp_id=nvp_group['uuid'])
+        context.session.add(profile)
+
+    def delete_security_group(self, context, group_id):
+        super(OptimizedNVPDriver, self).\
+            delete_security_group(context, group_id)
+        group = context.session.query(SecurityProfile).\
+            filter(SecurityProfile.id == group_id).\
+            first()
+        context.session.delete(group)
 
     def _lport_select_by_id(self, context, port_id):
         port = context.session.query(LSwitchPort).\
@@ -144,6 +173,37 @@ class OptimizedNVPDriver(NVPDriver):
             all()
         return switches
 
+    def _lswitch_from_port(self, context, port_id):
+        port = self._lport_select_by_id(context, port_id)
+        return port.switch.nvp_id
+
+    def _get_security_group_id(self, context, group_id):
+        return context.session.query(SecurityProfile).\
+            filter(SecurityProfile.id == group_id).first().nvp_id
+
+    def _make_security_rule_dict(self, rule):
+        res = {"port_range_min": rule.get("port_range_min"),
+               "port_range_max": rule.get("port_range_max"),
+               "protocol": rule.get("protocol"),
+               "ip_prefix": rule.get("remote_ip_prefix"),
+               "group_id": rule.get("remote_group_id"),
+               "ethertype": rule.get("ethertype")}
+        for key, value in res.items():
+            if value is None:
+                res.pop(key)
+        return res
+
+    def _get_security_group(self, context, group_id):
+        group = context.session.query(models.SecurityGroup).\
+            filter(models.SecurityGroup.id == group_id).first()
+        rulelist = {'ingress': [], 'egress': []}
+        for rule in group.rules:
+            rulelist[rule.direction].append(
+                self._make_security_rule_dict(rule))
+        return {'uuid': self._get_security_group_id(context, group_id),
+                'logical_port_ingress_rules': rulelist['ingress'],
+                'logical_port_egress_rules': rulelist['egress']}
+
 
 class LSwitchPort(models.BASEV2, models.HasId):
     __tablename__ = "quark_nvp_driver_lswitchport"
@@ -170,3 +230,8 @@ class QOS(models.BASEV2, models.HasId):
     display_name = sa.Column(sa.String(255), nullable=False)
     max_bandwidth_rate = sa.Column(sa.Integer(), nullable=False)
     min_bandwidth_rate = sa.Column(sa.Integer(), nullable=False)
+
+
+class SecurityProfile(models.BASEV2, models.HasId):
+    __tablename__ = "quark_nvp_driver_security_profile"
+    nvp_id = sa.Column(sa.String(36), nullable=False)

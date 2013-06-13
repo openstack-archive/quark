@@ -459,7 +459,7 @@ class TestNVPDriverDeletePort(TestNVPDriver):
     def test_delete_port_switch_given(self):
         with self._stubs() as (connection):
             self.driver.delete_port(self.context, self.port_id,
-                                    self.lswitch_uuid)
+                                    lswitch_uuid=self.lswitch_uuid)
             self.assertFalse(connection.lswitch_port().query.called)
             self.assertTrue(connection.lswitch_port().delete.called)
 

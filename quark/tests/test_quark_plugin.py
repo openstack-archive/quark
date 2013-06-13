@@ -1250,7 +1250,8 @@ class TestQuarkUpdatePort(TestQuarkPlugin):
             port_update.assert_called_once_with(
                 self.context,
                 port_find(),
-                name="ourport")
+                name="ourport",
+                security_groups=[])
 
     def test_update_port_fixed_ip_bad_request(self):
         with self._stubs(
@@ -1264,7 +1265,7 @@ class TestQuarkUpdatePort(TestQuarkPlugin):
 
     def test_update_port_fixed_ip(self):
         with self._stubs(
-            port=dict(id=1, name="myport")
+            port=dict(id=1, name="myport", mac_address="0:0:0:0:0:1")
         ) as (port_find, port_update, alloc_ip, dealloc_ip):
             new_port = dict(port=dict(
                 fixed_ips=[dict(subnet_id=1,
