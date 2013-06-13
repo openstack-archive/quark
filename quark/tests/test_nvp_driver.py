@@ -119,7 +119,7 @@ class TestNVPDriverCreateNetwork(TestNVPDriver):
 
 
 class TestNVPDriverProviderNetwork(TestNVPDriver):
-    """Testing all of the network types is unnecessary, but it's nice for piece
+    """Testing all of the network types is unnecessary, but it's nice for peace
     of mind.
     """
     @contextlib.contextmanager
@@ -405,13 +405,13 @@ class TestNVPDriverLswitchesForNetwork(TestNVPDriver):
 class TestSwitchCopying(TestNVPDriver):
     def test_no_existing_switches(self):
         switches = dict(results=[])
-        args = self.driver._get_network_details(switches)
+        args = self.driver._get_network_details(None, 1, switches)
         self.assertTrue(args == {})
 
     def test_has_switches_no_transport_zones(self):
         switch = dict(display_name="public", transport_zones=[])
         switches = dict(results=[switch])
-        args = self.driver._get_network_details(switches)
+        args = self.driver._get_network_details(None, 1, switches)
         self.assertEqual(args["network_name"], "public")
         self.assertEqual(args["phys_net"], None)
 
@@ -420,7 +420,7 @@ class TestSwitchCopying(TestNVPDriver):
                                 transport_type="bridge")]
         switch = dict(display_name="public", transport_zones=transport_zones)
         switches = dict(results=[switch])
-        args = self.driver._get_network_details(switches)
+        args = self.driver._get_network_details(None, 1, switches)
         self.assertEqual(args["network_name"], "public")
         self.assertEqual(args["phys_net"], "zone_uuid")
         self.assertEqual(args["phys_type"], "bridge")
@@ -432,7 +432,7 @@ class TestSwitchCopying(TestNVPDriver):
                                 binding_config=binding)]
         switch = dict(display_name="public", transport_zones=transport_zones)
         switches = dict(results=[switch])
-        args = self.driver._get_network_details(switches)
+        args = self.driver._get_network_details(None, 1, switches)
         self.assertEqual(args["network_name"], "public")
         self.assertEqual(args["phys_net"], "zone_uuid")
         self.assertEqual(args["phys_type"], "bridge")
