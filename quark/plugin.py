@@ -1113,6 +1113,9 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
                     message="No ports not found with ids=%s" % port_ids)
             for port in ports:
                 port['ip_addresses'].extend([address])
+        else:
+            address["deallocated"] = 1
+
         return self._make_ip_dict(address)
 
     def create_security_group(self, context, security_group):
