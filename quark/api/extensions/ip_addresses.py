@@ -49,7 +49,7 @@ class IpAddressesController(wsgi.Controller):
     def show(self, request, id):
         context = request.context
         try:
-            return {"ip_addresses":
+            return {"ip_address":
                     self._plugin.get_ip_address(context, id)}
         except exceptions.NotFound:
             raise webob.exc.HTTPNotFound()
@@ -57,7 +57,7 @@ class IpAddressesController(wsgi.Controller):
     def create(self, request, body=None):
         body = self._deserialize(request.body, request.get_content_type())
         try:
-            return {"ip_addresses": self._plugin.create_ip_address(
+            return {"ip_address": self._plugin.create_ip_address(
                     request.context, body)}
         except exceptions.NotFound:
             raise webob.exc.HTTPNotFound()
@@ -67,7 +67,7 @@ class IpAddressesController(wsgi.Controller):
     def update(self, request, id, body=None):
         body = self._deserialize(request.body, request.get_content_type())
         try:
-            return {"ip_addresses": self._plugin.update_ip_address(
+            return {"ip_address": self._plugin.update_ip_address(
                     request.context, id, body)}
         except exceptions.NotFound:
             raise webob.exc.HTTPNotFound()
