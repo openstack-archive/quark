@@ -106,6 +106,14 @@ class QuarkIpam(object):
         next_ip = None
         if ip_address:
             next_ip = ip_address
+            address = db_api.ip_address_find(
+                elevated,
+                network_id=net_id,
+                ip_address=next_ip,
+                tenant_id=elevated.tenant_id,
+                scope=db_api.ONE)
+            if address:
+                raise exceptions.IpAddressGenerationFailure(net_id=net_id)
         else:
             address = True
             while address:
