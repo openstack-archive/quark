@@ -71,7 +71,7 @@ class QuarkPortsUpdateHandler(object):
         api_response = self._plugin.post_update_port(request.context,
                                                      id,
                                                      body)
-        return serializer.serialize(api_response)
+        return serializer.serialize({"port": api_response})
 
 
 class Ports_quark(object):
