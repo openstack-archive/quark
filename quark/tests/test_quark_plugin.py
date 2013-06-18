@@ -1429,6 +1429,11 @@ class TestQuarkDisassociatePort(TestQuarkPlugin):
         if port:
             port_model = models.Port()
             port_model.update(port)
+            for ip in port["fixed_ips"]:
+                port_model.ip_addresses.append(models.IPAddress(
+                    id=1,
+                    address=ip["ip_address"],
+                    subnet_id=ip["subnet_id"]))
             port_models = port_model
 
         db_mod = "quark.db.api"

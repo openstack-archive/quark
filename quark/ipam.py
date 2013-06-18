@@ -151,6 +151,7 @@ class QuarkIpam(object):
         address = db_api.ip_address_create(
             elevated, address=next_ip, subnet_id=subnet["id"],
             version=subnet["ip_version"], network_id=net_id)
+        address["deallocated"] = 0
 
         return address
 

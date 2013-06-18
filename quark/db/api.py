@@ -81,8 +81,13 @@ def _model_query(context, model, filters, fields=None):
                              filters["subnet_id"])
 
     if filters.get("deallocated"):
-        model_filters.append(model.deallocated ==
-                             filters["deallocated"])
+        model_filters.append(model.deallocated == filters["deallocated"])
+
+    if filters.get("_deallocated") is not None:
+        if filters.get("_deallocated"):
+            model_filters.append(model._deallocated == 1)
+        else:
+            model_filters.append(model._deallocated != 1)
 
     if filters.get("device_id"):
         model_filters.append(models.Port.device_id.in_(filters["device_id"]))
