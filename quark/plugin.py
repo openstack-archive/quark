@@ -41,6 +41,7 @@ from quark.db import api as db_api
 from quark.db import models
 from quark import exceptions as quark_exceptions
 from quark import network_strategy
+from quark import plugin_views as v
 
 LOG = logging.getLogger("quantum.quark")
 CONF = cfg.CONF
@@ -65,15 +66,14 @@ quark_opts = [
 
 
 STRATEGY = network_strategy.STRATEGY
-
 CONF.register_opts(quark_opts, "QUARK")
 
 
-# NOTE(jkoelker) init event listener that will ensure id is filled in
-#                on object creation (prior to commit).
-def perhaps_generate_id(target, args, kwargs):
-    if hasattr(target, 'id') and target.id is None:
-        target.id = uuidutils.generate_uuid()
+def _pop_param(attrs, param, default=None):
+    val = attrs.pop(param, default)
+    if val is attributes.ATTR_NOT_SPECIFIED:
+        return default
+    return val
 
 
 def append_quark_extensions(conf):
@@ -87,16 +87,8 @@ def append_quark_extensions(conf):
 append_quark_extensions(CONF)
 
 
-def _pop_param(attrs, param, default=None):
-    val = attrs.pop(param, default)
-    if val is attributes.ATTR_NOT_SPECIFIED:
-        return default
-    return val
-
-
 class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
              sg_ext.SecurityGroupPluginBase):
-    # NOTE(mdietz): I hate this
     supported_extension_aliases = ["mac_address_ranges", "routes",
                                    "ip_addresses", "ports_quark",
                                    "security-group",
@@ -109,13 +101,20 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         quantum_db_api._MAKER = scoped_session(session_maker)
 
     def __init__(self):
+
+        # NOTE(jkoelker) init event listener that will ensure id is filled in
+        #                on object creation (prior to commit).
+        def _perhaps_generate_id(target, args, kwargs):
+            if hasattr(target, 'id') and target.id is None:
+                target.id = uuidutils.generate_uuid()
+
         # NOTE(jkoelker) Register the event on all models that have ids
         for _name, klass in inspect.getmembers(models, inspect.isclass):
             if klass is models.HasId:
                 continue
 
             if models.HasId in klass.mro():
-                event.listen(klass, "init", perhaps_generate_id)
+                event.listen(klass, "init", _perhaps_generate_id)
 
         quantum_db_api.configure_db()
         self._initDBMaker()
@@ -124,137 +123,6 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         self.ipam_driver = (importutils.import_class(CONF.QUARK.ipam_driver))()
         self.ipam_reuse_after = CONF.QUARK.ipam_reuse_after
         models.BASEV2.metadata.create_all(quantum_db_api._ENGINE)
-
-    def _make_network_dict(self, network, fields=None):
-        shared_net = STRATEGY.is_parent_network(network["id"])
-        res = {'id': network["id"],
-               'name': network.get('name'),
-               'tenant_id': network.get('tenant_id'),
-               'admin_state_up': None,
-               'status': network.get('status'),
-               'shared': shared_net,
-               #TODO(mdietz): this is the expected return. Then the client
-               #              foolishly turns around and asks for the entire
-               #              subnet list anyway! Plz2fix
-               'subnets': [s["id"] for s in network.get("subnets", [])]}
-        return res
-
-    def _make_subnet_dict(self, subnet, fields=None):
-        dns_nameservers = [str(netaddr.IPAddress(dns["ip"]))
-                           for dns in subnet.get("dns_nameservers")]
-        # TODO(mdietz): this is a hack to get nova to boot. We want to get the
-        #               "default" route out of the database and use that
-        net_id = STRATEGY.get_parent_network(subnet["network_id"])
-        res = {"id": subnet.get('id'),
-               "name": subnet.get('name'),
-               "tenant_id": subnet.get('tenant_id'),
-               "network_id": net_id,
-               "ip_version": subnet.get('ip_version'),
-               "allocation_pools": [],
-               "dns_nameservers": dns_nameservers or [],
-               "cidr": subnet.get('cidr'),
-               "enable_dhcp": None}
-
-        def _host_route(route):
-            return {"destination": route["cidr"],
-                    "nexthop": route["gateway"]}
-
-        res["host_routes"] = [_host_route(r) for r in subnet["routes"]]
-
-        #TODO(mdietz): really inefficient, should go away
-        for route in subnet["routes"]:
-            if netaddr.IPNetwork(route["cidr"]) == DEFAULT_ROUTE:
-                res["gateway_ip"] = route["gateway"]
-                break
-        if "gateway_ip" not in res:
-            res["gateway_ip"] = None
-        return res
-
-    def _make_security_group_dict(self, security_group, fields=None):
-        res = {"id": security_group.get("id"),
-               "description": security_group.get("description"),
-               "name": security_group.get("name"),
-               "tenant_id": security_group.get("tenant_id")}
-        res["security_group_rules"] =\
-            [self._make_security_group_rule_dict(r)
-                for r in security_group['rules']]
-        return res
-
-    def _make_security_group_rule_dict(self, security_rule, fields=None):
-        res = {"id": security_rule.get("id"),
-               "direction": security_rule.get("direction"),
-               "tenant_id": security_rule.get("tenant_id"),
-               "port_range_max": security_rule.get("port_range_max"),
-               "port_range_mid": security_rule.get("port_range_mid"),
-               "protocol": security_rule.get("protocol"),
-               "remote_ip_prefix": security_rule.get("remote_ip_prefix"),
-               "security_group_id": security_rule.get("security_group_id"),
-               "remote_group_id": security_rule.get("remote_group_id")}
-        return res
-
-    def _port_dict(self, port, fields=None):
-        res = {"id": port.get("id"),
-               "name": port.get("name"),
-               "network_id": STRATEGY.get_parent_network(port["network_id"]),
-               "tenant_id": port.get("tenant_id"),
-               "mac_address": port.get("mac_address"),
-               "admin_state_up": port.get("admin_state_up"),
-               "status": port.get("status"),
-               "device_id": port.get("device_id"),
-               "device_owner": port.get("device_owner")}
-        if isinstance(res["mac_address"], (int, long)):
-            res["mac_address"] = str(netaddr.EUI(res["mac_address"],
-                                     dialect=netaddr.mac_unix))
-        return res
-
-    def _make_port_address_dict(self, ip):
-        return {'subnet_id': ip.get("subnet_id"),
-                'ip_address': ip.formatted()}
-
-    def _make_port_dict(self, port, fields=None):
-        res = self._port_dict(port)
-        res["fixed_ips"] = [self._make_port_address_dict(ip)
-                            for ip in port.ip_addresses]
-        return res
-
-    def _make_ports_list(self, query, fields=None):
-        ports = []
-        for port in query:
-            port_dict = self._port_dict(port, fields)
-            port_dict["fixed_ips"] = [self._make_port_address_dict(addr)
-                                      for addr in port.ip_addresses]
-            ports.append(port_dict)
-        return ports
-
-    def _make_subnets_list(self, query, fields=None):
-        subnets = []
-        for subnet in query:
-            subnet_dict = self._make_subnet_dict(subnet, fields)
-            subnets.append(subnet_dict)
-        return subnets
-
-    def _make_mac_range_dict(self, mac_range):
-        return {"id": mac_range["id"],
-                "cidr": mac_range["cidr"]}
-
-    def _make_route_dict(self, route):
-        return {"id": route["id"],
-                "cidr": route["cidr"],
-                "gateway": route["gateway"],
-                "subnet_id": route["subnet_id"]}
-
-    def _make_ip_dict(self, address):
-        net_id = STRATEGY.get_parent_network(address["network_id"])
-        return {"id": address["id"],
-                "network_id": net_id,
-                "address": address.formatted(),
-                "port_ids": [port["id"] for port in address["ports"]],
-                "device_ids": [port["device_id"] or ""
-                               for port in address["ports"]],
-                "subnet_id": address["subnet_id"],
-                "tenant_id": address["tenant_id"],
-                "version": address["version"],
-                "shared": len(address["ports"]) > 1}
 
     def _validate_subnet_cidr(self, context, network_id, new_subnet_cidr):
         """Validate the CIDR for a subnet.
@@ -332,7 +200,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
             new_subnet["dns_nameservers"].append(db_api.dns_create(
                 context, ip=netaddr.IPAddress(dns_ip)))
 
-        subnet_dict = self._make_subnet_dict(new_subnet)
+        subnet_dict = v._make_subnet_dict(new_subnet,
+                                          default_route=DEFAULT_ROUTE)
         subnet_dict["gateway_ip"] = gateway_ip
         return subnet_dict
 
@@ -397,7 +266,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
                 gateway=route["nexthop"]))
 
         subnet = db_api.subnet_update(context, subnet_db, **s)
-        return self._make_subnet_dict(subnet)
+        return v._make_subnet_dict(subnet, default_route=DEFAULT_ROUTE)
 
     def get_subnet(self, context, id, fields=None):
         """Retrieve a subnet.
@@ -420,7 +289,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         net_id = STRATEGY.get_parent_network(net_id)
         subnet["network_id"] = net_id
 
-        return self._make_subnet_dict(subnet)
+        return v._make_subnet_dict(subnet, default_route=DEFAULT_ROUTE)
 
     def get_subnets(self, context, filters=None, fields=None):
         """Retrieve a list of subnets.
@@ -444,7 +313,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         LOG.info("get_subnets for tenant %s with filters %s fields %s" %
                 (context.tenant_id, filters, fields))
         subnets = db_api.subnet_find(context, **filters)
-        return self._make_subnets_list(subnets, fields)
+        return v._make_subnets_list(subnets, fields=fields,
+                                    default_route=DEFAULT_ROUTE)
 
     def get_subnets_count(self, context, filters=None):
         """Return the number of subnets.
@@ -537,7 +407,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
             s = db_api.subnet_create(context, **sub["subnet"])
             new_subnets.append(s)
         new_net["subnets"] = new_subnets
-        return self._make_network_dict(new_net)
+        return v._make_network_dict(new_net)
 
     def update_network(self, context, id, network):
         """Update values of a network.
@@ -556,7 +426,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
             raise exceptions.NetworkNotFound(net_id=id)
         net = db_api.network_update(context, net, **network["network"])
 
-        return self._make_network_dict(net)
+        return v._make_network_dict(net)
 
     def get_network(self, context, id, fields=None):
         """Retrieve a network.
@@ -575,7 +445,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
 
         if not network:
             raise exceptions.NetworkNotFound(net_id=id)
-        return self._make_network_dict(network)
+        return v._make_network_dict(network)
 
     def get_networks(self, context, filters=None, fields=None):
         """Retrieve a list of networks.
@@ -599,7 +469,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         LOG.info("get_networks for tenant %s with filters %s, fields %s" %
                 (context.tenant_id, filters, fields))
         nets = db_api.network_find(context, **filters)
-        return [self._make_network_dict(net) for net in nets]
+        return [v._make_network_dict(net) for net in nets]
 
     def get_networks_count(self, context, filters=None):
         """Return the number of networks.
@@ -677,8 +547,6 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
                     raise exceptions.BadRequest(
                         resource="fixed_ips",
                         msg="subnet_id and ip_address required")
-                # Note: we don't allow overlapping subnets, thus subnet_id is
-                #       ignored.
                 addresses.append(self.ipam_driver.allocate_ip_address(
                     context, net["id"], port_id, self.ipam_reuse_after,
                     ip_address=ip_address))
@@ -699,7 +567,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         new_port = db_api.port_create(
             context, addresses=addresses, mac_address=mac["address"],
             backend_key=backend_port["uuid"], **port["port"])
-        return self._make_port_dict(new_port)
+        return v._make_port_dict(new_port)
 
     def update_port(self, context, id, port):
         """Update values of a port.
@@ -738,7 +606,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         port = db_api.port_update(context,
                                   port_db,
                                   **port["port"])
-        return self._make_port_dict(port)
+        return v._make_port_dict(port)
 
     def post_update_port(self, context, id, port):
         LOG.info("post_update_port %s for tenant %s" % (id, context.tenant_id))
@@ -794,7 +662,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
 
             if not already_contained:
                 port_db["ip_addresses"].append(address)
-        return self._make_port_dict(port_db)
+        return v._make_port_dict(port_db)
 
     def get_port(self, context, id, fields=None):
         """Retrieve a port.
@@ -814,7 +682,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         if not results:
             raise exceptions.PortNotFound(port_id=id, net_id='')
 
-        return self._make_port_dict(results)
+        return v._make_port_dict(results)
 
     def get_ports(self, context, filters=None, fields=None):
         """Retrieve a list of ports.
@@ -840,7 +708,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         if filters is None:
             filters = {}
         query = db_api.port_find(context, fields=fields, **filters)
-        return self._make_ports_list(query, fields)
+        return v._make_ports_list(query, fields)
 
     def get_ports_count(self, context, filters=None):
         """Return the number of ports.
@@ -904,7 +772,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         port["ip_addresses"] = [address for address in port["ip_addresses"]
                                 if address.id != ip_address_id]
 
-        return self._make_port_dict(port)
+        return v._make_port_dict(port)
 
     def get_mac_address_range(self, context, id, fields=None):
         """Retrieve a mac_address_range.
@@ -925,12 +793,12 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         if not mac_address_range:
             raise quark_exceptions.MacAddressRangeNotFound(
                 mac_address_range_id=id)
-        return self._make_mac_range_dict(mac_address_range)
+        return v._make_mac_range_dict(mac_address_range)
 
     def get_mac_address_ranges(self, context):
         LOG.info("get_mac_address_ranges for tenant %s" % context.tenant_id)
         ranges = db_api.mac_address_range_find(context)
-        return [self._make_mac_range_dict(m) for m in ranges]
+        return [v._make_mac_range_dict(m) for m in ranges]
 
     def create_mac_address_range(self, context, mac_range):
         LOG.info("create_mac_address_range for tenant %s" % context.tenant_id)
@@ -939,7 +807,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         new_range = db_api.mac_address_range_create(
             context, cidr=cidr, first_address=first_address,
             last_address=last_address, next_auto_assign_mac=first_address)
-        return self._make_mac_range_dict(new_range)
+        return v._make_mac_range_dict(new_range)
 
     def _to_mac_range(self, val):
         cidr_parts = val.split("/")
@@ -992,12 +860,12 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         route = db_api.route_find(context, id=id)
         if not route:
             raise quark_exceptions.RouteNotFound(route_id=id)
-        return self._make_route_dict(route)
+        return v._make_route_dict(route)
 
     def get_routes(self, context):
         LOG.info("get_routes for tenant %s" % context.tenant_id)
         routes = db_api.route_find(context)
-        return [self._make_route_dict(r) for r in routes]
+        return [v._make_route_dict(r) for r in routes]
 
     def create_route(self, context, route):
         LOG.info("create_route for tenant %s" % context.tenant_id)
@@ -1018,7 +886,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
                                                      cidr=str(route_cidr))
 
         new_route = db_api.route_create(context, **route)
-        return self._make_route_dict(new_route)
+        return v._make_route_dict(new_route)
 
     def delete_route(self, context, id):
         #TODO(mdietz): This is probably where we check to see that someone is
@@ -1033,7 +901,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
     def get_ip_addresses(self, context, **filters):
         LOG.info("get_ip_addresses for tenant %s" % context.tenant_id)
         addrs = db_api.ip_address_find(context, scope=db_api.ALL, **filters)
-        return [self._make_ip_dict(ip) for ip in addrs]
+        return [v._make_ip_dict(ip) for ip in addrs]
 
     def get_ip_address(self, context, id):
         LOG.info("get_ip_address %s for tenant %s" %
@@ -1041,7 +909,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         addr = db_api.ip_address_find(context, id=id, scope=db_api.ONE)
         if not addr:
             raise quark_exceptions.IpAddressNotFound(addr_id=id)
-        return self._make_ip_dict(addr)
+        return v._make_ip_dict(addr)
 
     def create_ip_address(self, context, ip_address):
         LOG.info("create_ip_address for tenant %s" % context.tenant_id)
@@ -1083,7 +951,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         for port in ports:
             port["ip_addresses"].append(address)
 
-        return self._make_ip_dict(address)
+        return v._make_ip_dict(address)
 
     def update_ip_address(self, context, id, ip_address):
         LOG.info("update_ip_address %s for tenant %s" %
@@ -1099,7 +967,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         old_ports = address['ports']
         port_ids = ip_address['ip_address'].get('port_ids')
         if port_ids is None:
-            return self._make_ip_dict(address)
+            return v._make_ip_dict(address)
 
         for port in old_ports:
             port['ip_addresses'].remove(address)
@@ -1119,14 +987,14 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         else:
             address["deallocated"] = 1
 
-        return self._make_ip_dict(address)
+        return v._make_ip_dict(address)
 
     def create_security_group(self, context, security_group):
         LOG.info("create_security_group for tenant %s" %
                 (context.tenant_id))
         g = security_group["security_group"]
         group = db_api.security_group_create(context, **g)
-        return self._make_security_group_dict(group)
+        return v._make_security_group_dict(group)
 
     def create_security_group_rule(self, context, security_group_rule):
         LOG.info("create_security_group for tenant %s" %
@@ -1137,7 +1005,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         if not group:
             raise sg_ext.SecurityGroupNotFound(group_id=group_id)
         rule = db_api.security_group_rule_create(context, **r)
-        return self._make_security_group_rule_dict(rule)
+        return v._make_security_group_rule_dict(rule)
 
     def delete_security_group(self, context, id):
         LOG.info("delete_security_group %s for tenant %s" %
@@ -1162,7 +1030,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
         if not group:
             raise sg_ext.SecurityGroupNotFound(group_id=id)
-        return self._make_security_group_dict(group, fields)
+        return v._make_security_group_dict(group, fields)
 
     def get_security_group_rule(self, context, id, fields=None):
         LOG.info("get_security_group_rule %s for tenant %s" %
@@ -1171,7 +1039,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
                                                scope=db_api.ONE)
         if not rule:
             raise sg_ext.SecurityGroupRuleNotFound(rule_id=id)
-        return self._make_security_group_rule_dict(rule, fields)
+        return v._make_security_group_rule_dict(rule, fields)
 
     def get_security_groups(self, context, filters=None, fields=None,
                             sorts=None, limit=None, marker=None,
@@ -1179,7 +1047,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         LOG.info("get_security_groups for tenant %s" %
                 (context.tenant_id))
         groups = db_api.security_group_find(context, filters=filters)
-        return [self._make_security_group_dict(group) for group in groups]
+        return [v._make_security_group_dict(group) for group in groups]
 
     def get_security_group_rules(self, context, filters=None, fields=None,
                                  sorts=None, limit=None, marker=None,
@@ -1187,7 +1055,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         LOG.info("get_security_group_rules for tenant %s" %
                 (context.tenant_id))
         rules = db_api.security_group_rule_find(context, filters=filters)
-        return [self._make_security_group_rule_dict(rule) for rule in rules]
+        return [v._make_security_group_rule_dict(rule) for rule in rules]
 
     def update_security_group(self, context, id, security_group):
         raise NotImplementedError()
