@@ -256,7 +256,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
                 "version": address["version"],
                 "shared": len(address["ports"]) > 1}
 
-    def _validate_subnet_cidr(self, context, network, new_subnet_cidr):
+    def _validate_subnet_cidr(self, context, network_id, new_subnet_cidr):
         """Validate the CIDR for a subnet.
 
         Verifies the specified CIDR does not overlap with the ones defined
@@ -264,11 +264,14 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         CIDR if overlapping IPs are disabled.
 
         """
-        new_subnet_ipset = netaddr.IPSet([new_subnet_cidr])
         if quantum_cfg.cfg.CONF.allow_overlapping_ips:
-            subnet_list = network.subnets
-        else:
-            subnet_list = db_api.subnet_find(context.elevated())
+            return
+
+        new_subnet_ipset = netaddr.IPSet([new_subnet_cidr])
+
+        # Using admin context here, in case we actually share networks later
+        subnet_list = db_api.subnet_find(context.elevated(),
+                                         network_id=network_id)
         for subnet in subnet_list:
             if (netaddr.IPSet([subnet.cidr]) & new_subnet_ipset):
                 # don't give out details of the overlapping subnet
@@ -276,7 +279,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
                              "network: %(network_id)s overlaps with another "
                              "subnet") %
                            {'cidr': new_subnet_cidr,
-                            'network_id': network.id})
+                            'network_id': network_id})
                 LOG.error(_("Validation for CIDR: %(new_cidr)s failed - "
                             "overlaps with subnet %(subnet_id)s "
                             "(CIDR: %(cidr)s)"),
@@ -305,7 +308,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
 
         sub_attrs = subnet["subnet"]
 
-        self._validate_subnet_cidr(context, net, sub_attrs["cidr"])
+        self._validate_subnet_cidr(context, net_id, sub_attrs["cidr"])
 
         cidr = netaddr.IPNetwork(sub_attrs["cidr"])
         gateway_ip = _pop_param(sub_attrs, "gateway_ip", str(cidr[1]))
