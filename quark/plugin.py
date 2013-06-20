@@ -382,23 +382,23 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         #             lets make it work first
         pnet_type, phys_net, seg_id = self._adapt_provider_nets(context,
                                                                 network)
-
+        net_attrs = network["network"]
         # NOTE(mdietz) I think ideally we would create the providernet
         # elsewhere as a separate driver step that could be
         # kept in a plugin and completely removed if desired. We could
         # have a pre-callback/observer on the netdriver create_network
         # that gathers any additional parameters from the network dict
         self.net_driver.create_network(context,
-                                       network["network"]["name"],
+                                       net_attrs["name"],
                                        network_id=net_uuid,
                                        phys_type=pnet_type,
                                        phys_net=phys_net, segment_id=seg_id)
 
-        subnets = network["network"].pop("subnets", [])
+        subnets = net_attrs.pop("subnets", [])
 
-        network["network"]["id"] = net_uuid
-        network["network"]["tenant_id"] = context.tenant_id
-        new_net = db_api.network_create(context, **network["network"])
+        net_attrs["id"] = net_uuid
+        net_attrs["tenant_id"] = context.tenant_id
+        new_net = db_api.network_create(context, **net_attrs)
 
         new_subnets = []
         for sub in subnets:
@@ -521,14 +521,14 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         """
         LOG.info("create_port for tenant %s" % context.tenant_id)
 
-        mac_address = port["port"].pop("mac_address", None)
-        if mac_address and mac_address is attributes.ATTR_NOT_SPECIFIED:
-            mac_address = None
-        segment_id = port["port"].pop("segment_id", None)
-
+        port_attrs = port["port"]
+        mac_address = _pop_param(port_attrs, "mac_address", None)
+        segment_id = _pop_param(port_attrs, "segment_id")
+        fixed_ips = _pop_param(port_attrs, "fixed_ips")
+        net_id = port_attrs["network_id"]
         addresses = []
+
         port_id = uuidutils.generate_uuid()
-        net_id = port["port"]["network_id"]
 
         net = db_api.network_find(context, id=net_id, shared=True,
                                   segment_id=segment_id, scope=db_api.ONE)
@@ -538,8 +538,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
             if not net:
                 raise exceptions.NetworkNotFound(net_id=net_id)
 
-        fixed_ips = port["port"].pop("fixed_ips", None)
-        if fixed_ips and fixed_ips is not attributes.ATTR_NOT_SPECIFIED:
+        if fixed_ips:
             for fixed_ip in fixed_ips:
                 subnet_id = fixed_ip.get("subnet_id")
                 ip_address = fixed_ip.get("ip_address")
@@ -562,11 +561,11 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         backend_port = self.net_driver.create_port(context, net["id"],
                                                    port_id=port_id)
 
-        port["port"]["network_id"] = net["id"]
-        port["port"]["id"] = port_id
+        port_attrs["network_id"] = net["id"]
+        port_attrs["id"] = port_id
         new_port = db_api.port_create(
             context, addresses=addresses, mac_address=mac["address"],
-            backend_key=backend_port["uuid"], **port["port"])
+            backend_key=backend_port["uuid"], **port_attrs)
         return v._make_port_dict(new_port)
 
     def update_port(self, context, id, port):
