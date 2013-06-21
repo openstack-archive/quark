@@ -1133,9 +1133,12 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         rule['id'] = uuidutils.generate_uuid()
 
         group_id = rule["security_group_id"]
-        group = db_api.security_group_find(context, id=group_id)
+        group = db_api.security_group_find(context, id=group_id,
+                                           scope=db_api.ONE)
         if not group:
             raise sg_ext.SecurityGroupNotFound(group_id=group_id)
+        if group.ports:
+            raise sg_ext.SecurityGroupInUse(id=group_id)
 
         self.net_driver.create_security_group_rule(
             context,
@@ -1151,7 +1154,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
         if not group:
             raise sg_ext.SecurityGroupNotFound(group_id=id)
-        if group.name == 'default':
+        if (group.name == 'default' or
+                group.id == '00000000-0000-0000-0000-000000000000'):
             raise sg_ext.SecurityGroupCannotRemoveDefault()
         if group.ports:
             raise sg_ext.SecurityGroupInUse(id=id)
@@ -1170,6 +1174,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
                                            scope=db_api.ONE)
         if not group:
             raise sg_ext.SecurityGroupNotFound(id=id)
+        if group.ports:
+            raise sg_ext.SecurityGroupInUse(id=id)
 
         self.net_driver.delete_security_group_rule(
             context,

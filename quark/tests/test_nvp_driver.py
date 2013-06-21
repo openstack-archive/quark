@@ -18,6 +18,7 @@ import mock
 
 from oslo.config import cfg
 from quantum.db import api as db_api
+import quantum.extensions.securitygroup as sg_ext
 
 from quark.db import models
 import quark.drivers.nvp_driver
@@ -33,6 +34,8 @@ class TestNVPDriver(test_base.TestBase):
             self.driver = quark.drivers.nvp_driver.NVPDriver()
 
         cfg.CONF.set_override('sql_connection', 'sqlite://', 'DATABASE')
+        cfg.CONF.set_override('max_rules_per_group', 3, 'NVP')
+        cfg.CONF.set_override('max_rules_per_port', 1, 'NVP')
         self.driver.max_ports_per_switch = 0
         db_api.configure_db()
         models.BASEV2.metadata.create_all(db_api._ENGINE)
@@ -42,6 +45,7 @@ class TestNVPDriver(test_base.TestBase):
         self.lport_uuid = "12345678-0000-0000-0000-123456781234"
         self.net_id = "12345678-1234-1234-1234-123412341234"
         self.port_id = "12345678-0000-0000-0000-123412341234"
+        self.profile_id = "12345678-0000-0000-0000-000000000000"
         self.d_pkg = "quark.drivers.nvp_driver.NVPDriver"
         self.max_spanning = 3
 
@@ -97,6 +101,20 @@ class TestNVPDriver(test_base.TestBase):
         query.relations = mock.Mock(return_value=None)
         query.results = mock.Mock(return_value=lswitch_query)
         return query
+
+    def _create_security_profile(self):
+        profile = mock.Mock()
+        query = mock.Mock()
+        query.results = mock.Mock(return_value={'results': [
+            {'name': 'foo', 'uuid': self.profile_id,
+             'logical_port_ingress_rules': [],
+             'logical_port_egress_rules': []}],
+            'result_count': 1})
+        profile.query = mock.Mock(return_value=query)
+        return mock.Mock(return_value=profile)
+
+    def _create_security_rule(self, rule={}):
+        return lambda *x, **y: dict(y, ethertype=x[0])
 
     def tearDown(self):
         db_api.clear_db()
@@ -467,3 +485,201 @@ class TestNVPDriverDeletePort(TestNVPDriver):
         with self._stubs(single_switch=False):
             with self.assertRaises(Exception):
                 self.driver.delete_port(self.context, self.port_id)
+
+
+class TestNVPDriverCreateSecurityGroup(TestNVPDriver):
+    @contextlib.contextmanager
+    def _stubs(self):
+        with contextlib.nested(
+                mock.patch("%s.get_connection" % self.d_pkg),
+        ) as (get_connection,):
+            connection = self._create_connection()
+            connection.securityprofile = self._create_security_profile()
+            get_connection.return_value = connection
+            yield connection
+
+    def test_security_group_create(self):
+        group = {'group_id': 1}
+        with self._stubs() as connection:
+            self.driver.create_security_group(
+                self.context, 'foo', **group)
+            connection.securityprofile().assert_has_calls([
+                mock.call.display_name('foo'),
+                mock.call.create(),
+            ], any_order=True)
+
+    def test_security_group_create_with_rules(self):
+        ingress_rules = [{'ethertype': 'IPv4'}, {'ethertype': 'IPv4',
+                                                 'protocol': 6}]
+        egress_rules = [{'ethertype': 'IPv6', 'protocol': 17}]
+        group = {'group_id': 1, 'port_ingress_rules': ingress_rules,
+                 'port_egress_rules': egress_rules}
+        with self._stubs() as connection:
+            self.driver.create_security_group(
+                self.context, 'foo', **group)
+            connection.securityprofile().assert_has_calls([
+                mock.call.display_name('foo'),
+                mock.call.port_egress_rules(egress_rules),
+                mock.call.port_ingress_rules(ingress_rules),
+                mock.call.tags([{'scope': 'quantum_group_id', 'tag': 1},
+                                {'scope': 'os_tid',
+                                 'tag': self.context.tenant_id}]),
+            ], any_order=True)
+
+
+class TestNVPDriverDeleteSecurityGroup(TestNVPDriver):
+    @contextlib.contextmanager
+    def _stubs(self):
+        with contextlib.nested(
+                mock.patch("%s.get_connection" % self.d_pkg),
+        ) as (get_connection,):
+            connection = self._create_connection()
+            connection.securityprofile = self._create_security_profile()
+            get_connection.return_value = connection
+            yield connection
+
+    def test_security_group_delete(self):
+        with self._stubs() as connection:
+            self.driver.delete_security_group(self.context, 1)
+            connection.securityprofile().query().assert_has_calls([
+                mock.call.tagscopes(['os_tid', 'quantum_group_id']),
+                mock.call.tags([self.context.tenant_id, 1]),
+            ], any_order=True)
+            connection.securityprofile.assert_any_call(self.profile_id)
+            self.assertTrue(connection.securityprofile().delete)
+
+    def test_security_group_delete_not_found(self):
+        with self._stubs() as connection:
+            connection.securityprofile().query().results.return_value = \
+                {'result_count': 0, 'results': []}
+            with self.assertRaises(sg_ext.SecurityGroupNotFound):
+                self.driver.delete_security_group(self.context, 1)
+
+
+class TestNVPDriverUpdateSecurityGroup(TestNVPDriver):
+    @contextlib.contextmanager
+    def _stubs(self):
+        with contextlib.nested(
+                mock.patch("%s.get_connection" % self.d_pkg),
+        ) as (get_connection,):
+            connection = self._create_connection()
+            connection.securityprofile = self._create_security_profile()
+            get_connection.return_value = connection
+            yield connection
+
+    def test_security_group_update(self):
+        with self._stubs() as connection:
+            self.driver.update_security_group(self.context, 1, name='bar')
+            connection.securityprofile().assert_any_calls(self.profile_id)
+            connection.securityprofile().assert_has_calls([
+                mock.call.display_name('bar'),
+                mock.call.update()],
+                any_order=True)
+
+    def test_security_group_update_rules(self):
+        ingress_rules = [{'ethertype': 'IPv4', 'protocol': 6},
+                         {'ethertype': 'IPv6',
+                          'remote_ip_prefix': '192.168.0.1'}]
+        egress_rules = [{'ethertype': 'IPv4', 'protocol': 17,
+                         'port_range_min': 0, 'port_range_max': 100}]
+        with self._stubs() as connection:
+            self.driver.update_security_group(
+                self.context, 1,
+                port_ingress_rules=ingress_rules,
+                port_egress_rules=egress_rules)
+            connection.securityprofile.assert_any_calls(self.profile_id)
+            connection.securityprofile().assert_has_calls([
+                mock.call.port_ingress_rules(ingress_rules),
+                mock.call.port_egress_rules(egress_rules),
+                mock.call.update(),
+            ], any_order=True)
+
+    def test_security_group_update_not_found(self):
+        with self._stubs() as connection:
+            connection.securityprofile().query().results.return_value = \
+                {'result_count': 0, 'results': []}
+            with self.assertRaises(sg_ext.SecurityGroupNotFound):
+                self.driver.update_security_group(self.context, 1)
+
+
+class TestNVPDriverCreateSecurityGroupRule(TestNVPDriver):
+    @contextlib.contextmanager
+    def _stubs(self):
+        with contextlib.nested(
+                mock.patch("%s.get_connection" % self.d_pkg),
+        ) as (get_connection,):
+            connection = self._create_connection()
+            connection.securityprofile = self._create_security_profile()
+            connection.securityrule = self._create_security_rule()
+            get_connection.return_value = connection
+            yield connection
+
+    def test_security_rule_create(self):
+        with self._stubs() as connection:
+            self.driver.create_security_group_rule(
+                self.context, 1, {'ethertype': 'IPv4', 'direction': 'ingress'})
+            connection.securityprofile.assert_any_calls(self.profile_id)
+            connection.securityprofile().assert_has_calls([
+                mock.call.port_ingress_rules([{'ethertype': 'IPv4'}]),
+                mock.call.update(),
+            ], any_order=True)
+
+    def test_security_rule_create_duplicate(self):
+        with self._stubs() as connection:
+            connection.securityprofile().query().results()['results'][0][
+                'logical_port_ingress_rules'] = [{'ethertype': 'IPv4'}]
+            with self.assertRaises(sg_ext.SecurityGroupRuleExists):
+                self.driver.create_security_group_rule(
+                    self.context, 1,
+                    {'ethertype': 'IPv4', 'direction': 'ingress'})
+
+    def test_security_rule_create_not_found(self):
+        with self._stubs() as connection:
+            connection.securityprofile().query().results.return_value = {
+                'result_count': 0, 'results': []}
+            with self.assertRaises(sg_ext.SecurityGroupNotFound):
+                self.driver.create_security_group_rule(
+                    self.context, 1,
+                    {'ethertype': 'IPv4', 'direction': 'egress'})
+
+
+class TestNVPDriverDeleteSecurityGroupRule(TestNVPDriver):
+    @contextlib.contextmanager
+    def _stubs(self, rules=[]):
+        rulelist = {'logical_port_ingress_rules': [],
+                    'logical_port_egress_rules': []}
+        for rule in rules:
+            rulelist['logical_port_%s_rules' % rule.pop('direction')].append(
+                rule)
+        with contextlib.nested(
+                mock.patch("%s.get_connection" % self.d_pkg),
+        ) as (get_connection,):
+            connection = self._create_connection()
+            connection.securityprofile = self._create_security_profile()
+            connection.securityrule = self._create_security_rule()
+            connection.securityprofile().query().results()[
+                'results'][0].update(rulelist)
+            get_connection.return_value = connection
+            yield connection
+
+    def test_delete_security_group(self):
+        with self._stubs(
+            rules=[{'ethertype': 'IPv4', 'direction': 'ingress'},
+                   {'ethertype': 'IPv6', 'direction': 'egress'}]
+        ) as connection:
+            self.driver.delete_security_group_rule(
+                self.context, 1, {'ethertype': 'IPv6', 'direction': 'egress'})
+            print connection.securityprofile().mock_calls
+            connection.securityprofile.assert_any_call(self.profile_id)
+            connection.securityprofile().assert_has_calls([
+                mock.call.port_egress_rules([]),
+                mock.call.update(),
+            ], any_order=True)
+
+    def test_delete_security_group_does_not_exist(self):
+        with self._stubs(rules=[{'ethertype': 'IPv4',
+                                 'direction': 'ingress'}]):
+            with self.assertRaises(sg_ext.SecurityGroupRuleNotFound):
+                self.driver.delete_security_group_rule(
+                    self.context, 1,
+                    {'ethertype': 'IPv6', 'direction': 'egress'})

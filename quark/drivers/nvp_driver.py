@@ -177,8 +177,16 @@ class NVPDriver(base.BaseDriver):
         profile = connection.securityprofile()
         if group_name:
             profile.display_name(group_name)
-        profile.port_egress_rules(group.get('port_egress_rules', []))
-        profile.port_ingress_rules(group.get('port_ingress_rules', []))
+        ingress_rules = group.get('port_ingress_rules', [])
+        egress_rules = group.get('port_egress_rules', [])
+        if (len(ingress_rules) + len(egress_rules) >
+                CONF.NVP.max_rules_per_group):
+            raise sg_ext.qexception.InvalidInput(
+                error_message="Max rules for group %s" % group_id)
+        if egress_rules:
+            profile.port_egress_rules(egress_rules)
+        if ingress_rules:
+            profile.port_ingress_rules(ingress_rules)
         tags = [dict(tag=group_id, scope="quantum_group_id"),
                 dict(tag=tenant_id, scope="os_tid")]
         LOG.debug("Creating security profile %s" % group_name)
@@ -192,22 +200,24 @@ class NVPDriver(base.BaseDriver):
         connection.securityprofile(guuid).delete()
 
     def update_security_group(self, context, group_id, **group):
-        prof_id = self._get_security_group_id(context, group_id)
+        query = self._get_security_group(context, group_id)
         connection = self.get_connection()
-        profile = connection.securityprofile(prof_id)
+        profile = connection.securityprofile(query.get('uuid'))
 
-        ingress_rules = group.get('port_ingress_rules', [])
-        egress_rules = group.get('port_egress_rules', [])
-        if (len(egress_rules) + len(ingress_rules) >
+        ingress_rules = group.get('port_ingress_rules',
+                                  query.get('logical_port_ingress_rules'))
+        egress_rules = group.get('port_egress_rules',
+                                 query.get('logical_port_egress_rules'))
+        if (len(ingress_rules) + len(egress_rules) >
                 CONF.NVP.max_rules_per_group):
             raise sg_ext.qexception.InvalidInput(
-                error_message="Max rules per group for %s" % group_id)
+                error_message="Max rules for group %s" % group_id)
 
         if group.get('name', None):
             profile.display_name(group['name'])
-        if ingress_rules:
+        if group.get('port_ingress_rules', None) is not None:
             profile.port_ingress_rules(ingress_rules)
-        if egress_rules:
+        if group.get('port_egress_rules', None) is not None:
             profile.port_egress_rules(egress_rules)
         return profile.update()
 
@@ -218,12 +228,11 @@ class NVPDriver(base.BaseDriver):
                                                                   rule)
         rulelist = groupd['logical_port_%s_rules' % direction]
         if not check(secrule, rulelist):
-            if raises:
-                raise raises
+            raise raises
         else:
             getattr(rulelist, operation)(secrule)
 
-        LOG.debug("Adding rule on security group %s" % groupd['uuid'])
+        LOG.debug("%s rule on security group %s" % (operation, groupd['uuid']))
         group = {'port_%s_rules' % direction: rulelist}
         return self.update_security_group(context, group_id, **group)
 
@@ -367,6 +376,8 @@ class NVPDriver(base.BaseDriver):
         query.tagscopes(['os_tid', 'quantum_group_id'])
         query.tags([context.tenant_id, group_id])
         query = query.results()
+        if query['result_count'] != 1:
+            raise sg_ext.SecurityGroupNotFound(id=group_id)
         return query['results'][0]
 
     def _get_security_group_id(self, context, group_id):
