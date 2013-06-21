@@ -18,12 +18,13 @@ Optimized NVP client for Quark
 """
 import sqlalchemy as sa
 
-from sqlalchemy import orm
-from quark.db import models
 from nvp_driver import NVPDriver
 from quantum.openstack.common import log as logging
+from quark.db import models
+from sqlalchemy import orm
 
 LOG = logging.getLogger("quantum.quark.nvplib")
+
 
 class OptimizedNVPDriver(NVPDriver):
     def delete_network(self, context, network_id):
@@ -57,7 +58,7 @@ class OptimizedNVPDriver(NVPDriver):
             delete_port(context, port_id, lswitch_uuid=switch.nvp_id)
         context.session.delete(port)
         switch.port_count = switch.port_count - 1
-        if switch.port_count == 0: 
+        if switch.port_count == 0:
             self._lswitch_delete(context, switch.nvp_id)
 
     def _lport_select_by_id(self, context, port_id):
@@ -143,12 +144,14 @@ class OptimizedNVPDriver(NVPDriver):
             all()
         return switches
 
+
 class LSwitchPort(models.BASEV2, models.HasId):
     __tablename__ = "quark_nvp_driver_lswitchport"
     port_id = sa.Column(sa.String(36), nullable=False)
     switch_id = sa.Column(sa.String(36),
                           sa.ForeignKey("quark_nvp_driver_lswitch.id"),
                           nullable=False)
+
 
 class LSwitch(models.BASEV2, models.HasId):
     __tablename__ = "quark_nvp_driver_lswitch"

@@ -23,7 +23,8 @@ import quark.tests.test_nvp_driver as test_nvp_driver
 class TestOptimizedNVPDriver(test_nvp_driver.TestNVPDriver):
     def setUp(self):
         if not hasattr(self, 'driver'):
-            self.driver = quark.drivers.optimized_nvp_driver.OptimizedNVPDriver()
+            self.driver = quark.drivers.optimized_nvp_driver.\
+                OptimizedNVPDriver()
         super(TestOptimizedNVPDriver, self).setUp()
         self.d_pkg = "quark.drivers.optimized_nvp_driver.OptimizedNVPDriver"
         self.context.session.add = mock.Mock(return_value=None)
