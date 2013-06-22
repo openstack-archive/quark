@@ -28,7 +28,7 @@ class TestDBAPI(test_base.TestBase):
     def setUp(self):
         super(TestDBAPI, self).setUp()
 
-        cfg.CONF.set_override('sql_connection', 'sqlite://', 'DATABASE')
+        cfg.CONF.set_override('connection', 'sqlite://', 'database')
         quantum_db_api.configure_db()
         configure_mappers()
 

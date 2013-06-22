@@ -18,6 +18,7 @@ import mock
 from oslo.config import cfg
 from quantum.common import exceptions
 from quantum.db import api as quantum_db_api
+from quantum.openstack.common.db.sqlalchemy import session as quantum_session
 
 from quark.db import models
 import quark.ipam
@@ -29,9 +30,9 @@ class QuarkIpamBaseTest(test_base.TestBase):
     def setUp(self):
         super(QuarkIpamBaseTest, self).setUp()
 
-        cfg.CONF.set_override('sql_connection', 'sqlite://', 'DATABASE')
+        cfg.CONF.set_override('connection', 'sqlite://', 'database')
         quantum_db_api.configure_db()
-        models.BASEV2.metadata.create_all(quantum_db_api._ENGINE)
+        models.BASEV2.metadata.create_all(quantum_session._ENGINE)
         self.ipam = quark.ipam.QuarkIpam()
 
     def tearDown(self):
