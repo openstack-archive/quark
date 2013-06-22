@@ -123,7 +123,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         self.net_driver.load_config(CONF.QUARK.net_driver_cfg)
         self.ipam_driver = (importutils.import_class(CONF.QUARK.ipam_driver))()
         self.ipam_reuse_after = CONF.QUARK.ipam_reuse_after
-        models.BASEV2.metadata.create_all(quantum_session._ENGINE)
+        quantum_db_api.register_models(base=models.BASEV2)
 
     def _make_security_group_list(self, context, group_ids):
         if not group_ids or group_ids is attributes.ATTR_NOT_SPECIFIED:
