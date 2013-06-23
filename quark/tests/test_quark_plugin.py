@@ -88,11 +88,11 @@ class TestQuarkGetSubnets(TestQuarkPlugin):
             for subnet in subnets:
                 s_dict = subnet.copy()
                 s_dict["routes"] = route_models
-                s = models.Subnet()
+                s = models.Subnet(network=models.Network())
                 s.update(s_dict)
                 subnet_models.append(s)
         elif subnets:
-            mod = models.Subnet()
+            mod = models.Subnet(network=models.Network())
             mod.update(subnets)
             mod["routes"] = route_models
             subnet_models = mod
@@ -110,7 +110,7 @@ class TestQuarkGetSubnets(TestQuarkPlugin):
         subnet = dict(id=subnet_id, network_id=1, name=subnet_id,
                       tenant_id=self.context.tenant_id, ip_version=4,
                       cidr="192.168.0.0/24", gateway_ip="192.168.0.1",
-                      allocation_pools=[], dns_nameservers=[],
+                      dns_nameservers=[],
                       enable_dhcp=None)
         expected_route = dict(destination=route["cidr"],
                               nexthop=route["gateway"])
@@ -140,7 +140,7 @@ class TestQuarkGetSubnets(TestQuarkPlugin):
         subnet = dict(id=subnet_id, network_id=1, name=subnet_id,
                       tenant_id=self.context.tenant_id, ip_version=4,
                       cidr="192.168.0.0/24", gateway_ip="192.168.0.1",
-                      allocation_pools=[], dns_nameservers=[],
+                      dns_nameservers=[],
                       enable_dhcp=None)
 
         with self._stubs(subnets=subnet, routes=[route]):
@@ -173,6 +173,9 @@ class TestQuarkCreateSubnetOverlapping(TestQuarkPlugin):
         ) as (net_find, subnet_find, subnet_create):
             net_find.return_value = network
             subnet_find.return_value = subnet_models
+            subnet_create.return_value = models.Subnet(
+                network=models.Network(),
+                cidr="192.168.1.1/24")
             yield subnet_create
 
     def test_create_subnet_overlapping_true(self):
@@ -206,13 +209,63 @@ class TestQuarkCreateSubnetOverlapping(TestQuarkPlugin):
                 self.plugin.create_subnet(self.context, s)
 
 
+class TestQuarkCreateSubnetAllocationPools(TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, subnet):
+        s = models.Subnet(network=models.Network(id=1, subnets=[]))
+        s.update(subnet)
+
+        with contextlib.nested(
+            mock.patch("quark.db.api.network_find"),
+            mock.patch("quark.db.api.subnet_find"),
+            mock.patch("quark.db.api.subnet_create")
+        ) as (net_find, subnet_find, subnet_create):
+            net_find.return_value = s["network"]
+            subnet_find.return_value = []
+            subnet_create.return_value = s
+            yield subnet_create
+
+    def test_create_subnet_allocation_pools_zero(self):
+        s = dict(subnet=dict(
+            cidr="192.168.1.1/24",
+            network_id=1))
+        with self._stubs(s["subnet"]) as subnet_create:
+            resp = self.plugin.create_subnet(self.context, s)
+            self.assertEqual(subnet_create.call_count, 1)
+            self.assertEqual(resp["allocation_pools"],
+                             [dict(start="192.168.1.0", end="192.168.1.255")])
+
+    def test_create_subnet_allocation_pools_one(self):
+        pools = [dict(start="192.168.1.10", end="192.168.1.20")]
+        s = dict(subnet=dict(
+            allocation_pools=pools,
+            cidr="192.168.1.1/24",
+            network_id=1))
+        with self._stubs(s["subnet"]) as subnet_create:
+            resp = self.plugin.create_subnet(self.context, s)
+            self.assertEqual(subnet_create.call_count, 1)
+            self.assertEqual(resp["allocation_pools"], pools)
+
+    def test_create_subnet_allocation_pools_two(self):
+        pools = [dict(start="192.168.1.10", end="192.168.1.20"),
+                 dict(start="192.168.1.40", end="192.168.1.50")]
+        s = dict(subnet=dict(
+            allocation_pools=pools,
+            cidr="192.168.1.1/24",
+            network_id=1))
+        with self._stubs(s["subnet"]) as subnet_create:
+            resp = self.plugin.create_subnet(self.context, s)
+            self.assertEqual(subnet_create.call_count, 1)
+            self.assertEqual(resp["allocation_pools"], pools)
+
+
 # TODO(amir): Refactor the tests to test individual subnet attributes.
 # * copy.deepcopy was necessary to maintain tests on keys, which is a bit ugly.
 # * workaround is also in place for lame ATTR_NOT_SPECIFIED object()
 class TestQuarkCreateSubnet(TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, subnet=None, network=None, routes=None, dns=None):
-        subnet_mod = models.Subnet()
+        subnet_mod = models.Subnet(network=models.Network())
         dns_ips = subnet.pop("dns_nameservers", [])
         host_routes = subnet.pop("host_routes", [])
         subnet_mod.update(subnet)
@@ -241,7 +294,6 @@ class TestQuarkCreateSubnet(TestQuarkPlugin):
             subnet=dict(network_id=1,
                         tenant_id=self.context.tenant_id, ip_version=4,
                         cidr="172.16.0.0/24", gateway_ip="0.0.0.0",
-                        allocation_pools=[],
                         dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
                         host_routes=neutron_attrs.ATTR_NOT_SPECIFIED,
                         enable_dhcp=None))
@@ -280,7 +332,6 @@ class TestQuarkCreateSubnet(TestQuarkPlugin):
             subnet=dict(network_id=1,
                         tenant_id=self.context.tenant_id, ip_version=4,
                         cidr="172.16.0.0/24",
-                        allocation_pools=[],
                         gateway_ip=neutron_attrs.ATTR_NOT_SPECIFIED,
                         dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
                         enable_dhcp=None))
@@ -315,7 +366,6 @@ class TestQuarkCreateSubnet(TestQuarkPlugin):
             subnet=dict(network_id=1,
                         tenant_id=self.context.tenant_id, ip_version=4,
                         cidr="172.16.0.0/24", gateway_ip="0.0.0.0",
-                        allocation_pools=[],
                         dns_nameservers=["4.2.2.1", "4.2.2.2"],
                         enable_dhcp=None))
         network = dict(network_id=1)
@@ -344,7 +394,6 @@ class TestQuarkCreateSubnet(TestQuarkPlugin):
             subnet=dict(network_id=1,
                         tenant_id=self.context.tenant_id, ip_version=4,
                         cidr="172.16.0.0/24", gateway_ip="0.0.0.0",
-                        allocation_pools=[],
                         dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
                         host_routes=[{"destination": "1.1.1.1/8",
                                       "nexthop": "172.16.0.4"}],
@@ -378,7 +427,6 @@ class TestQuarkCreateSubnet(TestQuarkPlugin):
             subnet=dict(network_id=1,
                         tenant_id=self.context.tenant_id, ip_version=4,
                         cidr="172.16.0.0/24",
-                        allocation_pools=[],
                         gateway_ip=neutron_attrs.ATTR_NOT_SPECIFIED,
                         dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
                         host_routes=[{"destination": "0.0.0.0/0",
@@ -419,7 +467,6 @@ class TestQuarkCreateSubnet(TestQuarkPlugin):
                         tenant_id=self.context.tenant_id, ip_version=4,
                         cidr="172.16.0.0/24",
                         gateway_ip="172.16.0.3",
-                        allocation_pools=[],
                         dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
                         host_routes=[{"destination": "0.0.0.0/0",
                                       "nexthop": "172.16.0.4"}],
@@ -472,7 +519,6 @@ class TestQuarkUpdateSubnet(TestQuarkPlugin):
             network_id=1,
             tenant_id=self.context.tenant_id, ip_version=4,
             cidr="172.16.0.0/24",
-            allocation_pools=[],
             host_routes=host_routes,
             dns_nameservers=["4.2.2.1", "4.2.2.2"],
             enable_dhcp=None)
@@ -502,7 +548,8 @@ class TestQuarkUpdateSubnet(TestQuarkPlugin):
             subnet_find.return_value = subnet_mod
             route_find.return_value = subnet_mod["routes"][0] \
                 if subnet_mod["routes"] and find_routes else None
-            new_subnet_mod = copy.deepcopy(subnet_mod)
+            new_subnet_mod = models.Subnet(network=models.Network())
+            new_subnet_mod.update(subnet_mod)
             if new_routes:
                 new_subnet_mod["routes"] = new_routes
             if new_dns_servers:
