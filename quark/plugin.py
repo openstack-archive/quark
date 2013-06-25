@@ -935,7 +935,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
 
     def get_route(self, context, id):
         LOG.info("get_route %s for tenant %s" % (id, context.tenant_id))
-        route = db_api.route_find(context, id=id)
+        route = db_api.route_find(context, id=id, scope=db_api.ONE)
         if not route:
             raise quark_exceptions.RouteNotFound(route_id=id)
         return v._make_route_dict(route)
@@ -949,20 +949,27 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         LOG.info("create_route for tenant %s" % context.tenant_id)
         route = route["route"]
         subnet_id = route["subnet_id"]
-        subnet = db_api.subnet_find(context, id=id)
+        subnet = db_api.subnet_find(context, id=subnet_id, scope=db_api.ONE)
         if not subnet:
             raise exceptions.SubnetNotFound(subnet_id=subnet_id)
 
         # TODO(anyone): May need to denormalize the cidr values to achieve
         #               single db lookup
         route_cidr = netaddr.IPNetwork(route["cidr"])
-        subnet_routes = db_api.route_find(context, subnet_id=subnet_id)
+        subnet_routes = db_api.route_find(context, subnet_id=subnet_id,
+                                          scope=db_api.ALL)
         for sub_route in subnet_routes:
             sub_route_cidr = netaddr.IPNetwork(sub_route["cidr"])
+            """
+            Task #977:
+            Add a special case for default route
+            """
+            if sub_route_cidr.value == DEFAULT_ROUTE.value:
+                continue
             if route_cidr in sub_route_cidr or sub_route_cidr in route_cidr:
-                raise quark_exceptions.RouteConflict(route_id=sub_route["id"],
-                                                     cidr=str(route_cidr))
-
+                ex = quark_exceptions.RouteConflict(route_id=sub_route["id"],
+                                                    cidr=str(route_cidr))
+                raise ex
         new_route = db_api.route_create(context, **route)
         return v._make_route_dict(new_route)
 
@@ -971,7 +978,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         #              admin and only filter on tenant if they aren't. Correct
         #              for all the above later
         LOG.info("delete_route %s for tenant %s" % (id, context.tenant_id))
-        route = db_api.route_find(context, id)
+        route = db_api.route_find(context, id, scope=db_api.ONE)
         if not route:
             raise quark_exceptions.RouteNotFound(route_id=id)
         db_api.route_delete(context, route)
