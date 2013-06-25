@@ -72,20 +72,21 @@ def _make_security_group_dict(security_group, fields=None):
            "description": security_group.get("description"),
            "name": security_group.get("name"),
            "tenant_id": security_group.get("tenant_id")}
-    res["security_group_rules"] =\
-        [_make_security_group_rule_dict(r) for r in security_group['rules']]
+    res["security_group_rules"] = [
+        r.id for r in security_group['rules']]
     return res
 
 
 def _make_security_group_rule_dict(security_rule, fields=None):
     res = {"id": security_rule.get("id"),
+           "ethertype": security_rule.get("ethertype"),
            "direction": security_rule.get("direction"),
            "tenant_id": security_rule.get("tenant_id"),
            "port_range_max": security_rule.get("port_range_max"),
-           "port_range_mid": security_rule.get("port_range_mid"),
+           "port_range_min": security_rule.get("port_range_min"),
            "protocol": security_rule.get("protocol"),
            "remote_ip_prefix": security_rule.get("remote_ip_prefix"),
-           "security_group_id": security_rule.get("security_group_id"),
+           "security_group_id": security_rule.get("group_id"),
            "remote_group_id": security_rule.get("remote_group_id")}
     return res
 

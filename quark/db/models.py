@@ -236,13 +236,13 @@ port_ip_association_table = sa.Table(
               sa.ForeignKey("quark_ip_addresses.id")))
 
 
-port_rule_association_table = sa.Table(
-    "quark_port_security_rule_associations",
+port_group_association_table = sa.Table(
+    "quark_port_security_group_associations",
     BASEV2.metadata,
     sa.Column("port_id", sa.String(36),
               sa.ForeignKey("quark_ports.id")),
-    sa.Column("rule_id", sa.String(36),
-              sa.ForeignKey("quark_security_group_rule.id")))
+    sa.Column("group_id", sa.String(36),
+              sa.ForeignKey("quark_security_groups.id")))
 
 
 class SecurityGroupRule(BASEV2, models.HasId, models.HasTenant):
@@ -255,7 +255,20 @@ class SecurityGroupRule(BASEV2, models.HasId, models.HasTenant):
     ethertype = sa.Column(sa.String(4), nullable=False)
     port_range_max = sa.Column(sa.Integer(), nullable=True)
     port_range_min = sa.Column(sa.Integer(), nullable=True)
-    protocol = sa.Column(sa.String(32), nullable=True)
+    protocol = sa.Column(sa.Integer(), nullable=True)
+    remote_ip_prefix = sa.Column(sa.String(22), nullable=True)
+    remote_group_id = sa.Column(sa.String(36), nullable=True)
+
+
+class SecurityGroup(BASEV2, models.HasId, models.HasTenant):
+    __tablename__ = "quark_security_groups"
+    id = sa.Column(sa.String(36), primary_key=True)
+    name = sa.Column(sa.String(255), nullable=False)
+    description = sa.Column(sa.String(255), nullable=False)
+    join = "SecurityGroupRule.group_id==SecurityGroup.id"
+    rules = orm.relationship(SecurityGroupRule, backref='group',
+                             cascade='delete',
+                             primaryjoin=join)
 
 
 class Port(BASEV2, models.HasTenant, models.HasId):
@@ -282,24 +295,14 @@ class Port(BASEV2, models.HasTenant, models.HasId):
                                 backref="ports")
 
     @declarative.declared_attr
-    def security_rules(cls):
-        primaryjoin = cls.id == port_rule_association_table.c.port_id
-        secondaryjoin = (port_rule_association_table.c.rule_id ==
-                         SecurityGroupRule.id)
-        return orm.relationship(SecurityGroupRule, primaryjoin=primaryjoin,
+    def security_groups(cls):
+        primaryjoin = cls.id == port_group_association_table.c.port_id
+        secondaryjoin = (port_group_association_table.c.group_id ==
+                         SecurityGroup.id)
+        return orm.relationship(SecurityGroup, primaryjoin=primaryjoin,
                                 secondaryjoin=secondaryjoin,
-                                secondary=port_rule_association_table,
+                                secondary=port_group_association_table,
                                 backref="ports")
-
-
-class SecurityGroup(BASEV2, models.HasId, models.HasTenant):
-    __tablename__ = "quark_security_groups"
-    id = sa.Column(sa.String(36), primary_key=True)
-    name = sa.Column(sa.String(255), nullable=False)
-    description = sa.Column(sa.String(255), nullable=False)
-    join = "SecurityGroupRule.group_id==SecurityGroup.id"
-    rules = orm.relationship(SecurityGroupRule, backref='group',
-                             cascade='delete', primaryjoin=join)
 
 
 class MacAddress(BASEV2, models.HasTenant):

@@ -23,6 +23,7 @@ from oslo.config import cfg
 from quantum.api.v2 import attributes as quantum_attrs
 from quantum.common import exceptions
 from quantum.db import api as db_api
+from quantum.extensions import securitygroup as sg_ext
 
 from quark.db import api as quark_db_api
 from quark.db import models
@@ -1250,7 +1251,8 @@ class TestQuarkUpdatePort(TestQuarkPlugin):
             port_update.assert_called_once_with(
                 self.context,
                 port_find(),
-                name="ourport")
+                name="ourport",
+                security_groups=[])
 
     def test_update_port_fixed_ip_bad_request(self):
         with self._stubs(
@@ -1264,7 +1266,7 @@ class TestQuarkUpdatePort(TestQuarkPlugin):
 
     def test_update_port_fixed_ip(self):
         with self._stubs(
-            port=dict(id=1, name="myport")
+            port=dict(id=1, name="myport", mac_address="0:0:0:0:0:1")
         ) as (port_find, port_update, alloc_ip, dealloc_ip):
             new_port = dict(port=dict(
                 fixed_ips=[dict(subnet_id=1,
@@ -1756,3 +1758,248 @@ class TestQuarkGetIpAddresses(TestQuarkPlugin):
         with self._stubs(ips=None, ports=[port]):
             with self.assertRaises(quark_exceptions.IpAddressNotFound):
                 self.plugin.get_ip_address(self.context, 1)
+
+
+class TestQuarkCreateSecurityGroup(TestQuarkPlugin):
+    def setUp(self, *args, **kwargs):
+        super(TestQuarkCreateSecurityGroup, self).setUp(*args, **kwargs)
+        cfg.CONF.set_override('quota_security_group', 1, 'QUOTAS')
+
+    @contextlib.contextmanager
+    def _stubs(self, security_group, other=0):
+        dbgroup = models.SecurityGroup()
+        dbgroup.update(security_group)
+
+        with contextlib.nested(
+                mock.patch("quark.db.api.security_group_find"),
+                mock.patch("quark.db.api.security_group_create"),
+        ) as (db_find, db_create):
+            db_find.return_value.count.return_value = other
+            db_create.return_value = dbgroup
+            yield db_create
+
+    def test_create_security_group(self):
+        group = {'name': 'foo', 'description': 'bar',
+                 'tenant_id': self.context.tenant_id}
+        expected = {'name': 'foo', 'description': 'bar',
+                    'tenant_id': self.context.tenant_id,
+                    'security_group_rules': []}
+        with self._stubs(group) as group_create:
+            result = self.plugin.create_security_group(
+                self.context, {'security_group': group})
+            self.assertTrue(group_create.called)
+            print "expected: %s but got: %s" % (expected, result)
+            for key in expected.keys():
+                self.assertEqual(result[key], expected[key])
+
+    def test_create_security_group_over_quota(self):
+        group = {'name': 'foo', 'description': 'bar',
+                 'tenant_id': self.context.tenant_id}
+        with self._stubs(group, other=1) as group_create:
+            with self.assertRaises(exceptions.OverQuota):
+                self.plugin.create_security_group(
+                    self.context, {'security_group': group})
+                self.assertTrue(group_create.called)
+
+
+class TestQuarkDeleteSecurityGroup(TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, security_group=None):
+        dbgroup = None
+        if security_group:
+            dbgroup = models.SecurityGroup()
+            dbgroup.update(security_group)
+
+        with contextlib.nested(
+            mock.patch("quark.db.api.security_group_find"),
+            mock.patch("quark.db.api.security_group_delete"),
+            mock.patch(
+                "quark.drivers.base.BaseDriver.delete_security_group")
+        ) as (group_find, db_group_delete, driver_group_delete):
+            group_find.return_value = dbgroup
+            db_group_delete.return_value = dbgroup
+            yield db_group_delete, driver_group_delete
+
+    def test_delete_security_group(self):
+        group = {'name': 'foo', 'description': 'bar', 'id': 1,
+                 'tenant_id': self.context.tenant_id}
+        with self._stubs(group) as (db_delete, driver_delete):
+            self.plugin.delete_security_group(self.context, 1)
+            self.assertTrue(db_delete.called)
+            driver_delete.assert_called_once_with(self.context, 1)
+
+    def test_delete_security_group_with_ports(self):
+        port = models.Port()
+        group = {'name': 'foo', 'description': 'bar', 'id': 1,
+                 'tenant_id': self.context.tenant_id, 'ports': [port]}
+        with self._stubs(group) as (db_delete, driver_delete):
+            with self.assertRaises(sg_ext.SecurityGroupInUse):
+                self.plugin.delete_security_group(self.context, 1)
+
+    def test_delete_security_group_not_found(self):
+        with self._stubs() as (db_delete, driver_delete):
+            with self.assertRaises(sg_ext.SecurityGroupNotFound):
+                self.plugin.delete_security_group(self.context, 1)
+
+
+class TestQuarkCreateSecurityGroupRule(TestQuarkPlugin):
+    def setUp(self, *args, **kwargs):
+        super(TestQuarkCreateSecurityGroupRule, self).setUp(*args, **kwargs)
+        cfg.CONF.set_override('quota_security_group_rule', 1, 'QUOTAS')
+        self.rule = {'id': 1, 'ethertype': 'IPv4',
+                     'security_group_id': 1, 'group': {'id': 1}}
+        self.expected = {
+            'id': 1,
+            'remote_group_id': None,
+            'direction': None,
+            'port_range_min': None,
+            'port_range_max': None,
+            'remote_ip_prefix': None,
+            'ethertype': 'IPv4',
+            'tenant_id': None,
+            'protocol': None,
+            'security_group_id': 1}
+
+    @contextlib.contextmanager
+    def _stubs(self, rule, group):
+        dbrule = models.SecurityGroupRule()
+        dbrule.update(rule)
+        dbrule.group_id = rule['security_group_id']
+        dbgroup = None
+        if group:
+            dbgroup = models.SecurityGroup()
+            dbgroup.update(group)
+
+        with contextlib.nested(
+                mock.patch("quark.db.api.security_group_find"),
+                mock.patch("quark.db.api.security_group_rule_find"),
+                mock.patch("quark.db.api.security_group_rule_create")
+        ) as (group_find, rule_find, rule_create):
+            group_find.return_value = dbgroup
+            rule_find.return_value.count.return_value = group.get(
+                'port_rules', None) if group else 0
+            rule_create.return_value = dbrule
+            yield rule_create
+
+    def _test_create_security_rule(self, **ruleset):
+        ruleset['tenant_id'] = self.context.tenant_id
+        rule = dict(self.rule, **ruleset)
+        group = rule.pop('group')
+        expected = dict(self.expected, **ruleset)
+        with self._stubs(rule, group) as rule_create:
+            result = self.plugin.create_security_group_rule(
+                self.context, {'security_group_rule': rule})
+            self.assertTrue(rule_create.called)
+            print "expected: %s but got: %s" % (expected, result)
+            for key in expected.keys():
+                self.assertEqual(expected[key], result[key])
+
+    def test_create_security_rule_IPv6(self):
+        self._test_create_security_rule(ethertype='IPv6')
+
+    def test_create_security_rule_UDP(self):
+        self._test_create_security_rule(protocol=17)
+
+    def test_create_security_rule_TCP(self):
+        self._test_create_security_rule(protocol=6)
+
+    def test_create_security_rule_remote_ip(self):
+        self._test_create_security_rule(remote_ip_prefix='192.168.0.1')
+
+    def test_create_security_rule_remote_group(self):
+        self._test_create_security_rule(remote_group_id=2)
+
+    def test_create_security_rule_port_range(self):
+        with self.assertRaises(exceptions.InvalidInput):
+            self._test_create_security_rule(protocol=6, port_range_min=0)
+            self._test_create_security_rule(protocol=6, port_range_max=10)
+            self._test_create_security_rule(protocol=17, port_range_min=0)
+            self._test_create_security_rule(protocol=17, port_range_max=10)
+        with self.assertRaises(sg_ext.SecurityGroupProtocolRequiredWithPorts):
+            self._test_create_security_rule(protocol=None, port_range_min=0)
+
+    def test_create_security_rule_remote_conflicts(self):
+        with self.assertRaises(Exception):
+            self._test_create_security_rule(remote_ip_prefix='192.168.0.1',
+                                            remote_group_id='0')
+
+    def test_create_security_rule_no_group(self):
+        with self.assertRaises(sg_ext.SecurityGroupNotFound):
+            self._test_create_security_rule(group=None)
+
+    def test_create_security_rule_over_quota(self):
+        rule = self.rule
+        rule.pop('group')
+        with self._stubs(
+                rule,
+                {'id': 1, 'port_rules': 1}
+        ) as rule_create:
+            with self.assertRaises(exceptions.OverQuota):
+                self.plugin.create_security_group_rule(
+                    self.context, {'security_group_rule': self.rule})
+                self.assertTrue(rule_create.called)
+
+    def test_create_security_rule_group_in_use(self):
+        with self.assertRaises(sg_ext.SecurityGroupInUse):
+            self._test_create_security_rule(group={'ports': [models.Port()]})
+
+
+class TestQuarkDeleteSecurityGroupRule(TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, rule={}, group={'id': 1}):
+        dbrule = None
+        dbgroup = None
+        if group:
+            dbgroup = models.SecurityGroup()
+            dbgroup.update(group)
+        if rule:
+            dbrule = models.SecurityGroupRule()
+            dbrule.update(dict(rule, group=dbgroup))
+        print rule
+
+        with contextlib.nested(
+                mock.patch("quark.db.api.security_group_find"),
+                mock.patch("quark.db.api.security_group_rule_find"),
+                mock.patch("quark.db.api.security_group_rule_delete"),
+                mock.patch(
+                    "quark.drivers.base.BaseDriver.delete_security_group_rule")
+        ) as (group_find, rule_find, db_group_delete, driver_group_delete):
+            group_find.return_value = dbgroup
+            rule_find.return_value = dbrule
+            yield db_group_delete, driver_group_delete
+
+    def test_delete_security_group_rule(self):
+        rule = {'id': 1, 'security_group_id': 1, 'ethertype': 'IPv4',
+                'protocol': 6, 'port_range_min': 0, 'port_range_max': 10,
+                'direction': 'ingress', 'tenant_id': self.context.tenant_id}
+        expected = {
+            'id': 1, 'ethertype': 'IPv4', 'security_group_id': 1,
+            'direction': 'ingress', 'port_range_min': 0, 'port_range_max': 10,
+            'remote_group_id': None, 'remote_ip_prefix': None,
+            'tenant_id': self.context.tenant_id, 'protocol': 6}
+
+        with self._stubs(dict(rule, group_id=1)) as (db_delete, driver_delete):
+            self.plugin.delete_security_group_rule(self.context, 1)
+            self.assertTrue(db_delete.called)
+            driver_delete.assert_called_once_with(self.context, 1,
+                                                  expected)
+
+    def test_delete_security_group_rule_rule_not_found(self):
+        with self._stubs() as (db_delete, driver_delete):
+            with self.assertRaises(sg_ext.SecurityGroupRuleNotFound):
+                self.plugin.delete_security_group_rule(self.context, 1)
+
+    def test_delete_security_group_rule_group_not_found(self):
+        rule = {'id': 1, 'security_group_id': 1, 'ethertype': 'IPv4'}
+        with self._stubs(dict(rule, group_id=1),
+                         None) as (db_delete, driver_delete):
+            with self.assertRaises(sg_ext.SecurityGroupNotFound):
+                self.plugin.delete_security_group_rule(self.context, 1)
+
+    def test_delete_security_group_rule_group_in_use(self):
+        with self._stubs(
+                rule={'id': 1, 'security_group_id': 1},
+                group={'id': 1, 'ports': [models.Port()]}
+        ) as (db_delete, driver_delete):
+            with self.assertRaises(sg_ext.SecurityGroupInUse):
+                self.plugin.delete_security_group_rule(self.context, 1)

@@ -20,6 +20,7 @@ NVP client driver for Quark
 from oslo.config import cfg
 
 import aiclib
+from quantum.extensions import securitygroup as sg_ext
 from quantum.openstack.common import log as logging
 
 from quark.drivers import base
@@ -39,6 +40,12 @@ nvp_opts = [
     cfg.MultiStrOpt('controller_connection',
                     default=[],
                     help=_('NVP Controller connection string')),
+    cfg.IntOpt('max_rules_per_group',
+               default=30,
+               help=_('Maxiumum size of NVP SecurityRule list per group')),
+    cfg.IntOpt('max_rules_per_port',
+               default=30,
+               help=_('Maximum rules per NVP lport across all groups')),
 ]
 
 physical_net_type_map = {
@@ -105,12 +112,17 @@ class NVPDriver(base.BaseDriver):
             LOG.debug("Deleting lswitch %s" % switch["uuid"])
             connection.lswitch(switch["uuid"]).delete()
 
-    def create_port(self, context, network_id, port_id, status=True):
+    def create_port(self, context, network_id, port_id,
+                    status=True, security_groups=[], allowed_pairs=[]):
         tenant_id = context.tenant_id
         lswitch = self._create_or_choose_lswitch(context, network_id)
         connection = self.get_connection()
         port = connection.lswitch_port(lswitch)
         port.admin_status_enabled(status)
+        port.allowed_address_pairs(allowed_pairs)
+        nvp_group_ids = self._get_security_groups_for_port(context,
+                                                           security_groups)
+        port.security_profiles(nvp_group_ids)
         tags = [dict(tag=network_id, scope="quantum_net_id"),
                 dict(tag=port_id, scope="quantum_port_id"),
                 dict(tag=tenant_id, scope="os_tid")]
@@ -120,17 +132,26 @@ class NVPDriver(base.BaseDriver):
         res["lswitch"] = lswitch
         return res
 
-    def delete_port(self, context, port_id, lswitch_uuid=None):
+    def update_port(self, context, port_id, status=True,
+                    security_groups=[], allowed_pairs=[]):
         connection = self.get_connection()
+        lswitch_id = self._lswitch_from_port(context, port_id)
+        port = connection.lswitch_port(lswitch_id, port_id)
+        nvp_group_ids = self._get_security_groups_for_port(context,
+                                                           security_groups)
+        self._count_security_rules_on_port(context, nvp_group_ids)
+        if nvp_group_ids:
+            port.security_profiles(nvp_group_ids)
+        if allowed_pairs:
+            port.allowed_address_pairs(allowed_pairs)
+        port.admin_status_enabled(status)
+        return port.update()
+
+    def delete_port(self, context, port_id, **kwargs):
+        connection = self.get_connection()
+        lswitch_uuid = kwargs.get('lswitch_uuid', None)
         if not lswitch_uuid:
-            query = connection.lswitch_port("*").query()
-            query.relations("LogicalSwitchConfig")
-            query.uuid(port_id)
-            port = query.results()
-            if port["result_count"] > 1:
-                raise Exception("More than one lswitch for port %s" % port_id)
-            for r in port["results"]:
-                lswitch_uuid = r["_relations"]["LogicalSwitchConfig"]["uuid"]
+            lswitch_uuid = self._lswitch_from_port(context, port_id)
         LOG.debug("Deleting port %s from lswitch %s" % (port_id, lswitch_uuid))
         connection.lswitch_port(lswitch_uuid, port_id).delete()
 
@@ -148,6 +169,85 @@ class NVPDriver(base.BaseDriver):
             return dict(network_name=name, phys_net=phys_net,
                         phys_type=phys_type, segment_id=segment_id)
         return {}
+
+    def create_security_group(self, context, group_name, **group):
+        tenant_id = context.tenant_id
+        connection = self.get_connection()
+        group_id = group.get('group_id')
+        profile = connection.securityprofile()
+        if group_name:
+            profile.display_name(group_name)
+        ingress_rules = group.get('port_ingress_rules', [])
+        egress_rules = group.get('port_egress_rules', [])
+        if (len(ingress_rules) + len(egress_rules) >
+                CONF.NVP.max_rules_per_group):
+            raise sg_ext.qexception.InvalidInput(
+                error_message="Max rules for group %s" % group_id)
+        if egress_rules:
+            profile.port_egress_rules(egress_rules)
+        if ingress_rules:
+            profile.port_ingress_rules(ingress_rules)
+        tags = [dict(tag=group_id, scope="quantum_group_id"),
+                dict(tag=tenant_id, scope="os_tid")]
+        LOG.debug("Creating security profile %s" % group_name)
+        profile.tags(tags)
+        return profile.create()
+
+    def delete_security_group(self, context, group_id):
+        guuid = self._get_security_group_id(context, group_id)
+        connection = self.get_connection()
+        LOG.debug("Deleting security profile %s" % group_id)
+        connection.securityprofile(guuid).delete()
+
+    def update_security_group(self, context, group_id, **group):
+        query = self._get_security_group(context, group_id)
+        connection = self.get_connection()
+        profile = connection.securityprofile(query.get('uuid'))
+
+        ingress_rules = group.get('port_ingress_rules',
+                                  query.get('logical_port_ingress_rules'))
+        egress_rules = group.get('port_egress_rules',
+                                 query.get('logical_port_egress_rules'))
+        if (len(ingress_rules) + len(egress_rules) >
+                CONF.NVP.max_rules_per_group):
+            raise sg_ext.qexception.InvalidInput(
+                error_message="Max rules for group %s" % group_id)
+
+        if group.get('name', None):
+            profile.display_name(group['name'])
+        if group.get('port_ingress_rules', None) is not None:
+            profile.port_ingress_rules(ingress_rules)
+        if group.get('port_egress_rules', None) is not None:
+            profile.port_egress_rules(egress_rules)
+        return profile.update()
+
+    def _update_security_group_rules(self, context, group_id, rule, operation,
+                                     check, raises):
+        groupd = self._get_security_group(context, group_id)
+        direction, secrule = self._get_security_group_rule_object(context,
+                                                                  rule)
+        rulelist = groupd['logical_port_%s_rules' % direction]
+        if not check(secrule, rulelist):
+            raise raises
+        else:
+            getattr(rulelist, operation)(secrule)
+
+        LOG.debug("%s rule on security group %s" % (operation, groupd['uuid']))
+        group = {'port_%s_rules' % direction: rulelist}
+        return self.update_security_group(context, group_id, **group)
+
+    def create_security_group_rule(self, context, group_id, rule):
+        return self._update_security_group_rules(
+            context, group_id, rule, 'append',
+            lambda x, y: x not in y,
+            sg_ext.SecurityGroupRuleExists(id=group_id))
+
+    def delete_security_group_rule(self, context, group_id, rule):
+        return self._update_security_group_rules(
+            context, group_id, rule, 'remove',
+            lambda x, y: x in y,
+            sg_ext.SecurityGroupRuleNotFound(id="with group_id %s" %
+                                             group_id))
 
     def _create_or_choose_lswitch(self, context, network_id):
         switches = self._lswitch_status_query(context, network_id)
@@ -257,3 +357,63 @@ class NVPDriver(base.BaseDriver):
         query.tagscopes(['os_tid', 'quantum_net_id'])
         query.tags([context.tenant_id, network_id])
         return query
+
+    def _lswitch_from_port(self, context, port_id):
+        connection = self.get_connection()
+        query = connection.lswitch_port("*").query()
+        query.relations("LogicalSwitchConfig")
+        query.uuid(port_id)
+        port = query.results()
+        if port['result_count'] > 1:
+            raise Exception("Could not identify lswitch for port %s" % port_id)
+        if port['result_count'] < 1:
+            raise Exception("No lswitch found for port %s" % port_id)
+        return port['results'][0]["_relations"]["LogicalSwitchConfig"]["uuid"]
+
+    def _get_security_group(self, context, group_id):
+        connection = self.get_connection()
+        query = connection.securityprofile().query()
+        query.tagscopes(['os_tid', 'quantum_group_id'])
+        query.tags([context.tenant_id, group_id])
+        query = query.results()
+        if query['result_count'] != 1:
+            raise sg_ext.SecurityGroupNotFound(id=group_id)
+        return query['results'][0]
+
+    def _get_security_group_id(self, context, group_id):
+        return self._get_security_group(context, group_id)['uuid']
+
+    def _get_security_group_rule_object(self, context, rule):
+        ethertype = rule.get('ethertype', None)
+        rule_clone = {}
+
+        ip_prefix = rule.get('remote_ip_prefix', None)
+        if ip_prefix:
+            rule_clone['ip_prefix'] = ip_prefix
+        profile_uuid = rule.get('remote_group_id', None)
+        if profile_uuid:
+            rule_clone['profile_uuid'] = profile_uuid
+        for key in ['protocol', 'port_range_min', 'port_range_max']:
+            if rule.get(key):
+                rule_clone[key] = rule[key]
+
+        connection = self.get_connection()
+        secrule = connection.securityrule(ethertype, **rule_clone)
+
+        direction = rule.get('direction', '')
+        if direction not in ['ingress', 'egress']:
+            raise AttributeError(
+                "Direction not specified as 'ingress' or 'egress'.")
+        return (direction, secrule)
+
+    def _get_security_groups_for_port(self, context, groups):
+        rulecount = 0
+        nvp_group_ids = []
+        for group in groups:
+            nvp_group = self._get_security_group(context, group)
+            rulecount += (len(nvp_group['logical_port_ingress_rules']) +
+                          len(nvp_group['logical_port_egress_rules']))
+            nvp_group_ids.append(nvp_group['uuid'])
+        if rulecount > CONF.NVP.max_rules_per_port:
+            raise sg_ext.exceptions.OverQuota(over='security rules per port')
+        return nvp_group_ids

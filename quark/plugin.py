@@ -64,9 +64,10 @@ quark_opts = [
                help=_("Path to the config for the net driver"))
 ]
 
-
 STRATEGY = network_strategy.STRATEGY
 CONF.register_opts(quark_opts, "QUARK")
+CONF.set_default('quota_security_group', 5, "QUOTAS")
+CONF.set_default('quota_security_group_rule', 20, "QUOTAS")
 
 
 def _pop_param(attrs, param, default=None):
@@ -123,6 +124,50 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         self.ipam_driver = (importutils.import_class(CONF.QUARK.ipam_driver))()
         self.ipam_reuse_after = CONF.QUARK.ipam_reuse_after
         models.BASEV2.metadata.create_all(quantum_db_api._ENGINE)
+
+    def _make_security_group_list(self, context, group_ids):
+        if not group_ids or group_ids is attributes.ATTR_NOT_SPECIFIED:
+            return ([], [])
+        group_ids = list(set(group_ids))
+        security_groups = []
+        for id in group_ids:
+            group = db_api.security_group_find(context, id=id,
+                                               scope=db_api.ONE)
+            if not group:
+                raise sg_ext.SecurityGroupNotFound(id=id)
+            security_groups.append(group)
+        return (group_ids, security_groups)
+
+    def _validate_security_group_rule(self, context, rule):
+
+        if (rule.get('remote_ip_prefix', None) and
+                rule.get('remote_group_id', None)):
+            raise sg_ext.SecurityGroupRemoteGroupAndRemoteIpPrefix()
+
+        protocol = rule.get('protocol', None)
+        if protocol is not None:
+            if (protocol in [6, 17] and
+                    (type(rule.get('port_range_min', None)) !=
+                        type(rule.get('port_range_max', None)))):
+                raise exceptions.InvalidInput(
+                    error_message="For TCP/UDP rules, cannot wildcard only "
+                                  "one end of port range.")
+            try:
+                protonumber = int(rule['protocol'])
+                if protonumber < 0 or protonumber > 255:
+                    raise sg_ext.SecurityGroupRuleInvalidProtocol(
+                        protocol=protocol,
+                        values=['udp', 'tcp', 'icmp'])
+            except (ValueError, TypeError):
+                raise sg_ext.SecurityGroupRuleInvalidProtocol(
+                    protocol=protocol, values=['udp', 'tcp', 'icmp'])
+        else:
+            rule.pop('protocol', None)
+            if (rule.get('port_range_min', None) is not None or
+                    rule.get('port_range_max', None)) is not None:
+                raise sg_ext.SecurityGroupProtocolRequiredWithPorts()
+
+        return rule
 
     def _validate_subnet_cidr(self, context, network_id, new_subnet_cidr):
         """Validate the CIDR for a subnet.
@@ -407,6 +452,11 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
             s = db_api.subnet_create(context, **sub["subnet"])
             new_subnets.append(s)
         new_net["subnets"] = new_subnets
+
+        if not self.get_security_groups(
+                context,
+                filters={"id": '00000000-0000-0000-0000-000000000000'}):
+            self._create_default_security_group(context)
         return v._make_network_dict(new_net)
 
     def update_network(self, context, id, network):
@@ -553,16 +603,26 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
             addresses.append(self.ipam_driver.allocate_ip_address(
                 context, net["id"], port_id, self.ipam_reuse_after))
 
+        (group_ids, security_groups) = self._make_security_group_list(
+            context, port["port"].pop("security_groups", None))
         mac = self.ipam_driver.allocate_mac_address(context,
                                                     net["id"],
                                                     port_id,
                                                     self.ipam_reuse_after,
                                                     mac_address=mac_address)
+        mac_address_string = str(netaddr.EUI(mac['address'],
+                                             dialect=netaddr.mac_unix))
+        address_pairs = [{'mac_address': mac_address_string,
+                          'ip_address': address.get('address_readable') or ''}
+                         for address in addresses]
         backend_port = self.net_driver.create_port(context, net["id"],
-                                                   port_id=port_id)
+                                                   port_id=port_id,
+                                                   security_groups=group_ids,
+                                                   allowed_pairs=address_pairs)
 
         port_attrs["network_id"] = net["id"]
         port_attrs["id"] = port_id
+        port_attrs["security_groups"] = security_groups
         new_port = db_api.port_create(
             context, addresses=addresses, mac_address=mac["address"],
             backend_key=backend_port["uuid"], **port_attrs)
@@ -583,6 +643,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         if not port_db:
             raise exceptions.PortNotFound(port_id=id)
 
+        address_pairs = []
         fixed_ips = port["port"].pop("fixed_ips", None)
         if fixed_ips:
             self.ipam_driver.deallocate_ip_address(
@@ -601,7 +662,21 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
                     context, port_db["network_id"], id,
                     self.ipam_reuse_after, ip_address=ip_address))
             port["port"]["addresses"] = addresses
+            mac_address_string = str(netaddr.EUI(port_db.mac_address,
+                                                 dialect=netaddr.mac_unix))
+            address_pairs = [{'mac_address': mac_address_string,
+                              'ip_address':
+                              address.get('address_readable') or ''}
+                             for address in addresses]
 
+        (group_ids, security_groups) = self._make_security_group_list(
+            context, port["port"].pop("security_groups", None))
+        self.net_driver.update_port(context,
+                                    port_id=port_db.backend_key,
+                                    security_groups=group_ids,
+                                    allowed_pairs=address_pairs)
+
+        port["port"]["security_groups"] = security_groups
         port = db_api.port_update(context,
                                   port_db,
                                   **port["port"])
@@ -996,20 +1071,82 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
     def create_security_group(self, context, security_group):
         LOG.info("create_security_group for tenant %s" %
                 (context.tenant_id))
-        g = security_group["security_group"]
-        group = db_api.security_group_create(context, **g)
-        return v._make_security_group_dict(group)
+        if (db_api.security_group_find(context).count() >=
+                CONF.QUOTAS.quota_security_group):
+            raise exceptions.OverQuota(overs="security groups")
+        group = security_group["security_group"]
+        group_name = group.get('name', '')
+        if group_name == "default":
+            raise sg_ext.SecurityGroupDefaultAlreadyExists()
+        group_id = uuidutils.generate_uuid()
+
+        self.net_driver.create_security_group(
+            context,
+            group_name,
+            group_id=group_id,
+            **group)
+
+        group["id"] = group_id
+        group["name"] = group_name
+        group["tenant_id"] = context.tenant_id
+        dbgroup = db_api.security_group_create(context, **group)
+        return v._make_security_group_dict(dbgroup)
+
+    def _create_default_security_group(self, context):
+        default_group = {
+            'name': 'default', 'description': '',
+            'group_id': '00000000-0000-0000-0000-000000000000',
+            'port_egress_rules': [],
+            'port_ingress_rules': [
+                {'ethertype': 'IPv4', 'protocol': 6,
+                    'port_range_min': 0, 'port_range_max': 65535},
+                {'ethertype': 'IPv4', 'protocol': 17,
+                    'port_range_min': 0, 'port_range_max': 65535},
+                {'ethertype': 'IPv6', 'protocol': 6,
+                    'port_range_min': 0, 'port_range_max': 65535},
+                {'ethertype': 'IPv6', 'protocol': 17,
+                    'port_range_min': 0, 'port_range_max': 65535}]}
+
+        self.net_driver.create_security_group(
+            context,
+            "default",
+            **default_group)
+
+        default_group["id"] = '00000000-0000-0000-0000-000000000000'
+        default_group["tenant_id"] = context.tenant_id
+        for rule in default_group.pop('port_ingress_rules'):
+            db_api.security_group_rule_create(
+                context, security_group_id=
+                "00000000-0000-0000-0000-000000000000",
+                tenant_id=context.tenant_id, direction='ingress',
+                **rule)
+        db_api.security_group_create(context, **default_group)
 
     def create_security_group_rule(self, context, security_group_rule):
         LOG.info("create_security_group for tenant %s" %
                 (context.tenant_id))
-        r = security_group_rule["security_group_rule"]
-        group_id = r["security_group_id"]
-        group = db_api.security_group_find(context, id=group_id)
+        if (db_api.security_group_rule_find(context).count() >=
+                CONF.QUOTAS.quota_security_group_rule):
+            raise exceptions.OverQuota(overs="security group rules")
+        rule = self._validate_security_group_rule(
+            context, security_group_rule["security_group_rule"])
+        rule['id'] = uuidutils.generate_uuid()
+
+        group_id = rule["security_group_id"]
+        group = db_api.security_group_find(context, id=group_id,
+                                           scope=db_api.ONE)
         if not group:
             raise sg_ext.SecurityGroupNotFound(group_id=group_id)
-        rule = db_api.security_group_rule_create(context, **r)
-        return v._make_security_group_rule_dict(rule)
+        if group.ports:
+            raise sg_ext.SecurityGroupInUse(id=group_id)
+
+        self.net_driver.create_security_group_rule(
+            context,
+            group_id,
+            rule)
+
+        return v._make_security_group_rule_dict(
+            db_api.security_group_rule_create(context, **rule))
 
     def delete_security_group(self, context, id):
         LOG.info("delete_security_group %s for tenant %s" %
@@ -1017,6 +1154,12 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
         if not group:
             raise sg_ext.SecurityGroupNotFound(group_id=id)
+        if (group.name == 'default' or
+                group.id == '00000000-0000-0000-0000-000000000000'):
+            raise sg_ext.SecurityGroupCannotRemoveDefault()
+        if group.ports:
+            raise sg_ext.SecurityGroupInUse(id=id)
+        self.net_driver.delete_security_group(context, group['id'])
         db_api.security_group_delete(context, group)
 
     def delete_security_group_rule(self, context, id):
@@ -1026,6 +1169,20 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
                                                scope=db_api.ONE)
         if not rule:
             raise sg_ext.SecurityGroupRuleNotFound(group_id=id)
+
+        group = db_api.security_group_find(context, id=rule['group_id'],
+                                           scope=db_api.ONE)
+        if not group:
+            raise sg_ext.SecurityGroupNotFound(id=id)
+        if group.ports:
+            raise sg_ext.SecurityGroupInUse(id=id)
+
+        self.net_driver.delete_security_group_rule(
+            context,
+            group.id,
+            v._make_security_group_rule_dict(rule))
+
+        rule['id'] = id
         db_api.security_group_rule_delete(context, rule)
 
     def get_security_group(self, context, id, fields=None):
@@ -1050,7 +1207,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
                             page_reverse=False):
         LOG.info("get_security_groups for tenant %s" %
                 (context.tenant_id))
-        groups = db_api.security_group_find(context, filters=filters)
+        groups = db_api.security_group_find(context, **filters)
         return [v._make_security_group_dict(group) for group in groups]
 
     def get_security_group_rules(self, context, filters=None, fields=None,
@@ -1062,4 +1219,15 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         return [v._make_security_group_rule_dict(rule) for rule in rules]
 
     def update_security_group(self, context, id, security_group):
-        raise NotImplementedError()
+        newgroup = security_group['security_group']
+        group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
+        self.net_driver.update_security_group(
+            context,
+            id,
+            **newgroup)
+
+        dbgroup = db_api.security_group_update(
+            context,
+            group,
+            **newgroup)
+        return v._make_security_group_dict(dbgroup)
