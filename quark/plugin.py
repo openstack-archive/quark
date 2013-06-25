@@ -66,8 +66,6 @@ quark_opts = [
 
 STRATEGY = network_strategy.STRATEGY
 CONF.register_opts(quark_opts, "QUARK")
-CONF.set_default('quota_security_group', 5, "QUOTAS")
-CONF.set_default('quota_security_group_rule', 20, "QUOTAS")
 
 
 def _pop_param(attrs, param, default=None):
