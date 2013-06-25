@@ -61,7 +61,8 @@ def _make_subnet_dict(subnet, default_route=None, fields=None):
     #TODO(mdietz): really inefficient, should go away
     res["gateway_ip"] = None
     for route in subnet["routes"]:
-        if netaddr.IPNetwork(route["cidr"]) == default_route:
+        netroute = netaddr.IPNetwork(route["cidr"])
+        if netroute.value == default_route.value:
             res["gateway_ip"] = route["gateway"]
             break
     return res

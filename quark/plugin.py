@@ -232,7 +232,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
 
         default_route = None
         for route in routes:
-            if netaddr.IPNetwork(route["destination"]) == DEFAULT_ROUTE:
+            netaddr_route = netaddr.IPNetwork(route["destination"])
+            if netaddr_route.value == DEFAULT_ROUTE.value:
                 default_route = route
                 gateway_ip = default_route["nexthop"]
             new_subnet["routes"].append(db_api.route_create(
@@ -276,7 +277,8 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         if gateway_ip:
             default_route = None
             for route in routes:
-                if netaddr.IPNetwork(route["destination"]) == DEFAULT_ROUTE:
+                netaddr_route = netaddr.IPNetwork(route["destination"])
+                if netaddr_route.value == DEFAULT_ROUTE.value:
                     default_route = route
                     break
             if default_route is None:
