@@ -266,3 +266,7 @@ class TestOptimizedNVPDriverCreatePort(TestOptimizedNVPDriver):
             status_args, kwargs = connection.lswitch_port().\
                 admin_status_enabled.call_args
             self.assertTrue(False in status_args)
+
+
+class TestOptimizedNVPDriverUpdatePort(TestOptimizedNVPDriver):
+    pass

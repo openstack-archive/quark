@@ -139,7 +139,6 @@ class NVPDriver(base.BaseDriver):
         port = connection.lswitch_port(lswitch_id, port_id)
         nvp_group_ids = self._get_security_groups_for_port(context,
                                                            security_groups)
-        self._count_security_rules_on_port(context, nvp_group_ids)
         if nvp_group_ids:
             port.security_profiles(nvp_group_ids)
         if allowed_pairs:
@@ -415,5 +414,5 @@ class NVPDriver(base.BaseDriver):
                           len(nvp_group['logical_port_egress_rules']))
             nvp_group_ids.append(nvp_group['uuid'])
         if rulecount > CONF.NVP.max_rules_per_port:
-            raise sg_ext.exceptions.OverQuota(over='security rules per port')
+            raise sg_ext.qexception.OverQuota(overs='security rules per port')
         return nvp_group_ids

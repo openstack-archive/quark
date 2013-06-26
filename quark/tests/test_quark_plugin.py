@@ -1219,6 +1219,41 @@ class TestQuarkCreatePort(TestQuarkPlugin):
             with self.assertRaises(exceptions.NetworkNotFound):
                 self.plugin.create_port(self.context, port)
 
+    def test_create_port_security_groups(self, groups=[1]):
+        network = dict(id=1)
+        mac = dict(address="aa:bb:cc:dd:ee:ff")
+        port_name = "foobar"
+        ip = dict()
+        group = models.SecurityGroup()
+        group.update({'id': 1, 'tenant_id': self.context.tenant_id,
+                      'name': 'foo', 'description': 'bar'})
+        port = dict(port=dict(mac_address=mac["address"], network_id=1,
+                              tenant_id=self.context.tenant_id, device_id=2,
+                              name=port_name, security_groups=[group]))
+        expected = {'status': None,
+                    'name': port_name,
+                    'device_owner': None,
+                    'mac_address': mac["address"],
+                    'network_id': network["id"],
+                    'tenant_id': self.context.tenant_id,
+                    'admin_state_up': None,
+                    'fixed_ips': [],
+                    'security_groups': groups,
+                    'device_id': 2}
+        with self._stubs(port=port["port"], network=network, addr=ip,
+                         mac=mac) as port_create:
+            with mock.patch("quark.db.api.security_group_find") as group_find:
+                group_find.return_value = (groups and group)
+                port["port"]["security_groups"] = groups or [1]
+                result = self.plugin.create_port(self.context, port)
+                self.assertTrue(port_create.called)
+                for key in expected.keys():
+                    self.assertEqual(result[key], expected[key])
+
+    def test_create_port_security_groups_not_found(self):
+        with self.assertRaises(sg_ext.SecurityGroupNotFound):
+            self.test_create_port_security_groups([])
+
 
 class TestQuarkUpdatePort(TestQuarkPlugin):
     @contextlib.contextmanager
@@ -1792,6 +1827,15 @@ class TestQuarkCreateSecurityGroup(TestQuarkPlugin):
             for key in expected.keys():
                 self.assertEqual(result[key], expected[key])
 
+    def test_create_default_security_group(self):
+        group = {'name': 'default', 'description': 'bar',
+                 'tenant_id': self.context.tenant_id}
+        with self._stubs(group) as group_create:
+            with self.assertRaises(sg_ext.SecurityGroupDefaultAlreadyExists):
+                self.plugin.create_security_group(
+                    self.context, {'security_group': group})
+                self.assertTrue(group_create.called)
+
     def test_create_security_group_over_quota(self):
         group = {'name': 'foo', 'description': 'bar',
                  'tenant_id': self.context.tenant_id}
@@ -1827,6 +1871,13 @@ class TestQuarkDeleteSecurityGroup(TestQuarkPlugin):
             self.plugin.delete_security_group(self.context, 1)
             self.assertTrue(db_delete.called)
             driver_delete.assert_called_once_with(self.context, 1)
+
+    def test_delete_default_security_group(self):
+        group = {'name': 'default', 'id': 1,
+                 'tenant_id': self.context.tenant_id}
+        with self._stubs(group) as (db_delete, driver_delete):
+            with self.assertRaises(sg_ext.SecurityGroupCannotRemoveDefault):
+                self.plugin.delete_security_group(self.context, 1)
 
     def test_delete_security_group_with_ports(self):
         port = models.Port()
@@ -1922,6 +1973,10 @@ class TestQuarkCreateSecurityGroupRule(TestQuarkPlugin):
         with self.assertRaises(Exception):
             self._test_create_security_rule(remote_ip_prefix='192.168.0.1',
                                             remote_group_id='0')
+
+    def test_create_security_rule_bad_protocol(self):
+        with self.assertRaises(sg_ext.SecurityGroupRuleInvalidProtocol):
+            self._test_create_security_rule(protocol=256)
 
     def test_create_security_rule_no_group(self):
         with self.assertRaises(sg_ext.SecurityGroupNotFound):

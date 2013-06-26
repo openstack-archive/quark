@@ -399,6 +399,75 @@ class TestNVPDriverCreatePort(TestNVPDriver):
                 admin_status_enabled.call_args
             self.assertTrue(False in status_args)
 
+    def test_create_port_with_security_groups(self):
+        allowed_pairs = [{'mac_address': '0:0:0:0:0:0',
+                          'ip_address': '192.168.0.1'}]
+        with self._stubs() as connection:
+            connection.securityprofile = self._create_security_profile()
+            self.driver.create_port(self.context, self.net_id,
+                                    self.port_id,
+                                    security_groups=[1],
+                                    allowed_pairs=allowed_pairs)
+            connection.lswitch_port().assert_has_calls([
+                mock.call.security_profiles([self.profile_id]),
+                mock.call.allowed_address_pairs(allowed_pairs),
+            ], any_order=True)
+
+    def test_create_port_with_security_groups_max_rules(self):
+        with self._stubs() as connection:
+            connection.securityprofile = self._create_security_profile()
+            connection.securityprofile().query().results()[
+                'results'][0].update(
+                    {'logical_port_ingress_rules': [{'ethertype': 'IPv4'},
+                                                    {'ethertype': 'IPv6'}],
+                     'logical_port_egress_rules': [{'ethertype': 'IPv4'},
+                                                   {'ethertype': 'IPv6'}]})
+            with self.assertRaises(sg_ext.qexception.OverQuota):
+                self.driver.create_port(
+                    self.context, self.net_id, self.port_id,
+                    security_groups=[1],
+                    allowed_pairs=[{'mac_address': '0:0:0:0:0:0',
+                                    'ip_address': '192.168.0.1'}])
+
+
+class TestNVPDriverUpdatePort(TestNVPDriver):
+    @contextlib.contextmanager
+    def _stubs(self):
+        with contextlib.nested(
+            mock.patch("%s.get_connection" % self.d_pkg),
+        ) as (get_connection,):
+            connection = self._create_connection()
+            connection.securityprofile = self._create_security_profile()
+            get_connection.return_value = connection
+            yield connection
+
+    def test_update_port(self):
+        allowed_pairs = [{'mac_address': '0:0:0:0:0:0',
+                          'ip_address': '192.168.0.1'}]
+        with self._stubs() as connection:
+            self.driver.update_port(
+                self.context, self.port_id,
+                security_groups=[1], allowed_pairs=allowed_pairs)
+            connection.lswitch_port().assert_has_calls([
+                mock.call.security_profiles([self.profile_id]),
+                mock.call.allowed_address_pairs(allowed_pairs),
+            ], any_order=True)
+
+    def test_update_port_max_rules(self):
+        with self._stubs() as connection:
+            connection.securityprofile().query().results()[
+                'results'][0].update(
+                    {'logical_port_ingress_rules': [{'ethertype': 'IPv4'},
+                                                    {'ethertype': 'IPv6'}],
+                     'logical_port_egress_rules': [{'ethertype': 'IPv4'},
+                                                   {'ethertype': 'IPv6'}]})
+            with self.assertRaises(sg_ext.qexception.OverQuota):
+                self.driver.update_port(
+                    self.context, self.port_id,
+                    security_groups=[1],
+                    allowed_pairs=[{'mac_address': '0:0:0:0:0:0',
+                                    'ip_address': '192.168.0.1'}])
+
 
 class TestNVPDriverLswitchesForNetwork(TestNVPDriver):
     @contextlib.contextmanager
@@ -526,6 +595,20 @@ class TestNVPDriverCreateSecurityGroup(TestNVPDriver):
                                  'tag': self.context.tenant_id}]),
             ], any_order=True)
 
+    def test_security_group_create_rules_over_quota(self):
+        ingress_rules = [{'ethertype': 'IPv4', 'protocol': 6},
+                         {'ethertype': 'IPv6',
+                          'remote_ip_prefix': '192.168.0.1'}]
+        egress_rules = [{'ethertype': 'IPv4', 'protocol': 17,
+                         'port_range_min': 0, 'port_range_max': 100},
+                        {'ethertype': 'IPv4', 'remote_group_id': 2}]
+        with self._stubs():
+            with self.assertRaises(Exception):
+                self.driver.create_security_group(
+                    self.context, 'foo',
+                    port_ingress_rules=ingress_rules,
+                    port_egress_rules=egress_rules)
+
 
 class TestNVPDriverDeleteSecurityGroup(TestNVPDriver):
     @contextlib.contextmanager
@@ -600,6 +683,20 @@ class TestNVPDriverUpdateSecurityGroup(TestNVPDriver):
                 {'result_count': 0, 'results': []}
             with self.assertRaises(sg_ext.SecurityGroupNotFound):
                 self.driver.update_security_group(self.context, 1)
+
+    def test_security_group_update_rules_over_quota(self):
+        ingress_rules = [{'ethertype': 'IPv4', 'protocol': 6},
+                         {'ethertype': 'IPv6',
+                          'remote_ip_prefix': '192.168.0.1'}]
+        egress_rules = [{'ethertype': 'IPv4', 'protocol': 17,
+                         'port_range_min': 0, 'port_range_max': 100},
+                        {'ethertype': 'IPv4', 'remote_group_id': 2}]
+        with self._stubs():
+            with self.assertRaises(Exception):
+                self.driver.update_security_group(
+                    self.context, 1,
+                    port_ingress_rules=ingress_rules,
+                    port_egress_rules=egress_rules)
 
 
 class TestNVPDriverCreateSecurityGroupRule(TestNVPDriver):
