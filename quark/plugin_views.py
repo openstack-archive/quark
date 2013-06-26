@@ -100,6 +100,8 @@ def _port_dict(port, fields=None):
            "mac_address": port.get("mac_address"),
            "admin_state_up": port.get("admin_state_up"),
            "status": port.get("status"),
+           "security_groups": [group.get('id', None) for group in
+                               port.get("security_groups", None)],
            "device_id": port.get("device_id"),
            "device_owner": port.get("device_owner")}
     if isinstance(res["mac_address"], (int, long)):
