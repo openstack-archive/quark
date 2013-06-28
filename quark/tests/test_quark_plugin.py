@@ -1836,15 +1836,6 @@ class TestQuarkCreateSecurityGroup(TestQuarkPlugin):
                     self.context, {'security_group': group})
                 self.assertTrue(group_create.called)
 
-    def test_create_security_group_over_quota(self):
-        group = {'name': 'foo', 'description': 'bar',
-                 'tenant_id': self.context.tenant_id}
-        with self._stubs(group, other=1) as group_create:
-            with self.assertRaises(exceptions.OverQuota):
-                self.plugin.create_security_group(
-                    self.context, {'security_group': group})
-                self.assertTrue(group_create.called)
-
 
 class TestQuarkDeleteSecurityGroup(TestQuarkPlugin):
     @contextlib.contextmanager
@@ -1982,22 +1973,6 @@ class TestQuarkCreateSecurityGroupRule(TestQuarkPlugin):
         with self.assertRaises(sg_ext.SecurityGroupNotFound):
             self._test_create_security_rule(group=None)
 
-    def test_create_security_rule_over_quota(self):
-        rule = self.rule
-        rule.pop('group')
-        with self._stubs(
-                rule,
-                {'id': 1, 'port_rules': 1}
-        ) as rule_create:
-            with self.assertRaises(exceptions.OverQuota):
-                self.plugin.create_security_group_rule(
-                    self.context, {'security_group_rule': self.rule})
-                self.assertTrue(rule_create.called)
-
-    def test_create_security_rule_group_in_use(self):
-        with self.assertRaises(sg_ext.SecurityGroupInUse):
-            self._test_create_security_rule(group={'ports': [models.Port()]})
-
 
 class TestQuarkDeleteSecurityGroupRule(TestQuarkPlugin):
     @contextlib.contextmanager
@@ -2049,14 +2024,6 @@ class TestQuarkDeleteSecurityGroupRule(TestQuarkPlugin):
         with self._stubs(dict(rule, group_id=1),
                          None) as (db_delete, driver_delete):
             with self.assertRaises(sg_ext.SecurityGroupNotFound):
-                self.plugin.delete_security_group_rule(self.context, 1)
-
-    def test_delete_security_group_rule_group_in_use(self):
-        with self._stubs(
-                rule={'id': 1, 'security_group_id': 1},
-                group={'id': 1, 'ports': [models.Port()]}
-        ) as (db_delete, driver_delete):
-            with self.assertRaises(sg_ext.SecurityGroupInUse):
                 self.plugin.delete_security_group_rule(self.context, 1)
 
 

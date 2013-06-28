@@ -161,7 +161,7 @@ class TestOptimizedNVPDriverCreatePort(TestOptimizedNVPDriver):
         '''Testing to ensure a switch is made when maxed.'''
         with self._stubs(maxed_ports=True) as (
                 connection, create_opt):
-            self.driver.max_ports_per_switch = self.max_spanning
+            self.driver.limits['max_ports_per_switch'] = self.max_spanning
             port = self.driver.create_port(self.context, self.net_id,
                                            self.port_id)
             self.assertTrue("uuid" in port)

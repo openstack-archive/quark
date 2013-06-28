@@ -1146,8 +1146,6 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
                                            scope=db_api.ONE)
         if not group:
             raise sg_ext.SecurityGroupNotFound(group_id=group_id)
-        if group.ports:
-            raise sg_ext.SecurityGroupInUse(id=group_id)
 
         self.net_driver.create_security_group_rule(
             context,
@@ -1183,8 +1181,6 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
                                            scope=db_api.ONE)
         if not group:
             raise sg_ext.SecurityGroupNotFound(id=id)
-        if group.ports:
-            raise sg_ext.SecurityGroupInUse(id=id)
 
         self.net_driver.delete_security_group_rule(
             context,
