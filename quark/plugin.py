@@ -31,9 +31,11 @@ from quantum.common import exceptions
 from quantum.db import api as quantum_db_api
 from quantum.extensions import providernet as pnet
 from quantum.extensions import securitygroup as sg_ext
+from quantum.openstack.common.db.sqlalchemy import session as quantum_session
 from quantum.openstack.common import importutils
 from quantum.openstack.common import log as logging
 from quantum.openstack.common import uuidutils
+
 from quantum import quantum_plugin_base_v2
 
 from quark.api import extensions
@@ -95,9 +97,9 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
 
     def _initDBMaker(self):
         # This needs to be called after _ENGINE is configured
-        session_maker = sessionmaker(bind=quantum_db_api._ENGINE,
+        session_maker = sessionmaker(bind=quantum_session._ENGINE,
                                      extension=zsa.ZopeTransactionExtension())
-        quantum_db_api._MAKER = scoped_session(session_maker)
+        quantum_session._MAKER = scoped_session(session_maker)
 
     def __init__(self):
 
@@ -121,7 +123,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         self.net_driver.load_config(CONF.QUARK.net_driver_cfg)
         self.ipam_driver = (importutils.import_class(CONF.QUARK.ipam_driver))()
         self.ipam_reuse_after = CONF.QUARK.ipam_reuse_after
-        models.BASEV2.metadata.create_all(quantum_db_api._ENGINE)
+        models.BASEV2.metadata.create_all(quantum_session._ENGINE)
 
     def _make_security_group_list(self, context, group_ids):
         if not group_ids or group_ids is attributes.ATTR_NOT_SPECIFIED:

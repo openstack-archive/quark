@@ -19,6 +19,7 @@ import mock
 from oslo.config import cfg
 from quantum.db import api as db_api
 import quantum.extensions.securitygroup as sg_ext
+from quantum.openstack.common.db.sqlalchemy import session as quantum_session
 
 from quark.db import models
 import quark.drivers.nvp_driver
@@ -33,12 +34,12 @@ class TestNVPDriver(test_base.TestBase):
         if not hasattr(self, 'driver'):
             self.driver = quark.drivers.nvp_driver.NVPDriver()
 
-        cfg.CONF.set_override('sql_connection', 'sqlite://', 'DATABASE')
+        cfg.CONF.set_override('connection', 'sqlite://', 'database')
         cfg.CONF.set_override('max_rules_per_group', 3, 'NVP')
         cfg.CONF.set_override('max_rules_per_port', 1, 'NVP')
         self.driver.max_ports_per_switch = 0
         db_api.configure_db()
-        models.BASEV2.metadata.create_all(db_api._ENGINE)
+        models.BASEV2.metadata.create_all(quantum_session._ENGINE)
 
         self.lswitch_uuid = "12345678-1234-1234-1234-123456781234"
         self.context.tenant_id = "tid"

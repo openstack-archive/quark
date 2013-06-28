@@ -37,7 +37,7 @@ class TestQuarkPlugin(test_base.TestBase):
     def setUp(self):
         super(TestQuarkPlugin, self).setUp()
 
-        cfg.CONF.set_override('sql_connection', 'sqlite://', 'DATABASE')
+        cfg.CONF.set_override('connection', 'sqlite://', 'database')
         db_api.configure_db()
         self.plugin = quark.plugin.Plugin()
 
