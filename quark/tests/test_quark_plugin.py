@@ -37,6 +37,7 @@ class TestQuarkPlugin(test_base.TestBase):
     def setUp(self):
         super(TestQuarkPlugin, self).setUp()
 
+        cfg.CONF.set_override('quota_ports_per_network', 1, 'QUOTAS')
         cfg.CONF.set_override('connection', 'sqlite://', 'database')
         db_api.configure_db()
         self.plugin = quark.plugin.Plugin()
@@ -1219,6 +1220,18 @@ class TestQuarkCreatePort(TestQuarkPlugin):
             with self.assertRaises(exceptions.NetworkNotFound):
                 self.plugin.create_port(self.context, port)
 
+    def test_create_port_net_at_max(self):
+        network = dict(id=1, ports=[models.Port()])
+        mac = dict(address="aa:bb:cc:dd:ee:ff")
+        port_name = "foobar"
+        ip = dict()
+        port = dict(port=dict(mac_address=mac["address"], network_id=1,
+                              tenant_id=self.context.tenant_id, device_id=2,
+                              name=port_name))
+        with self._stubs(port=port["port"], network=network, addr=ip, mac=mac):
+            with self.assertRaises(exceptions.OverQuota):
+                self.plugin.create_port(self.context, port)
+
     def test_create_port_security_groups(self, groups=[1]):
         network = dict(id=1)
         mac = dict(address="aa:bb:cc:dd:ee:ff")
@@ -1888,6 +1901,7 @@ class TestQuarkCreateSecurityGroupRule(TestQuarkPlugin):
     def setUp(self, *args, **kwargs):
         super(TestQuarkCreateSecurityGroupRule, self).setUp(*args, **kwargs)
         cfg.CONF.set_override('quota_security_group_rule', 1, 'QUOTAS')
+        cfg.CONF.set_override('quota_security_rules_per_group', 1, 'QUOTAS')
         self.rule = {'id': 1, 'ethertype': 'IPv4',
                      'security_group_id': 1, 'group': {'id': 1}}
         self.expected = {
@@ -1928,6 +1942,7 @@ class TestQuarkCreateSecurityGroupRule(TestQuarkPlugin):
         rule = dict(self.rule, **ruleset)
         group = rule.pop('group')
         expected = dict(self.expected, **ruleset)
+        expected.pop('group', None)
         with self._stubs(rule, group) as rule_create:
             result = self.plugin.create_security_group_rule(
                 self.context, {'security_group_rule': rule})
@@ -1972,6 +1987,11 @@ class TestQuarkCreateSecurityGroupRule(TestQuarkPlugin):
     def test_create_security_rule_no_group(self):
         with self.assertRaises(sg_ext.SecurityGroupNotFound):
             self._test_create_security_rule(group=None)
+
+    def test_create_security_rule_group_at_max(self):
+        with self.assertRaises(exceptions.OverQuota):
+            self._test_create_security_rule(
+                group={'id': 1, 'rules': [models.SecurityGroupRule()]})
 
 
 class TestQuarkDeleteSecurityGroupRule(TestQuarkPlugin):
