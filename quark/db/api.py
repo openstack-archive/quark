@@ -15,8 +15,8 @@
 
 import datetime
 
-from quantum.openstack.common import log as logging
-from quantum.openstack.common import timeutils
+from neutron.openstack.common import log as logging
+from neutron.openstack.common import timeutils
 from sqlalchemy import func as sql_func
 from sqlalchemy import orm, or_
 
@@ -26,7 +26,7 @@ from quark import network_strategy
 
 
 STRATEGY = network_strategy.STRATEGY
-LOG = logging.getLogger("quantum.quark.db.api")
+LOG = logging.getLogger("neutron.quark.db.api")
 
 ONE = "one"
 ALL = "all"

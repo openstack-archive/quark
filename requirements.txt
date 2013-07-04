@@ -3,10 +3,10 @@ alembic
 http://tarballs.openstack.org/oslo.config/oslo.config-1.2.0a2.tar.gz#egg=oslo.config-1.2.0a2
 zope.sqlalchemy
 mysql-python
-http://tarballs.openstack.org/quantum/quantum-master.tar.gz#egg=quantum
+http://tarballs.openstack.org/neutron/neutron-master.tar.gz#egg=neutron
 aiclib
 
 # NOTE(jkoelker) not technically required, but something has to commit
 #                the transactions. in the future this should be the
-#                quantum wsgi service
+#                neutron wsgi service
 repoze.tm2

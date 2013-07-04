@@ -22,16 +22,16 @@ from sqlalchemy.ext import associationproxy
 from sqlalchemy.ext import declarative
 from sqlalchemy.ext import hybrid
 
-import quantum.db.model_base
-from quantum.db import models_v2 as models
-from quantum.openstack.common import log as logging
-from quantum.openstack.common import timeutils
+import neutron.db.model_base
+from neutron.db import models_v2 as models
+from neutron.openstack.common import log as logging
+from neutron.openstack.common import timeutils
 
 from quark.db import custom_types
 
 HasId = models.HasId
 
-LOG = logging.getLogger("quantum.quark.db.models")
+LOG = logging.getLogger("neutron.quark.db.models")
 
 
 def _default_list_getset(collection_class, proxy):
@@ -49,7 +49,7 @@ def _default_list_getset(collection_class, proxy):
     return getter, setter
 
 
-class QuarkBase(quantum.db.model_base.QuantumBaseV2):
+class QuarkBase(neutron.db.model_base.NeutronBaseV2):
     created_at = sa.Column(sa.DateTime(), default=timeutils.utcnow)
     __table_args__ = {"mysql_engine": "InnoDB"}
 

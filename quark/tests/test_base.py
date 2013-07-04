@@ -15,7 +15,7 @@
 
 import unittest2
 
-from quantum import context
+from neutron import context
 
 
 class TestBase(unittest2.TestCase):

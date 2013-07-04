@@ -1,7 +1,7 @@
-from quantum.common import exceptions
+from neutron.common import exceptions
 
 
-class InvalidMacAddressRange(exceptions.QuantumException):
+class InvalidMacAddressRange(exceptions.NeutronException):
     message = _("Invalid MAC address range %(cidr)s.")
 
 
@@ -17,41 +17,41 @@ class RouteNotFound(exceptions.NotFound):
     message = _("Route %(route_id)s not found.")
 
 
-class AmbiguousNetworkId(exceptions.QuantumException):
+class AmbiguousNetworkId(exceptions.NeutronException):
     message = _("Segment ID required for network %(net_id)s.")
 
 
-class AmbigiousLswitchCount(exceptions.QuantumException):
+class AmbigiousLswitchCount(exceptions.NeutronException):
     message = _("Too many lswitches for network %(net_id)s.")
 
 
-class IpAddressNotFound(exceptions.QuantumException):
+class IpAddressNotFound(exceptions.NeutronException):
     message = _("IP Address %(addr_id)s not found.")
 
 
-class RouteConflict(exceptions.QuantumException):
+class RouteConflict(exceptions.NeutronException):
     message = _("Route overlaps existing route %(route_id)s with %(cidr)s")
 
 
-class InvalidPhysicalNetworkType(exceptions.QuantumException):
+class InvalidPhysicalNetworkType(exceptions.NeutronException):
     message = _("Providernet type %(net_type)s is invalid")
 
 
-class SegmentIdUnsupported(exceptions.QuantumException):
+class SegmentIdUnsupported(exceptions.NeutronException):
     message = _("Segmentation ID is unsupported for network type %(net_type)s")
 
 
-class SegmentIdRequired(exceptions.QuantumException):
+class SegmentIdRequired(exceptions.NeutronException):
     message = _("Segmentation ID is required for network type %(net_type)s")
 
 
-class PhysicalNetworkNotFound(exceptions.QuantumException):
+class PhysicalNetworkNotFound(exceptions.NeutronException):
     message = _("Physical network %(phys_net)s not found!")
 
 
-class ProvidernetParamError(exceptions.QuantumException):
+class ProvidernetParamError(exceptions.NeutronException):
     message = _("%(msg)s")
 
 
-class BadNVPState(exceptions.QuantumException):
+class BadNVPState(exceptions.NeutronException):
     message = _("No networking information found for network %(net_id)s")

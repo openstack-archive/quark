@@ -19,11 +19,11 @@ import contextlib
 import copy
 import mock
 import netaddr
+from neutron.api.v2 import attributes as neutron_attrs
+from neutron.common import exceptions
+from neutron.db import api as db_api
+from neutron.extensions import securitygroup as sg_ext
 from oslo.config import cfg
-from quantum.api.v2 import attributes as quantum_attrs
-from quantum.common import exceptions
-from quantum.db import api as db_api
-from quantum.extensions import securitygroup as sg_ext
 
 from quark.db import api as quark_db_api
 from quark.db import models
@@ -179,8 +179,8 @@ class TestQuarkCreateSubnetOverlapping(TestQuarkPlugin):
         cfg.CONF.set_override('allow_overlapping_ips', True)
         with self._stubs() as subnet_create:
             s = dict(subnet=dict(
-                gateway_ip=quantum_attrs.ATTR_NOT_SPECIFIED,
-                dns_nameservers=quantum_attrs.ATTR_NOT_SPECIFIED,
+                gateway_ip=neutron_attrs.ATTR_NOT_SPECIFIED,
+                dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
                 cidr="192.168.1.1/8",
                 network_id=1))
             self.plugin.create_subnet(self.context, s)
@@ -190,8 +190,8 @@ class TestQuarkCreateSubnetOverlapping(TestQuarkPlugin):
         cfg.CONF.set_override('allow_overlapping_ips', False)
         with self._stubs() as subnet_create:
             s = dict(subnet=dict(
-                gateway_ip=quantum_attrs.ATTR_NOT_SPECIFIED,
-                dns_nameservers=quantum_attrs.ATTR_NOT_SPECIFIED,
+                gateway_ip=neutron_attrs.ATTR_NOT_SPECIFIED,
+                dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
                 cidr="192.168.1.1/8",
                 network_id=1))
             self.plugin.create_subnet(self.context, s)
@@ -242,8 +242,8 @@ class TestQuarkCreateSubnet(TestQuarkPlugin):
                         tenant_id=self.context.tenant_id, ip_version=4,
                         cidr="172.16.0.0/24", gateway_ip="0.0.0.0",
                         allocation_pools=[],
-                        dns_nameservers=quantum_attrs.ATTR_NOT_SPECIFIED,
-                        host_routes=quantum_attrs.ATTR_NOT_SPECIFIED,
+                        dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
+                        host_routes=neutron_attrs.ATTR_NOT_SPECIFIED,
                         enable_dhcp=None))
         network = dict(network_id=1)
         with self._stubs(
@@ -280,9 +280,9 @@ class TestQuarkCreateSubnet(TestQuarkPlugin):
             subnet=dict(network_id=1,
                         tenant_id=self.context.tenant_id, ip_version=4,
                         cidr="172.16.0.0/24",
-                        gateway_ip=quantum_attrs.ATTR_NOT_SPECIFIED,
                         allocation_pools=[],
-                        dns_nameservers=quantum_attrs.ATTR_NOT_SPECIFIED,
+                        gateway_ip=neutron_attrs.ATTR_NOT_SPECIFIED,
+                        dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
                         enable_dhcp=None))
         network = dict(network_id=1)
         with self._stubs(
@@ -345,7 +345,7 @@ class TestQuarkCreateSubnet(TestQuarkPlugin):
                         tenant_id=self.context.tenant_id, ip_version=4,
                         cidr="172.16.0.0/24", gateway_ip="0.0.0.0",
                         allocation_pools=[],
-                        dns_nameservers=quantum_attrs.ATTR_NOT_SPECIFIED,
+                        dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
                         host_routes=[{"destination": "1.1.1.1/8",
                                       "nexthop": "172.16.0.4"}],
                         enable_dhcp=None))
@@ -378,9 +378,9 @@ class TestQuarkCreateSubnet(TestQuarkPlugin):
             subnet=dict(network_id=1,
                         tenant_id=self.context.tenant_id, ip_version=4,
                         cidr="172.16.0.0/24",
-                        gateway_ip=quantum_attrs.ATTR_NOT_SPECIFIED,
                         allocation_pools=[],
-                        dns_nameservers=quantum_attrs.ATTR_NOT_SPECIFIED,
+                        gateway_ip=neutron_attrs.ATTR_NOT_SPECIFIED,
+                        dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
                         host_routes=[{"destination": "0.0.0.0/0",
                                       "nexthop": "172.16.0.4"}],
                         enable_dhcp=None))
@@ -420,7 +420,7 @@ class TestQuarkCreateSubnet(TestQuarkPlugin):
                         cidr="172.16.0.0/24",
                         gateway_ip="172.16.0.3",
                         allocation_pools=[],
-                        dns_nameservers=quantum_attrs.ATTR_NOT_SPECIFIED,
+                        dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
                         host_routes=[{"destination": "0.0.0.0/0",
                                       "nexthop": "172.16.0.4"}],
                         enable_dhcp=None))
@@ -1166,7 +1166,7 @@ class TestQuarkCreatePort(TestQuarkPlugin):
                     'device_id': 2}
         with self._stubs(port=port["port"], network=network, addr=ip,
                          mac=mac) as port_create:
-            port["port"]["mac_address"] = quantum_attrs.ATTR_NOT_SPECIFIED
+            port["port"]["mac_address"] = neutron_attrs.ATTR_NOT_SPECIFIED
             result = self.plugin.create_port(self.context, port)
             self.assertTrue(port_create.called)
             for key in expected.keys():

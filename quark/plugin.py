@@ -14,7 +14,7 @@
 #    under the License.
 
 """
-v2 Quantum Plug-in API Quark Implementation
+v2 Neutron Plug-in API Quark Implementation
 """
 import inspect
 
@@ -25,18 +25,18 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy import event
 from zope import sqlalchemy as zsa
 
-from quantum.api.v2 import attributes
-from quantum.common import config as quantum_cfg
-from quantum.common import exceptions
-from quantum.db import api as quantum_db_api
-from quantum.extensions import providernet as pnet
-from quantum.extensions import securitygroup as sg_ext
-from quantum.openstack.common.db.sqlalchemy import session as quantum_session
-from quantum.openstack.common import importutils
-from quantum.openstack.common import log as logging
-from quantum.openstack.common import uuidutils
+from neutron.api.v2 import attributes
+from neutron.common import config as neutron_cfg
+from neutron.common import exceptions
+from neutron.db import api as neutron_db_api
+from neutron.extensions import providernet as pnet
+from neutron.extensions import securitygroup as sg_ext
+from neutron.openstack.common.db.sqlalchemy import session as neutron_session
+from neutron.openstack.common import importutils
+from neutron.openstack.common import log as logging
+from neutron.openstack.common import uuidutils
 
-from quantum import quantum_plugin_base_v2
+from neutron import neutron_plugin_base_v2
 
 from quark.api import extensions
 from quark.db import api as db_api
@@ -45,7 +45,7 @@ from quark import exceptions as quark_exceptions
 from quark import network_strategy
 from quark import plugin_views as v
 
-LOG = logging.getLogger("quantum.quark")
+LOG = logging.getLogger("neutron.quark")
 CONF = cfg.CONF
 DEFAULT_ROUTE = netaddr.IPNetwork("0.0.0.0/0")
 
@@ -62,7 +62,7 @@ quark_opts = [
     cfg.StrOpt("strategy_driver",
                default='quark.network_strategy.JSONStrategy',
                help=_("Tree of network assignment strategy")),
-    cfg.StrOpt('net_driver_cfg', default='/etc/quantum/quark.ini',
+    cfg.StrOpt('net_driver_cfg', default='/etc/neutron/quark.ini',
                help=_("Path to the config for the net driver"))
 ]
 
@@ -88,7 +88,7 @@ def append_quark_extensions(conf):
 append_quark_extensions(CONF)
 
 
-class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
+class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
              sg_ext.SecurityGroupPluginBase):
     supported_extension_aliases = ["mac_address_ranges", "routes",
                                    "ip_addresses", "ports_quark",
@@ -97,9 +97,9 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
 
     def _initDBMaker(self):
         # This needs to be called after _ENGINE is configured
-        session_maker = sessionmaker(bind=quantum_session._ENGINE,
+        session_maker = sessionmaker(bind=neutron_session._ENGINE,
                                      extension=zsa.ZopeTransactionExtension())
-        quantum_session._MAKER = scoped_session(session_maker)
+        neutron_session._MAKER = scoped_session(session_maker)
 
     def __init__(self):
 
@@ -117,13 +117,13 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
             if models.HasId in klass.mro():
                 event.listen(klass, "init", _perhaps_generate_id)
 
-        quantum_db_api.configure_db()
+        neutron_db_api.configure_db()
         self._initDBMaker()
         self.net_driver = (importutils.import_class(CONF.QUARK.net_driver))()
         self.net_driver.load_config(CONF.QUARK.net_driver_cfg)
         self.ipam_driver = (importutils.import_class(CONF.QUARK.ipam_driver))()
         self.ipam_reuse_after = CONF.QUARK.ipam_reuse_after
-        quantum_db_api.register_models(base=models.BASEV2)
+        neutron_db_api.register_models(base=models.BASEV2)
 
     def _make_security_group_list(self, context, group_ids):
         if not group_ids or group_ids is attributes.ATTR_NOT_SPECIFIED:
@@ -177,7 +177,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         CIDR if overlapping IPs are disabled.
 
         """
-        if quantum_cfg.cfg.CONF.allow_overlapping_ips:
+        if neutron_cfg.cfg.CONF.allow_overlapping_ips:
             return
 
         new_subnet_ipset = netaddr.IPSet([new_subnet_cidr])
@@ -207,10 +207,10 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         Create a subnet which represents a range of IP addresses
         that can be allocated to devices
 
-        : param context: quantum api request context
+        : param context: neutron api request context
         : param subnet: dictionary describing the subnet, with keys
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
-            quantum/api/v2/attributes.py.  All keys will be populated.
+            neutron/api/v2/attributes.py.  All keys will be populated.
         """
         LOG.info("create_subnet for tenant %s" % context.tenant_id)
         net_id = subnet["subnet"]["network_id"]
@@ -254,12 +254,12 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
     def update_subnet(self, context, id, subnet):
         """Update values of a subnet.
 
-        : param context: quantum api request context
+        : param context: neutron api request context
         : param id: UUID representing the subnet to update.
         : param subnet: dictionary with keys indicating fields to update.
             valid keys are those that have a value of True for 'allow_put'
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
-            quantum/api/v2/attributes.py.
+            neutron/api/v2/attributes.py.
         """
         LOG.info("update_subnet %s for tenant %s" %
                  (id, context.tenant_id))
@@ -318,11 +318,11 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
     def get_subnet(self, context, id, fields=None):
         """Retrieve a subnet.
 
-        : param context: quantum api request context
+        : param context: neutron api request context
         : param id: UUID representing the subnet to fetch.
         : param fields: a list of strings that are valid keys in a
             subnet dictionary as listed in the RESOURCE_ATTRIBUTE_MAP
-            object in quantum/api/v2/attributes.py. Only these fields
+            object in neutron/api/v2/attributes.py. Only these fields
             will be returned.
         """
         LOG.info("get_subnet %s for tenant %s with fields %s" %
@@ -344,17 +344,17 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         The contents of the list depends on the identity of the user
         making the request (as indicated by the context) as well as any
         filters.
-        : param context: quantum api request context
+        : param context: neutron api request context
         : param filters: a dictionary with keys that are valid keys for
             a subnet as listed in the RESOURCE_ATTRIBUTE_MAP object
-            in quantum/api/v2/attributes.py.  Values in this dictiontary
+            in neutron/api/v2/attributes.py.  Values in this dictiontary
             are an iterable containing values that will be used for an exact
             match comparison for that value.  Each result returned by this
             function will have matched one of the values for each key in
             filters.
         : param fields: a list of strings that are valid keys in a
             subnet dictionary as listed in the RESOURCE_ATTRIBUTE_MAP
-            object in quantum/api/v2/attributes.py. Only these fields
+            object in neutron/api/v2/attributes.py. Only these fields
             will be returned.
         """
         LOG.info("get_subnets for tenant %s with filters %s fields %s" %
@@ -368,10 +368,10 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
 
         The result depends on the identity of the user making the request
         (as indicated by the context) as well as any filters.
-        : param context: quantum api request context
+        : param context: neutron api request context
         : param filters: a dictionary with keys that are valid keys for
             a network as listed in the RESOURCE_ATTRIBUTE_MAP object
-            in quantum/api/v2/attributes.py.  Values in this dictiontary
+            in neutron/api/v2/attributes.py.  Values in this dictiontary
             are an iterable containing values that will be used for an exact
             match comparison for that value.  Each result returned by this
             function will have matched one of the values for each key in
@@ -392,7 +392,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
     def delete_subnet(self, context, id):
         """Delete a subnet.
 
-        : param context: quantum api request context
+        : param context: neutron api request context
         : param id: UUID representing the subnet to delete.
         """
         LOG.info("delete_subnet %s for tenant %s" % (id, context.tenant_id))
@@ -415,10 +415,10 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
 
         Create a network which represents an L2 network segment which
         can have a set of subnets and ports associated with it.
-        : param context: quantum api request context
+        : param context: neutron api request context
         : param network: dictionary describing the network, with keys
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
-            quantum/api/v2/attributes.py.  All keys will be populated.
+            neutron/api/v2/attributes.py.  All keys will be populated.
         """
         LOG.info("create_network for tenant %s" % context.tenant_id)
 
@@ -464,12 +464,12 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
     def update_network(self, context, id, network):
         """Update values of a network.
 
-        : param context: quantum api request context
+        : param context: neutron api request context
         : param id: UUID representing the network to update.
         : param network: dictionary with keys indicating fields to update.
             valid keys are those that have a value of True for 'allow_put'
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
-            quantum/api/v2/attributes.py.
+            neutron/api/v2/attributes.py.
         """
         LOG.info("update_network %s for tenant %s" %
                 (id, context.tenant_id))
@@ -483,11 +483,11 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
     def get_network(self, context, id, fields=None):
         """Retrieve a network.
 
-        : param context: quantum api request context
+        : param context: neutron api request context
         : param id: UUID representing the network to fetch.
         : param fields: a list of strings that are valid keys in a
             network dictionary as listed in the RESOURCE_ATTRIBUTE_MAP
-            object in quantum/api/v2/attributes.py. Only these fields
+            object in neutron/api/v2/attributes.py. Only these fields
             will be returned.
         """
         LOG.info("get_network %s for tenant %s fields %s" %
@@ -505,17 +505,17 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         The contents of the list depends on the identity of the user
         making the request (as indicated by the context) as well as any
         filters.
-        : param context: quantum api request context
+        : param context: neutron api request context
         : param filters: a dictionary with keys that are valid keys for
             a network as listed in the RESOURCE_ATTRIBUTE_MAP object
-            in quantum/api/v2/attributes.py.  Values in this dictiontary
+            in neutron/api/v2/attributes.py.  Values in this dictiontary
             are an iterable containing values that will be used for an exact
             match comparison for that value.  Each result returned by this
             function will have matched one of the values for each key in
             filters.
         : param fields: a list of strings that are valid keys in a
             network dictionary as listed in the RESOURCE_ATTRIBUTE_MAP
-            object in quantum/api/v2/attributes.py. Only these fields
+            object in neutron/api/v2/attributes.py. Only these fields
             will be returned.
         """
         LOG.info("get_networks for tenant %s with filters %s, fields %s" %
@@ -528,10 +528,10 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
 
         The result depends on the identity of the user making the request
         (as indicated by the context) as well as any filters.
-        : param context: quantum api request context
+        : param context: neutron api request context
         : param filters: a dictionary with keys that are valid keys for
             a network as listed in the RESOURCE_ATTRIBUTE_MAP object
-            in quantum/api/v2/attributes.py.  Values in this dictiontary
+            in neutron/api/v2/attributes.py.  Values in this dictiontary
             are an iterable containing values that will be used for an exact
             match comparison for that value.  Each result returned by this
             function will have matched one of the values for each key in
@@ -547,7 +547,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
     def delete_network(self, context, id):
         """Delete a network.
 
-        : param context: quantum api request context
+        : param context: neutron api request context
         : param id: UUID representing the network to delete.
         """
         LOG.info("delete_network %s for tenant %s" % (id, context.tenant_id))
@@ -565,11 +565,11 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         """Create a port
 
         Create a port which is a connection point of a device (e.g., a VM
-        NIC) to attach to a L2 Quantum network.
-        : param context: quantum api request context
+        NIC) to attach to a L2 Neutron network.
+        : param context: neutron api request context
         : param port: dictionary describing the port, with keys
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
-            quantum/api/v2/attributes.py.  All keys will be populated.
+            neutron/api/v2/attributes.py.  All keys will be populated.
         """
         LOG.info("create_port for tenant %s" % context.tenant_id)
 
@@ -633,12 +633,12 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
     def update_port(self, context, id, port):
         """Update values of a port.
 
-        : param context: quantum api request context
+        : param context: neutron api request context
         : param id: UUID representing the port to update.
         : param port: dictionary with keys indicating fields to update.
             valid keys are those that have a value of True for 'allow_put'
             as listed in the RESOURCE_ATTRIBUTE_MAP object in
-            quantum/api/v2/attributes.py.
+            neutron/api/v2/attributes.py.
         """
         LOG.info("update_port %s for tenant %s" % (id, context.tenant_id))
         port_db = db_api.port_find(context, id=id, scope=db_api.ONE)
@@ -743,11 +743,11 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
     def get_port(self, context, id, fields=None):
         """Retrieve a port.
 
-        : param context: quantum api request context
+        : param context: neutron api request context
         : param id: UUID representing the port to fetch.
         : param fields: a list of strings that are valid keys in a
             port dictionary as listed in the RESOURCE_ATTRIBUTE_MAP
-            object in quantum/api/v2/attributes.py. Only these fields
+            object in neutron/api/v2/attributes.py. Only these fields
             will be returned.
         """
         LOG.info("get_port %s for tenant %s fields %s" %
@@ -766,17 +766,17 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
         The contents of the list depends on the identity of the user
         making the request (as indicated by the context) as well as any
         filters.
-        : param context: quantum api request context
+        : param context: neutron api request context
         : param filters: a dictionary with keys that are valid keys for
             a port as listed in the RESOURCE_ATTRIBUTE_MAP object
-            in quantum/api/v2/attributes.py.  Values in this dictiontary
+            in neutron/api/v2/attributes.py.  Values in this dictiontary
             are an iterable containing values that will be used for an exact
             match comparison for that value.  Each result returned by this
             function will have matched one of the values for each key in
             filters.
         : param fields: a list of strings that are valid keys in a
             port dictionary as listed in the RESOURCE_ATTRIBUTE_MAP
-            object in quantum/api/v2/attributes.py. Only these fields
+            object in neutron/api/v2/attributes.py. Only these fields
             will be returned.
         """
         LOG.info("get_ports for tenant %s filters %s fields %s" %
@@ -791,10 +791,10 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
 
         The result depends on the identity of the user making the request
         (as indicated by the context) as well as any filters.
-        : param context: quantum api request context
+        : param context: neutron api request context
         : param filters: a dictionary with keys that are valid keys for
             a network as listed in the RESOURCE_ATTRIBUTE_MAP object
-            in quantum/api/v2/attributes.py.  Values in this dictiontary
+            in neutron/api/v2/attributes.py.  Values in this dictiontary
             are an iterable containing values that will be used for an exact
             match comparison for that value.  Each result returned by this
             function will have matched one of the values for each key in
@@ -810,7 +810,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
     def delete_port(self, context, id):
         """Delete a port.
 
-        : param context: quantum api request context
+        : param context: neutron api request context
         : param id: UUID representing the port to delete.
         """
         LOG.info("delete_port %s for tenant %s" %
@@ -832,7 +832,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
     def disassociate_port(self, context, id, ip_address_id):
         """Disassociates a port from an IP address.
 
-        : param context: quantum api request context
+        : param context: neutron api request context
         : param id: UUID representing the port to disassociate.
         : param ip_address_id: UUID representing the IP address to
         disassociate.
@@ -857,11 +857,11 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
     def get_mac_address_range(self, context, id, fields=None):
         """Retrieve a mac_address_range.
 
-        : param context: quantum api request context
+        : param context: neutron api request context
         : param id: UUID representing the network to fetch.
         : param fields: a list of strings that are valid keys in a
             network dictionary as listed in the RESOURCE_ATTRIBUTE_MAP
-            object in quantum/api/v2/attributes.py. Only these fields
+            object in neutron/api/v2/attributes.py. Only these fields
             will be returned.
         """
         LOG.info("get_mac_address_range %s for tenant %s fields %s" %
@@ -924,7 +924,7 @@ class Plugin(quantum_plugin_base_v2.QuantumPluginBaseV2,
     def delete_mac_address_range(self, context, id):
         """Delete a mac_address_range.
 
-        : param context: quantum api request context
+        : param context: neutron api request context
         : param id: UUID representing the mac_address_range to delete.
         """
         LOG.info("delete_mac_address_range %s for tenant %s" %

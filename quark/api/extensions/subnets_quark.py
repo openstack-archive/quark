@@ -15,8 +15,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from quantum.api import extensions
-from quantum.api.v2 import attributes
+from neutron.api import extensions
+from neutron.api.v2 import attributes
 
 EXTENDED_ATTRIBUTES_2_0 = {
     'subnets': {

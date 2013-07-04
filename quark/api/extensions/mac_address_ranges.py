@@ -15,10 +15,10 @@
 
 import webob
 
-from quantum.api import extensions
-from quantum import manager
-from quantum.openstack.common import log as logging
-from quantum import wsgi
+from neutron.api import extensions
+from neutron import manager
+from neutron.openstack.common import log as logging
+from neutron import wsgi
 
 RESOURCE_NAME = 'mac_address_range'
 RESOURCE_COLLECTION = RESOURCE_NAME + "s"
@@ -31,7 +31,7 @@ attr_dict[RESOURCE_NAME] = {'allow_post': True,
                             'allow_put': False,
                             'is_visible': True}
 
-LOG = logging.getLogger("quantum.quark.api.extensions.mac_address_ranges")
+LOG = logging.getLogger("neutron.quark.api.extensions.mac_address_ranges")
 
 
 def mac_range_dict(mac_range):
@@ -102,7 +102,7 @@ class Mac_address_ranges(object):
     @classmethod
     def get_resources(cls):
         """Returns Ext Resources."""
-        plugin = manager.QuantumManager.get_plugin()
+        plugin = manager.NeutronManager.get_plugin()
         controller = MacAddressRangesController(plugin)
         return [extensions.ResourceExtension(Mac_address_ranges.get_alias(),
                                              controller)]
