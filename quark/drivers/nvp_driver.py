@@ -20,14 +20,14 @@ NVP client driver for Quark
 from oslo.config import cfg
 
 import aiclib
-from quantum.extensions import securitygroup as sg_ext
-from quantum.openstack.common import log as logging
+from neutron.extensions import securitygroup as sg_ext
+from neutron.openstack.common import log as logging
 
 from quark.drivers import base
 from quark import exceptions
 
 
-LOG = logging.getLogger("quantum.quark.nvplib")
+LOG = logging.getLogger("neutron.quark.nvplib")
 
 CONF = cfg.CONF
 
@@ -123,8 +123,8 @@ class NVPDriver(base.BaseDriver):
         nvp_group_ids = self._get_security_groups_for_port(context,
                                                            security_groups)
         port.security_profiles(nvp_group_ids)
-        tags = [dict(tag=network_id, scope="quantum_net_id"),
-                dict(tag=port_id, scope="quantum_port_id"),
+        tags = [dict(tag=network_id, scope="neutron_net_id"),
+                dict(tag=port_id, scope="neutron_port_id"),
                 dict(tag=tenant_id, scope="os_tid")]
         LOG.debug("Creating port on switch %s" % lswitch)
         port.tags(tags)
@@ -186,7 +186,7 @@ class NVPDriver(base.BaseDriver):
             profile.port_egress_rules(egress_rules)
         if ingress_rules:
             profile.port_ingress_rules(ingress_rules)
-        tags = [dict(tag=group_id, scope="quantum_group_id"),
+        tags = [dict(tag=group_id, scope="neutron_group_id"),
                 dict(tag=tenant_id, scope="os_tid")]
         LOG.debug("Creating security profile %s" % group_name)
         profile.tags(tags)
@@ -337,7 +337,7 @@ class NVPDriver(base.BaseDriver):
         tags = tags or []
         tags.append({"tag": tenant_id, "scope": "os_tid"})
         if network_id:
-            tags.append({"tag": network_id, "scope": "quantum_net_id"})
+            tags.append({"tag": network_id, "scope": "neutron_net_id"})
         switch.tags(tags)
         LOG.debug("Creating lswitch for network %s" % network_id)
 
@@ -353,7 +353,7 @@ class NVPDriver(base.BaseDriver):
     def _lswitches_for_network(self, context, network_id):
         connection = self.get_connection()
         query = connection.lswitch().query()
-        query.tagscopes(['os_tid', 'quantum_net_id'])
+        query.tagscopes(['os_tid', 'neutron_net_id'])
         query.tags([context.tenant_id, network_id])
         return query
 
@@ -372,7 +372,7 @@ class NVPDriver(base.BaseDriver):
     def _get_security_group(self, context, group_id):
         connection = self.get_connection()
         query = connection.securityprofile().query()
-        query.tagscopes(['os_tid', 'quantum_group_id'])
+        query.tagscopes(['os_tid', 'neutron_group_id'])
         query.tags([context.tenant_id, group_id])
         query = query.results()
         if query['result_count'] != 1:

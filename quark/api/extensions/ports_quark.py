@@ -15,13 +15,13 @@
 
 import webob
 
-from quantum.api import extensions
-from quantum.api.v2 import attributes
-from quantum.api.v2 import base
-from quantum.api.v2 import resource
-from quantum.common import exceptions
-from quantum import manager
-from quantum import wsgi
+from neutron.api import extensions
+from neutron.api.v2 import attributes
+from neutron.api.v2 import base
+from neutron.api.v2 import resource
+from neutron.common import exceptions
+from neutron import manager
+from neutron import wsgi
 
 RESOURCE_NAME = "port"
 RESOURCE_COLLECTION = RESOURCE_NAME + "s"
@@ -117,7 +117,7 @@ class Ports_quark(object):
                       collection_name=RESOURCE_COLLECTION)
         quark_ports_ip_address_controller = resource.Resource(
             QuarkPortsIPAddressController(
-                manager.QuantumManager.get_plugin()),
+                manager.NeutronManager.get_plugin()),
             base.FAULT_MAP)
         extension = extensions.ResourceExtension(
             "ip_address",
@@ -131,7 +131,7 @@ class Ports_quark(object):
         exts = []
 
         quark_ports_update_handler = QuarkPortsUpdateHandler(
-            manager.QuantumManager.get_plugin())
+            manager.NeutronManager.get_plugin())
         extension = extensions.RequestExtension(
             "POST", "/ports/:(id)",
             quark_ports_update_handler.handle)

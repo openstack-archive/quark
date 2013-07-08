@@ -14,8 +14,8 @@
 #  under the License.
 
 import mock
+from neutron.db import api as neutron_db_api
 from oslo.config import cfg
-from quantum.db import api as quantum_db_api
 
 from quark.db import api as db_api
 
@@ -29,7 +29,7 @@ class TestDBAPI(test_base.TestBase):
         super(TestDBAPI, self).setUp()
 
         cfg.CONF.set_override('connection', 'sqlite://', 'database')
-        quantum_db_api.configure_db()
+        neutron_db_api.configure_db()
         configure_mappers()
 
     def test_port_find_ip_address_id(self):

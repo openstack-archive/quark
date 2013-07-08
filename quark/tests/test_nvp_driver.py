@@ -16,10 +16,10 @@
 import contextlib
 import mock
 
+from neutron.db import api as db_api
+import neutron.extensions.securitygroup as sg_ext
+from neutron.openstack.common.db.sqlalchemy import session as neutron_session
 from oslo.config import cfg
-from quantum.db import api as db_api
-import quantum.extensions.securitygroup as sg_ext
-from quantum.openstack.common.db.sqlalchemy import session as quantum_session
 
 from quark.db import models
 import quark.drivers.nvp_driver
@@ -39,7 +39,7 @@ class TestNVPDriver(test_base.TestBase):
         cfg.CONF.set_override('max_rules_per_port', 1, 'NVP')
         self.driver.max_ports_per_switch = 0
         db_api.configure_db()
-        models.BASEV2.metadata.create_all(quantum_session._ENGINE)
+        models.BASEV2.metadata.create_all(neutron_session._ENGINE)
 
         self.lswitch_uuid = "12345678-1234-1234-1234-123456781234"
         self.context.tenant_id = "tid"
@@ -591,7 +591,7 @@ class TestNVPDriverCreateSecurityGroup(TestNVPDriver):
                 mock.call.display_name('foo'),
                 mock.call.port_egress_rules(egress_rules),
                 mock.call.port_ingress_rules(ingress_rules),
-                mock.call.tags([{'scope': 'quantum_group_id', 'tag': 1},
+                mock.call.tags([{'scope': 'neutron_group_id', 'tag': 1},
                                 {'scope': 'os_tid',
                                  'tag': self.context.tenant_id}]),
             ], any_order=True)
@@ -626,7 +626,7 @@ class TestNVPDriverDeleteSecurityGroup(TestNVPDriver):
         with self._stubs() as connection:
             self.driver.delete_security_group(self.context, 1)
             connection.securityprofile().query().assert_has_calls([
-                mock.call.tagscopes(['os_tid', 'quantum_group_id']),
+                mock.call.tagscopes(['os_tid', 'neutron_group_id']),
                 mock.call.tags([self.context.tenant_id, 1]),
             ], any_order=True)
             connection.securityprofile.assert_any_call(self.profile_id)

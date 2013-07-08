@@ -13,9 +13,9 @@
 #    License for the specific language governing permissions and limitations
 #
 
-from quantum.openstack.common import log as logging
+from neutron.openstack.common import log as logging
 
-LOG = logging.getLogger("quantum.quark.base")
+LOG = logging.getLogger("neutron.quark.base")
 
 
 class BaseDriver(object):

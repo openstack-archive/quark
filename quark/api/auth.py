@@ -16,9 +16,9 @@
 import webob.dec
 import webob.exc
 
-from quantum import context
-from quantum.openstack.common import log as logging
-from quantum import wsgi
+from neutron import context
+from neutron.openstack.common import log as logging
+from neutron import wsgi
 
 LOG = logging.getLogger(__name__)
 
@@ -44,5 +44,5 @@ class NoAuthMiddleware(wsgi.Middleware):
                               project_id,
                               is_admin=True)
 
-        req.environ['quantum.context'] = ctx
+        req.environ['neutron.context'] = ctx
         return self.application

@@ -18,12 +18,12 @@ Optimized NVP client for Quark
 """
 import sqlalchemy as sa
 
+from neutron.openstack.common import log as logging
 from nvp_driver import NVPDriver
-from quantum.openstack.common import log as logging
 from quark.db import models
 from sqlalchemy import orm
 
-LOG = logging.getLogger("quantum.quark.nvplib")
+LOG = logging.getLogger("neutron.quark.nvplib")
 
 
 class OptimizedNVPDriver(NVPDriver):

@@ -19,14 +19,14 @@ Quark Pluggable IPAM
 
 import netaddr
 
-from quantum.common import exceptions
-from quantum.openstack.common import log as logging
-from quantum.openstack.common import timeutils
+from neutron.common import exceptions
+from neutron.openstack.common import log as logging
+from neutron.openstack.common import timeutils
 
 from quark.db import api as db_api
 
 
-LOG = logging.getLogger("quantum")
+LOG = logging.getLogger("neutron")
 
 
 class QuarkIpam(object):

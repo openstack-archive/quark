@@ -1,10 +1,10 @@
 import json
 
+from neutron.common import exceptions
+from neutron.openstack.common import log as logging
 from oslo.config import cfg
-from quantum.common import exceptions
-from quantum.openstack.common import log as logging
 
-LOG = logging.getLogger("quantum.quark")
+LOG = logging.getLogger("neutron.quark")
 CONF = cfg.CONF
 
 quark_opts = [

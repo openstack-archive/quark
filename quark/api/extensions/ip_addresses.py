@@ -15,11 +15,11 @@
 
 import webob
 
-from quantum.api import extensions
-from quantum.common import exceptions
-from quantum import manager
-from quantum.openstack.common import log as logging
-from quantum import wsgi
+from neutron.api import extensions
+from neutron.common import exceptions
+from neutron import manager
+from neutron.openstack.common import log as logging
+from neutron import wsgi
 
 RESOURCE_NAME = 'ip_address'
 RESOURCE_COLLECTION = RESOURCE_NAME + "es"
@@ -32,7 +32,7 @@ attr_dict[RESOURCE_NAME] = {'allow_post': True,
                             'allow_put': True,
                             'is_visible': True}
 
-LOG = logging.getLogger("quantum.quark.api.extensions.ip_addresses")
+LOG = logging.getLogger("neutron.quark.api.extensions.ip_addresses")
 
 
 class IpAddressesController(wsgi.Controller):
@@ -105,7 +105,7 @@ class Ip_addresses(object):
     @classmethod
     def get_resources(cls):
         """Returns Ext Resources."""
-        controller = IpAddressesController(manager.QuantumManager.get_plugin())
+        controller = IpAddressesController(manager.NeutronManager.get_plugin())
         return [extensions.ResourceExtension(
             Ip_addresses.get_alias(),
             controller)]

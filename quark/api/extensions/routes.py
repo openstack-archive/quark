@@ -15,11 +15,11 @@
 
 import webob
 
-from quantum.api import extensions
-from quantum.common import exceptions
-from quantum import manager
-from quantum.openstack.common import log as logging
-from quantum import wsgi
+from neutron.api import extensions
+from neutron.common import exceptions
+from neutron import manager
+from neutron.openstack.common import log as logging
+from neutron import wsgi
 
 RESOURCE_NAME = 'route'
 RESOURCE_COLLECTION = RESOURCE_NAME + "s"
@@ -32,7 +32,7 @@ attr_dict[RESOURCE_NAME] = {'allow_post': True,
                             'allow_put': True,
                             'is_visible': True}
 
-LOG = logging.getLogger("quantum.quark.api.extensions.routes")
+LOG = logging.getLogger("neutron.quark.api.extensions.routes")
 
 
 def route_dict(route):
@@ -109,7 +109,7 @@ class Routes(object):
     @classmethod
     def get_resources(cls):
         """Returns Ext Resources."""
-        controller = RoutesController(manager.QuantumManager.get_plugin())
+        controller = RoutesController(manager.NeutronManager.get_plugin())
         return [extensions.ResourceExtension(
             Routes.get_alias(),
             controller)]
