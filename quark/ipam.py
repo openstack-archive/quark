@@ -30,6 +30,18 @@ LOG = logging.getLogger("neutron")
 
 
 class QuarkIpam(object):
+    def _get_ip_policy_rule_set(self, subnet):
+        ip_policy = subnet["ip_policy"] or \
+            subnet["network"]["ip_policy"] or \
+            dict()
+        ip_policy_rules = ip_policy.get("exclude", [])
+        ip_policy_rules = netaddr.IPSet(
+            [netaddr.IPNetwork((int(ippr["address"]), ippr["prefix"]))
+             for ippr in ip_policy_rules])
+        subnet_set = netaddr.IPSet(netaddr.IPNetwork(subnet["cidr"]))
+        ip_policy_rules = subnet_set & ip_policy_rules
+        return ip_policy_rules
+
     def _choose_available_subnet(self, context, net_id, version=None,
                                  ip_address=None):
         filters = {}
@@ -42,8 +54,12 @@ class QuarkIpam(object):
             ipnet = netaddr.IPNetwork(subnet["cidr"])
             if ip_address and ip_address not in ipnet:
                 continue
-            # TODO(mdietz): IP allocation hack, remove +3 later
-            if ipnet.size > (ips_in_subnet + 3):
+
+            ip_policy_rules = None
+            if not ip_address:
+                ip_policy_rules = self._get_ip_policy_rule_set(subnet)
+            policy_size = ip_policy_rules.size if ip_policy_rules else 0
+            if ipnet.size > (ips_in_subnet + policy_size):
                 return subnet
 
         raise exceptions.IpAddressGenerationFailure(net_id=net_id)
@@ -101,6 +117,7 @@ class QuarkIpam(object):
 
         subnet = self._choose_available_subnet(
             elevated, net_id, ip_address=ip_address, version=version)
+        ip_policy_rules = self._get_ip_policy_rule_set(subnet)
 
         # Creating this IP for the first time
         next_ip = None
@@ -122,31 +139,14 @@ class QuarkIpam(object):
                 if subnet["ip_version"] == 4:
                     next_ip = next_ip.ipv4()
                 subnet["next_auto_assign_ip"] = next_ip_int + 1
+                if ip_policy_rules and next_ip in ip_policy_rules:
+                    continue
                 address = db_api.ip_address_find(
                     elevated,
                     network_id=net_id,
                     ip_address=next_ip,
                     tenant_id=elevated.tenant_id,
                     scope=db_api.ONE)
-
-        # TODO(mdietz): this is a hack until we have IP policies
-        ip_int = int(next_ip)
-        first_ip = netaddr.IPAddress(int(subnet["first_ip"]))
-        last_ip = netaddr.IPAddress(int(subnet["last_ip"]))
-        if subnet["ip_version"] == 4:
-            first_ip = first_ip.ipv4()
-            last_ip = last_ip.ipv4()
-        first_ip = int(first_ip)
-        last_ip = int(last_ip)
-
-        diff = ip_int - first_ip
-        if diff < 2:
-            next_ip = netaddr.IPAddress(ip_int + (2 - diff))
-            subnet["next_auto_assign_ip"] = int(next_ip) + 1
-        if ip_int == last_ip:
-            raise exceptions.IpAddressGenerationFailure(net_id=net_id)
-        if next_ip not in netaddr.IPNetwork(subnet["cidr"]):
-            raise exceptions.IpAddressGenerationFailure(net_id=net_id)
 
         address = db_api.ip_address_create(
             elevated, address=next_ip, subnet_id=subnet["id"],

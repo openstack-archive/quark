@@ -225,6 +225,7 @@ class Subnet(BASEV2, models.HasId, models.HasTenant, IsHazTags):
         primaryjoin="DNSNameserver.subnet_id==Subnet.id",
         backref='subnet',
         cascade='delete')
+    ip_policy = orm.relationship("IPPolicy", uselist=False, backref="subnet")
 
 
 port_ip_association_table = sa.Table(
@@ -330,8 +331,30 @@ class MacAddressRange(BASEV2, models.HasId):
                                       backref="mac_address_range")
 
 
+class IPPolicy(BASEV2, models.HasId):
+    __tablename__ = "quark_ip_policy"
+    subnet_id = sa.Column(sa.String(36), sa.ForeignKey("quark_subnets.id",
+                                                       ondelete="CASCADE"))
+    network_id = sa.Column(sa.String(36), sa.ForeignKey("quark_networks.id",
+                                                        ondelete="CASCADE"))
+
+    join = "IPPolicy.id==IPPolicyRule.ip_policy_id"
+    exclude = orm.relationship("IPPolicyRule",
+                               primaryjoin=join,
+                               backref="ip_policy")
+
+
+class IPPolicyRule(BASEV2, models.HasId):
+    __tablename__ = "quark_ip_policy_rules"
+    ip_policy_id = sa.Column(sa.String(36), sa.ForeignKey(
+        "quark_ip_policy.id", ondelete="CASCADE"))
+    address = sa.Column(custom_types.INET())
+    prefix = sa.Column(sa.Integer())
+
+
 class Network(BASEV2, models.HasTenant, models.HasId):
     __tablename__ = "quark_networks"
     name = sa.Column(sa.String(255))
     ports = orm.relationship(Port, backref='network')
     subnets = orm.relationship(Subnet, backref='network')
+    ip_policy = orm.relationship(IPPolicy, uselist=False, backref="network")
