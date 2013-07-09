@@ -336,14 +336,15 @@ def network_delete(context, network):
 
 def subnet_find_allocation_counts(context, net_id, **filters):
     query = context.session.query(models.Subnet,
-                                  sql_func.count(models.IPAddress.subnet_id).
-                                  label('count')).\
-        outerjoin(models.Subnet.allocated_ips).\
-        filter(models.Subnet.network_id == net_id)
+                                  sql_func.count(models.IPAddress.address).
+                                  label("count"))
+    query = query.outerjoin(models.Subnet.allocated_ips)
+    query = query.group_by(models.Subnet)
+    query = query.order_by("count DESC")
+
+    query = query.filter(models.Subnet.network_id == net_id)
     if "version" in filters:
         query = query.filter(models.Subnet.ip_version == filters["version"])
-    query = query.group_by(models.IPAddress)
-    query = query.order_by("count DESC")
     return query
 
 
