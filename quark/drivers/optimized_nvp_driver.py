@@ -115,7 +115,8 @@ class OptimizedNVPDriver(NVPDriver):
 
     def _lswitch_select_free(self, context, network_id):
         query = context.session.query(LSwitch)
-        query = query.filter(LSwitch.port_count < self.max_ports_per_switch)
+        query = query.filter(LSwitch.port_count <
+                             self.limits['max_ports_per_switch'])
         query = query.filter(LSwitch.network_id == network_id)
         switch = query.order_by(LSwitch.port_count).first()
         return switch
@@ -129,7 +130,7 @@ class OptimizedNVPDriver(NVPDriver):
         pass
 
     def _lswitch_select_open(self, context, network_id=None, **kwargs):
-        if self.max_ports_per_switch == 0:
+        if self.limits['max_ports_per_switch'] == 0:
             switch = self._lswitch_select_first(context, network_id)
         else:
             switch = self._lswitch_select_free(context, network_id)
@@ -203,6 +204,15 @@ class OptimizedNVPDriver(NVPDriver):
         return {'uuid': self._get_security_group_id(context, group_id),
                 'logical_port_ingress_rules': rulelist['ingress'],
                 'logical_port_egress_rules': rulelist['egress']}
+
+    def _check_rule_count_per_port(self, context, group_id):
+        ports = context.session.query(models.SecurityGroup).filter(
+            models.SecurityGroup.id == group_id).first().get('ports', [])
+        groups = (set(group.id for group in port.get('security_groups', []))
+                  for port in ports)
+        return max(self._check_rule_count_for_groups(
+            context, (self._get_security_group(context, id) for id in g))
+            for g in groups)
 
 
 class LSwitchPort(models.BASEV2, models.HasId):

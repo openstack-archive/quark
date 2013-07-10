@@ -63,3 +63,7 @@ class IPPolicyNotFound(exceptions.NeutronException):
 
 class IPPolicyAlreadyExists(exceptions.NeutronException):
     message = _("IP Policy %(id)s already exists for %(n_id)s")
+
+
+class DriverLimitReached(exceptions.InvalidInput):
+    message = _("Driver has reached limit on resource '%(limit)s'")

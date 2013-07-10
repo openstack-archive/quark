@@ -49,6 +49,8 @@ class TestNVPDriver(test_base.TestBase):
         self.profile_id = "12345678-0000-0000-0000-000000000000"
         self.d_pkg = "quark.drivers.nvp_driver.NVPDriver"
         self.max_spanning = 3
+        self.driver.limits.update({'max_rules_per_group': 3,
+                                   'max_rules_per_port': 2})
 
     def _create_connection(self, switch_count=1,
                            has_switches=False, maxed_ports=False):
@@ -68,13 +70,16 @@ class TestNVPDriver(test_base.TestBase):
         port.delete = mock.Mock(return_value=None)
         return port
 
-    def _create_lport_query(self, switch_count):
+    def _create_lport_query(self, switch_count, profiles=[]):
         query = mock.Mock()
         port_list = {"_relations":
                     {"LogicalSwitchConfig":
-                    {"uuid": self.lswitch_uuid}}}
+                    {"uuid": self.lswitch_uuid,
+                     "security_profiles": profiles}}}
         port_query = {"results": [port_list], "result_count": switch_count}
         query.results = mock.Mock(return_value=port_query)
+        query.security_profile_uuid().results.return_value = {
+            "results": [{"security_profiles": profiles}]}
         return query
 
     def _create_lswitch(self, switches_available, maxed_ports):
@@ -106,12 +111,13 @@ class TestNVPDriver(test_base.TestBase):
     def _create_security_profile(self):
         profile = mock.Mock()
         query = mock.Mock()
-        query.results = mock.Mock(return_value={'results': [
-            {'name': 'foo', 'uuid': self.profile_id,
-             'logical_port_ingress_rules': [],
-             'logical_port_egress_rules': []}],
-            'result_count': 1})
+        group = {'name': 'foo', 'uuid': self.profile_id,
+                 'logical_port_ingress_rules': [],
+                 'logical_port_egress_rules': []}
+        query.results = mock.Mock(return_value={'results': [group],
+                                                'result_count': 1})
         profile.query = mock.Mock(return_value=query)
+        profile.read = mock.Mock(return_value=group)
         return mock.Mock(return_value=profile)
 
     def _create_security_rule(self, rule={}):
@@ -361,7 +367,7 @@ class TestNVPDriverCreatePort(TestNVPDriver):
     def test_create_port_switch_exists_spanning(self):
         with self._stubs(maxed_ports=True,
                          net_details=dict(foo=3)) as (connection):
-            self.driver.max_ports_per_switch = self.max_spanning
+            self.driver.limits['max_ports_per_switch'] = self.max_spanning
             port = self.driver.create_port(self.context, self.net_id,
                                            self.port_id)
             self.assertTrue("uuid" in port)
@@ -417,13 +423,12 @@ class TestNVPDriverCreatePort(TestNVPDriver):
     def test_create_port_with_security_groups_max_rules(self):
         with self._stubs() as connection:
             connection.securityprofile = self._create_security_profile()
-            connection.securityprofile().query().results()[
-                'results'][0].update(
-                    {'logical_port_ingress_rules': [{'ethertype': 'IPv4'},
-                                                    {'ethertype': 'IPv6'}],
-                     'logical_port_egress_rules': [{'ethertype': 'IPv4'},
-                                                   {'ethertype': 'IPv6'}]})
-            with self.assertRaises(sg_ext.qexception.OverQuota):
+            connection.securityprofile().read().update(
+                {'logical_port_ingress_rules': [{'ethertype': 'IPv4'},
+                                                {'ethertype': 'IPv6'}],
+                 'logical_port_egress_rules': [{'ethertype': 'IPv4'},
+                                               {'ethertype': 'IPv6'}]})
+            with self.assertRaises(sg_ext.qexception.InvalidInput):
                 self.driver.create_port(
                     self.context, self.net_id, self.port_id,
                     security_groups=[1],
@@ -456,13 +461,12 @@ class TestNVPDriverUpdatePort(TestNVPDriver):
 
     def test_update_port_max_rules(self):
         with self._stubs() as connection:
-            connection.securityprofile().query().results()[
-                'results'][0].update(
-                    {'logical_port_ingress_rules': [{'ethertype': 'IPv4'},
-                                                    {'ethertype': 'IPv6'}],
-                     'logical_port_egress_rules': [{'ethertype': 'IPv4'},
-                                                   {'ethertype': 'IPv6'}]})
-            with self.assertRaises(sg_ext.qexception.OverQuota):
+            connection.securityprofile().read().update(
+                {'logical_port_ingress_rules': [{'ethertype': 'IPv4'},
+                                                {'ethertype': 'IPv6'}],
+                 'logical_port_egress_rules': [{'ethertype': 'IPv4'},
+                                               {'ethertype': 'IPv6'}]})
+            with self.assertRaises(sg_ext.qexception.InvalidInput):
                 self.driver.update_port(
                     self.context, self.port_id,
                     security_groups=[1],
@@ -596,7 +600,7 @@ class TestNVPDriverCreateSecurityGroup(TestNVPDriver):
                                  'tag': self.context.tenant_id}]),
             ], any_order=True)
 
-    def test_security_group_create_rules_over_quota(self):
+    def test_security_group_create_rules_at_max(self):
         ingress_rules = [{'ethertype': 'IPv4', 'protocol': 6},
                          {'ethertype': 'IPv6',
                           'remote_ip_prefix': '192.168.0.1'}]
@@ -604,7 +608,7 @@ class TestNVPDriverCreateSecurityGroup(TestNVPDriver):
                          'port_range_min': 0, 'port_range_max': 100},
                         {'ethertype': 'IPv4', 'remote_group_id': 2}]
         with self._stubs():
-            with self.assertRaises(Exception):
+            with self.assertRaises(sg_ext.qexception.InvalidInput):
                 self.driver.create_security_group(
                     self.context, 'foo',
                     port_ingress_rules=ingress_rules,
@@ -660,7 +664,14 @@ class TestNVPDriverUpdateSecurityGroup(TestNVPDriver):
                 mock.call.update()],
                 any_order=True)
 
-    def test_security_group_update_rules(self):
+    def test_security_group_update_not_found(self):
+        with self._stubs() as connection:
+            connection.securityprofile().query().results.return_value = \
+                {'result_count': 0, 'results': []}
+            with self.assertRaises(sg_ext.SecurityGroupNotFound):
+                self.driver.update_security_group(self.context, 1)
+
+    def test_security_group_update_with_rules(self):
         ingress_rules = [{'ethertype': 'IPv4', 'protocol': 6},
                          {'ethertype': 'IPv6',
                           'remote_ip_prefix': '192.168.0.1'}]
@@ -678,14 +689,7 @@ class TestNVPDriverUpdateSecurityGroup(TestNVPDriver):
                 mock.call.update(),
             ], any_order=True)
 
-    def test_security_group_update_not_found(self):
-        with self._stubs() as connection:
-            connection.securityprofile().query().results.return_value = \
-                {'result_count': 0, 'results': []}
-            with self.assertRaises(sg_ext.SecurityGroupNotFound):
-                self.driver.update_security_group(self.context, 1)
-
-    def test_security_group_update_rules_over_quota(self):
+    def test_security_group_update_rules_at_max(self):
         ingress_rules = [{'ethertype': 'IPv4', 'protocol': 6},
                          {'ethertype': 'IPv6',
                           'remote_ip_prefix': '192.168.0.1'}]
@@ -693,7 +697,7 @@ class TestNVPDriverUpdateSecurityGroup(TestNVPDriver):
                          'port_range_min': 0, 'port_range_max': 100},
                         {'ethertype': 'IPv4', 'remote_group_id': 2}]
         with self._stubs():
-            with self.assertRaises(Exception):
+            with self.assertRaises(sg_ext.qexception.InvalidInput):
                 self.driver.update_security_group(
                     self.context, 1,
                     port_ingress_rules=ingress_rules,
@@ -709,13 +713,16 @@ class TestNVPDriverCreateSecurityGroupRule(TestNVPDriver):
             connection = self._create_connection()
             connection.securityprofile = self._create_security_profile()
             connection.securityrule = self._create_security_rule()
+            connection.lswitch_port().query.return_value = \
+                self._create_lport_query(1, [self.profile_id])
             get_connection.return_value = connection
             yield connection
 
     def test_security_rule_create(self):
         with self._stubs() as connection:
             self.driver.create_security_group_rule(
-                self.context, 1, {'ethertype': 'IPv4', 'direction': 'ingress'})
+                self.context, 1,
+                {'ethertype': 'IPv4', 'direction': 'ingress'})
             connection.securityprofile.assert_any_calls(self.profile_id)
             connection.securityprofile().assert_has_calls([
                 mock.call.port_ingress_rules([{'ethertype': 'IPv4'}]),
@@ -724,8 +731,9 @@ class TestNVPDriverCreateSecurityGroupRule(TestNVPDriver):
 
     def test_security_rule_create_duplicate(self):
         with self._stubs() as connection:
-            connection.securityprofile().query().results()['results'][0][
-                'logical_port_ingress_rules'] = [{'ethertype': 'IPv4'}]
+            connection.securityprofile().read().update({
+                'logical_port_ingress_rules': [{'ethertype': 'IPv4'}],
+                'logical_port_egress_rules': []})
             with self.assertRaises(sg_ext.SecurityGroupRuleExists):
                 self.driver.create_security_group_rule(
                     self.context, 1,
@@ -739,6 +747,16 @@ class TestNVPDriverCreateSecurityGroupRule(TestNVPDriver):
                 self.driver.create_security_group_rule(
                     self.context, 1,
                     {'ethertype': 'IPv4', 'direction': 'egress'})
+
+    def test_security_rule_create_over_port(self):
+        with self._stubs() as connection:
+            connection.securityprofile().read().update(
+                {'logical_port_ingress_rules': [1, 2]})
+            with self.assertRaises(sg_ext.qexception.InvalidInput):
+                self.driver.create_security_group_rule(
+                    self.context, 1,
+                    {'ethertype': 'IPv4', 'direction': 'egress'})
+            self.assertTrue(connection.lswitch_port().query.called)
 
 
 class TestNVPDriverDeleteSecurityGroupRule(TestNVPDriver):
@@ -755,8 +773,7 @@ class TestNVPDriverDeleteSecurityGroupRule(TestNVPDriver):
             connection = self._create_connection()
             connection.securityprofile = self._create_security_profile()
             connection.securityrule = self._create_security_rule()
-            connection.securityprofile().query().results()[
-                'results'][0].update(rulelist)
+            connection.securityprofile().read().update(rulelist)
             get_connection.return_value = connection
             yield connection
 
@@ -767,7 +784,6 @@ class TestNVPDriverDeleteSecurityGroupRule(TestNVPDriver):
         ) as connection:
             self.driver.delete_security_group_rule(
                 self.context, 1, {'ethertype': 'IPv6', 'direction': 'egress'})
-            print connection.securityprofile().mock_calls
             connection.securityprofile.assert_any_call(self.profile_id)
             connection.securityprofile().assert_has_calls([
                 mock.call.port_egress_rules([]),
