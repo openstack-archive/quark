@@ -159,33 +159,37 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
         return (group_ids, security_groups)
 
     def _validate_security_group_rule(self, context, rule):
+        PROTOCOLS = {'icmp': 1, 'tcp': 6, 'udp': 17}
+        ALLOWED_WITH_RANGE = [6, 17]
 
         if (rule.get('remote_ip_prefix', None) and
                 rule.get('remote_group_id', None)):
             raise sg_ext.SecurityGroupRemoteGroupAndRemoteIpPrefix()
 
-        protocol = rule.get('protocol', None)
-        if protocol is not None:
-            if (protocol in [6, 17] and
-                    (type(rule.get('port_range_min', None)) !=
-                        type(rule.get('port_range_max', None)))):
+        protocol = rule.pop('protocol')
+        port_range_min = rule['port_range_min']
+        port_range_max = rule['port_range_max']
+        if protocol and not isinstance(protocol, int):
+            protocol = PROTOCOLS[protocol]
+
+        if protocol in ALLOWED_WITH_RANGE:
+            if (port_range_min is None) != (port_range_max is None):
                 raise exceptions.InvalidInput(
-                    error_message="For TCP/UDP rules, cannot wildcard only "
-                                  "one end of port range.")
-            try:
-                protonumber = int(rule['protocol'])
-                if protonumber < 0 or protonumber > 255:
-                    raise sg_ext.SecurityGroupRuleInvalidProtocol(
-                        protocol=protocol,
-                        values=['udp', 'tcp', 'icmp'])
-            except (ValueError, TypeError):
-                raise sg_ext.SecurityGroupRuleInvalidProtocol(
-                    protocol=protocol, values=['udp', 'tcp', 'icmp'])
-        else:
-            rule.pop('protocol', None)
-            if (rule.get('port_range_min', None) is not None or
-                    rule.get('port_range_max', None)) is not None:
-                raise sg_ext.SecurityGroupProtocolRequiredWithPorts()
+                    error_message="For TCP/UDP rules, cannot wildcard "
+                                  "only one end of port range.")
+            if port_range_min > port_range_max:
+                raise sg_ext.SecurityGroupInvalidPortRange()
+
+        if protocol:
+            if protocol < 0 or protocol > 255:
+                raise sg_ext.SecurityGroupRuleInvalidProtocol()
+            if port_range_min > 65535:
+                raise sg_ext.SecurityGroupInvalidPortValue(port=port_range_min)
+            if port_range_max > 65535:
+                raise sg_ext.SecurityGroupInvalidPortValue(port=port_range_max)
+            rule['protocol'] = protocol
+        elif port_range_min is not None or port_range_max is not None:
+            raise sg_ext.SecurityGroupProtocolRequiredWithPorts()
 
         return rule
 
@@ -639,7 +643,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
         mac_address_string = str(netaddr.EUI(mac['address'],
                                              dialect=netaddr.mac_unix))
         address_pairs = [{'mac_address': mac_address_string,
-                          'ip_address': address.get('address_readable') or ''}
+                          'ip_address': address.get('address_readable', '')}
                          for address in addresses]
         backend_port = self.net_driver.create_port(context, net["id"],
                                                    port_id=port_id,
@@ -692,7 +696,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
                                                  dialect=netaddr.mac_unix))
             address_pairs = [{'mac_address': mac_address_string,
                               'ip_address':
-                              address.get('address_readable') or ''}
+                              address.get('address_readable', '')}
                              for address in addresses]
 
         (group_ids, security_groups) = self._make_security_group_list(
