@@ -49,7 +49,7 @@ from quark import plugin_views as v
 LOG = logging.getLogger("neutron.quark")
 CONF = cfg.CONF
 DEFAULT_ROUTE = netaddr.IPNetwork("0.0.0.0/0")
-
+DEFAULT_SG_UUID = "00000000-0000-0000-0000-000000000000"
 
 quark_opts = [
     cfg.StrOpt('net_driver',
@@ -150,46 +150,46 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
             return ([], [])
         group_ids = list(set(group_ids))
         security_groups = []
-        for id in group_ids:
-            group = db_api.security_group_find(context, id=id,
+        for gid in group_ids:
+            group = db_api.security_group_find(context, id=gid,
                                                scope=db_api.ONE)
             if not group:
-                raise sg_ext.SecurityGroupNotFound(id=id)
+                raise sg_ext.SecurityGroupNotFound(id=gid)
             security_groups.append(group)
         return (group_ids, security_groups)
 
     def _validate_security_group_rule(self, context, rule):
-        PROTOCOLS = {'icmp': 1, 'tcp': 6, 'udp': 17}
+        PROTOCOLS = {"icmp": 1, "tcp": 6, "udp": 17}
         ALLOWED_WITH_RANGE = [6, 17]
 
-        if (rule.get('remote_ip_prefix', None) and
-                rule.get('remote_group_id', None)):
+        if rule.get("remote_ip_prefix") and rule.get("remote_group_id"):
             raise sg_ext.SecurityGroupRemoteGroupAndRemoteIpPrefix()
 
         protocol = rule.pop('protocol')
         port_range_min = rule['port_range_min']
         port_range_max = rule['port_range_max']
-        if protocol and not isinstance(protocol, int):
-            protocol = PROTOCOLS[protocol]
-
-        if protocol in ALLOWED_WITH_RANGE:
-            if (port_range_min is None) != (port_range_max is None):
-                raise exceptions.InvalidInput(
-                    error_message="For TCP/UDP rules, cannot wildcard "
-                                  "only one end of port range.")
-            if port_range_min > port_range_max:
-                raise sg_ext.SecurityGroupInvalidPortRange()
 
         if protocol:
-            if protocol < 0 or protocol > 255:
+            if isinstance(protocol, str):
+                protocol = protocol.lower()
+                protocol = PROTOCOLS.get(protocol)
+
+            if not protocol:
                 raise sg_ext.SecurityGroupRuleInvalidProtocol()
-            if port_range_min > 65535:
-                raise sg_ext.SecurityGroupInvalidPortValue(port=port_range_min)
-            if port_range_max > 65535:
-                raise sg_ext.SecurityGroupInvalidPortValue(port=port_range_max)
+
+            if protocol in ALLOWED_WITH_RANGE:
+                if (port_range_min is None) != (port_range_max is None):
+                    raise exceptions.InvalidInput(
+                        error_message="For TCP/UDP rules, cannot wildcard "
+                                      "only one end of port range.")
+                if port_range_min is not None and port_range_max is not None:
+                    if port_range_min > port_range_max:
+                        raise sg_ext.SecurityGroupInvalidPortRange()
+
             rule['protocol'] = protocol
-        elif port_range_min is not None or port_range_max is not None:
-            raise sg_ext.SecurityGroupProtocolRequiredWithPorts()
+        else:
+            if port_range_min is not None or port_range_max is not None:
+                raise sg_ext.SecurityGroupProtocolRequiredWithPorts()
 
         return rule
 
@@ -263,6 +263,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
                 gateway_ip = default_route["nexthop"]
             new_subnet["routes"].append(db_api.route_create(
                 context, cidr=route["destination"], gateway=route["nexthop"]))
+
         if default_route is None:
             new_subnet["routes"].append(db_api.route_create(
                 context, cidr=str(DEFAULT_ROUTE), gateway=gateway_ip))
@@ -318,19 +319,14 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
                     break
             if default_route is None:
                 route_model = db_api.route_find(
-                    context,
-                    cidr=str(DEFAULT_ROUTE),
-                    subnet_id=id,
+                    context, cidr=str(DEFAULT_ROUTE), subnet_id=id,
                     scope=db_api.ONE)
                 if route_model:
-                    db_api.route_update(context,
-                                        route_model,
+                    db_api.route_update(context, route_model,
                                         gateway=gateway_ip)
                 else:
-                    db_api.route_create(context,
-                                        cidr=str(DEFAULT_ROUTE),
-                                        gateway=gateway_ip,
-                                        subnet_id=id)
+                    db_api.route_create(context, cidr=str(DEFAULT_ROUTE),
+                                        gateway=gateway_ip, subnet_id=id)
 
         if dns_ips:
             subnet_db["dns_nameservers"] = []
@@ -343,9 +339,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
             subnet_db["routes"] = []
         for route in routes:
             subnet_db["routes"].append(db_api.route_create(
-                context,
-                cidr=route["destination"],
-                gateway=route["nexthop"]))
+                context, cidr=route["destination"], gateway=route["nexthop"]))
 
         subnet = db_api.subnet_update(context, subnet_db, **s)
         return v._make_subnet_dict(subnet, default_route=DEFAULT_ROUTE)
@@ -492,7 +486,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
         if not self.get_security_groups(
                 context,
-                filters={"id": '00000000-0000-0000-0000-000000000000'}):
+                filters={"id": DEFAULT_SG_UUID}):
             self._create_default_security_group(context)
         return v._make_network_dict(new_net)
 
@@ -627,7 +621,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
         quota.QUOTAS.limit_check(
             context, context.tenant_id,
-            ports_per_network=len(net.get('ports', []))+1)
+            ports_per_network=len(net.get('ports', [])) + 1)
 
         if fixed_ips:
             for fixed_ip in fixed_ips:
@@ -644,7 +638,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
             addresses.append(self.ipam_driver.allocate_ip_address(
                 context, net["id"], port_id, self.ipam_reuse_after))
 
-        (group_ids, security_groups) = self._make_security_group_list(
+        group_ids, security_groups = self._make_security_group_list(
             context, port["port"].pop("security_groups", None))
         mac = self.ipam_driver.allocate_mac_address(context,
                                                     net["id"],
@@ -710,7 +704,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
                               address.get('address_readable', '')}
                              for address in addresses]
 
-        (group_ids, security_groups) = self._make_security_group_list(
+        group_ids, security_groups = self._make_security_group_list(
             context, port["port"].pop("security_groups", None))
         self.net_driver.update_port(context,
                                     port_id=port_db.backend_key,
@@ -725,14 +719,15 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
     def post_update_port(self, context, id, port):
         LOG.info("post_update_port %s for tenant %s" % (id, context.tenant_id))
+        if not port.get("port"):
+            raise exceptions.BadRequest(resource="ports",
+                                        msg="Port body required")
+
         port_db = db_api.port_find(context, id=id, scope=db_api.ONE)
         if not port_db:
             raise exceptions.PortNotFound(port_id=id, net_id="")
 
-        if "port" not in port or not port["port"]:
-            raise exceptions.BadRequest()
         port = port["port"]
-
         if "fixed_ips" in port and port["fixed_ips"]:
             for ip in port["fixed_ips"]:
                 address = None
@@ -994,23 +989,18 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
         if not subnet:
             raise exceptions.SubnetNotFound(subnet_id=subnet_id)
 
-        # TODO(anyone): May need to denormalize the cidr values to achieve
-        #               single db lookup
+        # TODO(anyone): May want to denormalize the cidr values into columns
+        #               to achieve single db lookup on conflict check
         route_cidr = netaddr.IPNetwork(route["cidr"])
         subnet_routes = db_api.route_find(context, subnet_id=subnet_id,
                                           scope=db_api.ALL)
         for sub_route in subnet_routes:
             sub_route_cidr = netaddr.IPNetwork(sub_route["cidr"])
-            """
-            Task #977:
-            Add a special case for default route
-            """
             if sub_route_cidr.value == DEFAULT_ROUTE.value:
                 continue
             if route_cidr in sub_route_cidr or sub_route_cidr in route_cidr:
-                ex = quark_exceptions.RouteConflict(route_id=sub_route["id"],
-                                                    cidr=str(route_cidr))
-                raise ex
+                raise quark_exceptions.RouteConflict(
+                    route_id=sub_route["id"], cidr=str(route_cidr))
         new_route = db_api.route_create(context, **route)
         return v._make_route_dict(new_route)
 
@@ -1050,6 +1040,10 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
         ip_address = ip_dict.get('ip_address')
 
         ports = []
+        if device_ids and not network_id:
+            raise exceptions.BadRequest(
+                resource="ip_addresses",
+                msg="network_id is required if device_ids are supplied.")
         if network_id and device_ids:
             for device_id in device_ids:
                 port = db_api.port_find(
@@ -1139,16 +1133,16 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
     def _create_default_security_group(self, context):
         default_group = {
-            'name': 'default', 'description': '',
-            'group_id': '00000000-0000-0000-0000-000000000000',
-            'port_egress_rules': [],
-            'port_ingress_rules': [
-                {'ethertype': 'IPv4', 'protocol': 1},
-                {'ethertype': 'IPv4', 'protocol': 6},
-                {'ethertype': 'IPv4', 'protocol': 17},
-                {'ethertype': 'IPv6', 'protocol': 1},
-                {'ethertype': 'IPv6', 'protocol': 6},
-                {'ethertype': 'IPv6', 'protocol': 17},
+            "name": "default", "description": "",
+            "group_id": DEFAULT_SG_UUID,
+            "port_egress_rules": [],
+            "port_ingress_rules": [
+                {"ethertype": "IPv4", "protocol": 1},
+                {"ethertype": "IPv4", "protocol": 6},
+                {"ethertype": "IPv4", "protocol": 17},
+                {"ethertype": "IPv6", "protocol": 1},
+                {"ethertype": "IPv6", "protocol": 6},
+                {"ethertype": "IPv6", "protocol": 17},
             ]}
 
         self.net_driver.create_security_group(
@@ -1156,13 +1150,12 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
             "default",
             **default_group)
 
-        default_group["id"] = '00000000-0000-0000-0000-000000000000'
+        default_group["id"] = DEFAULT_SG_UUID
         default_group["tenant_id"] = context.tenant_id
-        for rule in default_group.pop('port_ingress_rules'):
+        for rule in default_group.pop("port_ingress_rules"):
             db_api.security_group_rule_create(
-                context, security_group_id=
-                "00000000-0000-0000-0000-000000000000",
-                tenant_id=context.tenant_id, direction='ingress',
+                context, security_group_id=default_group["id"],
+                tenant_id=context.tenant_id, direction="ingress",
                 **rule)
         db_api.security_group_create(context, **default_group)
 
@@ -1171,7 +1164,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
                 (context.tenant_id))
         rule = self._validate_security_group_rule(
             context, security_group_rule["security_group_rule"])
-        rule['id'] = uuidutils.generate_uuid()
+        rule["id"] = uuidutils.generate_uuid()
 
         group_id = rule["security_group_id"]
         group = db_api.security_group_find(context, id=group_id,
@@ -1181,12 +1174,9 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
         quota.QUOTAS.limit_check(
             context, context.tenant_id,
-            security_rules_per_group=len(group.get('rules', []))+1)
+            security_rules_per_group=len(group.get("rules", [])) + 1)
 
-        self.net_driver.create_security_group_rule(
-            context,
-            group_id,
-            rule)
+        self.net_driver.create_security_group_rule(context, group_id, rule)
 
         return v._make_security_group_rule_dict(
             db_api.security_group_rule_create(context, **rule))
@@ -1194,15 +1184,17 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
     def delete_security_group(self, context, id):
         LOG.info("delete_security_group %s for tenant %s" %
                 (id, context.tenant_id))
+
         group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
+
+        #TODO(anyone): name and ports are lazy-loaded. Could be good op later
         if not group:
             raise sg_ext.SecurityGroupNotFound(group_id=id)
-        if (group.name == 'default' or
-                group.id == '00000000-0000-0000-0000-000000000000'):
+        if id == DEFAULT_SG_UUID or group.name == "default":
             raise sg_ext.SecurityGroupCannotRemoveDefault()
         if group.ports:
             raise sg_ext.SecurityGroupInUse(id=id)
-        self.net_driver.delete_security_group(context, group['id'])
+        self.net_driver.delete_security_group(context, id)
         db_api.security_group_delete(context, group)
 
     def delete_security_group_rule(self, context, id):
@@ -1213,17 +1205,15 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
         if not rule:
             raise sg_ext.SecurityGroupRuleNotFound(group_id=id)
 
-        group = db_api.security_group_find(context, id=rule['group_id'],
+        group = db_api.security_group_find(context, id=rule["group_id"],
                                            scope=db_api.ONE)
         if not group:
             raise sg_ext.SecurityGroupNotFound(id=id)
 
         self.net_driver.delete_security_group_rule(
-            context,
-            group.id,
-            v._make_security_group_rule_dict(rule))
+            context, group.id, v._make_security_group_rule_dict(rule))
 
-        rule['id'] = id
+        rule["id"] = id
         db_api.security_group_rule_delete(context, rule)
 
     def get_security_group(self, context, id, fields=None):
@@ -1260,30 +1250,25 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
         return [v._make_security_group_rule_dict(rule) for rule in rules]
 
     def update_security_group(self, context, id, security_group):
-        newgroup = security_group['security_group']
+        new_group = security_group["security_group"]
         group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
-        self.net_driver.update_security_group(
-            context,
-            id,
-            **newgroup)
+        self.net_driver.update_security_group(context, id, **new_group)
 
-        dbgroup = db_api.security_group_update(
-            context,
-            group,
-            **newgroup)
-        return v._make_security_group_dict(dbgroup)
+        db_group = db_api.security_group_update(context, group, **new_group)
+        return v._make_security_group_dict(db_group)
 
     def create_ip_policy(self, context, ip_policy):
         LOG.info("create_ip_policy for tenant %s" % context.tenant_id)
 
         ipp = ip_policy["ip_policy"]
-        network_id = ipp.get("network_id", None)
-        subnet_id = ipp.get("subnet_id", None)
 
         if not ipp.get("exclude"):
             raise exceptions.BadRequest(resource="ip_policy",
                                         msg="Empty ip_policy.exclude regions")
+
         ipp["exclude"] = netaddr.IPSet(ipp["exclude"])
+        network_id = ipp.get("network_id")
+        subnet_id = ipp.get("subnet_id")
 
         model = None
         if subnet_id:
@@ -1302,10 +1287,8 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
         if model["ip_policy"]:
             raise quark_exceptions.IPPolicyAlreadyExists(
-                id=model["ip_policy"]["id"],
-                n_id=model["id"])
-        model["ip_policy"] = db_api.ip_policy_create(context,
-                                                     **ipp)
+                id=model["ip_policy"]["id"], n_id=model["id"])
+        model["ip_policy"] = db_api.ip_policy_create(context, **ipp)
         return v._make_ip_policy_dict(model["ip_policy"])
 
     def get_ip_policy(self, context, id):

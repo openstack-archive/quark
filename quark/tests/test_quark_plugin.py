@@ -957,6 +957,13 @@ class TestIpAddresses(TestQuarkPlugin):
             self.assertEqual(response['port_ids'], [port["id"]])
             self.assertEqual(response['subnet_id'], ip['id'])
 
+    def test_create_ip_address_by_device_no_network_fails(self):
+        with self._stubs(port={}, addr=None):
+            ip_address = dict(device_ids=[4])
+            with self.assertRaises(exceptions.BadRequest):
+                self.plugin.create_ip_address(self.context,
+                                              dict(ip_address=ip_address))
+
     def test_create_ip_address_invalid_network_and_device(self):
         with self._stubs(port=None, addr=None):
             with self.assertRaises(exceptions.PortNotFound):
@@ -1398,7 +1405,8 @@ class TestQuarkPostUpdatePort(TestQuarkPlugin):
 
     def test_post_update_port_no_ports(self):
         with self.assertRaises(exceptions.PortNotFound):
-            self.plugin.post_update_port(self.context, 1, {})
+            self.plugin.post_update_port(self.context, 1,
+                                         {"port": {"network_id": 1}})
 
     def test_post_update_port_fixed_ips_empty_body(self):
         port = dict(port=dict(network_id=1, tenant_id=self.context.tenant_id,
@@ -2006,6 +2014,13 @@ class TestQuarkCreateSecurityGroupRule(TestQuarkPlugin):
     def test_create_security_rule_UDP(self):
         self._test_create_security_rule(protocol=17)
 
+    def test_create_security_rule_UDP_string(self):
+        self._test_create_security_rule(protocol="UDP")
+
+    def test_create_security_rule_bad_string_fail(self):
+        self.assertRaises(sg_ext.SecurityGroupRuleInvalidProtocol,
+                          self._test_create_security_rule, protocol="DERP")
+
     def test_create_security_rule_TCP(self):
         self._test_create_security_rule(protocol=6)
 
@@ -2015,12 +2030,11 @@ class TestQuarkCreateSecurityGroupRule(TestQuarkPlugin):
     def test_create_security_rule_remote_group(self):
         self._test_create_security_rule(remote_group_id=2)
 
-    def test_create_security_rule_port_range(self):
+    def test_create_security_rule_port_range_invalid_ranges_fails(self):
         with self.assertRaises(exceptions.InvalidInput):
             self._test_create_security_rule(protocol=6, port_range_min=0)
-            self._test_create_security_rule(protocol=6, port_range_max=10)
-            self._test_create_security_rule(protocol=17, port_range_min=0)
-            self._test_create_security_rule(protocol=17, port_range_max=10)
+
+    def test_create_security_group_no_proto_with_ranges_fails(self):
         with self.assertRaises(sg_ext.SecurityGroupProtocolRequiredWithPorts):
             self._test_create_security_rule(protocol=None, port_range_min=0)
         with self.assertRaises(Exception):
@@ -2032,14 +2046,10 @@ class TestQuarkCreateSecurityGroupRule(TestQuarkPlugin):
             self._test_create_security_rule(remote_ip_prefix='192.168.0.1',
                                             remote_group_id='0')
 
-    def test_create_security_rule_bad_protocol(self):
-        with self.assertRaises(sg_ext.SecurityGroupRuleInvalidProtocol):
-            self._test_create_security_rule(protocol=256)
-
-    def test_create_security_rule_bad_port(self):
-        with self.assertRaises(sg_ext.SecurityGroupInvalidPortValue):
-            self._test_create_security_rule(protocol=6, port_range_min=0,
-                                            port_range_max=66000)
+    def test_create_security_rule_min_greater_than_max_fails(self):
+        with self.assertRaises(sg_ext.SecurityGroupInvalidPortRange):
+            self._test_create_security_rule(protocol=6, port_range_min=10,
+                                            port_range_max=9)
 
     def test_create_security_rule_no_group(self):
         with self.assertRaises(sg_ext.SecurityGroupNotFound):
