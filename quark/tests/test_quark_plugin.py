@@ -1177,7 +1177,7 @@ class TestQuarkCreatePort(TestQuarkPlugin):
         network = dict(id=1)
         mac = dict(address="aa:bb:cc:dd:ee:ff")
         ip = mock.MagicMock()
-        ip.get = lambda x: 1 if x == "subnet_id" else None
+        ip.get = lambda x, *y: 1 if x == "subnet_id" else None
         ip.formatted = lambda: "192.168.10.45"
         fixed_ips = [dict(subnet_id=1, ip_address="192.168.10.45")]
         port = dict(port=dict(mac_address=mac["address"], network_id=1,
@@ -1903,7 +1903,9 @@ class TestQuarkCreateSecurityGroupRule(TestQuarkPlugin):
         cfg.CONF.set_override('quota_security_group_rule', 1, 'QUOTAS')
         cfg.CONF.set_override('quota_security_rules_per_group', 1, 'QUOTAS')
         self.rule = {'id': 1, 'ethertype': 'IPv4',
-                     'security_group_id': 1, 'group': {'id': 1}}
+                     'security_group_id': 1, 'group': {'id': 1},
+                     'protocol': None, 'port_range_min': None,
+                     'port_range_max': None}
         self.expected = {
             'id': 1,
             'remote_group_id': None,
@@ -1974,6 +1976,9 @@ class TestQuarkCreateSecurityGroupRule(TestQuarkPlugin):
             self._test_create_security_rule(protocol=17, port_range_max=10)
         with self.assertRaises(sg_ext.SecurityGroupProtocolRequiredWithPorts):
             self._test_create_security_rule(protocol=None, port_range_min=0)
+        with self.assertRaises(Exception):
+            self._test_create_security_rule(
+                protocol=6, port_range_min=1, port_range_max=0)
 
     def test_create_security_rule_remote_conflicts(self):
         with self.assertRaises(Exception):
@@ -1983,6 +1988,11 @@ class TestQuarkCreateSecurityGroupRule(TestQuarkPlugin):
     def test_create_security_rule_bad_protocol(self):
         with self.assertRaises(sg_ext.SecurityGroupRuleInvalidProtocol):
             self._test_create_security_rule(protocol=256)
+
+    def test_create_security_rule_bad_port(self):
+        with self.assertRaises(sg_ext.SecurityGroupInvalidPortValue):
+            self._test_create_security_rule(protocol=6, port_range_min=0,
+                                            port_range_max=66000)
 
     def test_create_security_rule_no_group(self):
         with self.assertRaises(sg_ext.SecurityGroupNotFound):
