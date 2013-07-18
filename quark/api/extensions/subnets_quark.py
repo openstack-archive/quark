@@ -16,13 +16,9 @@
 #    under the License.
 
 from neutron.api import extensions
-from neutron.api.v2 import attributes
 
 EXTENDED_ATTRIBUTES_2_0 = {
     'subnets': {
-        "allocation_pools": {'allow_post': True, 'allow_put': True,
-                             'default': attributes.ATTR_NOT_SPECIFIED,
-                             'is_visible': False},
         "enable_dhcp": {'allow_post': False, 'allow_put': False,
                         'default': False,
                         'is_visible': True},

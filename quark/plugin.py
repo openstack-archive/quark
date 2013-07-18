@@ -251,6 +251,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
         gateway_ip = _pop_param(sub_attrs, "gateway_ip", str(cidr[1]))
         dns_ips = _pop_param(sub_attrs, "dns_nameservers", [])
         routes = _pop_param(sub_attrs, "host_routes", [])
+        allocation_pools = _pop_param(sub_attrs, "allocation_pools", [])
 
         new_subnet = db_api.subnet_create(context, **sub_attrs)
 
@@ -270,6 +271,16 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
             new_subnet["dns_nameservers"].append(db_api.dns_create(
                 context, ip=netaddr.IPAddress(dns_ip)))
 
+        if allocation_pools:
+            exclude = netaddr.IPSet([cidr])
+            for p in allocation_pools:
+                x = netaddr.IPSet(netaddr.IPRange(p["start"], p["end"]))
+                exclude = exclude - x
+            new_subnet["ip_policy"] = db_api.ip_policy_create(context,
+                                                              exclude=exclude)
+        # HACK(amir): force backref for ip_policy
+        if not new_subnet["network"]:
+            new_subnet["network"] = net
         subnet_dict = v._make_subnet_dict(new_subnet,
                                           default_route=DEFAULT_ROUTE)
         subnet_dict["gateway_ip"] = gateway_ip

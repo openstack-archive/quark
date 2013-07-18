@@ -30,7 +30,8 @@ LOG = logging.getLogger("neutron")
 
 
 class QuarkIpam(object):
-    def _get_ip_policy_rule_set(self, subnet):
+    @staticmethod
+    def get_ip_policy_rule_set(subnet):
         ip_policy = subnet["ip_policy"] or \
             subnet["network"]["ip_policy"] or \
             dict()
@@ -38,7 +39,7 @@ class QuarkIpam(object):
         ip_policy_rules = netaddr.IPSet(
             [netaddr.IPNetwork((int(ippr["address"]), ippr["prefix"]))
              for ippr in ip_policy_rules])
-        subnet_set = netaddr.IPSet(netaddr.IPNetwork(subnet["cidr"]))
+        subnet_set = netaddr.IPSet([netaddr.IPNetwork(subnet["cidr"])])
         ip_policy_rules = subnet_set & ip_policy_rules
         return ip_policy_rules
 
@@ -57,7 +58,7 @@ class QuarkIpam(object):
 
             ip_policy_rules = None
             if not ip_address:
-                ip_policy_rules = self._get_ip_policy_rule_set(subnet)
+                ip_policy_rules = self.get_ip_policy_rule_set(subnet)
             policy_size = ip_policy_rules.size if ip_policy_rules else 0
             if ipnet.size > (ips_in_subnet + policy_size):
                 return subnet
@@ -117,7 +118,7 @@ class QuarkIpam(object):
 
         subnet = self._choose_available_subnet(
             elevated, net_id, ip_address=ip_address, version=version)
-        ip_policy_rules = self._get_ip_policy_rule_set(subnet)
+        ip_policy_rules = self.get_ip_policy_rule_set(subnet)
 
         # Creating this IP for the first time
         next_ip = None

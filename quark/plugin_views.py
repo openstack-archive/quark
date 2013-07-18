@@ -19,6 +19,7 @@ View Helpers for Quark Plugin
 
 import netaddr
 
+from quark.ipam import QuarkIpam
 from quark import network_strategy
 STRATEGY = network_strategy.STRATEGY
 
@@ -42,12 +43,38 @@ def _make_subnet_dict(subnet, default_route=None, fields=None):
     dns_nameservers = [str(netaddr.IPAddress(dns["ip"]))
                        for dns in subnet.get("dns_nameservers")]
     net_id = STRATEGY.get_parent_network(subnet["network_id"])
+
+    def _allocation_pools(subnet):
+        ip_policy_rules = QuarkIpam.get_ip_policy_rule_set(subnet)
+        cidr = netaddr.IPSet([netaddr.IPNetwork(subnet["cidr"])])
+        allocatable = cidr - ip_policy_rules
+
+        cidrs = allocatable.iter_cidrs()
+        if len(cidrs) == 0:
+            return []
+        if len(cidrs) == 1:
+            return [dict(start=str(cidrs[0][0]),
+                         end=str(cidrs[0][-1]))]
+
+        pool_start = cidrs[0][0]
+        prev_cidr_end = cidrs[0][-1]
+        pools = []
+        for cidr in cidrs[1:]:
+            cidr_start = cidr[0]
+            if prev_cidr_end + 1 != cidr_start:
+                pools.append(dict(start=str(pool_start),
+                                  end=str(prev_cidr_end)))
+                pool_start = cidr_start
+            prev_cidr_end = cidr[-1]
+        pools.append(dict(start=str(pool_start), end=str(prev_cidr_end)))
+        return pools
+
     res = {"id": subnet.get('id'),
            "name": subnet.get('name'),
            "tenant_id": subnet.get('tenant_id'),
            "network_id": net_id,
            "ip_version": subnet.get('ip_version'),
-           "allocation_pools": [],
+           "allocation_pools": _allocation_pools(subnet),
            "dns_nameservers": dns_nameservers or [],
            "cidr": subnet.get('cidr'),
            "enable_dhcp": None}
