@@ -9,4 +9,4 @@ aiclib
 # NOTE(jkoelker) not technically required, but something has to commit
 #                the transactions. in the future this should be the
 #                neutron wsgi service
-repoze.tm2
+-e git://github.com/repoze/repoze.tm2.git@2.0#egg=repoze.tm2
