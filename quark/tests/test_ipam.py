@@ -22,7 +22,6 @@ from oslo.config import cfg
 
 from quark.db import models
 import quark.ipam
-import quark.plugin
 
 from quark.tests import test_base
 
@@ -35,10 +34,6 @@ class QuarkIpamBaseTest(test_base.TestBase):
         neutron_db_api.configure_db()
         models.BASEV2.metadata.create_all(neutron_session._ENGINE)
         self.ipam = quark.ipam.QuarkIpam()
-
-        # FIXME(mdietz): refactor around issue #130 and remove this
-        # Ensures that the perhaps_generate_uuid event handler is initialized
-        self.plugin = quark.plugin.Plugin()
 
     def tearDown(self):
         neutron_db_api.clear_db()
