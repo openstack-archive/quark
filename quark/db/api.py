@@ -14,9 +14,12 @@
 #    under the License.
 
 import datetime
+import inspect
 
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import timeutils
+from neutron.openstack.common import uuidutils
+from sqlalchemy import event
 from sqlalchemy import func as sql_func
 from sqlalchemy import orm, or_
 
@@ -30,6 +33,21 @@ LOG = logging.getLogger("neutron.quark.db.api")
 
 ONE = "one"
 ALL = "all"
+
+
+# NOTE(jkoelker) init event listener that will ensure id is filled in
+#                on object creation (prior to commit).
+def _perhaps_generate_id(target, args, kwargs):
+    if hasattr(target, 'id') and target.id is None:
+        target.id = uuidutils.generate_uuid()
+
+# NOTE(jkoelker) Register the event on all models that have ids
+for _name, klass in inspect.getmembers(models, inspect.isclass):
+    if klass is models.HasId:
+        continue
+
+    if models.HasId in klass.mro():
+        event.listen(klass, "init", _perhaps_generate_id)
 
 
 def _listify(filters):

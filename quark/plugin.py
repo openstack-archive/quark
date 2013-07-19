@@ -16,13 +16,10 @@
 """
 v2 Neutron Plug-in API Quark Implementation
 """
-import inspect
-
 import netaddr
 from oslo.config import cfg
 
 from sqlalchemy.orm import sessionmaker, scoped_session
-from sqlalchemy import event
 from zope import sqlalchemy as zsa
 
 from neutron.api.v2 import attributes
@@ -123,20 +120,6 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
         neutron_session._MAKER = scoped_session(session_maker)
 
     def __init__(self):
-
-        # NOTE(jkoelker) init event listener that will ensure id is filled in
-        #                on object creation (prior to commit).
-        def _perhaps_generate_id(target, args, kwargs):
-            if hasattr(target, 'id') and target.id is None:
-                target.id = uuidutils.generate_uuid()
-
-        # NOTE(jkoelker) Register the event on all models that have ids
-        for _name, klass in inspect.getmembers(models, inspect.isclass):
-            if klass is models.HasId:
-                continue
-
-            if models.HasId in klass.mro():
-                event.listen(klass, "init", _perhaps_generate_id)
 
         neutron_db_api.configure_db()
         self._initDBMaker()
