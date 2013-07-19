@@ -44,6 +44,7 @@ from quark.db import api as db_api
 from quark.db import models
 from quark import exceptions as quark_exceptions
 from quark import network_strategy
+from quark.plugin_modules import mac_address_ranges
 from quark import plugin_views as v
 
 LOG = logging.getLogger("neutron.quark")
@@ -75,10 +76,18 @@ quark_quota_opts = [
                default=20,
                help=_('Maximum security group rules in a group')),
 ]
+quark_resources = [
+    quota.BaseResource('ports_per_network',
+                       'quota_ports_per_network'),
+    quota.BaseResource('security_rules_per_group',
+                       'quota_security_rules_per_group'),
+]
 
 STRATEGY = network_strategy.STRATEGY
 CONF.register_opts(quark_opts, "QUARK")
 CONF.register_opts(quark_quota_opts, "QUOTAS")
+
+quota.QUOTAS.register_resources(quark_resources)
 
 
 def _pop_param(attrs, param, default=None):
@@ -136,14 +145,6 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
         self.ipam_driver = (importutils.import_class(CONF.QUARK.ipam_driver))()
         self.ipam_reuse_after = CONF.QUARK.ipam_reuse_after
         neutron_db_api.register_models(base=models.BASEV2)
-
-        quark_resources = [
-            quota.BaseResource('ports_per_network',
-                               'quota_ports_per_network'),
-            quota.BaseResource('security_rules_per_group',
-                               'quota_security_rules_per_group'),
-        ]
-        quota.QUOTAS.register_resources(quark_resources)
 
     def _make_security_group_list(self, context, group_ids):
         if not group_ids or group_ids is attributes.ATTR_NOT_SPECIFIED:
@@ -888,87 +889,6 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
             the_address["deallocated"] = 1
         return v._make_port_dict(port)
 
-    def get_mac_address_range(self, context, id, fields=None):
-        """Retrieve a mac_address_range.
-
-        : param context: neutron api request context
-        : param id: UUID representing the network to fetch.
-        : param fields: a list of strings that are valid keys in a
-            network dictionary as listed in the RESOURCE_ATTRIBUTE_MAP
-            object in neutron/api/v2/attributes.py. Only these fields
-            will be returned.
-        """
-        LOG.info("get_mac_address_range %s for tenant %s fields %s" %
-                (id, context.tenant_id, fields))
-
-        mac_address_range = db_api.mac_address_range_find(
-            context, id=id, scope=db_api.ONE)
-
-        if not mac_address_range:
-            raise quark_exceptions.MacAddressRangeNotFound(
-                mac_address_range_id=id)
-        return v._make_mac_range_dict(mac_address_range)
-
-    def get_mac_address_ranges(self, context):
-        LOG.info("get_mac_address_ranges for tenant %s" % context.tenant_id)
-        ranges = db_api.mac_address_range_find(context)
-        return [v._make_mac_range_dict(m) for m in ranges]
-
-    def create_mac_address_range(self, context, mac_range):
-        LOG.info("create_mac_address_range for tenant %s" % context.tenant_id)
-        cidr = mac_range["mac_address_range"]["cidr"]
-        cidr, first_address, last_address = self._to_mac_range(cidr)
-        new_range = db_api.mac_address_range_create(
-            context, cidr=cidr, first_address=first_address,
-            last_address=last_address, next_auto_assign_mac=first_address)
-        return v._make_mac_range_dict(new_range)
-
-    def _to_mac_range(self, val):
-        cidr_parts = val.split("/")
-        prefix = cidr_parts[0]
-
-        #FIXME(anyone): replace is slow, but this doesn't really
-        #               get called ever. Fix maybe?
-        prefix = prefix.replace(':', '')
-        prefix = prefix.replace('-', '')
-        prefix_length = len(prefix)
-        if prefix_length < 6 or prefix_length > 10:
-            raise quark_exceptions.InvalidMacAddressRange(cidr=val)
-
-        diff = 12 - len(prefix)
-        if len(cidr_parts) > 1:
-            mask = int(cidr_parts[1])
-        else:
-            mask = 48 - diff * 4
-        mask_size = 1 << (48 - mask)
-        prefix = "%s%s" % (prefix, "0" * diff)
-        try:
-            cidr = "%s/%s" % (str(netaddr.EUI(prefix)).replace("-", ":"), mask)
-        except netaddr.AddrFormatError:
-            raise quark_exceptions.InvalidMacAddressRange(cidr=val)
-        prefix_int = int(prefix, base=16)
-        return cidr, prefix_int, prefix_int + mask_size
-
-    def _delete_mac_address_range(self, context, mac_address_range):
-        if mac_address_range.allocated_macs:
-            raise quark_exceptions.MacAddressRangeInUse(
-                mac_address_range_id=mac_address_range["id"])
-        db_api.mac_address_range_delete(context, mac_address_range)
-
-    def delete_mac_address_range(self, context, id):
-        """Delete a mac_address_range.
-
-        : param context: neutron api request context
-        : param id: UUID representing the mac_address_range to delete.
-        """
-        LOG.info("delete_mac_address_range %s for tenant %s" %
-                 (id, context.tenant_id))
-        mar = db_api.mac_address_range_find(context, id=id, scope=db_api.ONE)
-        if not mar:
-            raise quark_exceptions.MacAddressRangeNotFound(
-                mac_address_range_id=id)
-        self._delete_mac_address_range(context, mar)
-
     def get_route(self, context, id):
         LOG.info("get_route %s for tenant %s" % (id, context.tenant_id))
         route = db_api.route_find(context, id=id, scope=db_api.ONE)
@@ -1309,3 +1229,15 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
         if not ipp:
             raise quark_exceptions.IPPolicyNotFound(id=id)
         db_api.ip_policy_delete(context, ipp)
+
+    def get_mac_address_range(self, context, id, fields=None):
+        return mac_address_ranges.get_mac_address_range(context, id, fields)
+
+    def get_mac_address_ranges(self, context):
+        return mac_address_ranges.get_mac_address_ranges(context)
+
+    def create_mac_address_range(self, context, mac_range):
+        return mac_address_ranges.create_mac_address_range(context, mac_range)
+
+    def delete_mac_address_range(self, context, id):
+        mac_address_ranges.delete_mac_address_range(context, id)
