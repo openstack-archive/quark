@@ -125,11 +125,8 @@ class QuarkIpam(object):
         if ip_address:
             next_ip = ip_address
             address = db_api.ip_address_find(
-                elevated,
-                network_id=net_id,
-                ip_address=next_ip,
-                tenant_id=elevated.tenant_id,
-                scope=db_api.ONE)
+                elevated, network_id=net_id, ip_address=next_ip,
+                tenant_id=elevated.tenant_id, scope=db_api.ONE)
             if address:
                 raise exceptions.IpAddressGenerationFailure(net_id=net_id)
         else:
@@ -143,11 +140,8 @@ class QuarkIpam(object):
                 if ip_policy_rules and next_ip in ip_policy_rules:
                     continue
                 address = db_api.ip_address_find(
-                    elevated,
-                    network_id=net_id,
-                    ip_address=next_ip,
-                    tenant_id=elevated.tenant_id,
-                    scope=db_api.ONE)
+                    elevated, network_id=net_id, ip_address=next_ip,
+                    tenant_id=elevated.tenant_id, scope=db_api.ONE)
 
         address = db_api.ip_address_create(
             elevated, address=next_ip, subnet_id=subnet["id"],
