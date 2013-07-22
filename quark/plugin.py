@@ -41,50 +41,15 @@ from quark.db import api as db_api
 from quark.db import models
 from quark import exceptions as quark_exceptions
 from quark import network_strategy
+from quark.plugin_modules import ip_policies
 from quark.plugin_modules import mac_address_ranges
+from quark.plugin_modules import security_groups
 from quark import plugin_views as v
 
 LOG = logging.getLogger("neutron.quark")
 CONF = cfg.CONF
 DEFAULT_ROUTE = netaddr.IPNetwork("0.0.0.0/0")
-DEFAULT_SG_UUID = "00000000-0000-0000-0000-000000000000"
-
-quark_opts = [
-    cfg.StrOpt('net_driver',
-               default='quark.drivers.base.BaseDriver',
-               help=_('The client to use to talk to the backend')),
-    cfg.StrOpt('ipam_driver', default='quark.ipam.QuarkIpam',
-               help=_('IPAM Implementation to use')),
-    cfg.BoolOpt('ipam_reuse_after', default=7200,
-                help=_("Time in seconds til IP and MAC reuse"
-                       "after deallocation.")),
-    cfg.StrOpt("strategy_driver",
-               default='quark.network_strategy.JSONStrategy',
-               help=_("Tree of network assignment strategy")),
-    cfg.StrOpt('net_driver_cfg', default='/etc/neutron/quark.ini',
-               help=_("Path to the config for the net driver"))
-]
-
-quark_quota_opts = [
-    cfg.IntOpt('quota_ports_per_network',
-               default=64,
-               help=_('Maximum ports per network per tenant')),
-    cfg.IntOpt('quota_security_rules_per_group',
-               default=20,
-               help=_('Maximum security group rules in a group')),
-]
-quark_resources = [
-    quota.BaseResource('ports_per_network',
-                       'quota_ports_per_network'),
-    quota.BaseResource('security_rules_per_group',
-                       'quota_security_rules_per_group'),
-]
-
 STRATEGY = network_strategy.STRATEGY
-CONF.register_opts(quark_opts, "QUARK")
-CONF.register_opts(quark_quota_opts, "QUOTAS")
-
-quota.QUOTAS.register_resources(quark_resources)
 
 
 def _pop_param(attrs, param, default=None):
@@ -133,49 +98,14 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
         if not group_ids or group_ids is attributes.ATTR_NOT_SPECIFIED:
             return ([], [])
         group_ids = list(set(group_ids))
-        security_groups = []
+        groups = []
         for gid in group_ids:
             group = db_api.security_group_find(context, id=gid,
                                                scope=db_api.ONE)
             if not group:
                 raise sg_ext.SecurityGroupNotFound(id=gid)
-            security_groups.append(group)
-        return (group_ids, security_groups)
-
-    def _validate_security_group_rule(self, context, rule):
-        PROTOCOLS = {"icmp": 1, "tcp": 6, "udp": 17}
-        ALLOWED_WITH_RANGE = [6, 17]
-
-        if rule.get("remote_ip_prefix") and rule.get("remote_group_id"):
-            raise sg_ext.SecurityGroupRemoteGroupAndRemoteIpPrefix()
-
-        protocol = rule.pop('protocol')
-        port_range_min = rule['port_range_min']
-        port_range_max = rule['port_range_max']
-
-        if protocol:
-            if isinstance(protocol, str):
-                protocol = protocol.lower()
-                protocol = PROTOCOLS.get(protocol)
-
-            if not protocol:
-                raise sg_ext.SecurityGroupRuleInvalidProtocol()
-
-            if protocol in ALLOWED_WITH_RANGE:
-                if (port_range_min is None) != (port_range_max is None):
-                    raise exceptions.InvalidInput(
-                        error_message="For TCP/UDP rules, cannot wildcard "
-                                      "only one end of port range.")
-                if port_range_min is not None and port_range_max is not None:
-                    if port_range_min > port_range_max:
-                        raise sg_ext.SecurityGroupInvalidPortRange()
-
-            rule['protocol'] = protocol
-        else:
-            if port_range_min is not None or port_range_max is not None:
-                raise sg_ext.SecurityGroupProtocolRequiredWithPorts()
-
-        return rule
+            groups.append(group)
+        return (group_ids, groups)
 
     def _validate_subnet_cidr(self, context, network_id, new_subnet_cidr):
         """Validate the CIDR for a subnet.
@@ -470,8 +400,8 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
         if not self.get_security_groups(
                 context,
-                filters={"id": DEFAULT_SG_UUID}):
-            self._create_default_security_group(context)
+                filters={"id": security_groups.DEFAULT_SG_UUID}):
+            security_groups._create_default_security_group(context)
         return v._make_network_dict(new_net)
 
     def update_network(self, context, id, network):
@@ -1013,206 +943,6 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
         return v._make_ip_dict(address)
 
-    def create_security_group(self, context, security_group):
-        LOG.info("create_security_group for tenant %s" %
-                (context.tenant_id))
-        group = security_group["security_group"]
-        group_name = group.get('name', '')
-        if group_name == "default":
-            raise sg_ext.SecurityGroupDefaultAlreadyExists()
-        group_id = uuidutils.generate_uuid()
-
-        self.net_driver.create_security_group(
-            context,
-            group_name,
-            group_id=group_id,
-            **group)
-
-        group["id"] = group_id
-        group["name"] = group_name
-        group["tenant_id"] = context.tenant_id
-        dbgroup = db_api.security_group_create(context, **group)
-        return v._make_security_group_dict(dbgroup)
-
-    def _create_default_security_group(self, context):
-        default_group = {
-            "name": "default", "description": "",
-            "group_id": DEFAULT_SG_UUID,
-            "port_egress_rules": [],
-            "port_ingress_rules": [
-                {"ethertype": "IPv4", "protocol": 1},
-                {"ethertype": "IPv4", "protocol": 6},
-                {"ethertype": "IPv4", "protocol": 17},
-                {"ethertype": "IPv6", "protocol": 1},
-                {"ethertype": "IPv6", "protocol": 6},
-                {"ethertype": "IPv6", "protocol": 17},
-            ]}
-
-        self.net_driver.create_security_group(
-            context,
-            "default",
-            **default_group)
-
-        default_group["id"] = DEFAULT_SG_UUID
-        default_group["tenant_id"] = context.tenant_id
-        for rule in default_group.pop("port_ingress_rules"):
-            db_api.security_group_rule_create(
-                context, security_group_id=default_group["id"],
-                tenant_id=context.tenant_id, direction="ingress",
-                **rule)
-        db_api.security_group_create(context, **default_group)
-
-    def create_security_group_rule(self, context, security_group_rule):
-        LOG.info("create_security_group for tenant %s" %
-                (context.tenant_id))
-        rule = self._validate_security_group_rule(
-            context, security_group_rule["security_group_rule"])
-        rule["id"] = uuidutils.generate_uuid()
-
-        group_id = rule["security_group_id"]
-        group = db_api.security_group_find(context, id=group_id,
-                                           scope=db_api.ONE)
-        if not group:
-            raise sg_ext.SecurityGroupNotFound(group_id=group_id)
-
-        quota.QUOTAS.limit_check(
-            context, context.tenant_id,
-            security_rules_per_group=len(group.get("rules", [])) + 1)
-
-        self.net_driver.create_security_group_rule(context, group_id, rule)
-
-        return v._make_security_group_rule_dict(
-            db_api.security_group_rule_create(context, **rule))
-
-    def delete_security_group(self, context, id):
-        LOG.info("delete_security_group %s for tenant %s" %
-                (id, context.tenant_id))
-
-        group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
-
-        #TODO(anyone): name and ports are lazy-loaded. Could be good op later
-        if not group:
-            raise sg_ext.SecurityGroupNotFound(group_id=id)
-        if id == DEFAULT_SG_UUID or group.name == "default":
-            raise sg_ext.SecurityGroupCannotRemoveDefault()
-        if group.ports:
-            raise sg_ext.SecurityGroupInUse(id=id)
-        self.net_driver.delete_security_group(context, id)
-        db_api.security_group_delete(context, group)
-
-    def delete_security_group_rule(self, context, id):
-        LOG.info("delete_security_group %s for tenant %s" %
-                (id, context.tenant_id))
-        rule = db_api.security_group_rule_find(context, id=id,
-                                               scope=db_api.ONE)
-        if not rule:
-            raise sg_ext.SecurityGroupRuleNotFound(group_id=id)
-
-        group = db_api.security_group_find(context, id=rule["group_id"],
-                                           scope=db_api.ONE)
-        if not group:
-            raise sg_ext.SecurityGroupNotFound(id=id)
-
-        self.net_driver.delete_security_group_rule(
-            context, group.id, v._make_security_group_rule_dict(rule))
-
-        rule["id"] = id
-        db_api.security_group_rule_delete(context, rule)
-
-    def get_security_group(self, context, id, fields=None):
-        LOG.info("get_security_group %s for tenant %s" %
-                (id, context.tenant_id))
-        group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
-        if not group:
-            raise sg_ext.SecurityGroupNotFound(group_id=id)
-        return v._make_security_group_dict(group, fields)
-
-    def get_security_group_rule(self, context, id, fields=None):
-        LOG.info("get_security_group_rule %s for tenant %s" %
-                (id, context.tenant_id))
-        rule = db_api.security_group_rule_find(context, id=id,
-                                               scope=db_api.ONE)
-        if not rule:
-            raise sg_ext.SecurityGroupRuleNotFound(rule_id=id)
-        return v._make_security_group_rule_dict(rule, fields)
-
-    def get_security_groups(self, context, filters=None, fields=None,
-                            sorts=None, limit=None, marker=None,
-                            page_reverse=False):
-        LOG.info("get_security_groups for tenant %s" %
-                (context.tenant_id))
-        groups = db_api.security_group_find(context, **filters)
-        return [v._make_security_group_dict(group) for group in groups]
-
-    def get_security_group_rules(self, context, filters=None, fields=None,
-                                 sorts=None, limit=None, marker=None,
-                                 page_reverse=False):
-        LOG.info("get_security_group_rules for tenant %s" %
-                (context.tenant_id))
-        rules = db_api.security_group_rule_find(context, filters=filters)
-        return [v._make_security_group_rule_dict(rule) for rule in rules]
-
-    def update_security_group(self, context, id, security_group):
-        new_group = security_group["security_group"]
-        group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
-        self.net_driver.update_security_group(context, id, **new_group)
-
-        db_group = db_api.security_group_update(context, group, **new_group)
-        return v._make_security_group_dict(db_group)
-
-    def create_ip_policy(self, context, ip_policy):
-        LOG.info("create_ip_policy for tenant %s" % context.tenant_id)
-
-        ipp = ip_policy["ip_policy"]
-
-        if not ipp.get("exclude"):
-            raise exceptions.BadRequest(resource="ip_policy",
-                                        msg="Empty ip_policy.exclude regions")
-
-        ipp["exclude"] = netaddr.IPSet(ipp["exclude"])
-        network_id = ipp.get("network_id")
-        subnet_id = ipp.get("subnet_id")
-
-        model = None
-        if subnet_id:
-            model = db_api.subnet_find(context, id=subnet_id, scope=db_api.ONE)
-            if not model:
-                raise exceptions.SubnetNotFound(id=subnet_id)
-        elif network_id:
-            model = db_api.network_find(context, id=network_id,
-                                        scope=db_api.ONE)
-            if not model:
-                raise exceptions.NetworkNotFound(id=network_id)
-        else:
-            raise exceptions.BadRequest(
-                resource="ip_policy",
-                msg="network_id or subnet_id unspecified")
-
-        if model["ip_policy"]:
-            raise quark_exceptions.IPPolicyAlreadyExists(
-                id=model["ip_policy"]["id"], n_id=model["id"])
-        model["ip_policy"] = db_api.ip_policy_create(context, **ipp)
-        return v._make_ip_policy_dict(model["ip_policy"])
-
-    def get_ip_policy(self, context, id):
-        LOG.info("get_ip_policy %s for tenant %s" % (id, context.tenant_id))
-        ipp = db_api.ip_policy_find(context, id=id, scope=db_api.ONE)
-        if not ipp:
-            raise quark_exceptions.IPPolicyNotFound(id=id)
-        return v._make_ip_policy_dict(ipp)
-
-    def get_ip_policies(self, context, **filters):
-        LOG.info("get_ip_policies for tenant %s" % (context.tenant_id))
-        ipps = db_api.ip_policy_find(context, scope=db_api.ALL, **filters)
-        return [v._make_ip_policy_dict(ipp) for ipp in ipps]
-
-    def delete_ip_policy(self, context, id):
-        LOG.info("delete_ip_policy %s for tenant %s" % (id, context.tenant_id))
-        ipp = db_api.ip_policy_find(context, id=id, scope=db_api.ONE)
-        if not ipp:
-            raise quark_exceptions.IPPolicyNotFound(id=id)
-        db_api.ip_policy_delete(context, ipp)
-
     def get_mac_address_range(self, context, id, fields=None):
         return mac_address_ranges.get_mac_address_range(context, id, fields)
 
@@ -1224,3 +954,52 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
     def delete_mac_address_range(self, context, id):
         mac_address_ranges.delete_mac_address_range(context, id)
+
+    def create_security_group(self, context, security_group):
+        return security_groups.create_security_group(context, security_group)
+
+    def create_security_group_rule(self, context, security_group_rule):
+        return security_groups.create_security_group_rule(context,
+                                                          security_group_rule)
+
+    def delete_security_group(self, context, id):
+        security_groups.delete_security_group(context, id)
+
+    def delete_security_group_rule(self, context, id):
+        security_groups.delete_security_group_rule(context, id)
+
+    def get_security_group(self, context, id, fields=None):
+        return security_groups.get_security_group(context, id, fields)
+
+    def get_security_group_rule(self, context, id, fields=None):
+        return security_groups.get_security_group_rule(context, id, fields)
+
+    def get_security_groups(self, context, filters=None, fields=None,
+                            sorts=None, limit=None, marker=None,
+                            page_reverse=False):
+        return security_groups.get_security_groups(context, filters, fields,
+                                                   sorts, limit, marker,
+                                                   page_reverse)
+
+    def get_security_group_rules(self, context, filters=None, fields=None,
+                                 sorts=None, limit=None, marker=None,
+                                 page_reverse=False):
+        return security_groups.get_security_group_rules(context, filters,
+                                                        fields, sorts, limit,
+                                                        marker, page_reverse)
+
+    def update_security_group(self, context, id, security_group):
+        return security_groups.update_security_group(context, id,
+                                                     security_group)
+
+    def create_ip_policy(self, context, ip_policy):
+        return ip_policies.create_ip_policy(context, ip_policy)
+
+    def get_ip_policy(self, context, id):
+        return ip_policies.get_ip_policy(context, id)
+
+    def get_ip_policies(self, context, **filters):
+        return ip_policies.get_ip_policies(context, **filters)
+
+    def delete_ip_policy(self, context, id):
+        return ip_policies.delete_ip_policy(context, id)
