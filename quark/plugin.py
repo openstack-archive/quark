@@ -16,14 +16,11 @@
 """
 v2 Neutron Plug-in API Quark Implementation
 """
-import netaddr
 from oslo.config import cfg
 
 from sqlalchemy.orm import sessionmaker, scoped_session
 from zope import sqlalchemy as zsa
 
-#FIXME(mdietz): remove once all resources have moved into submods
-from neutron.common import config as neutron_cfg
 from neutron.common import exceptions
 from neutron.db import api as neutron_db_api
 from neutron.extensions import providernet as pnet
@@ -45,6 +42,7 @@ from quark.plugin_modules import mac_address_ranges
 from quark.plugin_modules import ports
 from quark.plugin_modules import routes
 from quark.plugin_modules import security_groups
+from quark.plugin_modules import subnets
 from quark import plugin_views as v
 from quark import utils
 
@@ -88,244 +86,6 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
         self.ipam_reuse_after = CONF.QUARK.ipam_reuse_after
         neutron_db_api.register_models(base=models.BASEV2)
 
-    def _validate_subnet_cidr(self, context, network_id, new_subnet_cidr):
-        """Validate the CIDR for a subnet.
-
-        Verifies the specified CIDR does not overlap with the ones defined
-        for the other subnets specified for this network, or with any other
-        CIDR if overlapping IPs are disabled.
-
-        """
-        if neutron_cfg.cfg.CONF.allow_overlapping_ips:
-            return
-
-        new_subnet_ipset = netaddr.IPSet([new_subnet_cidr])
-
-        # Using admin context here, in case we actually share networks later
-        subnet_list = db_api.subnet_find(context.elevated(),
-                                         network_id=network_id)
-        for subnet in subnet_list:
-            if (netaddr.IPSet([subnet.cidr]) & new_subnet_ipset):
-                # don't give out details of the overlapping subnet
-                err_msg = (_("Requested subnet with cidr: %(cidr)s for "
-                             "network: %(network_id)s overlaps with another "
-                             "subnet") %
-                           {'cidr': new_subnet_cidr,
-                            'network_id': network_id})
-                LOG.error(_("Validation for CIDR: %(new_cidr)s failed - "
-                            "overlaps with subnet %(subnet_id)s "
-                            "(CIDR: %(cidr)s)"),
-                          {'new_cidr': new_subnet_cidr,
-                           'subnet_id': subnet.id,
-                           'cidr': subnet.cidr})
-                raise exceptions.InvalidInput(error_message=err_msg)
-
-    def create_subnet(self, context, subnet):
-        """Create a subnet.
-
-        Create a subnet which represents a range of IP addresses
-        that can be allocated to devices
-
-        : param context: neutron api request context
-        : param subnet: dictionary describing the subnet, with keys
-            as listed in the RESOURCE_ATTRIBUTE_MAP object in
-            neutron/api/v2/attributes.py.  All keys will be populated.
-        """
-        LOG.info("create_subnet for tenant %s" % context.tenant_id)
-        net_id = subnet["subnet"]["network_id"]
-
-        net = db_api.network_find(context, id=net_id, scope=db_api.ONE)
-        if not net:
-            raise exceptions.NetworkNotFound(net_id=net_id)
-
-        sub_attrs = subnet["subnet"]
-
-        self._validate_subnet_cidr(context, net_id, sub_attrs["cidr"])
-
-        cidr = netaddr.IPNetwork(sub_attrs["cidr"])
-        gateway_ip = utils.pop_param(sub_attrs, "gateway_ip", str(cidr[1]))
-        dns_ips = utils.pop_param(sub_attrs, "dns_nameservers", [])
-        host_routes = utils.pop_param(sub_attrs, "host_routes", [])
-        allocation_pools = utils.pop_param(sub_attrs, "allocation_pools", [])
-
-        new_subnet = db_api.subnet_create(context, **sub_attrs)
-
-        default_route = None
-        for route in host_routes:
-            netaddr_route = netaddr.IPNetwork(route["destination"])
-            if netaddr_route.value == routes.DEFAULT_ROUTE.value:
-                default_route = route
-                gateway_ip = default_route["nexthop"]
-            new_subnet["routes"].append(db_api.route_create(
-                context, cidr=route["destination"], gateway=route["nexthop"]))
-
-        if default_route is None:
-            new_subnet["routes"].append(db_api.route_create(
-                context, cidr=str(routes.DEFAULT_ROUTE), gateway=gateway_ip))
-
-        for dns_ip in dns_ips:
-            new_subnet["dns_nameservers"].append(db_api.dns_create(
-                context, ip=netaddr.IPAddress(dns_ip)))
-
-        if allocation_pools:
-            exclude = netaddr.IPSet([cidr])
-            for p in allocation_pools:
-                x = netaddr.IPSet(netaddr.IPRange(p["start"], p["end"]))
-                exclude = exclude - x
-            new_subnet["ip_policy"] = db_api.ip_policy_create(context,
-                                                              exclude=exclude)
-        # HACK(amir): force backref for ip_policy
-        if not new_subnet["network"]:
-            new_subnet["network"] = net
-        subnet_dict = v._make_subnet_dict(new_subnet,
-                                          default_route=routes.DEFAULT_ROUTE)
-        subnet_dict["gateway_ip"] = gateway_ip
-        return subnet_dict
-
-    def update_subnet(self, context, id, subnet):
-        """Update values of a subnet.
-
-        : param context: neutron api request context
-        : param id: UUID representing the subnet to update.
-        : param subnet: dictionary with keys indicating fields to update.
-            valid keys are those that have a value of True for 'allow_put'
-            as listed in the RESOURCE_ATTRIBUTE_MAP object in
-            neutron/api/v2/attributes.py.
-        """
-        LOG.info("update_subnet %s for tenant %s" %
-                 (id, context.tenant_id))
-
-        subnet_db = db_api.subnet_find(context, id=id, scope=db_api.ONE)
-        if not subnet_db:
-            raise exceptions.SubnetNotFound(id=id)
-
-        s = subnet["subnet"]
-
-        dns_ips = s.pop("dns_nameservers", [])
-        host_routes = s.pop("host_routes", [])
-        gateway_ip = s.pop("gateway_ip", None)
-
-        if gateway_ip:
-            default_route = None
-            for route in host_routes:
-                netaddr_route = netaddr.IPNetwork(route["destination"])
-                if netaddr_route.value == routes.DEFAULT_ROUTE.value:
-                    default_route = route
-                    break
-            if default_route is None:
-                route_model = db_api.route_find(
-                    context, cidr=str(routes.DEFAULT_ROUTE), subnet_id=id,
-                    scope=db_api.ONE)
-                if route_model:
-                    db_api.route_update(context, route_model,
-                                        gateway=gateway_ip)
-                else:
-                    db_api.route_create(context,
-                                        cidr=str(routes.DEFAULT_ROUTE),
-                                        gateway=gateway_ip, subnet_id=id)
-
-        if dns_ips:
-            subnet_db["dns_nameservers"] = []
-        for dns_ip in dns_ips:
-            subnet_db["dns_nameservers"].append(db_api.dns_create(
-                context,
-                ip=netaddr.IPAddress(dns_ip)))
-
-        if host_routes:
-            subnet_db["routes"] = []
-        for route in host_routes:
-            subnet_db["routes"].append(db_api.route_create(
-                context, cidr=route["destination"], gateway=route["nexthop"]))
-
-        subnet = db_api.subnet_update(context, subnet_db, **s)
-        return v._make_subnet_dict(subnet, default_route=routes.DEFAULT_ROUTE)
-
-    def get_subnet(self, context, id, fields=None):
-        """Retrieve a subnet.
-
-        : param context: neutron api request context
-        : param id: UUID representing the subnet to fetch.
-        : param fields: a list of strings that are valid keys in a
-            subnet dictionary as listed in the RESOURCE_ATTRIBUTE_MAP
-            object in neutron/api/v2/attributes.py. Only these fields
-            will be returned.
-        """
-        LOG.info("get_subnet %s for tenant %s with fields %s" %
-                (id, context.tenant_id, fields))
-        subnet = db_api.subnet_find(context, id=id, scope=db_api.ONE)
-        if not subnet:
-            raise exceptions.SubnetNotFound(subnet_id=id)
-
-        # Check the network_id against the strategies
-        net_id = subnet["network_id"]
-        net_id = STRATEGY.get_parent_network(net_id)
-        subnet["network_id"] = net_id
-
-        return v._make_subnet_dict(subnet, default_route=routes.DEFAULT_ROUTE)
-
-    def get_subnets(self, context, filters=None, fields=None):
-        """Retrieve a list of subnets.
-
-        The contents of the list depends on the identity of the user
-        making the request (as indicated by the context) as well as any
-        filters.
-        : param context: neutron api request context
-        : param filters: a dictionary with keys that are valid keys for
-            a subnet as listed in the RESOURCE_ATTRIBUTE_MAP object
-            in neutron/api/v2/attributes.py.  Values in this dictiontary
-            are an iterable containing values that will be used for an exact
-            match comparison for that value.  Each result returned by this
-            function will have matched one of the values for each key in
-            filters.
-        : param fields: a list of strings that are valid keys in a
-            subnet dictionary as listed in the RESOURCE_ATTRIBUTE_MAP
-            object in neutron/api/v2/attributes.py. Only these fields
-            will be returned.
-        """
-        LOG.info("get_subnets for tenant %s with filters %s fields %s" %
-                (context.tenant_id, filters, fields))
-        subnets = db_api.subnet_find(context, **filters)
-        return v._make_subnets_list(subnets, fields=fields,
-                                    default_route=routes.DEFAULT_ROUTE)
-
-    def get_subnets_count(self, context, filters=None):
-        """Return the number of subnets.
-
-        The result depends on the identity of the user making the request
-        (as indicated by the context) as well as any filters.
-        : param context: neutron api request context
-        : param filters: a dictionary with keys that are valid keys for
-            a network as listed in the RESOURCE_ATTRIBUTE_MAP object
-            in neutron/api/v2/attributes.py.  Values in this dictiontary
-            are an iterable containing values that will be used for an exact
-            match comparison for that value.  Each result returned by this
-            function will have matched one of the values for each key in
-            filters.
-
-        NOTE: this method is optional, as it was not part of the originally
-              defined plugin API.
-        """
-        LOG.info("get_subnets_count for tenant %s with filters %s" %
-                (context.tenant_id, filters))
-        return db_api.subnet_count_all(context, **filters)
-
-    def _delete_subnet(self, context, subnet):
-        if subnet.allocated_ips:
-            raise exceptions.SubnetInUse(subnet_id=subnet["id"])
-        db_api.subnet_delete(context, subnet)
-
-    def delete_subnet(self, context, id):
-        """Delete a subnet.
-
-        : param context: neutron api request context
-        : param id: UUID representing the subnet to delete.
-        """
-        LOG.info("delete_subnet %s for tenant %s" % (id, context.tenant_id))
-        subnet = db_api.subnet_find(context, id=id, scope=db_api.ONE)
-        if not subnet:
-            raise exceptions.SubnetNotFound(subnet_id=id)
-        self._delete_subnet(context, subnet)
-
     def _adapt_provider_nets(self, context, network):
         #TODO(mdietz) going to ignore all the boundary and network
         #             type checking for now.
@@ -366,14 +126,14 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
                                        phys_type=pnet_type,
                                        phys_net=phys_net, segment_id=seg_id)
 
-        subnets = net_attrs.pop("subnets", [])
+        subs = net_attrs.pop("subnets", [])
 
         net_attrs["id"] = net_uuid
         net_attrs["tenant_id"] = context.tenant_id
         new_net = db_api.network_create(context, **net_attrs)
 
         new_subnets = []
-        for sub in subnets:
+        for sub in subs:
             sub["subnet"]["network_id"] = new_net["id"]
             sub["subnet"]["tenant_id"] = context.tenant_id
             s = db_api.subnet_create(context, **sub["subnet"])
@@ -483,7 +243,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
             raise exceptions.NetworkInUse(net_id=id)
         self.net_driver.delete_network(context, id)
         for subnet in net["subnets"]:
-            self._delete_subnet(context, subnet)
+            subnets._delete_subnet(context, subnet)
         db_api.network_delete(context, net)
 
     def get_mac_address_range(self, context, id, fields=None):
@@ -594,3 +354,21 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
     def delete_route(self, context, id):
         routes.delete_route(context, id)
+
+    def create_subnet(self, context, subnet):
+        return subnets.create_subnet(context, subnet)
+
+    def update_subnet(self, context, id, subnet):
+        return subnets.update_subnet(context, id, subnet)
+
+    def get_subnet(self, context, id, fields=None):
+        return subnets.get_subnet(context, id, fields)
+
+    def get_subnets(self, context, filters=None, fields=None):
+        return subnets.get_subnets(context, filters, fields)
+
+    def get_subnets_count(self, context, filters=None):
+        return subnets.get_subnets_count(context, filters)
+
+    def delete_subnet(self, context, id):
+        return subnets.delete_subnet(context, id)
