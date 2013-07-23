@@ -24,6 +24,7 @@ from oslo.config import cfg
 
 from quark.db import api as db_api
 from quark import network_strategy
+from quark.plugin_modules import ports
 from quark.plugin_modules import security_groups
 from quark.plugin_modules import subnets
 from quark import plugin_views as v
@@ -202,3 +203,31 @@ def delete_network(context, id):
     for subnet in net["subnets"]:
         subnets._delete_subnet(context, subnet)
     db_api.network_delete(context, net)
+
+
+def _diag_network(context, network, fields):
+    if not network:
+        return False
+    net = v._make_network_dict(network)
+    net['ports'] = [p.get('id') for p in network.get('ports', [])]
+    if 'subnets' in fields:
+        net['subnets'] = [subnets.diagnose_subnet(context, s, fields)
+                          for s in network.get('subnets', [])]
+    if 'ports' in fields:
+        net['ports'] = [ports.diagnose_port(context, s, fields)
+                        for s in net['ports']]
+    if 'config' in fields or 'status' in fields:
+        net.update(net_driver.diag_network(
+            context, net['id'], get_status='status' in fields))
+    return net
+
+
+def diagnose_network(context, id, fields):
+    if id == "*":
+        return {'networks': [_diag_network(context, net, fields) for
+                net in db_api.network_find(context).all()]}
+    db_net = db_api.network_find(context, id=id, scope=db_api.ONE)
+    if not db_net:
+        raise exceptions.NetworkNotFound(net_id=id)
+    net = _diag_network(context, db_net, fields)
+    return {'networks': net}

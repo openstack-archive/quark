@@ -75,7 +75,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
              sg_ext.SecurityGroupPluginBase):
     supported_extension_aliases = ["mac_address_ranges", "routes",
                                    "ip_addresses", "ports_quark",
-                                   "security-group",
+                                   "security-group", "diagnostics",
                                    "subnets_quark", "provider",
                                    "ip_policies", "quotas"]
 
@@ -188,6 +188,9 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
     def disassociate_port(self, context, id, ip_address_id):
         return ports.disassociate_port(context, id, ip_address_id)
 
+    def diagnose_port(self, context, id, fields):
+        return ports.diagnose_port(context, id, fields)
+
     def get_route(self, context, id):
         return routes.get_route(context, id)
 
@@ -218,6 +221,9 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
     def delete_subnet(self, context, id):
         return subnets.delete_subnet(context, id)
 
+    def diagnose_subnet(self, context, id, fields):
+        return subnets.diagnose_subnet(context, id, fields)
+
     def create_network(self, context, network):
         return networks.create_network(context, network)
 
@@ -235,3 +241,6 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
     def delete_network(self, context, id):
         return networks.delete_network(context, id)
+
+    def diagnose_network(self, context, id, fields):
+        return networks.diagnose_network(context, id, fields)
