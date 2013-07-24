@@ -41,6 +41,7 @@ from quark.db import api as db_api
 from quark.db import models
 from quark import exceptions as quark_exceptions
 from quark import network_strategy
+from quark.plugin_modules import ip_addresses
 from quark.plugin_modules import ip_policies
 from quark.plugin_modules import mac_address_ranges
 from quark.plugin_modules import security_groups
@@ -847,102 +848,6 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
             raise quark_exceptions.RouteNotFound(route_id=id)
         db_api.route_delete(context, route)
 
-    def get_ip_addresses(self, context, **filters):
-        LOG.info("get_ip_addresses for tenant %s" % context.tenant_id)
-        filters["_deallocated"] = False
-        addrs = db_api.ip_address_find(context, scope=db_api.ALL, **filters)
-        return [v._make_ip_dict(ip) for ip in addrs]
-
-    def get_ip_address(self, context, id):
-        LOG.info("get_ip_address %s for tenant %s" %
-                (id, context.tenant_id))
-        addr = db_api.ip_address_find(context, id=id, scope=db_api.ONE)
-        if not addr:
-            raise quark_exceptions.IpAddressNotFound(addr_id=id)
-        return v._make_ip_dict(addr)
-
-    def create_ip_address(self, context, ip_address):
-        LOG.info("create_ip_address for tenant %s" % context.tenant_id)
-
-        port = None
-        ip_dict = ip_address["ip_address"]
-        port_ids = ip_dict.get('port_ids')
-        network_id = ip_dict.get('network_id')
-        device_ids = ip_dict.get('device_ids')
-        ip_version = ip_dict.get('version')
-        ip_address = ip_dict.get('ip_address')
-
-        ports = []
-        if device_ids and not network_id:
-            raise exceptions.BadRequest(
-                resource="ip_addresses",
-                msg="network_id is required if device_ids are supplied.")
-        if network_id and device_ids:
-            for device_id in device_ids:
-                port = db_api.port_find(
-                    context, network_id=network_id, device_id=device_id,
-                    tenant_id=context.tenant_id, scope=db_api.ONE)
-                ports.append(port)
-        elif port_ids:
-            for port_id in port_ids:
-                port = db_api.port_find(context, id=port_id,
-                                        tenant_id=context.tenant_id,
-                                        scope=db_api.ONE)
-                ports.append(port)
-
-        if not ports:
-            raise exceptions.PortNotFound(port_id=port_ids,
-                                          net_id=network_id)
-
-        address = self.ipam_driver.allocate_ip_address(
-            context,
-            port['network_id'],
-            port['id'],
-            self.ipam_reuse_after,
-            ip_version,
-            ip_address)
-
-        for port in ports:
-            port["ip_addresses"].append(address)
-
-        return v._make_ip_dict(address)
-
-    def update_ip_address(self, context, id, ip_address):
-        LOG.info("update_ip_address %s for tenant %s" %
-                (id, context.tenant_id))
-
-        address = db_api.ip_address_find(
-            context, id=id, tenant_id=context.tenant_id, scope=db_api.ONE)
-
-        if not address:
-            raise exceptions.NotFound(
-                message="No IP address found with id=%s" % id)
-
-        old_ports = address['ports']
-        port_ids = ip_address['ip_address'].get('port_ids')
-        if port_ids is None:
-            return v._make_ip_dict(address)
-
-        for port in old_ports:
-            port['ip_addresses'].remove(address)
-
-        if port_ids:
-            ports = db_api.port_find(
-                context, tenant_id=context.tenant_id, id=port_ids,
-                scope=db_api.ALL)
-
-            # NOTE: could be considered inefficient because we're converting
-            #       to a list to check length. Maybe revisit
-            if len(ports) != len(port_ids):
-                raise exceptions.NotFound(
-                    message="No ports not found with ids=%s" % port_ids)
-            for port in ports:
-                port['ip_addresses'].extend([address])
-        else:
-            address["deallocated"] = 1
-
-        return v._make_ip_dict(address)
-
     def get_mac_address_range(self, context, id, fields=None):
         return mac_address_ranges.get_mac_address_range(context, id, fields)
 
@@ -1003,3 +908,15 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
     def delete_ip_policy(self, context, id):
         return ip_policies.delete_ip_policy(context, id)
+
+    def get_ip_addresses(self, context, **filters):
+        return ip_addresses.get_ip_addresses(context, **filters)
+
+    def get_ip_address(self, context, id):
+        return ip_addresses.get_ip_address(context, id)
+
+    def create_ip_address(self, context, ip_address):
+        return ip_addresses.create_ip_address(context, ip_address)
+
+    def update_ip_address(self, context, id, ip_address):
+        return ip_addresses.update_ip_address(context, id, ip_address)
