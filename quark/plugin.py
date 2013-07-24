@@ -22,7 +22,7 @@ from oslo.config import cfg
 from sqlalchemy.orm import sessionmaker, scoped_session
 from zope import sqlalchemy as zsa
 
-from neutron.api.v2 import attributes
+#FIXME(mdietz): remove once all resources have moved into submods
 from neutron.common import config as neutron_cfg
 from neutron.common import exceptions
 from neutron.db import api as neutron_db_api
@@ -32,7 +32,6 @@ from neutron.openstack.common.db.sqlalchemy import session as neutron_session
 from neutron.openstack.common import importutils
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import uuidutils
-from neutron import quota
 
 from neutron import neutron_plugin_base_v2
 
@@ -44,20 +43,15 @@ from quark import network_strategy
 from quark.plugin_modules import ip_addresses
 from quark.plugin_modules import ip_policies
 from quark.plugin_modules import mac_address_ranges
+from quark.plugin_modules import ports
 from quark.plugin_modules import security_groups
 from quark import plugin_views as v
+from quark import utils
 
 LOG = logging.getLogger("neutron.quark")
 CONF = cfg.CONF
 DEFAULT_ROUTE = netaddr.IPNetwork("0.0.0.0/0")
 STRATEGY = network_strategy.STRATEGY
-
-
-def _pop_param(attrs, param, default=None):
-    val = attrs.pop(param, default)
-    if val is attributes.ATTR_NOT_SPECIFIED:
-        return default
-    return val
 
 
 def append_quark_extensions(conf):
@@ -94,19 +88,6 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
         self.ipam_driver = (importutils.import_class(CONF.QUARK.ipam_driver))()
         self.ipam_reuse_after = CONF.QUARK.ipam_reuse_after
         neutron_db_api.register_models(base=models.BASEV2)
-
-    def _make_security_group_list(self, context, group_ids):
-        if not group_ids or group_ids is attributes.ATTR_NOT_SPECIFIED:
-            return ([], [])
-        group_ids = list(set(group_ids))
-        groups = []
-        for gid in group_ids:
-            group = db_api.security_group_find(context, id=gid,
-                                               scope=db_api.ONE)
-            if not group:
-                raise sg_ext.SecurityGroupNotFound(id=gid)
-            groups.append(group)
-        return (group_ids, groups)
 
     def _validate_subnet_cidr(self, context, network_id, new_subnet_cidr):
         """Validate the CIDR for a subnet.
@@ -163,10 +144,10 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
         self._validate_subnet_cidr(context, net_id, sub_attrs["cidr"])
 
         cidr = netaddr.IPNetwork(sub_attrs["cidr"])
-        gateway_ip = _pop_param(sub_attrs, "gateway_ip", str(cidr[1]))
-        dns_ips = _pop_param(sub_attrs, "dns_nameservers", [])
-        routes = _pop_param(sub_attrs, "host_routes", [])
-        allocation_pools = _pop_param(sub_attrs, "allocation_pools", [])
+        gateway_ip = utils.pop_param(sub_attrs, "gateway_ip", str(cidr[1]))
+        dns_ips = utils.pop_param(sub_attrs, "dns_nameservers", [])
+        routes = utils.pop_param(sub_attrs, "host_routes", [])
+        allocation_pools = utils.pop_param(sub_attrs, "allocation_pools", [])
 
         new_subnet = db_api.subnet_create(context, **sub_attrs)
 
@@ -349,9 +330,9 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
         #TODO(mdietz) going to ignore all the boundary and network
         #             type checking for now.
         attrs = network["network"]
-        net_type = _pop_param(attrs, pnet.NETWORK_TYPE)
-        phys_net = _pop_param(attrs, pnet.PHYSICAL_NETWORK)
-        seg_id = _pop_param(attrs, pnet.SEGMENTATION_ID)
+        net_type = utils.pop_param(attrs, pnet.NETWORK_TYPE)
+        phys_net = utils.pop_param(attrs, pnet.PHYSICAL_NETWORK)
+        seg_id = utils.pop_param(attrs, pnet.SEGMENTATION_ID)
         return net_type, phys_net, seg_id
 
     def create_network(self, context, network):
@@ -505,304 +486,6 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
             self._delete_subnet(context, subnet)
         db_api.network_delete(context, net)
 
-    def create_port(self, context, port):
-        """Create a port
-
-        Create a port which is a connection point of a device (e.g., a VM
-        NIC) to attach to a L2 Neutron network.
-        : param context: neutron api request context
-        : param port: dictionary describing the port, with keys
-            as listed in the RESOURCE_ATTRIBUTE_MAP object in
-            neutron/api/v2/attributes.py.  All keys will be populated.
-        """
-        LOG.info("create_port for tenant %s" % context.tenant_id)
-
-        port_attrs = port["port"]
-        mac_address = _pop_param(port_attrs, "mac_address", None)
-        segment_id = _pop_param(port_attrs, "segment_id")
-        fixed_ips = _pop_param(port_attrs, "fixed_ips")
-        net_id = port_attrs["network_id"]
-        addresses = []
-
-        port_id = uuidutils.generate_uuid()
-
-        net = db_api.network_find(context, id=net_id, shared=True,
-                                  segment_id=segment_id, scope=db_api.ONE)
-        if not net:
-            # Maybe it's a tenant network
-            net = db_api.network_find(context, id=net_id, scope=db_api.ONE)
-            if not net:
-                raise exceptions.NetworkNotFound(net_id=net_id)
-
-        quota.QUOTAS.limit_check(
-            context, context.tenant_id,
-            ports_per_network=len(net.get('ports', [])) + 1)
-
-        if fixed_ips:
-            for fixed_ip in fixed_ips:
-                subnet_id = fixed_ip.get("subnet_id")
-                ip_address = fixed_ip.get("ip_address")
-                if not (subnet_id and ip_address):
-                    raise exceptions.BadRequest(
-                        resource="fixed_ips",
-                        msg="subnet_id and ip_address required")
-                addresses.append(self.ipam_driver.allocate_ip_address(
-                    context, net["id"], port_id, self.ipam_reuse_after,
-                    ip_address=ip_address))
-        else:
-            addresses.append(self.ipam_driver.allocate_ip_address(
-                context, net["id"], port_id, self.ipam_reuse_after))
-
-        group_ids, security_groups = self._make_security_group_list(
-            context, port["port"].pop("security_groups", None))
-        mac = self.ipam_driver.allocate_mac_address(context,
-                                                    net["id"],
-                                                    port_id,
-                                                    self.ipam_reuse_after,
-                                                    mac_address=mac_address)
-        mac_address_string = str(netaddr.EUI(mac['address'],
-                                             dialect=netaddr.mac_unix))
-        address_pairs = [{'mac_address': mac_address_string,
-                          'ip_address': address.get('address_readable', '')}
-                         for address in addresses]
-        backend_port = self.net_driver.create_port(context, net["id"],
-                                                   port_id=port_id,
-                                                   security_groups=group_ids,
-                                                   allowed_pairs=address_pairs)
-
-        port_attrs["network_id"] = net["id"]
-        port_attrs["id"] = port_id
-        port_attrs["security_groups"] = security_groups
-        new_port = db_api.port_create(
-            context, addresses=addresses, mac_address=mac["address"],
-            backend_key=backend_port["uuid"], **port_attrs)
-        return v._make_port_dict(new_port)
-
-    def update_port(self, context, id, port):
-        """Update values of a port.
-
-        : param context: neutron api request context
-        : param id: UUID representing the port to update.
-        : param port: dictionary with keys indicating fields to update.
-            valid keys are those that have a value of True for 'allow_put'
-            as listed in the RESOURCE_ATTRIBUTE_MAP object in
-            neutron/api/v2/attributes.py.
-        """
-        LOG.info("update_port %s for tenant %s" % (id, context.tenant_id))
-        port_db = db_api.port_find(context, id=id, scope=db_api.ONE)
-        if not port_db:
-            raise exceptions.PortNotFound(port_id=id)
-
-        address_pairs = []
-        fixed_ips = port["port"].pop("fixed_ips", None)
-        if fixed_ips:
-            self.ipam_driver.deallocate_ip_address(
-                context, port_db, ipam_reuse_after=self.ipam_reuse_after)
-            addresses = []
-            for fixed_ip in fixed_ips:
-                subnet_id = fixed_ip.get("subnet_id")
-                ip_address = fixed_ip.get("ip_address")
-                if not (subnet_id and ip_address):
-                    raise exceptions.BadRequest(
-                        resource="fixed_ips",
-                        msg="subnet_id and ip_address required")
-                # Note: we don't allow overlapping subnets, thus subnet_id is
-                #       ignored.
-                addresses.append(self.ipam_driver.allocate_ip_address(
-                    context, port_db["network_id"], id,
-                    self.ipam_reuse_after, ip_address=ip_address))
-            port["port"]["addresses"] = addresses
-            mac_address_string = str(netaddr.EUI(port_db.mac_address,
-                                                 dialect=netaddr.mac_unix))
-            address_pairs = [{'mac_address': mac_address_string,
-                              'ip_address':
-                              address.get('address_readable', '')}
-                             for address in addresses]
-
-        group_ids, security_groups = self._make_security_group_list(
-            context, port["port"].pop("security_groups", None))
-        self.net_driver.update_port(context,
-                                    port_id=port_db.backend_key,
-                                    security_groups=group_ids,
-                                    allowed_pairs=address_pairs)
-
-        port["port"]["security_groups"] = security_groups
-        port = db_api.port_update(context,
-                                  port_db,
-                                  **port["port"])
-        return v._make_port_dict(port)
-
-    def post_update_port(self, context, id, port):
-        LOG.info("post_update_port %s for tenant %s" % (id, context.tenant_id))
-        if not port.get("port"):
-            raise exceptions.BadRequest(resource="ports",
-                                        msg="Port body required")
-
-        port_db = db_api.port_find(context, id=id, scope=db_api.ONE)
-        if not port_db:
-            raise exceptions.PortNotFound(port_id=id, net_id="")
-
-        port = port["port"]
-        if "fixed_ips" in port and port["fixed_ips"]:
-            for ip in port["fixed_ips"]:
-                address = None
-                if ip:
-                    if "ip_id" in ip:
-                        ip_id = ip["ip_id"]
-                        address = db_api.ip_address_find(
-                            context,
-                            id=ip_id,
-                            tenant_id=context.tenant_id,
-                            scope=db_api.ONE)
-                    elif "ip_address" in ip:
-                        ip_address = ip["ip_address"]
-                        net_address = netaddr.IPAddress(ip_address)
-                        address = db_api.ip_address_find(
-                            context,
-                            ip_address=net_address,
-                            network_id=port_db["network_id"],
-                            tenant_id=context.tenant_id,
-                            scope=db_api.ONE)
-                        if not address:
-                            address = self.ipam_driver.allocate_ip_address(
-                                context,
-                                port_db["network_id"],
-                                id,
-                                self.ipam_reuse_after,
-                                ip_address=ip_address)
-                else:
-                    address = self.ipam_driver.allocate_ip_address(
-                        context,
-                        port_db["network_id"],
-                        id,
-                        self.ipam_reuse_after)
-
-            address["deallocated"] = 0
-
-            already_contained = False
-            for port_address in port_db["ip_addresses"]:
-                if address["id"] == port_address["id"]:
-                    already_contained = True
-                    break
-
-            if not already_contained:
-                port_db["ip_addresses"].append(address)
-        return v._make_port_dict(port_db)
-
-    def get_port(self, context, id, fields=None):
-        """Retrieve a port.
-
-        : param context: neutron api request context
-        : param id: UUID representing the port to fetch.
-        : param fields: a list of strings that are valid keys in a
-            port dictionary as listed in the RESOURCE_ATTRIBUTE_MAP
-            object in neutron/api/v2/attributes.py. Only these fields
-            will be returned.
-        """
-        LOG.info("get_port %s for tenant %s fields %s" %
-                (id, context.tenant_id, fields))
-        results = db_api.port_find(context, id=id, fields=fields,
-                                   scope=db_api.ONE)
-
-        if not results:
-            raise exceptions.PortNotFound(port_id=id, net_id='')
-
-        return v._make_port_dict(results)
-
-    def get_ports(self, context, filters=None, fields=None):
-        """Retrieve a list of ports.
-
-        The contents of the list depends on the identity of the user
-        making the request (as indicated by the context) as well as any
-        filters.
-        : param context: neutron api request context
-        : param filters: a dictionary with keys that are valid keys for
-            a port as listed in the RESOURCE_ATTRIBUTE_MAP object
-            in neutron/api/v2/attributes.py.  Values in this dictiontary
-            are an iterable containing values that will be used for an exact
-            match comparison for that value.  Each result returned by this
-            function will have matched one of the values for each key in
-            filters.
-        : param fields: a list of strings that are valid keys in a
-            port dictionary as listed in the RESOURCE_ATTRIBUTE_MAP
-            object in neutron/api/v2/attributes.py. Only these fields
-            will be returned.
-        """
-        LOG.info("get_ports for tenant %s filters %s fields %s" %
-                (context.tenant_id, filters, fields))
-        if filters is None:
-            filters = {}
-        query = db_api.port_find(context, fields=fields, **filters)
-        return v._make_ports_list(query, fields)
-
-    def get_ports_count(self, context, filters=None):
-        """Return the number of ports.
-
-        The result depends on the identity of the user making the request
-        (as indicated by the context) as well as any filters.
-        : param context: neutron api request context
-        : param filters: a dictionary with keys that are valid keys for
-            a network as listed in the RESOURCE_ATTRIBUTE_MAP object
-            in neutron/api/v2/attributes.py.  Values in this dictiontary
-            are an iterable containing values that will be used for an exact
-            match comparison for that value.  Each result returned by this
-            function will have matched one of the values for each key in
-            filters.
-
-        NOTE: this method is optional, as it was not part of the originally
-              defined plugin API.
-        """
-        LOG.info("get_ports_count for tenant %s filters %s" %
-                (context.tenant_id, filters))
-        return db_api.port_count_all(context, **filters)
-
-    def delete_port(self, context, id):
-        """Delete a port.
-
-        : param context: neutron api request context
-        : param id: UUID representing the port to delete.
-        """
-        LOG.info("delete_port %s for tenant %s" %
-                (id, context.tenant_id))
-
-        port = db_api.port_find(context, id=id, scope=db_api.ONE)
-        if not port:
-            raise exceptions.PortNotFound(net_id=id)
-
-        backend_key = port["backend_key"]
-        mac_address = netaddr.EUI(port["mac_address"]).value
-        self.ipam_driver.deallocate_mac_address(context,
-                                                mac_address)
-        self.ipam_driver.deallocate_ip_address(
-            context, port, ipam_reuse_after=self.ipam_reuse_after)
-        db_api.port_delete(context, port)
-        self.net_driver.delete_port(context, backend_key)
-
-    def disassociate_port(self, context, id, ip_address_id):
-        """Disassociates a port from an IP address.
-
-        : param context: neutron api request context
-        : param id: UUID representing the port to disassociate.
-        : param ip_address_id: UUID representing the IP address to
-        disassociate.
-        """
-        LOG.info("disassociate_port %s for tenant %s ip_address_id %s" %
-                (id, context.tenant_id, ip_address_id))
-        port = db_api.port_find(context, id=id, ip_address_id=[ip_address_id],
-                                scope=db_api.ONE)
-
-        if not port:
-            raise exceptions.PortNotFound(port_id=id, net_id='')
-
-        the_address = [address for address in port["ip_addresses"]
-                       if address["id"] == ip_address_id][0]
-        port["ip_addresses"] = [address for address in port["ip_addresses"]
-                                if address.id != ip_address_id]
-
-        if len(the_address["ports"]) == 0:
-            the_address["deallocated"] = 1
-        return v._make_port_dict(port)
-
     def get_route(self, context, id):
         LOG.info("get_route %s for tenant %s" % (id, context.tenant_id))
         route = db_api.route_find(context, id=id, scope=db_api.ONE)
@@ -920,3 +603,27 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
     def update_ip_address(self, context, id, ip_address):
         return ip_addresses.update_ip_address(context, id, ip_address)
+
+    def create_port(self, context, port):
+        return ports.create_port(context, port)
+
+    def post_update_port(self, context, id, port):
+        return ports.post_update_port(context, id, port)
+
+    def get_port(self, context, id, fields=None):
+        return ports.get_port(context, id, fields)
+
+    def update_port(self, context, id, port):
+        return ports.update_port(context, id, port)
+
+    def get_ports(self, context, filters=None, fields=None):
+        return ports.get_ports(context, filters, fields)
+
+    def get_ports_count(self, context, filters=None):
+        return ports.get_ports_count(context, filters)
+
+    def delete_port(self, context, id):
+        return ports.delete_port(context, id)
+
+    def disassociate_port(self, context, id, ip_address_id):
+        return ports.disassociate_port(context, id, ip_address_id)

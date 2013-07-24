@@ -19,8 +19,13 @@ View Helpers for Quark Plugin
 
 import netaddr
 
+from neutron.extensions import securitygroup as sg_ext
+
+from quark.db import api as db_api
 from quark.ipam import QuarkIpam
 from quark import network_strategy
+from quark import utils
+
 STRATEGY = network_strategy.STRATEGY
 
 
@@ -201,3 +206,17 @@ def _make_ip_policy_dict(ipp):
             "subnet_id": ipp["subnet_id"],
             "network_id": ipp["network_id"],
             "exclude": excludes}
+
+
+def make_security_group_list(context, group_ids):
+    if not group_ids or not utils.attr_specified(group_ids):
+        return ([], [])
+    group_ids = list(set(group_ids))
+    groups = []
+    for gid in group_ids:
+        group = db_api.security_group_find(context, id=gid,
+                                           scope=db_api.ONE)
+        if not group:
+            raise sg_ext.SecurityGroupNotFound(id=gid)
+        groups.append(group)
+    return (group_ids, groups)
