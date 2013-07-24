@@ -13,9 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from neutron import quota
+# Import neutron to ensure gettext is installed for "_" support
+import neutron  # noqa
 from oslo.config import cfg
-
 
 CONF = cfg.CONF
 
@@ -36,23 +36,5 @@ quark_opts = [
                help=_("Path to the config for the net driver"))
 ]
 
-quark_quota_opts = [
-    cfg.IntOpt('quota_ports_per_network',
-               default=64,
-               help=_('Maximum ports per network per tenant')),
-    cfg.IntOpt('quota_security_rules_per_group',
-               default=20,
-               help=_('Maximum security group rules in a group')),
-]
-
-quark_resources = [
-    quota.BaseResource('ports_per_network',
-                       'quota_ports_per_network'),
-    quota.BaseResource('security_rules_per_group',
-                       'quota_security_rules_per_group'),
-]
 
 CONF.register_opts(quark_opts, "QUARK")
-CONF.register_opts(quark_quota_opts, "QUOTAS")
-
-quota.QUOTAS.register_resources(quark_resources)

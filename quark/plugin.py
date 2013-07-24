@@ -23,9 +23,9 @@ from zope import sqlalchemy as zsa
 
 from neutron.db import api as neutron_db_api
 from neutron.extensions import securitygroup as sg_ext
-from neutron.openstack.common.db.sqlalchemy import session as neutron_session
-
 from neutron import neutron_plugin_base_v2
+from neutron.openstack.common.db.sqlalchemy import session as neutron_session
+from neutron import quota
 
 from quark.api import extensions
 from quark.db import models
@@ -40,6 +40,22 @@ from quark.plugin_modules import subnets
 
 CONF = cfg.CONF
 
+quark_resources = [
+    quota.BaseResource('ports_per_network',
+                       'quota_ports_per_network'),
+    quota.BaseResource('security_rules_per_group',
+                       'quota_security_rules_per_group'),
+]
+
+quark_quota_opts = [
+    cfg.IntOpt('quota_ports_per_network',
+               default=64,
+               help=_('Maximum ports per network per tenant')),
+    cfg.IntOpt('quota_security_rules_per_group',
+               default=20,
+               help=_('Maximum security group rules in a group')),
+]
+
 
 def append_quark_extensions(conf):
     """Adds the Quark API Extensions to the extension path.
@@ -50,6 +66,9 @@ def append_quark_extensions(conf):
         conf.set_override('api_extensions_path', ":".join(extensions.__path__))
 
 append_quark_extensions(CONF)
+
+CONF.register_opts(quark_quota_opts, "QUOTAS")
+quota.QUOTAS.register_resources(quark_resources)
 
 
 class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
