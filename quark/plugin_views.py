@@ -31,16 +31,16 @@ STRATEGY = network_strategy.STRATEGY
 
 def _make_network_dict(network, fields=None):
     shared_net = STRATEGY.is_parent_network(network["id"])
-    res = {'id': network["id"],
-           'name': network.get('name'),
-           'tenant_id': network.get('tenant_id'),
-           'admin_state_up': None,
-           'status': network.get('status'),
-           'shared': shared_net,
+    res = {"id": network["id"],
+           "name": network.get("name"),
+           "tenant_id": network.get("tenant_id"),
+           "admin_state_up": None,
+           "status": "ACTIVE",
+           "shared": shared_net,
            #TODO(mdietz): this is the expected return. Then the client
            #              foolishly turns around and asks for the entire
            #              subnet list anyway! Plz2fix
-           'subnets': [s["id"] for s in network.get("subnets", [])]}
+           "subnets": [s["id"] for s in network.get("subnets", [])]}
     return res
 
 
@@ -74,14 +74,14 @@ def _make_subnet_dict(subnet, default_route=None, fields=None):
         pools.append(dict(start=str(pool_start), end=str(prev_cidr_end)))
         return pools
 
-    res = {"id": subnet.get('id'),
-           "name": subnet.get('name'),
-           "tenant_id": subnet.get('tenant_id'),
+    res = {"id": subnet.get("id"),
+           "name": subnet.get("name"),
+           "tenant_id": subnet.get("tenant_id"),
            "network_id": net_id,
-           "ip_version": subnet.get('ip_version'),
+           "ip_version": subnet.get("ip_version"),
            "allocation_pools": _allocation_pools(subnet),
            "dns_nameservers": dns_nameservers or [],
-           "cidr": subnet.get('cidr'),
+           "cidr": subnet.get("cidr"),
            "enable_dhcp": None}
 
     def _host_route(route):
@@ -106,7 +106,7 @@ def _make_security_group_dict(security_group, fields=None):
            "name": security_group.get("name"),
            "tenant_id": security_group.get("tenant_id")}
     res["security_group_rules"] = [
-        r.id for r in security_group['rules']]
+        r.id for r in security_group["rules"]]
     return res
 
 
@@ -131,8 +131,8 @@ def _port_dict(port, fields=None):
            "tenant_id": port.get("tenant_id"),
            "mac_address": port.get("mac_address"),
            "admin_state_up": port.get("admin_state_up"),
-           "status": port.get("status"),
-           "security_groups": [group.get('id', None) for group in
+           "status": "ACTIVE",
+           "security_groups": [group.get("id", None) for group in
                                port.get("security_groups", None)],
            "device_id": port.get("device_id"),
            "device_owner": port.get("device_owner")}
@@ -143,8 +143,8 @@ def _port_dict(port, fields=None):
 
 
 def _make_port_address_dict(ip):
-    return {'subnet_id': ip.get("subnet_id"),
-            'ip_address': ip.formatted()}
+    return {"subnet_id": ip.get("subnet_id"),
+            "ip_address": ip.formatted()}
 
 
 def _make_port_dict(port, fields=None):

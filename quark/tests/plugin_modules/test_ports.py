@@ -71,7 +71,7 @@ class TestQuarkGetPorts(test_quark_plugin.TestQuarkPlugin):
                   subnet_id=1, network_id=2, version=4)
         port = dict(mac_address="aa:bb:cc:dd:ee:ff", network_id=1,
                     tenant_id=self.context.tenant_id, device_id=2)
-        expected = {'status': None,
+        expected = {'status': "ACTIVE",
                     'device_owner': None,
                     'mac_address': 'aa:bb:cc:dd:ee:ff',
                     'network_id': 1,
@@ -94,7 +94,7 @@ class TestQuarkGetPorts(test_quark_plugin.TestQuarkPlugin):
                   subnet_id=1, network_id=2, version=4)
         port = dict(mac_address="AA:BB:CC:DD:EE:FF", network_id=1,
                     tenant_id=self.context.tenant_id, device_id=2)
-        expected = {'status': None,
+        expected = {'status': "ACTIVE",
                     'device_owner': None,
                     'mac_address': 'AA:BB:CC:DD:EE:FF',
                     'network_id': 1,
@@ -113,7 +113,7 @@ class TestQuarkGetPorts(test_quark_plugin.TestQuarkPlugin):
     def test_port_show_with_int_mac(self):
         port = dict(mac_address=187723572702975L, network_id=1,
                     tenant_id=self.context.tenant_id, device_id=2)
-        expected = {'status': None,
+        expected = {'status': "ACTIVE",
                     'device_owner': None,
                     'mac_address': 'aa:bb:cc:dd:ee:ff',
                     'network_id': 1,
@@ -161,7 +161,7 @@ class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
         port = dict(port=dict(mac_address=mac["address"], network_id=1,
                               tenant_id=self.context.tenant_id, device_id=2,
                               name=port_name))
-        expected = {'status': None,
+        expected = {'status': "ACTIVE",
                     'name': port_name,
                     'device_owner': None,
                     'mac_address': mac["address"],
@@ -183,7 +183,7 @@ class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
         ip = dict()
         port = dict(port=dict(mac_address=mac["address"], network_id=1,
                               tenant_id=self.context.tenant_id, device_id=2))
-        expected = {'status': None,
+        expected = {'status': "ACTIVE",
                     'device_owner': None,
                     'mac_address': mac["address"],
                     'network_id': network["id"],
@@ -209,7 +209,7 @@ class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
         port = dict(port=dict(mac_address=mac["address"], network_id=1,
                               tenant_id=self.context.tenant_id, device_id=2,
                               fixed_ips=fixed_ips, ip_addresses=[ip]))
-        expected = {'status': None,
+        expected = {'status': "ACTIVE",
                     'device_owner': None,
                     'mac_address': mac["address"],
                     'network_id': network["id"],
@@ -269,7 +269,7 @@ class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
         port = dict(port=dict(mac_address=mac["address"], network_id=1,
                               tenant_id=self.context.tenant_id, device_id=2,
                               name=port_name, security_groups=[group]))
-        expected = {'status': None,
+        expected = {'status': "ACTIVE",
                     'name': port_name,
                     'device_owner': None,
                     'mac_address': mac["address"],
