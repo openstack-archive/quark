@@ -54,7 +54,7 @@ class TestQuarkGetNetworks(test_quark_plugin.TestQuarkPlugin):
     def test_get_networks(self):
         subnet = dict(id=1)
         net = dict(id=1, tenant_id=self.context.tenant_id, name="public",
-                   status="active")
+                   status="ACTIVE")
         with self._stubs(nets=[net], subnets=[subnet]):
             nets = self.plugin.get_networks(self.context, {})
             for key in net.keys():
@@ -64,11 +64,11 @@ class TestQuarkGetNetworks(test_quark_plugin.TestQuarkPlugin):
     def test_get_network(self):
         subnet = dict(id=1)
         net = dict(id=1, tenant_id=self.context.tenant_id, name="public",
-                   status="active")
+                   status="ACTIVE")
         expected = net.copy()
         expected["admin_state_up"] = None
         expected["shared"] = False
-        expected["status"] = "active"
+        expected["status"] = "ACTIVE"
         with self._stubs(nets=net, subnets=[subnet]):
             res = self.plugin.get_network(self.context, 1)
             for key in expected.keys():
@@ -209,7 +209,7 @@ class TestQuarkCreateNetwork(test_quark_plugin.TestQuarkPlugin):
             self.assertIsNotNone(net["id"])
             self.assertEqual(net["name"], "public")
             self.assertIsNone(net["admin_state_up"])
-            self.assertIsNone(net["status"])
+            self.assertEqual(net["status"], "ACTIVE")
             self.assertEqual(net["subnets"], [])
             self.assertEqual(net["shared"], False)
             self.assertEqual(net["tenant_id"], 0)
