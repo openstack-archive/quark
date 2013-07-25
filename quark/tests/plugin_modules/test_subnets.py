@@ -179,22 +179,31 @@ class TestQuarkCreateSubnetAllocationPools(test_quark_plugin.TestQuarkPlugin):
         with contextlib.nested(
             mock.patch("quark.db.api.network_find"),
             mock.patch("quark.db.api.subnet_find"),
-            mock.patch("quark.db.api.subnet_create")
+            mock.patch("quark.db.api.subnet_create"),
         ) as (net_find, subnet_find, subnet_create):
             net_find.return_value = s["network"]
             subnet_find.return_value = []
             subnet_create.return_value = s
             yield subnet_create
 
+    def setUp(self):
+        super(TestQuarkCreateSubnetAllocationPools, self).setUp()
+        models.IPPolicy.DEFAULT_POLICY = models.IPPolicy(
+            exclude=[models.IPPolicyRange(offset=-1, length=3)])
+
+    def tearDown(self):
+        super(TestQuarkCreateSubnetAllocationPools, self).tearDown()
+        models.IPPolicy.DEFAULT_POLICY = {}
+
     def test_create_subnet_allocation_pools_zero(self):
         s = dict(subnet=dict(
             cidr="192.168.1.1/24",
             network_id=1))
-        with self._stubs(s["subnet"]) as subnet_create:
+        with self._stubs(s["subnet"]) as (subnet_create):
             resp = self.plugin.create_subnet(self.context, s)
             self.assertEqual(subnet_create.call_count, 1)
             self.assertEqual(resp["allocation_pools"],
-                             [dict(start="192.168.1.0", end="192.168.1.255")])
+                             [dict(start="192.168.1.2", end="192.168.1.254")])
 
     def test_create_subnet_allocation_pools_one(self):
         pools = [dict(start="192.168.1.10", end="192.168.1.20")]
@@ -202,7 +211,7 @@ class TestQuarkCreateSubnetAllocationPools(test_quark_plugin.TestQuarkPlugin):
             allocation_pools=pools,
             cidr="192.168.1.1/24",
             network_id=1))
-        with self._stubs(s["subnet"]) as subnet_create:
+        with self._stubs(s["subnet"]) as (subnet_create):
             resp = self.plugin.create_subnet(self.context, s)
             self.assertEqual(subnet_create.call_count, 1)
             self.assertEqual(resp["allocation_pools"], pools)
@@ -214,7 +223,18 @@ class TestQuarkCreateSubnetAllocationPools(test_quark_plugin.TestQuarkPlugin):
             allocation_pools=pools,
             cidr="192.168.1.1/24",
             network_id=1))
-        with self._stubs(s["subnet"]) as subnet_create:
+        with self._stubs(s["subnet"]) as (subnet_create):
+            resp = self.plugin.create_subnet(self.context, s)
+            self.assertEqual(subnet_create.call_count, 1)
+            self.assertEqual(resp["allocation_pools"], pools)
+
+    def test_create_subnet_allocation_pools_empty_list(self):
+        pools = []
+        s = dict(subnet=dict(
+            allocation_pools=pools,
+            cidr="192.168.1.1/24",
+            network_id=1))
+        with self._stubs(s["subnet"]) as (subnet_create):
             resp = self.plugin.create_subnet(self.context, s)
             self.assertEqual(subnet_create.call_count, 1)
             self.assertEqual(resp["allocation_pools"], pools)

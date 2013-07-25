@@ -37,36 +37,42 @@ class TestQuarkGetIpPolicies(test_quark_plugin.TestQuarkPlugin):
                 self.plugin.get_ip_policy(self.context, 1)
 
     def test_get_ip_policy(self):
-        address = int(netaddr.IPAddress("1.1.1.1"))
         ip_policy = dict(
             id=1,
-            subnet_id=1,
-            network_id=2,
-            exclude=[dict(address=address, prefix=24)])
+            tenant_id=1,
+            name="foo",
+            subnets=[dict(id=1)],
+            networks=[dict(id=2)],
+            exclude=[dict(offset=1, length=256)])
         with self._stubs(ip_policy):
             resp = self.plugin.get_ip_policy(self.context, 1)
-            self.assertEqual(len(resp.keys()), 4)
+            self.assertEqual(len(resp.keys()), 6)
             self.assertEqual(resp["id"], 1)
-            self.assertEqual(resp["subnet_id"], 1)
-            self.assertEqual(resp["network_id"], 2)
-            self.assertEqual(resp["exclude"], ["1.1.1.1/24"])
+            self.assertEqual(resp["name"], "foo")
+            self.assertEqual(resp["subnet_ids"], [1])
+            self.assertEqual(resp["network_ids"], [2])
+            self.assertEqual(resp["exclude"], ip_policy["exclude"])
+            self.assertEqual(resp["tenant_id"], 1)
 
     def test_get_ip_policies(self):
-        address = int(netaddr.IPAddress("1.1.1.1"))
         ip_policy = dict(
             id=1,
-            subnet_id=1,
-            network_id=2,
-            exclude=[dict(address=address, prefix=24)])
+            tenant_id=1,
+            name="foo",
+            subnets=[dict(id=1)],
+            networks=[dict(id=2)],
+            exclude=[dict(offset=1, length=256)])
         with self._stubs([ip_policy]):
             resp = self.plugin.get_ip_policies(self.context)
             self.assertEqual(len(resp), 1)
             resp = resp[0]
-            self.assertEqual(len(resp.keys()), 4)
+            self.assertEqual(len(resp.keys()), 6)
             self.assertEqual(resp["id"], 1)
-            self.assertEqual(resp["subnet_id"], 1)
-            self.assertEqual(resp["network_id"], 2)
-            self.assertEqual(resp["exclude"], ["1.1.1.1/24"])
+            self.assertEqual(resp["subnet_ids"], [1])
+            self.assertEqual(resp["network_ids"], [2])
+            self.assertEqual(resp["exclude"], ip_policy["exclude"])
+            self.assertEqual(resp["name"], "foo")
+            self.assertEqual(resp["tenant_id"], 1)
 
 
 class TestQuarkCreateIpPolicies(test_quark_plugin.TestQuarkPlugin):
@@ -78,8 +84,8 @@ class TestQuarkCreateIpPolicies(test_quark_plugin.TestQuarkPlugin):
             mock.patch("%s.network_find" % db_mod),
             mock.patch("%s.ip_policy_create" % db_mod),
         ) as (subnet_find, net_find, ip_policy_create):
-            subnet_find.return_value = subnet
-            net_find.return_value = net
+            subnet_find.return_value = [subnet] if subnet else None
+            net_find.return_value = [net] if net else None
             ip_policy_create.return_value = ip_policy
             yield ip_policy_create
 
@@ -99,28 +105,28 @@ class TestQuarkCreateIpPolicies(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(None):
             with self.assertRaises(exceptions.SubnetNotFound):
                 self.plugin.create_ip_policy(self.context, dict(
-                    ip_policy=dict(subnet_id=1,
+                    ip_policy=dict(subnet_ids=[1],
                                    exclude=["1.1.1.1/24"])))
 
     def test_create_ip_policy_invalid_network(self):
         with self._stubs(None):
             with self.assertRaises(exceptions.NetworkNotFound):
                 self.plugin.create_ip_policy(self.context, dict(
-                    ip_policy=dict(network_id=1,
+                    ip_policy=dict(network_ids=[1],
                                    exclude=["1.1.1.1/24"])))
 
     def test_create_ip_policy_network_ip_policy_already_exists(self):
         with self._stubs(None, net=dict(id=1, ip_policy=dict(id=2))):
             with self.assertRaises(quark_exceptions.IPPolicyAlreadyExists):
                 self.plugin.create_ip_policy(self.context, dict(
-                    ip_policy=dict(network_id=1,
+                    ip_policy=dict(network_ids=[1],
                                    exclude=["1.1.1.1/24"])))
 
     def test_create_ip_policy_subnet_ip_policy_already_exists(self):
         with self._stubs(None, subnet=dict(id=1, ip_policy=dict(id=2))):
             with self.assertRaises(quark_exceptions.IPPolicyAlreadyExists):
                 self.plugin.create_ip_policy(self.context, dict(
-                    ip_policy=dict(subnet_id=1,
+                    ip_policy=dict(subnet_ids=[1],
                                    exclude=["1.1.1.1/24"])))
 
     def test_create_ip_policy_network(self):
@@ -130,12 +136,12 @@ class TestQuarkCreateIpPolicies(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(ipp, net=dict(id=1, ip_policy=dict(id=2))):
             with self.assertRaises(quark_exceptions.IPPolicyAlreadyExists):
                 resp = self.plugin.create_ip_policy(self.context, dict(
-                    ip_policy=dict(network_id=1,
+                    ip_policy=dict(network_ids=[1],
                                    exclude=["1.1.1.1/24"])))
                 self.assertEqual(len(resp.keys()), 3)
-                self.assertIsNone(resp["subnet_id"])
-                self.assertEqual(resp["network_id"], 1)
-                self.assertEqual(resp["exclude"], ["1.1.1.1/24"])
+                self.assertIsNone(resp["subnet_ids"])
+                self.assertEqual(resp["network_ids"], 1)
+                self.assertEqual(resp["exclude"], [dict()])
 
     def test_create_ip_policy_subnet(self):
         ipp = dict(subnet_id=1, network_id=None,
@@ -144,7 +150,7 @@ class TestQuarkCreateIpPolicies(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(ipp, subnet=dict(id=1, ip_policy=dict(id=2))):
             with self.assertRaises(quark_exceptions.IPPolicyAlreadyExists):
                 resp = self.plugin.create_ip_policy(self.context, dict(
-                    ip_policy=dict(subnet_id=1,
+                    ip_policy=dict(subnet_ids=[1],
                                    exclude=["1.1.1.1/24"])))
                 self.assertEqual(len(resp.keys()), 3)
                 self.assertEqual(resp["subnet_id"], 1)
@@ -152,17 +158,109 @@ class TestQuarkCreateIpPolicies(test_quark_plugin.TestQuarkPlugin):
                 self.assertEqual(resp["exclude"], ["1.1.1.1/24"])
 
     def test_create_ip_policy(self):
-        ipp = dict(subnet_id=1, network_id=None, id=1,
-                   exclude=[dict(address=int(netaddr.IPAddress("1.1.1.1")),
-                                 prefix=24)])
+        ipp = dict(
+            subnets=[dict(id=1)],
+            networks=[],
+            id=1,
+            tenant_id=1,
+            exclude=[dict(offset=0, length=256)],
+            name="foo")
         with self._stubs(ipp, subnet=dict(id=1, ip_policy=None)):
             resp = self.plugin.create_ip_policy(self.context, dict(
-                ip_policy=dict(subnet_id=1,
-                               exclude=["1.1.1.1/24"])))
-            self.assertEqual(len(resp.keys()), 4)
-            self.assertEqual(resp["subnet_id"], 1)
-            self.assertIsNone(resp["network_id"])
-            self.assertEqual(resp["exclude"], ["1.1.1.1/24"])
+                ip_policy=dict(subnet_ids=[1],
+                               exclude=[dict(offset=0, length=256)])))
+            self.assertEqual(len(resp.keys()), 6)
+            self.assertEqual(resp["subnet_ids"], [1])
+            self.assertEqual(resp["network_ids"], [])
+            self.assertEqual(resp["exclude"],
+                             [dict(offset=0, length=256)])
+            self.assertEqual(resp["name"], "foo")
+            self.assertEqual(resp["tenant_id"], 1)
+
+
+class TestQuarkUpdateIpPolicies(test_quark_plugin.TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, ip_policy, subnets=None, networks=None):
+        if not subnets:
+            subnets = []
+        if not networks:
+            networks = []
+        db_mod = "quark.db.api"
+        with contextlib.nested(
+            mock.patch("%s.ip_policy_find" % db_mod),
+            mock.patch("%s.subnet_find" % db_mod),
+            mock.patch("%s.network_find" % db_mod),
+            mock.patch("%s.ip_policy_update" % db_mod),
+        ) as (ip_policy_find, subnet_find, network_find, ip_policy_update):
+            ip_policy_find.return_value = ip_policy
+            subnet_find.return_value = subnets
+            network_find.return_value = networks
+            yield ip_policy_update
+
+    def test_update_ip_policy_not_found(self):
+        with self._stubs(None) as (ip_policy_update):
+            with self.assertRaises(quark_exceptions.IPPolicyNotFound):
+                self.plugin.update_ip_policy(self.context, 1,
+                                             dict(ip_policy=None))
+                self.assertEqual(ip_policy_update.called, 0)
+
+    def test_update_ip_policy_subnets_not_found(self):
+        ipp = dict(id=1, subnets=[])
+        with self._stubs(ipp) as (ip_policy_update):
+            with self.assertRaises(exceptions.SubnetNotFound):
+                self.plugin.update_ip_policy(
+                    self.context,
+                    1,
+                    dict(ip_policy=dict(subnet_ids=[100])))
+                self.assertEqual(ip_policy_update.called, 0)
+
+    def test_update_ip_policy_subnets_already_exists(self):
+        ipp = dict(id=1, subnets=[dict()])
+        with self._stubs(
+            ipp, subnets=[dict(id=1, ip_policy=dict(id=1))]
+        ) as (ip_policy_update):
+            with self.assertRaises(quark_exceptions.IPPolicyAlreadyExists):
+                self.plugin.update_ip_policy(
+                    self.context,
+                    1,
+                    dict(ip_policy=dict(subnet_ids=[100])))
+                self.assertEqual(ip_policy_update.called, 0)
+
+    def test_update_ip_policy_subnets(self):
+        ipp = dict(id=1, subnets=[dict()],
+                   exclude=[dict(offset=0, length=256)],
+                   name="foo", tenant_id=1)
+        with self._stubs(
+            ipp, subnets=[dict(id=1, ip_policy=None)]
+        ) as (ip_policy_update):
+            self.plugin.update_ip_policy(
+                self.context,
+                1,
+                dict(ip_policy=dict(subnet_ids=[100])))
+            self.assertEqual(ip_policy_update.called, 1)
+
+    def test_update_ip_policy_networks_not_found(self):
+        ipp = dict(id=1, networks=[])
+        with self._stubs(ipp) as (ip_policy_update):
+            with self.assertRaises(exceptions.NetworkNotFound):
+                self.plugin.update_ip_policy(
+                    self.context,
+                    1,
+                    dict(ip_policy=dict(network_ids=[100])))
+                self.assertEqual(ip_policy_update.called, 0)
+
+    def test_update_ip_policy_networks(self):
+        ipp = dict(id=1, networks=[dict()],
+                   exclude=[dict(offset=0, length=256)],
+                   name="foo", tenant_id=1)
+        with self._stubs(
+            ipp, networks=[dict(id=1, ip_policy=None)]
+        ) as (ip_policy_update):
+            self.plugin.update_ip_policy(
+                self.context,
+                1,
+                dict(ip_policy=dict(network_ids=[100])))
+            self.assertEqual(ip_policy_update.called, 1)
 
 
 class TestQuarkDeleteIpPolicies(test_quark_plugin.TestQuarkPlugin):
@@ -181,13 +279,16 @@ class TestQuarkDeleteIpPolicies(test_quark_plugin.TestQuarkPlugin):
             with self.assertRaises(quark_exceptions.IPPolicyNotFound):
                 self.plugin.delete_ip_policy(self.context, 1)
 
+    def test_delete_ip_policy_in_use(self):
+        with self._stubs(dict(networks=True)):
+            with self.assertRaises(quark_exceptions.IPPolicyInUse):
+                self.plugin.delete_ip_policy(self.context, 1)
+
     def test_delete_ip_policy(self):
-        address = int(netaddr.IPAddress("1.1.1.1"))
         ip_policy = dict(
             id=1,
-            subnet_id=1,
-            network_id=2,
-            exclude=[dict(address=address, prefix=24)])
+            networks=[],
+            subnets=[])
         with self._stubs(ip_policy) as (ip_policy_find, ip_policy_delete):
             self.plugin.delete_ip_policy(self.context, 1)
             self.assertEqual(ip_policy_find.call_count, 1)

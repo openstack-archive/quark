@@ -149,6 +149,9 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
     def get_ip_policies(self, context, **filters):
         return ip_policies.get_ip_policies(context, **filters)
 
+    def update_ip_policy(self, context, id, ip_policy):
+        return ip_policies.update_ip_policy(context, id, ip_policy)
+
     def delete_ip_policy(self, context, id):
         return ip_policies.delete_ip_policy(context, id)
 

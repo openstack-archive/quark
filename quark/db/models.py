@@ -27,11 +27,22 @@ from neutron.db import models_v2 as models
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import timeutils
 
+from oslo.config import cfg
+
 from quark.db import custom_types
+
+import json
 
 HasId = models.HasId
 
 LOG = logging.getLogger("neutron.quark.db.models")
+CONF = cfg.CONF
+
+quark_opts = [
+    cfg.StrOpt('default_ip_policy', default='{}',
+               help=_("Default IP allocation policy"))
+]
+CONF.register_opts(quark_opts, "QUARK")
 
 
 def _default_list_getset(collection_class, proxy):
@@ -225,7 +236,8 @@ class Subnet(BASEV2, models.HasId, models.HasTenant, IsHazTags):
         primaryjoin="DNSNameserver.subnet_id==Subnet.id",
         backref='subnet',
         cascade='delete')
-    ip_policy = orm.relationship("IPPolicy", uselist=False, backref="subnet")
+    ip_policy_id = sa.Column(sa.String(36),
+                             sa.ForeignKey("quark_ip_policy.id"))
 
 
 port_ip_association_table = sa.Table(
@@ -331,25 +343,68 @@ class MacAddressRange(BASEV2, models.HasId):
                                       backref="mac_address_range")
 
 
-class IPPolicy(BASEV2, models.HasId):
+class IPPolicy(BASEV2, models.HasId, models.HasTenant):
     __tablename__ = "quark_ip_policy"
-    subnet_id = sa.Column(sa.String(36), sa.ForeignKey("quark_subnets.id",
-                                                       ondelete="CASCADE"))
-    network_id = sa.Column(sa.String(36), sa.ForeignKey("quark_networks.id",
-                                                        ondelete="CASCADE"))
+    networks = orm.relationship(
+        "Network",
+        primaryjoin="IPPolicy.id==Network.ip_policy_id",
+        backref="ip_policy")
+    subnets = orm.relationship(
+        "Subnet",
+        primaryjoin="IPPolicy.id==Subnet.ip_policy_id",
+        backref="ip_policy")
+    exclude = orm.relationship(
+        "IPPolicyRange",
+        primaryjoin="IPPolicy.id==IPPolicyRange.ip_policy_id",
+        backref="ip_policy")
+    name = sa.Column(sa.String(255), nullable=True)
 
-    join = "IPPolicy.id==IPPolicyRule.ip_policy_id"
-    exclude = orm.relationship("IPPolicyRule",
-                               primaryjoin=join,
-                               backref="ip_policy")
+    class JSONIPPolicy(object):
+        def __init__(self, policy=None):
+            self.policy = {}
+            if not policy:
+                self._compile_policy(CONF.QUARK.default_ip_policy)
+            else:
+                self._compile_policy(policy)
+
+        def _compile_policy(self, policy):
+            self.policy = json.loads(policy)
+
+        def __getattr__(self, name):
+            return getattr(self.policy, name)
+
+    DEFAULT_POLICY = JSONIPPolicy()
+
+    @staticmethod
+    def get_ip_policy_rule_set(subnet):
+        ip_policy = subnet["ip_policy"] or \
+            subnet["network"]["ip_policy"] or \
+            dict()
+        ip_policy_ranges = ip_policy.get("exclude", []) + \
+            IPPolicy.DEFAULT_POLICY.get("exclude", [])
+
+        ip_policy_rules = netaddr.IPSet()
+        subnet_net = netaddr.IPNetwork(subnet["cidr"])
+        for arange in ip_policy_ranges:
+            end_index = arange["offset"] + arange["length"]
+            end_index_wraps_around = (arange["offset"] < 0 and end_index >= 0)
+            if end_index_wraps_around:
+                second_index = min(end_index, len(subnet_net))
+                end_index = None
+                ip_policy_rules |= netaddr.IPSet(subnet_net[:second_index])
+            ip_policy_rules |= netaddr.IPSet(
+                subnet_net[arange["offset"]:end_index])
+
+        return ip_policy_rules
 
 
-class IPPolicyRule(BASEV2, models.HasId):
+class IPPolicyRange(BASEV2, models.HasId):
     __tablename__ = "quark_ip_policy_rules"
     ip_policy_id = sa.Column(sa.String(36), sa.ForeignKey(
         "quark_ip_policy.id", ondelete="CASCADE"))
-    address = sa.Column(custom_types.INET())
-    prefix = sa.Column(sa.Integer())
+
+    offset = sa.Column(sa.Integer())
+    length = sa.Column(sa.Integer())
 
 
 class Network(BASEV2, models.HasTenant, models.HasId):
@@ -357,4 +412,5 @@ class Network(BASEV2, models.HasTenant, models.HasId):
     name = sa.Column(sa.String(255))
     ports = orm.relationship(Port, backref='network')
     subnets = orm.relationship(Subnet, backref='network')
-    ip_policy = orm.relationship(IPPolicy, uselist=False, backref="network")
+    ip_policy_id = sa.Column(sa.String(36),
+                             sa.ForeignKey("quark_ip_policy.id"))

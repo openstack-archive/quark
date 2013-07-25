@@ -94,7 +94,7 @@ def create_subnet(context, subnet):
     gateway_ip = utils.pop_param(sub_attrs, "gateway_ip", str(cidr[1]))
     dns_ips = utils.pop_param(sub_attrs, "dns_nameservers", [])
     host_routes = utils.pop_param(sub_attrs, "host_routes", [])
-    allocation_pools = utils.pop_param(sub_attrs, "allocation_pools", [])
+    allocation_pools = utils.pop_param(sub_attrs, "allocation_pools", None)
     sub_attrs["network"] = net
 
     new_subnet = db_api.subnet_create(context, **sub_attrs)
@@ -116,13 +116,20 @@ def create_subnet(context, subnet):
         new_subnet["dns_nameservers"].append(db_api.dns_create(
             context, ip=netaddr.IPAddress(dns_ip)))
 
-    if allocation_pools:
-        exclude = netaddr.IPSet([cidr])
+    if isinstance(allocation_pools, list):
+        ranges = []
+        cidrset = netaddr.IPSet([netaddr.IPNetwork(new_subnet["cidr"])])
         for p in allocation_pools:
-            x = netaddr.IPSet(netaddr.IPRange(p["start"], p["end"]))
-            exclude = exclude - x
+            cidrset -= netaddr.IPSet(netaddr.IPRange(p["start"], p["end"]))
+        non_allocation_pools = v._pools_from_cidr(cidrset)
+        for p in non_allocation_pools:
+            r = netaddr.IPRange(p["start"], p["end"])
+            ranges.append(dict(
+                length=len(r),
+                offset=int(r[0]) - int(cidr[0])))
         new_subnet["ip_policy"] = db_api.ip_policy_create(context,
-                                                          exclude=exclude)
+                                                          exclude=ranges)
+
     subnet_dict = v._make_subnet_dict(new_subnet,
                                       default_route=routes.DEFAULT_ROUTE)
     subnet_dict["gateway_ip"] = gateway_ip

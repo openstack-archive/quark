@@ -65,5 +65,9 @@ class IPPolicyAlreadyExists(exceptions.NeutronException):
     message = _("IP Policy %(id)s already exists for %(n_id)s")
 
 
+class IPPolicyInUse(exceptions.InUse):
+    message = _("IP allocation policy %(id) in use.")
+
+
 class DriverLimitReached(exceptions.InvalidInput):
     message = _("Driver has reached limit on resource '%(limit)s'")
