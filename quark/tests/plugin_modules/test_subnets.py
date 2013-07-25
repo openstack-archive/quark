@@ -225,11 +225,22 @@ class TestQuarkCreateSubnetAllocationPools(test_quark_plugin.TestQuarkPlugin):
 # * workaround is also in place for lame ATTR_NOT_SPECIFIED object()
 class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
-    def _stubs(self, subnet=None, network=None, routes=None, dns=None):
+    def _stubs(self, subnet=None, network=None, routes=None, dns=None,
+               no_net_on_subnet_create=False):
+
+        if network:
+            net = models.Network()
+            net.update(network)
+            network = net
         subnet_mod = models.Subnet(network=models.Network())
         dns_ips = subnet.pop("dns_nameservers", [])
         host_routes = subnet.pop("host_routes", [])
         subnet_mod.update(subnet)
+
+        #FIXME(anyone): coverage support for subnet->network backref hack
+        if no_net_on_subnet_create:
+            no_net_sub = models.Subnet()
+            no_net_sub.update(subnet)
         subnet["dns_nameservers"] = dns_ips
         subnet["host_routes"] = host_routes
         routes = routes or []
@@ -243,7 +254,10 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
             mock.patch("quark.db.api.dns_create"),
             mock.patch("quark.db.api.route_create"),
         ) as (subnet_create, net_find, dns_create, route_create):
-            subnet_create.return_value = subnet_mod
+            if no_net_on_subnet_create:
+                subnet_create.return_value = no_net_sub
+            else:
+                subnet_create.return_value = subnet_mod
             net_find.return_value = network
             route_create.side_effect = route_models
             dns_create.side_effect = dns_models
@@ -363,7 +377,8 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(
             subnet=subnet["subnet"],
             network=network,
-            routes=routes
+            routes=routes,
+            no_net_on_subnet_create=True
         ) as (subnet_create, dns_create, route_create):
             dns_nameservers = subnet["subnet"].pop("dns_nameservers")
             subnet_request = copy.deepcopy(subnet)

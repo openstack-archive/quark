@@ -57,6 +57,10 @@ class BaseDriver(object):
         LOG.info("Deleting security profile %s for tenant %s" %
                 (group_id, context.tenant_id))
 
+    def update_security_group(self, context, group_id, **kwargs):
+        LOG.info("Updating security profile %s for tenant %s" %
+                (group_id, context.tenant_id))
+
     def create_security_group_rule(self, context, group_id, rule):
         LOG.info("Creating security rule on group %s for tenant %s" %
                 (group_id, context.tenant_id))

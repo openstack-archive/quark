@@ -214,7 +214,7 @@ def get_security_group_rules(context, filters=None, fields=None,
                              page_reverse=False):
     LOG.info("get_security_group_rules for tenant %s" %
             (context.tenant_id))
-    rules = db_api.security_group_rule_find(context, filters=filters)
+    rules = db_api.security_group_rule_find(context, **filters)
     return [v._make_security_group_rule_dict(rule) for rule in rules]
 
 
