@@ -95,6 +95,7 @@ def create_subnet(context, subnet):
     dns_ips = utils.pop_param(sub_attrs, "dns_nameservers", [])
     host_routes = utils.pop_param(sub_attrs, "host_routes", [])
     allocation_pools = utils.pop_param(sub_attrs, "allocation_pools", [])
+    sub_attrs["network"] = net
 
     new_subnet = db_api.subnet_create(context, **sub_attrs)
 
@@ -122,9 +123,6 @@ def create_subnet(context, subnet):
             exclude = exclude - x
         new_subnet["ip_policy"] = db_api.ip_policy_create(context,
                                                           exclude=exclude)
-    # HACK(amir): force backref for ip_policy
-    if not new_subnet["network"]:
-        new_subnet["network"] = net
     subnet_dict = v._make_subnet_dict(new_subnet,
                                       default_route=routes.DEFAULT_ROUTE)
     subnet_dict["gateway_ip"] = gateway_ip
