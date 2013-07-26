@@ -24,6 +24,128 @@ from quark.db import models
 from quark.tests import test_quark_plugin
 
 
+class TestQuarkGetSecurityGroups(test_quark_plugin.TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, security_groups):
+        def _make_rules(rules):
+            rule_mods = []
+            for rule in rules:
+                r = models.SecurityGroupRule()
+                r.update(dict(id=rule))
+                rule_mods.append(r)
+            return rule_mods
+
+        if isinstance(security_groups, list):
+            for sg in security_groups:
+                sg["rules"] = _make_rules(sg["rules"])
+        elif security_groups:
+            security_groups["rules"] = _make_rules(security_groups["rules"])
+
+        with mock.patch("quark.db.api.security_group_find") as db_find:
+            db_find.return_value = security_groups
+            yield
+
+    def test_get_security_groups_list(self):
+        group = {"name": "foo", "description": "bar",
+                 "tenant_id": self.context.tenant_id, "rules": [1]}
+        with self._stubs([group]):
+            result = self.plugin.get_security_groups(self.context, {})
+            group = result[0]
+            self.assertEqual("fake", group["tenant_id"])
+            self.assertEqual("foo", group["name"])
+            self.assertEqual("bar", group["description"])
+            rule = group["security_group_rules"][0]
+            self.assertEqual(1, rule)
+
+    def test_get_security_group(self):
+        group = {"name": "foo", "description": "bar",
+                 "tenant_id": self.context.tenant_id, "rules": [1]}
+        with self._stubs(group):
+            result = self.plugin.get_security_group(self.context, 1)
+            self.assertEqual("fake", result["tenant_id"])
+            self.assertEqual("foo", result["name"])
+            self.assertEqual("bar", result["description"])
+            rule = result["security_group_rules"][0]
+            self.assertEqual(1, rule)
+
+    def test_get_security_group_group_not_found_fails(self):
+        with self._stubs(security_groups=None):
+            with self.assertRaises(sg_ext.SecurityGroupNotFound):
+                self.plugin.get_security_group(self.context, 1)
+
+
+class TestQuarkGetSecurityGroupRules(test_quark_plugin.TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, security_rules):
+        if isinstance(security_rules, list):
+            rules = []
+            for rule in security_rules:
+                r = models.SecurityGroupRule()
+                r.update(rule)
+                rules.append(r)
+        elif security_rules is not None:
+            rules = models.SecurityGroupRule()
+            rules.update(security_rules)
+        with mock.patch("quark.db.api.security_group_rule_find") as db_find:
+            db_find.return_value = security_rules
+            yield
+
+    def test_get_security_group_rules(self):
+        rule = {"id": 1, "remote_group_id": 2, "direction": "ingress",
+                "port_range_min": 80, "port_range_max": 100,
+                "remote_ip_prefix": None, "ethertype": "IPv4",
+                "tenant_id": "foo", "protocol": "udp", "group_id": 1}
+        expected = rule.copy()
+        expected["security_group_id"] = expected.pop("group_id")
+
+        with self._stubs([rule]):
+            resp = self.plugin.get_security_group_rules(self.context, {})
+            for key in expected.keys():
+                self.assertTrue(key in resp[0])
+                self.assertEqual(resp[0][key], expected[key])
+
+    def test_get_security_group_rule(self):
+        rule = {"id": 1, "remote_group_id": 2, "direction": "ingress",
+                "port_range_min": 80, "port_range_max": 100,
+                "remote_ip_prefix": None, "ethertype": "IPv4",
+                "tenant_id": "foo", "protocol": "udp", "group_id": 1}
+        expected = rule.copy()
+        expected["security_group_id"] = expected.pop("group_id")
+
+        with self._stubs(rule):
+            resp = self.plugin.get_security_group_rule(self.context, 1)
+            for key in expected.keys():
+                self.assertTrue(key in resp)
+                self.assertEqual(resp[key], expected[key])
+
+    def test_get_security_group_rule_not_found(self):
+        with self._stubs(None):
+            with self.assertRaises(sg_ext.SecurityGroupRuleNotFound):
+                self.plugin.get_security_group_rule(self.context, 1)
+
+
+class TestQuarkUpdateSecurityGroup(test_quark_plugin.TestQuarkPlugin):
+    def test_update_security_group(self):
+        rule = models.SecurityGroupRule()
+        rule.update(dict(id=1))
+        group = {"name": "foo", "description": "bar",
+                 "tenant_id": self.context.tenant_id, "rules": [rule]}
+        updated_group = group.copy()
+        updated_group["name"] = "bar"
+
+        with contextlib.nested(
+                mock.patch("quark.db.api.security_group_find"),
+                mock.patch("quark.db.api.security_group_update"),
+                mock.patch(
+                    "quark.drivers.base.BaseDriver.update_security_group")
+        ) as (db_find, db_update, update_sg):
+            db_find.return_value = group
+            db_update.return_value = updated_group
+            update = dict(security_group=dict(name="bar"))
+            resp = self.plugin.update_security_group(self.context, 1, update)
+            self.assertEqual(resp["name"], updated_group["name"])
+
+
 class TestQuarkCreateSecurityGroup(test_quark_plugin.TestQuarkPlugin):
     def setUp(self, *args, **kwargs):
         super(TestQuarkCreateSecurityGroup, self).setUp(*args, **kwargs)

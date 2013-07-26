@@ -69,7 +69,7 @@ class TestQuarkCreateRoutes(test_quark_plugin.TestQuarkPlugin):
         subnet = dict(id=2)
         create_route = dict(id=1, cidr="172.16.0.0/24", gateway="172.16.0.1",
                             subnet_id=subnet["id"])
-        route = dict(id=1, cidr="192.168.0.0/24", gateway="192.168.0.1",
+        route = dict(id=1, cidr="0.0.0.0/0", gateway="192.168.0.1",
                      subnet_id=subnet["id"])
         with self._stubs(create_route=create_route, find_routes=[route],
                          subnet=subnet):

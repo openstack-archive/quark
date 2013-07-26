@@ -352,13 +352,19 @@ class TestQuarkUpdatePort(test_quark_plugin.TestQuarkPlugin):
 
 class TestQuarkPostUpdatePort(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
-    def _stubs(self, port, addr, addr2=None):
+    def _stubs(self, port, addr, addr2=None, port_ips=None):
         port_model = None
         addr_model = None
         addr_model2 = None
         if port:
             port_model = models.Port()
             port_model.update(port)
+            if port_ips:
+                port_model["ip_addresses"] = []
+                for ip in port_ips:
+                    ip_mod = models.IPAddress()
+                    ip_mod.update(ip)
+                    port_model["ip_addresses"].append(ip_mod)
         if addr:
             addr_model = models.IPAddress()
             addr_model.update(addr)
@@ -451,6 +457,24 @@ class TestQuarkPostUpdatePort(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(ip_find.call_count, 1)
             self.assertEqual(response["fixed_ips"][0]["ip_address"],
                              "192.168.1.101")
+
+    def test_post_update_port_already_has_ip(self):
+        new_port_ip = dict(port=dict(fixed_ips=[dict()]))
+        port = dict(port=dict(network_id=1, tenant_id=self.context.tenant_id,
+                              device_id=2))
+        ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
+                  subnet_id=1, network_id=2, version=4, deallocated=True)
+        port_ips = [ip]
+        with self._stubs(port=port, addr=ip, port_ips=port_ips) as (port_find,
+                                                                    alloc_ip,
+                                                                    ip_find):
+            response = self.plugin.post_update_port(self.context, 1,
+                                                    new_port_ip)
+            self.assertEqual(port_find.call_count, 1)
+            self.assertEqual(alloc_ip.call_count, 1)
+            self.assertEqual(ip_find.call_count, 0)
+            self.assertEqual(response["fixed_ips"][0]["ip_address"],
+                             "192.168.1.100")
 
 
 class TestQuarkGetPortCount(test_quark_plugin.TestQuarkPlugin):

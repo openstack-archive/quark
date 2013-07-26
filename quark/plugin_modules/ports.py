@@ -175,19 +175,15 @@ def post_update_port(context, id, port):
                 if "ip_id" in ip:
                     ip_id = ip["ip_id"]
                     address = db_api.ip_address_find(
-                        context,
-                        id=ip_id,
-                        tenant_id=context.tenant_id,
+                        context, id=ip_id, tenant_id=context.tenant_id,
                         scope=db_api.ONE)
                 elif "ip_address" in ip:
                     ip_address = ip["ip_address"]
                     net_address = netaddr.IPAddress(ip_address)
                     address = db_api.ip_address_find(
-                        context,
-                        ip_address=net_address,
+                        context, ip_address=net_address,
                         network_id=port_db["network_id"],
-                        tenant_id=context.tenant_id,
-                        scope=db_api.ONE)
+                        tenant_id=context.tenant_id, scope=db_api.ONE)
                     if not address:
                         address = ipam_driver.allocate_ip_address(
                             context, port_db["network_id"], id,

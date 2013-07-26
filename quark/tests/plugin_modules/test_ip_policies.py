@@ -151,6 +151,19 @@ class TestQuarkCreateIpPolicies(test_quark_plugin.TestQuarkPlugin):
                 self.assertIsNone(resp["network_id"])
                 self.assertEqual(resp["exclude"], ["1.1.1.1/24"])
 
+    def test_create_ip_policy(self):
+        ipp = dict(subnet_id=1, network_id=None, id=1,
+                   exclude=[dict(address=int(netaddr.IPAddress("1.1.1.1")),
+                                 prefix=24)])
+        with self._stubs(ipp, subnet=dict(id=1, ip_policy=None)):
+            resp = self.plugin.create_ip_policy(self.context, dict(
+                ip_policy=dict(subnet_id=1,
+                               exclude=["1.1.1.1/24"])))
+            self.assertEqual(len(resp.keys()), 4)
+            self.assertEqual(resp["subnet_id"], 1)
+            self.assertIsNone(resp["network_id"])
+            self.assertEqual(resp["exclude"], ["1.1.1.1/24"])
+
 
 class TestQuarkDeleteIpPolicies(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager

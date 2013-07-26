@@ -13,8 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Import neutron to ensure gettext is installed for "_" support
-import neutron  # noqa
+from neutron.openstack.common.gettextutils import _
 from oslo.config import cfg
 
 CONF = cfg.CONF
