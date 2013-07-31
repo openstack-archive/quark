@@ -31,7 +31,7 @@ DEFAULT_SG_UUID = "00000000-0000-0000-0000-000000000000"
 
 
 net_driver = (importutils.import_class(CONF.QUARK.net_driver))()
-net_driver.load_config(CONF.QUARK.net_driver_cfg)
+net_driver.load_config()
 
 
 def _validate_security_group_rule(context, rule):

@@ -36,7 +36,7 @@ STRATEGY = network_strategy.STRATEGY
 
 ipam_driver = (importutils.import_class(CONF.QUARK.ipam_driver))()
 net_driver = (importutils.import_class(CONF.QUARK.net_driver))()
-net_driver.load_config(CONF.QUARK.net_driver_cfg)
+net_driver.load_config()
 
 
 def _adapt_provider_nets(context, network):

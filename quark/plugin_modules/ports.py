@@ -31,7 +31,7 @@ LOG = logging.getLogger("neutron.quark")
 
 ipam_driver = (importutils.import_class(CONF.QUARK.ipam_driver))()
 net_driver = (importutils.import_class(CONF.QUARK.net_driver))()
-net_driver.load_config(CONF.QUARK.net_driver_cfg)
+net_driver.load_config()
 
 
 def create_port(context, port):

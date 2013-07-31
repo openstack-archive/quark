@@ -532,14 +532,11 @@ class TestSwitchCopying(TestNVPDriver):
 
 class TestNVPDriverDeletePort(TestNVPDriver):
     @contextlib.contextmanager
-    def _stubs(self, single_switch=True):
+    def _stubs(self, switch_count=1):
         with contextlib.nested(
             mock.patch("%s.get_connection" % self.d_pkg),
         ) as (get_connection,):
-            if not single_switch:
-                connection = self._create_connection(switch_count=2)
-            else:
-                connection = self._create_connection(switch_count=1)
+            connection = self._create_connection(switch_count=switch_count)
             get_connection.return_value = connection
             yield connection
 
@@ -556,7 +553,12 @@ class TestNVPDriverDeletePort(TestNVPDriver):
             self.assertTrue(connection.lswitch_port().delete.called)
 
     def test_delete_port_many_switches(self):
-        with self._stubs(single_switch=False):
+        with self._stubs(switch_count=2):
+            with self.assertRaises(Exception):
+                self.driver.delete_port(self.context, self.port_id)
+
+    def test_delete_port_no_switch_bad_data(self):
+        with self._stubs(switch_count=0):
             with self.assertRaises(Exception):
                 self.driver.delete_port(self.context, self.port_id)
 
@@ -729,6 +731,29 @@ class TestNVPDriverCreateSecurityGroupRule(TestNVPDriver):
                 mock.call.update(),
             ], any_order=True)
 
+    def test_security_rule_create_with_ip_prefix_and_profile(self):
+        with self._stubs() as connection:
+            self.driver.create_security_group_rule(
+                self.context, 1,
+                {'ethertype': 'IPv4', 'direction': 'ingress',
+                 'remote_ip_prefix': "pre", "remote_group_id": "group",
+                 "protocol": "udp"})
+            connection.securityprofile.assert_any_calls(self.profile_id)
+            connection.securityprofile().assert_has_calls([
+                mock.call.port_ingress_rules([{'ethertype': 'IPv4',
+                                               "ip_prefix": "pre",
+                                               "profile_uuid": "group",
+                                               "protocol": "udp"}]),
+                mock.call.update(),
+            ], any_order=True)
+
+    def test_security_rule_create_invalid_direction(self):
+        with self._stubs():
+            with self.assertRaises(AttributeError):
+                self.driver.create_security_group_rule(
+                    self.context, 1,
+                    {'ethertype': 'IPv4', 'direction': 'instantregret'})
+
     def test_security_rule_create_duplicate(self):
         with self._stubs() as connection:
             connection.securityprofile().read().update({
@@ -797,3 +822,52 @@ class TestNVPDriverDeleteSecurityGroupRule(TestNVPDriver):
                 self.driver.delete_security_group_rule(
                     self.context, 1,
                     {'ethertype': 'IPv6', 'direction': 'egress'})
+
+
+class TestNVPDriverLoadConfig(TestNVPDriver):
+    def test_load_config(self):
+        controllers = "192.168.221.139:443:admin:admin:30:10:2:2"
+        cfg.CONF.set_override("controller_connection", [controllers], "NVP")
+        self.driver.load_config()
+        conn = self.driver.nvp_connections[0]
+        self.assertEqual(conn["username"], "admin")
+        self.assertEqual(conn["retries"], "2")
+        self.assertEqual(conn["redirects"], "2")
+        self.assertEqual(conn["http_timeout"], "10")
+        self.assertEqual(conn["req_timeout"], "30")
+        self.assertEqual(conn["default_tz"], None)
+        self.assertEqual(conn["password"], "admin")
+        self.assertEqual(conn["ip_address"], "192.168.221.139")
+        self.assertEqual(conn["port"], "443")
+        cfg.CONF.clear_override("controller_connection", "NVP")
+
+    def test_load_config_no_connections(self):
+        self.driver.load_config()
+        self.assertEqual(len(self.driver.nvp_connections), 0)
+
+
+class TestNVPGetConnection(TestNVPDriver):
+    @contextlib.contextmanager
+    def _stubs(self, has_conn):
+        controllers = "192.168.221.139:443:admin:admin:30:10:2:2"
+        cfg.CONF.set_override("controller_connection", [controllers], "NVP")
+        if has_conn:
+            self.driver.nvp_connections.append(dict(connection="foo"))
+        else:
+            self.driver.nvp_connections.append(dict(port="443",
+                                                    ip_address="192.168.0.1",
+                                                    username="admin",
+                                                    password="admin"))
+        with mock.patch("aiclib.nvp.Connection") as (aiclib_conn):
+            yield aiclib_conn
+        cfg.CONF.clear_override("controller_connection", "NVP")
+
+    def test_get_connection(self):
+        with self._stubs(has_conn=False) as aiclib_conn:
+            self.driver.get_connection()
+            self.assertTrue(aiclib_conn.called)
+
+    def test_get_connection_connection_defined(self):
+        with self._stubs(has_conn=True) as aiclib_conn:
+            self.driver.get_connection()
+            self.assertFalse(aiclib_conn.called)
