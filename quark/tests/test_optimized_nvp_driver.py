@@ -16,6 +16,7 @@
 import contextlib
 import mock
 
+import quark.db.models
 import quark.drivers.optimized_nvp_driver
 import quark.tests.test_nvp_driver as test_nvp_driver
 
@@ -304,3 +305,140 @@ class TestDeleteSecurityGroups(TestOptimizedNVPDriver):
             self.driver.delete_security_group(self.context, 1)
             self.assertTrue(self.context.session.delete.called)
             self.context.session.delete = session_delete
+
+
+class TestSecurityGroupRules(TestOptimizedNVPDriver):
+    @contextlib.contextmanager
+    def _stubs(self, rules=None):
+        rules = rules or []
+        with contextlib.nested(
+                mock.patch("%s.get_connection" % self.d_pkg),
+                mock.patch("%s._query_security_group" % self.d_pkg),
+                mock.patch("%s._check_rule_count_per_port" % self.d_pkg),
+        ) as (get_connection, query_sec_group, rule_count):
+            query_sec_group.return_value = (quark.drivers.optimized_nvp_driver.
+                                            SecurityProfile())
+            connection = self._create_connection()
+            rule_count.return_value = 1
+            connection.securityprofile = self._create_security_profile()
+            connection.securityrule = self._create_security_rule()
+            connection.lswitch_port().query.return_value = \
+                self._create_lport_query(1, [self.profile_id])
+            get_connection.return_value = connection
+
+            old_query = self.context.session.query
+            sec_group = quark.db.models.SecurityGroup()
+            for rule in rules:
+                rule_mod = quark.db.models.SecurityGroupRule()
+                rule_mod.update(rule)
+                sec_group.rules.append(rule_mod)
+            first_mock = mock.Mock()
+            filter_mock = mock.Mock()
+            self.context.session.query = mock.Mock(return_value=filter_mock)
+            filter_mock.filter.return_value = first_mock
+            first_mock.first.return_value = sec_group
+
+            yield connection
+            self.context.session.query = old_query
+
+    def test_security_rule_create_no_rules(self):
+        with self._stubs() as connection:
+            self.driver.create_security_group_rule(
+                self.context, 1,
+                {'ethertype': 'IPv4', 'direction': 'ingress'})
+            connection.securityprofile.assert_any_calls(self.profile_id)
+            connection.securityprofile().assert_has_calls([
+                mock.call.port_ingress_rules([{'ethertype': 'IPv4'}]),
+                mock.call.update(),
+            ], any_order=True)
+
+    def test_security_rule_create(self):
+        with self._stubs(rules=[{"direction": "ingress"}]) as connection:
+            self.driver.create_security_group_rule(
+                self.context, 1,
+                {'ethertype': 'IPv4', 'direction': 'ingress'})
+            connection.securityprofile.assert_any_calls(self.profile_id)
+            connection.securityprofile().assert_has_calls([
+                mock.call.port_ingress_rules([{}, {'ethertype': 'IPv4'}]),
+                mock.call.update(),
+            ], any_order=True)
+
+
+class TestCreateLswitchOptimized(TestOptimizedNVPDriver):
+    def test_create_lswitch_optimized(self):
+        self.driver._lswitch_create_optimized(self.context, "public", 1, 1)
+        self.assertTrue(self.context.session.add.called)
+
+
+class TestGetNetworkDetails(TestOptimizedNVPDriver):
+    @contextlib.contextmanager
+    def _stubs(self, switch):
+        with mock.patch("%s._lswitch_select_first" % self.d_pkg) as lselect:
+            switch_model = quark.drivers.optimized_nvp_driver.LSwitch()
+            switch_model.update(switch)
+            lselect.return_value = switch_model
+            yield
+
+    def test_get_network_details(self):
+        switch = {"network_id": 2, "transport_zone": 1,
+                  "transport_connector": "bridge", "segment_id": 3,
+                  "display_name": "public"}
+        expected = {"network_name": "public", "phys_net": 1,
+                    "phys_type": "bridge", "segment_id": 3}
+        with self._stubs(switch):
+            switches = []
+            details = self.driver._get_network_details(self.context, 1,
+                                                       switches)
+            for key in expected.keys():
+                self.assertEqual(details[key], expected[key])
+
+
+class TestQueryMethods(TestOptimizedNVPDriver):
+    """These tests provide coverage on the query helpers. No serious
+    assertions are made, as there's no sense in testing that sqlalchemy
+    does in fact do what it's supposed to do.
+    """
+
+    @contextlib.contextmanager
+    def _stubs(self):
+        old_query = self.context.session.query
+        self.context.session.query = mock.Mock()
+        query_return = mock.MagicMock()
+        self.context.session.query.return_value = query_return
+        yield query_return
+        self.context.session.query = old_query
+
+    def test_lport_select_by_id(self):
+        with self._stubs() as query_return:
+            self.driver._lport_select_by_id(self.context, 1)
+            self.assertTrue(query_return.filter.called)
+
+    def test_lswitch_select_by_nvp_id(self):
+        with self._stubs() as query_return:
+            self.driver._lswitch_select_by_nvp_id(self.context, 1)
+            self.assertTrue(query_return.filter.called)
+
+    def test_lswitch_select_first(self):
+        with self._stubs() as query_return:
+            self.driver._lswitch_select_first(self.context, 1)
+            self.assertTrue(query_return.filter.called)
+
+    def test_lswitch_select_free(self):
+        with self._stubs() as query_return:
+            self.driver._lswitch_select_free(self.context, 1)
+            self.assertTrue(query_return.filter.called)
+
+    def test_lswitches_for_network(self):
+        with self._stubs() as query_return:
+            self.driver._lswitches_for_network(self.context, 1)
+            self.assertTrue(query_return.filter.called)
+
+    def test_lswitch_from_port(self):
+        with self._stubs() as query_return:
+            self.driver._lswitch_from_port(self.context, 1)
+            self.assertTrue(query_return.filter.called)
+
+    def test_query_security_group(self):
+        with self._stubs() as query_return:
+            self.driver._query_security_group(self.context, 1)
+            self.assertTrue(query_return.filter.called)
