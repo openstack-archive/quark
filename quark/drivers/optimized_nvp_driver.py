@@ -16,11 +16,11 @@
 """
 Optimized NVP client for Quark
 """
-import sqlalchemy as sa
 
 from neutron.openstack.common import log as logging
-from nvp_driver import NVPDriver
 from quark.db import models
+from quark.drivers.nvp_driver import NVPDriver
+import sqlalchemy as sa
 from sqlalchemy import orm
 
 LOG = logging.getLogger("neutron.quark.nvplib")
@@ -87,10 +87,9 @@ class OptimizedNVPDriver(NVPDriver):
         context.session.delete(group)
 
     def _lport_select_by_id(self, context, port_id):
-        port = context.session.query(LSwitchPort).\
-            filter(LSwitchPort.port_id == port_id).\
-            first()
-        return port
+        query = context.session.query(LSwitchPort)
+        query = query.filter(LSwitchPort.port_id == port_id)
+        return query.first()
 
     def _lswitch_delete(self, context, lswitch_uuid):
         switch = self._lswitch_select_by_nvp_id(context, lswitch_uuid)
