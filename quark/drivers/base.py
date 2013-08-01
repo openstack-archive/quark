@@ -23,15 +23,15 @@ class BaseDriver(object):
 
     Usable as a replacement for the sample plugin.
     """
-    def load_config(self, path):
-        LOG.info("load_config %s" % path)
+    def load_config(self):
+        LOG.info("load_config")
 
     def get_connection(self):
         LOG.info("get_connection")
 
-    def create_network(self, tenant_id, network_name, tags=None,
+    def create_network(self, context, network_name, tags=None,
                        network_id=None, **kwargs):
-        LOG.info("create_network %s %s %s" % (tenant_id, network_name,
+        LOG.info("create_network %s %s %s" % (context, network_name,
                                               tags))
 
     def delete_network(self, context, network_id):

@@ -60,9 +60,7 @@ class OptimizedNVPDriver(NVPDriver):
             update_port(context, port_id, status=status,
                         security_groups=security_groups,
                         allowed_pairs=allowed_pairs)
-        port = context.session.query(LSwitchPort).\
-            filter(LSwitchPort.port_id == port_id).\
-            first()
+        port = self._lport_select_by_id(context, port_id)
         port.update(nvp_port)
 
     def delete_port(self, context, port_id, lswitch_uuid=None):
@@ -85,9 +83,7 @@ class OptimizedNVPDriver(NVPDriver):
     def delete_security_group(self, context, group_id):
         super(OptimizedNVPDriver, self).\
             delete_security_group(context, group_id)
-        group = context.session.query(SecurityProfile).\
-            filter(SecurityProfile.id == group_id).\
-            first()
+        group = self._query_security_group(context, group_id)
         context.session.delete(group)
 
     def _lport_select_by_id(self, context, port_id):
@@ -178,9 +174,9 @@ class OptimizedNVPDriver(NVPDriver):
         port = self._lport_select_by_id(context, port_id)
         return port.switch.nvp_id
 
-    def _get_security_group_id(self, context, group_id):
+    def _query_security_group(self, context, group_id):
         return context.session.query(SecurityProfile).\
-            filter(SecurityProfile.id == group_id).first().nvp_id
+            filter(SecurityProfile.id == group_id).first()
 
     def _make_security_rule_dict(self, rule):
         res = {"port_range_min": rule.get("port_range_min"),
@@ -201,7 +197,7 @@ class OptimizedNVPDriver(NVPDriver):
         for rule in group.rules:
             rulelist[rule.direction].append(
                 self._make_security_rule_dict(rule))
-        return {'uuid': self._get_security_group_id(context, group_id),
+        return {'uuid': self._query_security_group(context, group_id).nvp_id,
                 'logical_port_ingress_rules': rulelist['ingress'],
                 'logical_port_egress_rules': rulelist['egress']}
 

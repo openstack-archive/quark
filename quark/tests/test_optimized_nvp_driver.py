@@ -269,4 +269,38 @@ class TestOptimizedNVPDriverCreatePort(TestOptimizedNVPDriver):
 
 
 class TestOptimizedNVPDriverUpdatePort(TestOptimizedNVPDriver):
-    pass
+    def test_update_port(self):
+        mod_path = "quark.drivers.%s"
+        op_path = "optimized_nvp_driver.OptimizedNVPDriver"
+        lport_path = "%s._lport_select_by_id" % op_path
+        with contextlib.nested(
+            mock.patch(mod_path % "nvp_driver.NVPDriver.update_port"),
+            mock.patch(mod_path % lport_path),
+        ) as (update_port, port_find):
+            ret_port = quark.drivers.optimized_nvp_driver.LSwitchPort()
+            port_find.return_value = ret_port
+            update_port.return_value = dict(switch_id=2)
+            self.driver.update_port(self.context, 1)
+            self.assertEqual(ret_port.switch_id, 2)
+
+
+class TestCreateSecurityGroups(TestOptimizedNVPDriver):
+    def test_create_security_group(self):
+        with mock.patch("%s.get_connection" % self.d_pkg):
+            self.driver.create_security_group(self.context, "newgroup")
+            self.assertTrue(self.context.session.add.called)
+
+
+class TestDeleteSecurityGroups(TestOptimizedNVPDriver):
+    def test_delete_security_group(self):
+        mod_path = "quark.drivers.nvp_driver.NVPDriver"
+        with contextlib.nested(
+                mock.patch("%s.get_connection" % self.d_pkg),
+                mock.patch("%s._query_security_group" % self.d_pkg),
+                mock.patch("%s.delete_security_group" % mod_path)):
+
+            session_delete = self.context.session.delete
+            self.context.session.delete = mock.Mock(return_value=None)
+            self.driver.delete_security_group(self.context, 1)
+            self.assertTrue(self.context.session.delete.called)
+            self.context.session.delete = session_delete

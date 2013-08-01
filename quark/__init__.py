@@ -30,9 +30,7 @@ quark_opts = [
                        "after deallocation.")),
     cfg.StrOpt("strategy_driver",
                default='quark.network_strategy.JSONStrategy',
-               help=_("Tree of network assignment strategy")),
-    cfg.StrOpt('net_driver_cfg', default='/etc/neutron/quark.ini',
-               help=_("Path to the config for the net driver"))
+               help=_("Tree of network assignment strategy"))
 ]
 
 

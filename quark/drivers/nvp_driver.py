@@ -68,7 +68,7 @@ class NVPDriver(base.BaseDriver):
                        'max_rules_per_group': 0,
                        'max_rules_per_port': 0}
 
-    def load_config(self, path):
+    def load_config(self):
         #NOTE(mdietz): What does default_tz actually mean?
         #              We don't have one default.
         default_tz = CONF.NVP.default_tz
