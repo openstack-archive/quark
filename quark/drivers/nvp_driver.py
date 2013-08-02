@@ -418,12 +418,12 @@ class NVPDriver(base.BaseDriver):
     def _check_rule_count_per_port(self, context, group_id):
         connection = self.get_connection()
         ports = connection.lswitch_port("*").query().security_profile_uuid(
-            self._get_security_group_id(
+            '=', self._get_security_group_id(
                 context, group_id)).results().get('results', [])
-        groups = (set(port.get('security_profiles', [])) for port in ports)
-        return max(self._check_rule_count_for_groups(
+        groups = (port.get('security_profiles', []) for port in ports)
+        return max([self._check_rule_count_for_groups(
             context, (connection.securityprofile(gp).read() for gp in group))
-            for group in groups)
+            for group in groups] or [0])
 
     def _check_rule_count_for_groups(self, context, groups):
         return sum(len(group['logical_port_ingress_rules']) +

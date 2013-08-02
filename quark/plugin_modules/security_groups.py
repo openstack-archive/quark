@@ -219,6 +219,8 @@ def get_security_group_rules(context, filters=None, fields=None,
 
 
 def update_security_group(context, id, security_group):
+    if id == DEFAULT_SG_UUID:
+        raise sg_ext.SecurityGroupCannotUpdateDefault()
     new_group = security_group["security_group"]
     group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
     net_driver.update_security_group(context, id, **new_group)
