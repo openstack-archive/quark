@@ -32,7 +32,7 @@ def _to_mac_range(val):
     prefix = prefix.replace(':', '')
     prefix = prefix.replace('-', '')
     prefix_length = len(prefix)
-    if prefix_length < 6 or prefix_length > 10:
+    if prefix_length < 6 or prefix_length > 12:
         raise quark_exceptions.InvalidMacAddressRange(cidr=val)
 
     diff = 12 - len(prefix)
