@@ -42,6 +42,11 @@ class IPPoliciesController(wsgi.Controller):
         return {RESOURCE_NAME:
                 self._plugin.create_ip_policy(request.context, body)}
 
+    def update(self, request, id, body=None):
+        body = self._deserialize(request.body, request.get_content_type())
+        return {RESOURCE_NAME:
+                self._plugin.update_ip_policy(request.context, id, body)}
+
     def index(self, request):
         context = request.context
         return {RESOURCE_COLLECTION:
