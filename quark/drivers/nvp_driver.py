@@ -60,6 +60,14 @@ physical_net_type_map = {
 CONF.register_opts(nvp_opts, "NVP")
 
 
+def _tag_roll(tags):
+    return [{'scope': k, 'tag': v} for k, v in tags]
+
+
+def _tag_unroll(tags):
+    return dict((t['scope'], t['tag']) for t in tags)
+
+
 class NVPDriver(base.BaseDriver):
     def __init__(self):
         self.nvp_connections = []
@@ -117,6 +125,31 @@ class NVPDriver(base.BaseDriver):
             LOG.debug("Deleting lswitch %s" % switch["uuid"])
             connection.lswitch(switch["uuid"]).delete()
 
+    def _collect_lswitch_info(self, lswitch, get_status):
+        info = {
+            'port_isolation_enabled': lswitch['port_isolation_enabled'],
+            'display_name': lswitch['display_name'],
+            'uuid': lswitch['uuid'],
+            'transport_zones': lswitch['transport_zones'],
+        }
+        info.update(_tag_unroll(lswitch['tags']))
+        if get_status:
+            status = lswitch.pop('_relations')['LogicalSwitchStatus']
+            info.update({
+                'lport_stats': {
+                    'fabric_up': status['lport_fabric_up_count'],
+                    'admin_up': status['lport_admin_up_count'],
+                    'link_up': status['lport_link_up_count'],
+                    'count': status['lport_count'],
+                }, 'fabric_status': status['fabric_status'],
+            })
+        return info
+
+    def diag_network(self, context, network_id, get_status):
+        switches = self._lswitch_status_query(context, network_id)['results']
+        return {'logical_switches': [self._collect_lswitch_info(s, get_status)
+                for s in switches]}
+
     def create_port(self, context, network_id, port_id,
                     status=True, security_groups=[], allowed_pairs=[]):
         tenant_id = context.tenant_id
@@ -158,6 +191,67 @@ class NVPDriver(base.BaseDriver):
             lswitch_uuid = self._lswitch_from_port(context, port_id)
         LOG.debug("Deleting port %s from lswitch %s" % (port_id, lswitch_uuid))
         connection.lswitch_port(lswitch_uuid, port_id).delete()
+
+    def _collect_lport_info(self, lport, get_status):
+        info = {
+            'mirror_targets': lport['mirror_targets'],
+            'display_name': lport['display_name'],
+            'portno': lport['portno'],
+            'allowed_address_pairs': lport['allowed_address_pairs'],
+            'nvp_security_groups': lport['security_profiles'],
+            'uuid': lport['uuid'],
+            'admin_status_enabled': lport['admin_status_enabled'],
+            'queue_uuid': lport['queue_uuid'],
+        }
+        if get_status:
+            stats = lport['statistics']
+            status = lport['status']
+            lswitch = {
+                'uuid': status['lswitch']['uuid'],
+                'display_name': status['lswitch']['display_name'],
+            }
+            lswitch.update(_tag_unroll(status['lswitch']['tags']))
+            info.update({
+                'statistics': {
+                    'recieved': {
+                        'packets': stats['rx_packets'],
+                        'bytes': stats['rx_bytes'],
+                        'errors': stats['rx_errors']
+                        },
+                    'transmitted': {
+                        'packets': stats['tx_packets'],
+                        'bytes': stats['tx_bytes'],
+                        'errors': stats['tx_errors']
+                    },
+                },
+                'status': {
+                    'link_status_up': status['link_status_up'],
+                    'admin_status_up': status['admin_status_up'],
+                    'fabric_status_up': status['fabric_status_up'],
+                },
+                'lswitch': lswitch,
+            })
+        info.update(_tag_unroll(lport['tags']))
+        return info
+
+    def diag_port(self, context, port_id, get_status=False):
+        connection = self.get_connection()
+        lswitch_uuid = self._lswitch_from_port(context, port_id)
+        lswitch_port = connection.lswitch_port(lswitch_uuid, port_id)
+
+        query = lswitch_port.query()
+        query.relations("LogicalPortAttachment")
+        results = query.results()
+        if results['result_count'] == 0:
+            return {'lport': "Logical port not found."}
+
+        config = results['results'][0]
+        relations = config.pop('_relations')
+        config['attachment'] = relations['LogicalPortAttachment']['type']
+        if get_status:
+            config['status'] = lswitch_port.status()
+            config['statistics'] = lswitch_port.statistics()
+        return {'lport': self._collect_lport_info(config, get_status)}
 
     def _get_network_details(self, context, network_id, switches):
         name, phys_net, phys_type, segment_id = None, None, None, None

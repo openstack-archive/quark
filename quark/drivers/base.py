@@ -37,6 +37,10 @@ class BaseDriver(object):
     def delete_network(self, context, network_id):
         LOG.info("delete_network %s" % network_id)
 
+    def diag_network(self, context, network_id, **kwargs):
+        LOG.info("diag_network %s" % network_id)
+        return {}
+
     def create_port(self, context, network_id, port_id, **kwargs):
         LOG.info("create_port %s %s %s" % (context.tenant_id, network_id,
                                            port_id))
@@ -48,6 +52,10 @@ class BaseDriver(object):
 
     def delete_port(self, context, port_id, **kwargs):
         LOG.info("delete_port %s %s" % (context.tenant_id, port_id))
+
+    def diag_port(self, context, network_id, **kwargs):
+        LOG.info("diag_port %s" % network_id)
+        return {}
 
     def create_security_group(self, context, group_name, **group):
         LOG.info("Creating security profile %s for tenant %s" %

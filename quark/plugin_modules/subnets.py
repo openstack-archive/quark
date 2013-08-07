@@ -277,3 +277,9 @@ def delete_subnet(context, id):
     if not subnet:
         raise exceptions.SubnetNotFound(subnet_id=id)
     _delete_subnet(context, subnet)
+
+
+def diagnose_subnet(context, id, fields):
+    if id == "*":
+        return {'subnets': get_subnets(context, filters={})}
+    return {'subnets': get_subnet(context, id)}

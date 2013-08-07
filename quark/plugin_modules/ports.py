@@ -322,3 +322,24 @@ def disassociate_port(context, id, ip_address_id):
     if len(the_address["ports"]) == 0:
         the_address["deallocated"] = 1
     return v._make_port_dict(port)
+
+
+def _diag_port(context, port, fields):
+    if not port:
+        return False
+    p = v._make_port_dict(port)
+    if 'config' in fields:
+        p.update(net_driver.diag_port(
+            context, port["backend_key"], get_status='status' in fields))
+    return p
+
+
+def diagnose_port(context, id, fields):
+    if id == "*":
+        return {'ports': [_diag_port(context, port, fields) for
+                port in db_api.port_find(context).all()]}
+    db_port = db_api.port_find(context, id=id, scope=db_api.ONE)
+    if not db_port:
+        raise exceptions.PortNotFound(port_id=id, net_id='')
+    port = _diag_port(context, db_port, fields)
+    return {'ports': port}
