@@ -98,6 +98,14 @@ class TestQuarkCreateMacAddressRanges(test_quark_plugin.TestQuarkPlugin):
         self.assertEqual(first_mac, "aa:bb:cc:0:0:0")
         self.assertEqual(last_mac, "aa:bb:cd:0:0:0")
 
+    def test_to_mac_range_unix_cidr_format_normal_length(self):
+        cidr, first, last = mac_address_ranges._to_mac_range("aabbcc000000/29")
+        first_mac = str(netaddr.EUI(first, dialect=netaddr.mac_unix))
+        last_mac = str(netaddr.EUI(last, dialect=netaddr.mac_unix))
+        self.assertEqual(cidr, "AA:BB:CC:00:00:00/29")
+        self.assertEqual(first_mac, "aa:bb:cc:0:0:0")
+        self.assertEqual(last_mac, "aa:bb:cc:8:0:0")
+
     def test_to_mac_prefix_too_short_fails(self):
         with self.assertRaises(quark_exceptions.InvalidMacAddressRange):
             cidr, first, last = mac_address_ranges._to_mac_range("AA-BB")
@@ -105,7 +113,7 @@ class TestQuarkCreateMacAddressRanges(test_quark_plugin.TestQuarkPlugin):
     def test_to_mac_prefix_too_long_fails(self):
         with self.assertRaises(quark_exceptions.InvalidMacAddressRange):
             cidr, first, last = mac_address_ranges._to_mac_range(
-                "AA-BB-CC-DD-EE-F0")
+                "AA-BB-CC-DD-EE-F0-00")
 
     def test_to_mac_prefix_is_garbage_fails(self):
         with self.assertRaises(quark_exceptions.InvalidMacAddressRange):
