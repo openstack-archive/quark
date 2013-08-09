@@ -19,6 +19,9 @@ from neutron.common import config as neutron_cfg
 from neutron.common import exceptions
 from neutron.openstack.common import importutils
 from neutron.openstack.common import log as logging
+from neutron.openstack.common.notifier import api as notifier_api
+from neutron.openstack.common import timeutils
+
 from oslo.config import cfg
 
 from quark.db import api as db_api
@@ -133,6 +136,15 @@ def create_subnet(context, subnet):
     subnet_dict = v._make_subnet_dict(new_subnet,
                                       default_route=routes.DEFAULT_ROUTE)
     subnet_dict["gateway_ip"] = gateway_ip
+
+    notifier_api.notify(context,
+                        notifier_api.publisher_id("network"),
+                        "ip_block.create",
+                        notifier_api.CONF.default_notification_level,
+                        dict(tenant_id=subnet_dict["tenant_id"],
+                             ip_block_id=subnet_dict["id"],
+                             created_at=new_subnet["created_at"]))
+
     return subnet_dict
 
 
@@ -283,7 +295,19 @@ def delete_subnet(context, id):
     subnet = db_api.subnet_find(context, id=id, scope=db_api.ONE)
     if not subnet:
         raise exceptions.SubnetNotFound(subnet_id=id)
+
+    payload = dict(tenant_id=subnet["tenant_id"],
+                   ip_block_id=subnet["id"],
+                   created_at=subnet["created_at"],
+                   deleted_at=timeutils.utcnow())
+
     _delete_subnet(context, subnet)
+
+    notifier_api.notify(context,
+                        notifier_api.publisher_id("network"),
+                        "ip_block.delete",
+                        notifier_api.CONF.default_notification_level,
+                        payload)
 
 
 def diagnose_subnet(context, id, fields):

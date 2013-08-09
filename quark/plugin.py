@@ -86,7 +86,6 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
         neutron_session._MAKER = scoped_session(session_maker)
 
     def __init__(self):
-
         neutron_db_api.configure_db()
         self._initDBMaker()
         neutron_db_api.register_models(base=models.BASEV2)
