@@ -188,12 +188,9 @@ class TestQuarkCreateSubnetAllocationPools(test_quark_plugin.TestQuarkPlugin):
 
     def setUp(self):
         super(TestQuarkCreateSubnetAllocationPools, self).setUp()
-        models.IPPolicy.DEFAULT_POLICY = models.IPPolicy(
-            exclude=[models.IPPolicyRange(offset=-1, length=3)])
 
     def tearDown(self):
         super(TestQuarkCreateSubnetAllocationPools, self).tearDown()
-        models.IPPolicy.DEFAULT_POLICY = {}
 
     def test_create_subnet_allocation_pools_zero(self):
         s = dict(subnet=dict(
