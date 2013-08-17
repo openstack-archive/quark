@@ -29,3 +29,15 @@ class TestDBModels(test_base.TestBase):
         ip_policy_rules = models.IPPolicy.get_ip_policy_rule_set(subnet)
         self.assertEqual(ip_policy_rules,
                          IPSet(['0.0.0.0/31', '0.0.0.255/32']))
+
+    def test_get_ip_policy_rule_set_v6(self):
+        subnet = dict(id=1, ip_version=6, next_auto_assign_ip=0,
+                      cidr="fc00::/7",
+                      first_ip=334965454937798799971759379190646833152L,
+                      last_ip=337623910929368631717566993311207522303L,
+                      network=dict(ip_policy=None), ip_policy=None)
+        ip_policy_rules = models.IPPolicy.get_ip_policy_rule_set(subnet)
+        self.assertEqual(
+            ip_policy_rules,
+            IPSet(["fc00::/127",
+                   "fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128"]))
