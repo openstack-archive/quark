@@ -362,12 +362,12 @@ class QuarkIPAddressAllocateDeallocated(QuarkIpamBaseTest):
                       network=dict(ip_policy=None), ip_policy=None)
         address0 = dict(id=1, address=0)
         address1 = dict(id=1, address=1)
-        addresses_found = [None, address0, address1, None]
+        addresses_found = [None, None]
         with self._stubs(
             False, subnet, address0, addresses_found
         ) as (choose_subnet):
             ipaddress = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
-            self.assertEqual(ipaddress["address"], 4)  # 2 => 4
+            self.assertEqual(ipaddress["address"], 2)
             self.assertIsNotNone(ipaddress['id'])
             self.assertTrue(choose_subnet.called)
 
