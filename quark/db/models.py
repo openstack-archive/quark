@@ -39,7 +39,8 @@ LOG = logging.getLogger("neutron.quark.db.models")
 CONF = cfg.CONF
 
 quark_opts = [
-    cfg.StrOpt('default_ip_policy', default='{}',
+    cfg.StrOpt('default_ip_policy',
+               default='{"exclude": [{"offset": -1, "length": 3}]}',
                help=_("Default IP allocation policy"))
 ]
 CONF.register_opts(quark_opts, "QUARK")
