@@ -361,7 +361,6 @@ class QuarkIPAddressAllocateDeallocated(QuarkIpamBaseTest):
                       cidr="0.0.0.0/24", first_ip=0, last_ip=255,
                       network=dict(ip_policy=None), ip_policy=None)
         address0 = dict(id=1, address=0)
-        address1 = dict(id=1, address=1)
         addresses_found = [None, None]
         with self._stubs(
             False, subnet, address0, addresses_found
