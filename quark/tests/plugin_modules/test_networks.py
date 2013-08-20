@@ -230,3 +230,59 @@ class TestQuarkCreateNetwork(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(net["subnets"], [2])
             self.assertEqual(net["shared"], False)
             self.assertEqual(net["tenant_id"], 0)
+
+
+class TestQuarkDiagnoseNetworks(test_quark_plugin.TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, nets=None, subnets=None):
+        net_mods = []
+        subnet_mods = []
+
+        if subnets:
+            for subnet in subnets:
+                subnet_mod = models.Subnet()
+                subnet_mod.update(subnet)
+                subnet_mods.append(subnet_mod)
+
+        if nets:
+            for net in nets:
+                net_mod = models.Network()
+                net_mod.update(net)
+                net_mod["subnets"] = subnet_mods
+                net_mods.append(net_mod)
+        else:
+            if nets:
+                net_mods = nets.copy()
+                net_mods["subnets"] = subnet_mods
+            else:
+                net_mods = nets
+
+        db_mod = "quark.db.api"
+        with mock.patch("%s.network_find" % db_mod) as net_find:
+            net_find.return_value = net_mods
+            yield
+
+    def test_diagnose_network_no_network_found(self):
+        with self._stubs():
+            with self.assertRaises(exceptions.NetworkNotFound):
+                self.plugin.diagnose_network(self.context, "12345", None)
+
+    def test_diagnose_network_with_wildcard_and_no_networks(self):
+        db_mod = "quark.db.api"
+        with mock.patch("%s.network_find_all" % db_mod) as net_find:
+            net_find.return_value = []
+        actual = self.plugin.diagnose_network(self.context, "*", {})
+        expected = {'networks': []}
+        self.assertEqual(expected, actual)
+
+    def test_diagnose_network_with_wildcard_and_networks(self):
+        subnet = dict(id=1)
+        net = dict(id=1, tenant_id=self.context.tenant_id, name="public",
+                   status="ACTIVE")
+        with self._stubs(nets=[net], subnets=[subnet]):
+            db_mod = "quark.db.api"
+            with mock.patch("%s.network_find_all" % db_mod) as net_find:
+                net_find.return_value = [net]
+                nets = self.plugin.diagnose_network(self.context, "*", {})
+                for key in net.keys():
+                    self.assertEqual(nets['networks'][0][key], net[key])

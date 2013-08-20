@@ -328,6 +328,10 @@ def network_find(context, fields=None, **filters):
     return query
 
 
+def network_find_all(context, fields=None, **filters):
+    return network_find(context, fields, **filters).all()
+
+
 def network_create(context, **network):
     new_net = models.Network()
     new_net.update(network)

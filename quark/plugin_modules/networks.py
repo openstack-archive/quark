@@ -225,7 +225,7 @@ def _diag_network(context, network, fields):
 def diagnose_network(context, id, fields):
     if id == "*":
         return {'networks': [_diag_network(context, net, fields) for
-                net in db_api.network_find(context).all()]}
+                net in db_api.network_find_all(context)]}
     db_net = db_api.network_find(context, id=id, scope=db_api.ONE)
     if not db_net:
         raise exceptions.NetworkNotFound(net_id=id)
