@@ -21,13 +21,14 @@ import netaddr
 
 from neutron.common import exceptions
 from neutron.openstack.common import log as logging
+from neutron.openstack.common.notifier import api as notifier_api
 from neutron.openstack.common import timeutils
 
 from quark.db import api as db_api
 from quark.db import models
 
 
-LOG = logging.getLogger("neutron")
+LOG = logging.getLogger("neutron.quark.ipam")
 
 
 class QuarkIpam(object):
@@ -137,13 +138,39 @@ class QuarkIpam(object):
             version=subnet["ip_version"], network_id=net_id)
         address["deallocated"] = 0
 
+        payload = dict(tenant_id=address["tenant_id"],
+                       ip_block_id=address["subnet_id"],
+                       ip_address=address["address_readable"],
+                       device_ids=[p["device_id"] for p in address["ports"]],
+                       created_at=address["created_at"])
+
+        notifier_api.notify(context,
+                            notifier_api.publisher_id("network"),
+                            "ip_block.address.create",
+                            notifier_api.CONF.default_notification_level,
+                            payload)
+
         return address
+
+    def _deallocate_ip_address(self, context, address):
+        address["deallocated"] = 1
+        payload = dict(tenant_id=address["tenant_id"],
+                       ip_block_id=address["subnet_id"],
+                       ip_address=address["address_readable"],
+                       device_ids=[p["device_id"] for p in address["ports"]],
+                       created_at=address["created_at"],
+                       deleted_at=timeutils.utcnow())
+        notifier_api.notify(context,
+                            notifier_api.publisher_id("network"),
+                            "ip_block.address.delete",
+                            notifier_api.CONF.default_notification_level,
+                            payload)
 
     def deallocate_ip_address(self, context, port, **kwargs):
         for addr in port["ip_addresses"]:
             # Note: only deallocate ip if this is the only port mapped to it
             if len(addr["ports"]) == 1:
-                addr["deallocated"] = 1
+                self._deallocate_ip_address(context, addr)
         port["ip_addresses"] = []
 
     def deallocate_mac_address(self, context, address):

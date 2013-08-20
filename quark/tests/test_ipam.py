@@ -18,9 +18,11 @@ import mock
 from neutron.common import exceptions
 from neutron.db import api as neutron_db_api
 from neutron.openstack.common.db.sqlalchemy import session as neutron_session
+from neutron.openstack.common.notifier import api as notifier_api
 from oslo.config import cfg
 
 from quark.db import models
+
 import quark.ipam
 
 from quark.tests import test_base
@@ -173,8 +175,9 @@ class QuarkMacAddressDeallocation(QuarkIpamBaseTest):
 
 class QuarkIPAddressDeallocation(QuarkIpamBaseTest):
     def test_deallocate_ip_address(self):
-        port = dict(ip_addresses=[])
-        addr = dict(ports=[port])
+        port = dict(ip_addresses=[], device_id="foo")
+        addr = dict(ports=[port], tenant_id=1, subnet_id=1,
+                    address_readable=None, created_at=None)
         port["ip_addresses"].append(addr)
         self.ipam.deallocate_ip_address(self.context, port)
         # ORM takes care of other model if one model is modified
@@ -477,3 +480,70 @@ class TestQuarkIpPoliciesIpAllocation(QuarkIpamBaseTest):
             address = self.ipam.allocate_ip_address(
                 self.context, 0, 0, 0, ip_address="0.0.0.240")
             self.assertEqual(address["address"], 240)
+
+
+class QuarkIPAddressAllocationNotifications(QuarkIpamBaseTest):
+    @contextlib.contextmanager
+    def _stubs(self, address, addresses=None, subnets=None, deleted_at=None):
+        address = models.IPAddress(**address)
+        if not addresses:
+            addresses = [None]
+        db_mod = "quark.db.api"
+        api_mod = "neutron.openstack.common.notifier.api"
+        time_mod = "neutron.openstack.common.timeutils"
+        with contextlib.nested(
+            mock.patch("%s.ip_address_find" % db_mod),
+            mock.patch("%s.ip_address_create" % db_mod),
+            mock.patch("%s.subnet_find_allocation_counts" % db_mod),
+            mock.patch("%s.notify" % api_mod),
+            mock.patch("%s.utcnow" % time_mod),
+        ) as (addr_find, addr_create, subnet_find, notify, time):
+            addr_find.side_effect = addresses
+            addr_create.return_value = address
+            subnet_find.return_value = subnets
+            time.return_value = deleted_at
+            yield notify
+
+    def test_allocation_notification(self):
+        subnet = dict(id=1, first_ip=0, last_ip=255,
+                      cidr="0.0.0.0/24", ip_version=4,
+                      next_auto_assign_ip=0, network=dict(ip_policy=None),
+                      ip_policy=None)
+        address = dict(tenant_id=1, address=0, created_at="123",
+                       subnet_id=1, address_readable="0.0.0.0")
+        with self._stubs(
+            address,
+            subnets=[(subnet, 0)],
+            addresses=[None, None]
+        ) as notify:
+            self.ipam.allocate_ip_address(self.context, 0, 0, 0,
+                                          version=4)
+            notify.assert_called_once_with(
+                self.context,
+                notifier_api.publisher_id("network"),
+                "ip_block.address.create",
+                notifier_api.CONF.default_notification_level,
+                dict(tenant_id=address["tenant_id"],
+                     ip_block_id=address["subnet_id"],
+                     ip_address="0.0.0.0",
+                     device_ids=[],
+                     created_at=address["created_at"]))
+
+    def test_deallocation_notification(self):
+        address = dict(tenant_id=1, address=0, created_at="123",
+                       subnet_id=1, address_readable="0.0.0.0",
+                       ports=[dict(device_id="foo")])
+        port = dict(ip_addresses=[address])
+        with self._stubs(dict(), deleted_at="456") as notify:
+            self.ipam.deallocate_ip_address(self.context, port)
+            notify.assert_called_once_with(
+                self.context,
+                notifier_api.publisher_id("network"),
+                "ip_block.address.delete",
+                notifier_api.CONF.default_notification_level,
+                dict(tenant_id=address["tenant_id"],
+                     ip_block_id=address["subnet_id"],
+                     ip_address="0.0.0.0",
+                     device_ids=["foo"],
+                     created_at=address["created_at"],
+                     deleted_at="456"))
