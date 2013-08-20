@@ -28,7 +28,7 @@ from quark.db import api as db_api
 from quark.db import models
 
 
-LOG = logging.getLogger("neutron.quark.ipam")
+LOG = logging.getLogger(__name__)
 
 
 class QuarkIpam(object):

@@ -26,7 +26,7 @@ from quark import plugin_views as v
 
 CONF = cfg.CONF
 DEFAULT_ROUTE = netaddr.IPNetwork("0.0.0.0/0")
-LOG = logging.getLogger("neutron.quark")
+LOG = logging.getLogger(__name__)
 
 ipam_driver = (importutils.import_class(CONF.QUARK.ipam_driver))()
 

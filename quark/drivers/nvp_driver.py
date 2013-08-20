@@ -27,7 +27,7 @@ from quark.drivers import base
 from quark import exceptions
 
 
-LOG = logging.getLogger("neutron.quark.nvplib")
+LOG = logging.getLogger(__name__)
 
 CONF = cfg.CONF
 

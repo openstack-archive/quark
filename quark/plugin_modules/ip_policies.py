@@ -22,7 +22,7 @@ from quark import exceptions as quark_exceptions
 from quark import plugin_views as v
 
 CONF = cfg.CONF
-LOG = logging.getLogger("neutron.quark")
+LOG = logging.getLogger(__name__)
 
 
 def create_ip_policy(context, ip_policy):

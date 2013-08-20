@@ -20,7 +20,7 @@ from quark.db import api as db_api
 from quark import exceptions as quark_exceptions
 from quark import plugin_views as v
 
-LOG = logging.getLogger("neutron.quark")
+LOG = logging.getLogger(__name__)
 
 
 def _to_mac_range(val):
