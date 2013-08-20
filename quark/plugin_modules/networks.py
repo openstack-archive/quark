@@ -161,7 +161,7 @@ def get_networks(context, filters=None, fields=None):
     """
     LOG.info("get_networks for tenant %s with filters %s, fields %s" %
             (context.tenant_id, filters, fields))
-    nets = db_api.network_find(context, **filters)
+    nets = db_api.network_find(context, **filters) or []
     return [v._make_network_dict(net) for net in nets]
 
 
