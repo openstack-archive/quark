@@ -29,7 +29,7 @@ from quark import network_strategy
 
 
 STRATEGY = network_strategy.STRATEGY
-LOG = logging.getLogger("neutron.quark.db.api")
+LOG = logging.getLogger(__name__)
 
 ONE = "one"
 ALL = "all"

@@ -15,7 +15,7 @@
 
 from neutron.openstack.common import log as logging
 
-LOG = logging.getLogger("neutron.quark.base")
+LOG = logging.getLogger(__name__)
 
 
 class BaseDriver(object):

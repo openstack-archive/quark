@@ -32,7 +32,7 @@ from quark import utils
 
 CONF = cfg.CONF
 DEFAULT_ROUTE = netaddr.IPNetwork("0.0.0.0/0")
-LOG = logging.getLogger("neutron.quark")
+LOG = logging.getLogger(__name__)
 STRATEGY = network_strategy.STRATEGY
 
 ipam_driver = (importutils.import_class(CONF.QUARK.ipam_driver))()

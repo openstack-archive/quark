@@ -29,7 +29,7 @@ attr_dict[RESOURCE_NAME] = {'allow_post': True,
                             'allow_put': False,
                             'is_visible': True}
 
-LOG = logging.getLogger("neutron.quark.api.extensions.ip_policies")
+LOG = logging.getLogger(__name__)
 
 
 class IPPoliciesController(wsgi.Controller):

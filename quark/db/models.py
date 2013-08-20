@@ -35,7 +35,7 @@ import json
 
 HasId = models.HasId
 
-LOG = logging.getLogger("neutron.quark.db.models")
+LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
 
 quark_opts = [

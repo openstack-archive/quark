@@ -32,7 +32,7 @@ attr_dict[RESOURCE_NAME] = {'allow_post': True,
                             'allow_put': True,
                             'is_visible': True}
 
-LOG = logging.getLogger("neutron.quark.api.extensions.routes")
+LOG = logging.getLogger(__name__)
 
 
 def route_dict(route):

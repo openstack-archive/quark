@@ -26,7 +26,7 @@ from quark import plugin_views as v
 
 
 CONF = cfg.CONF
-LOG = logging.getLogger("neutron.quark")
+LOG = logging.getLogger(__name__)
 DEFAULT_SG_UUID = "00000000-0000-0000-0000-000000000000"
 
 

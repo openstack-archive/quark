@@ -27,7 +27,7 @@ from quark import plugin_views as v
 from quark import utils
 
 CONF = cfg.CONF
-LOG = logging.getLogger("neutron.quark")
+LOG = logging.getLogger(__name__)
 
 ipam_driver = (importutils.import_class(CONF.QUARK.ipam_driver))()
 net_driver = (importutils.import_class(CONF.QUARK.net_driver))()

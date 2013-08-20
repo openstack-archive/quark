@@ -32,7 +32,7 @@ attr_dict[RESOURCE_NAME] = {'allow_post': True,
                             'allow_put': True,
                             'is_visible': True}
 
-LOG = logging.getLogger("neutron.quark.api.extensions.ip_addresses")
+LOG = logging.getLogger(__name__)
 
 
 class IpAddressesController(wsgi.Controller):

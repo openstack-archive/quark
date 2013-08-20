@@ -23,7 +23,7 @@ from quark.drivers.nvp_driver import NVPDriver
 import sqlalchemy as sa
 from sqlalchemy import orm
 
-LOG = logging.getLogger("neutron.quark.nvplib")
+LOG = logging.getLogger(__name__)
 
 
 class OptimizedNVPDriver(NVPDriver):

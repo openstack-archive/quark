@@ -19,7 +19,7 @@ from neutron.common import exceptions
 from neutron.openstack.common import log as logging
 from oslo.config import cfg
 
-LOG = logging.getLogger("neutron.quark")
+LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
 
 quark_opts = [
