@@ -742,3 +742,70 @@ class TestSubnetsNotification(test_quark_plugin.TestQuarkPlugin):
                      created_at=s["created_at"],
                      ip_block_id=s["id"],
                      deleted_at="456"))
+
+
+class TestQuarkDiagnoseSubnets(test_quark_plugin.TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, subnets=None, routes=None):
+        if routes is None:
+            routes = []
+        route_models = []
+        for route in routes:
+            r = models.Route()
+            r.update(route)
+            route_models.append(r)
+
+        if isinstance(subnets, list):
+            subnet_models = []
+            for subnet in subnets:
+                s_dict = subnet.copy()
+                s_dict["routes"] = route_models
+                s = models.Subnet(network=models.Network())
+                s.update(s_dict)
+                subnet_models.append(s)
+        elif subnets:
+            mod = models.Subnet(network=models.Network())
+            mod.update(subnets)
+            mod["routes"] = route_models
+            subnet_models = mod
+        else:
+            subnet_models = None
+
+        with mock.patch("quark.db.api.subnet_find") as subnet_find:
+            subnet_find.return_value = subnet_models
+            yield
+
+    def test_diagnose_subnet_with_wildcard_id_no_existing_subnets(self):
+        with self._stubs(subnets=[], routes=[]):
+            expected = {'subnets': []}
+            actual = self.plugin.diagnose_subnet(self.context, "*", None)
+            self.assertEqual(expected, actual)
+
+    def test_diagnose_subnet_with_wildcard_with_existing_subnets(self):
+        subnet_id = str(uuid.uuid4())
+        route = dict(id=1, cidr="0.0.0.0/0", gateway="192.168.0.1")
+
+        subnet = dict(id=subnet_id, network_id=1, name=subnet_id,
+                      tenant_id=self.context.tenant_id, ip_version=4,
+                      cidr="192.168.0.0/24", gateway_ip="192.168.0.1",
+                      dns_nameservers=[],
+                      enable_dhcp=None)
+
+        with self._stubs(subnets=[subnet], routes=[route]):
+            actual = self.plugin.diagnose_subnet(self.context, "*", None)
+            self.maxDiff = None
+            self.assertEqual(subnet["id"], actual["subnets"][0]["id"])
+
+    def test_diagnose_subnet_with_regular_id(self):
+        subnet_id = "12345"
+        route = dict(id=1, cidr="0.0.0.0/0", gateway="192.168.0.1")
+
+        subnet = dict(id=subnet_id, network_id=1, name=subnet_id,
+                      tenant_id=self.context.tenant_id, ip_version=4,
+                      cidr="192.168.0.0/24", gateway_ip="192.168.0.1",
+                      dns_nameservers=[],
+                      enable_dhcp=None)
+
+        with self._stubs(subnets=subnet, routes=[route]):
+            actual = self.plugin.diagnose_subnet(self.context, subnet_id, None)
+            self.assertEqual(subnet["id"], actual["subnets"]["id"])

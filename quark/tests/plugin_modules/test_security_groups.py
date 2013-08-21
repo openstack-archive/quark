@@ -21,6 +21,7 @@ from neutron.extensions import securitygroup as sg_ext
 from oslo.config import cfg
 
 from quark.db import models
+from quark.plugin_modules import security_groups
 from quark.tests import test_quark_plugin
 
 
@@ -144,6 +145,12 @@ class TestQuarkUpdateSecurityGroup(test_quark_plugin.TestQuarkPlugin):
             update = dict(security_group=dict(name="bar"))
             resp = self.plugin.update_security_group(self.context, 1, update)
             self.assertEqual(resp["name"], updated_group["name"])
+
+    def test_update_security_group_with_deault_security_group_id(self):
+        with self.assertRaises(sg_ext.SecurityGroupCannotUpdateDefault):
+            self.plugin.update_security_group(self.context,
+                                              security_groups.DEFAULT_SG_UUID,
+                                              None)
 
 
 class TestQuarkCreateSecurityGroup(test_quark_plugin.TestQuarkPlugin):
