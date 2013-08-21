@@ -446,8 +446,8 @@ class TestQuarkIpPoliciesIpAllocation(QuarkIpamBaseTest):
         net = dict(ip_policy=dict(exclude=
                                   [dict(offset=0, length=2),
                                    dict(offset=254, length=1)]))
-        subnet = dict(id=1, first_ip=0, last_ip=63,
-                      cidr="0.0.0.0/30", ip_version=4,
+        subnet = dict(id=1, first_ip=0, last_ip=255,
+                      cidr="0.0.0.0/24", ip_version=4,
                       next_auto_assign_ip=0, network=net,
                       ip_policy=None)
         with self._stubs(subnets=[(subnet, 0)], addresses=[None, None]):

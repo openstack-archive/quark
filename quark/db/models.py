@@ -386,15 +386,22 @@ class IPPolicy(BASEV2, models.HasId, models.HasTenant):
 
         ip_policy_rules = netaddr.IPSet()
         subnet_net = netaddr.IPNetwork(subnet["cidr"])
+
+        def _policy_set(offset, length):
+            start = subnet_net.first + offset
+            end = start + length
+            return netaddr.IPSet(netaddr.IPRange(start, end - 1))
+
         for arange in ip_policy_ranges:
-            end_index = arange["offset"] + arange["length"]
-            end_index_wraps_around = (arange["offset"] < 0 and end_index >= 0)
-            if end_index_wraps_around:
-                second_index = min(end_index, len(subnet_net))
-                end_index = None
-                ip_policy_rules |= netaddr.IPSet(subnet_net[:second_index])
-            ip_policy_rules |= netaddr.IPSet(
-                subnet_net[arange["offset"]:end_index])
+            offset, length = arange["offset"], arange["length"]
+            if offset < 0:
+                if offset + length > 0:
+                    ip_policy_rules |= _policy_set(0, offset + length)
+                pos_offset = subnet_net.size + offset
+                capped_length = min(length, -offset)
+                ip_policy_rules |= _policy_set(pos_offset, capped_length)
+            else:
+                ip_policy_rules |= _policy_set(offset, length)
 
         return ip_policy_rules
 
