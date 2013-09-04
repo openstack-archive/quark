@@ -69,11 +69,11 @@ class TestQuarkGetPorts(test_quark_plugin.TestQuarkPlugin):
     def test_port_list_with_ports(self):
         ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
                   subnet_id=1, network_id=2, version=4)
-        port = dict(mac_address="aa:bb:cc:dd:ee:ff", network_id=1,
+        port = dict(mac_address="AA:BB:CC:DD:EE:FF", network_id=1,
                     tenant_id=self.context.tenant_id, device_id=2)
         expected = {'status': "ACTIVE",
                     'device_owner': None,
-                    'mac_address': 'aa:bb:cc:dd:ee:ff',
+                    'mac_address': 'AA:BB:CC:DD:EE:FF',
                     'network_id': 1,
                     'tenant_id': self.context.tenant_id,
                     'admin_state_up': None,
@@ -115,7 +115,7 @@ class TestQuarkGetPorts(test_quark_plugin.TestQuarkPlugin):
                     tenant_id=self.context.tenant_id, device_id=2)
         expected = {'status': "ACTIVE",
                     'device_owner': None,
-                    'mac_address': 'aa:bb:cc:dd:ee:ff',
+                    'mac_address': 'AA:BB:CC:DD:EE:FF',
                     'network_id': 1,
                     'tenant_id': self.context.tenant_id,
                     'admin_state_up': None,
@@ -155,7 +155,7 @@ class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
 
     def test_create_port(self):
         network = dict(id=1)
-        mac = dict(address="aa:bb:cc:dd:ee:ff")
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
         port_name = "foobar"
         ip = dict()
         port = dict(port=dict(mac_address=mac["address"], network_id=1,
@@ -179,7 +179,7 @@ class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
 
     def test_create_port_mac_address_not_specified(self):
         network = dict(id=1)
-        mac = dict(address="aa:bb:cc:dd:ee:ff")
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
         ip = dict()
         port = dict(port=dict(mac_address=mac["address"], network_id=1,
                               tenant_id=self.context.tenant_id, device_id=2))
@@ -201,7 +201,7 @@ class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
 
     def test_create_port_fixed_ips(self):
         network = dict(id=1)
-        mac = dict(address="aa:bb:cc:dd:ee:ff")
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
         ip = mock.MagicMock()
         ip.get = lambda x, *y: 1 if x == "subnet_id" else None
         ip.formatted = lambda: "192.168.10.45"
@@ -226,7 +226,7 @@ class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
 
     def test_create_port_fixed_ips_bad_request(self):
         network = dict(id=1)
-        mac = dict(address="aa:bb:cc:dd:ee:ff")
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
         ip = mock.MagicMock()
         ip.get = lambda x: 1 if x == "subnet_id" else None
         ip.formatted = lambda: "192.168.10.45"
@@ -248,7 +248,7 @@ class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
 
     def test_create_port_net_at_max(self):
         network = dict(id=1, ports=[models.Port()])
-        mac = dict(address="aa:bb:cc:dd:ee:ff")
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
         port_name = "foobar"
         ip = dict()
         port = dict(port=dict(mac_address=mac["address"], network_id=1,
@@ -260,7 +260,7 @@ class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
 
     def test_create_port_security_groups(self, groups=[1]):
         network = dict(id=1)
-        mac = dict(address="aa:bb:cc:dd:ee:ff")
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
         port_name = "foobar"
         ip = dict()
         group = models.SecurityGroup()
@@ -308,6 +308,7 @@ class TestQuarkUpdatePort(test_quark_plugin.TestQuarkPlugin):
             mock.patch("quark.ipam.QuarkIpam.deallocate_ip_address")
         ) as (port_find, port_update, alloc_ip, dealloc_ip):
             port_find.return_value = port_model
+            port_update.return_value = port_model
             yield port_find, port_update, alloc_ip, dealloc_ip
 
     def test_update_port_not_found(self):
