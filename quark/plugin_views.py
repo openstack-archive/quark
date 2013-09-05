@@ -139,9 +139,10 @@ def _port_dict(port, fields=None):
                                port.get("security_groups", None)],
            "device_id": port.get("device_id"),
            "device_owner": port.get("device_owner")}
-    if isinstance(res["mac_address"], (int, long)):
-        res["mac_address"] = str(netaddr.EUI(res["mac_address"],
-                                 dialect=netaddr.mac_unix))
+
+    if res["mac_address"]:
+        mac = str(netaddr.EUI(res["mac_address"])).replace('-', ':')
+        res["mac_address"] = mac
     return res
 
 
