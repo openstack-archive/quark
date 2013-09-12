@@ -102,18 +102,29 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
     def delete_mac_address_range(self, context, id):
         mac_address_ranges.delete_mac_address_range(context, id)
 
-    def create_security_group(self, context, security_group):
-        return security_groups.create_security_group(context, security_group)
+    #TODO(dietz/perkins): passing in net_driver as a stopgap,
+    #XXX DO NOT DEPLOY!! XXX see redmine #2487
+    def create_security_group(self, context, security_group, net_driver):
+        return security_groups.create_security_group(context, security_group,
+                                                     net_driver)
 
-    def create_security_group_rule(self, context, security_group_rule):
+    #TODO(dietz/perkins): passing in net_driver as a stopgap,
+    #XXX DO NOT DEPLOY!! XXX see redmine #2487
+    def create_security_group_rule(self, context, security_group_rule,
+                                   net_driver):
         return security_groups.create_security_group_rule(context,
-                                                          security_group_rule)
+                                                          security_group_rule,
+                                                          net_driver)
 
-    def delete_security_group(self, context, id):
-        security_groups.delete_security_group(context, id)
+    #TODO(dietz/perkins): passing in net_driver as a stopgap,
+    #XXX DO NOT DEPLOY!! XXX see redmine #2487
+    def delete_security_group(self, context, id, net_driver):
+        security_groups.delete_security_group(context, id, net_driver)
 
-    def delete_security_group_rule(self, context, id):
-        security_groups.delete_security_group_rule(context, id)
+    #TODO(dietz/perkins): passing in net_driver as a stopgap,
+    #XXX DO NOT DEPLOY!! XXX see redmine #2487
+    def delete_security_group_rule(self, context, id, net_driver):
+        security_groups.delete_security_group_rule(context, id, net_driver)
 
     def get_security_group(self, context, id, fields=None):
         return security_groups.get_security_group(context, id, fields)
@@ -135,9 +146,12 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
                                                         fields, sorts, limit,
                                                         marker, page_reverse)
 
-    def update_security_group(self, context, id, security_group):
+    #TODO(dietz/perkins): passing in net_driver as a stopgap,
+    #XXX DO NOT DEPLOY!! XXX see redmine #2487
+    def update_security_group(self, context, id, security_group, net_driver):
         return security_groups.update_security_group(context, id,
-                                                     security_group)
+                                                     security_group,
+                                                     net_driver)
 
     def create_ip_policy(self, context, ip_policy):
         return ip_policies.create_ip_policy(context, ip_policy)

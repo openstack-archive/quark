@@ -23,9 +23,9 @@ from neutron.openstack.common import uuidutils
 from oslo.config import cfg
 
 from quark.db import api as db_api
+from quark.drivers import registry
 from quark import network_strategy
 from quark.plugin_modules import ports
-from quark.plugin_modules import security_groups
 from quark.plugin_modules import subnets
 from quark import plugin_views as v
 from quark import utils
@@ -36,8 +36,6 @@ LOG = logging.getLogger(__name__)
 STRATEGY = network_strategy.STRATEGY
 
 ipam_driver = (importutils.import_class(CONF.QUARK.ipam_driver))()
-net_driver = (importutils.import_class(CONF.QUARK.net_driver))()
-net_driver.load_config()
 
 
 def _adapt_provider_nets(context, network):
@@ -75,6 +73,10 @@ def create_network(context, network):
     # kept in a plugin and completely removed if desired. We could
     # have a pre-callback/observer on the netdriver create_network
     # that gathers any additional parameters from the network dict
+
+    #TODO(dietz or perkins): Allow this to be overridden later with CLI
+    default_net_type = CONF.QUARK.default_network_type
+    net_driver = registry.DRIVER_REGISTRY.get_driver(default_net_type)
     net_driver.create_network(context, net_attrs["name"], network_id=net_uuid,
                               phys_type=pnet_type, phys_net=phys_net,
                               segment_id=seg_id)
@@ -83,6 +85,7 @@ def create_network(context, network):
 
     net_attrs["id"] = net_uuid
     net_attrs["tenant_id"] = context.tenant_id
+    net_attrs["network_plugin"] = default_net_type
     new_net = db_api.network_create(context, **net_attrs)
 
     new_subnets = []
@@ -93,10 +96,10 @@ def create_network(context, network):
         new_subnets.append(s)
     new_net["subnets"] = new_subnets
 
-    if not security_groups.get_security_groups(
-            context,
-            filters={"id": security_groups.DEFAULT_SG_UUID}):
-        security_groups._create_default_security_group(context)
+    #if not security_groups.get_security_groups(
+    #        context,
+    #        filters={"id": security_groups.DEFAULT_SG_UUID}):
+    #    security_groups._create_default_security_group(context)
     return v._make_network_dict(new_net)
 
 
@@ -162,7 +165,8 @@ def get_networks(context, filters=None, fields=None):
     LOG.info("get_networks for tenant %s with filters %s, fields %s" %
             (context.tenant_id, filters, fields))
     nets = db_api.network_find(context, **filters) or []
-    return [v._make_network_dict(net) for net in nets]
+    nets = [v._make_network_dict(net) for net in nets]
+    return nets
 
 
 def get_networks_count(context, filters=None):
@@ -199,6 +203,7 @@ def delete_network(context, id):
         raise exceptions.NetworkNotFound(net_id=id)
     if net.ports:
         raise exceptions.NetworkInUse(net_id=id)
+    net_driver = registry.DRIVER_REGISTRY.get_driver(net["network_plugin"])
     net_driver.delete_network(context, id)
     for subnet in net["subnets"]:
         subnets._delete_subnet(context, subnet)
@@ -208,6 +213,7 @@ def delete_network(context, id):
 def _diag_network(context, network, fields):
     if not network:
         return False
+    net_driver = registry.DRIVER_REGISTRY.get_driver(network["network_plugin"])
     net = v._make_network_dict(network)
     net['ports'] = [p.get('id') for p in network.get('ports', [])]
     if 'subnets' in fields:
@@ -225,7 +231,7 @@ def _diag_network(context, network, fields):
 def diagnose_network(context, id, fields):
     if id == "*":
         return {'networks': [_diag_network(context, net, fields) for
-                net in db_api.network_find_all(context)]}
+                net in db_api.network_find(context, scope=db_api.ALL)]}
     db_net = db_api.network_find(context, id=id, scope=db_api.ONE)
     if not db_net:
         raise exceptions.NetworkNotFound(net_id=id)

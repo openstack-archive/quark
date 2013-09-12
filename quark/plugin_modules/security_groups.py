@@ -15,7 +15,6 @@
 
 from neutron.common import exceptions
 from neutron.extensions import securitygroup as sg_ext
-from neutron.openstack.common import importutils
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import uuidutils
 from neutron import quota
@@ -28,10 +27,6 @@ from quark import plugin_views as v
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 DEFAULT_SG_UUID = "00000000-0000-0000-0000-000000000000"
-
-
-net_driver = (importutils.import_class(CONF.QUARK.net_driver))()
-net_driver.load_config()
 
 
 def _validate_security_group_rule(context, rule):
@@ -70,7 +65,9 @@ def _validate_security_group_rule(context, rule):
     return rule
 
 
-def create_security_group(context, security_group):
+def create_security_group(context, security_group, net_driver):
+    # TODO(dietz/perkins): passing in net_driver as a stopgap,
+    # XXX DO NOT DEPLOY!! XXX see redmine #2487
     LOG.info("create_security_group for tenant %s" %
             (context.tenant_id))
     group = security_group["security_group"]
@@ -92,7 +89,7 @@ def create_security_group(context, security_group):
     return v._make_security_group_dict(dbgroup)
 
 
-def _create_default_security_group(context):
+def _create_default_security_group(context, net_driver):
     default_group = {
         "name": "default", "description": "",
         "group_id": DEFAULT_SG_UUID,
@@ -121,7 +118,7 @@ def _create_default_security_group(context):
     db_api.security_group_create(context, **default_group)
 
 
-def create_security_group_rule(context, security_group_rule):
+def create_security_group_rule(context, security_group_rule, net_driver):
     LOG.info("create_security_group for tenant %s" %
             (context.tenant_id))
     rule = _validate_security_group_rule(
@@ -144,7 +141,7 @@ def create_security_group_rule(context, security_group_rule):
         db_api.security_group_rule_create(context, **rule))
 
 
-def delete_security_group(context, id):
+def delete_security_group(context, id, net_driver):
     LOG.info("delete_security_group %s for tenant %s" %
             (id, context.tenant_id))
 
@@ -161,7 +158,7 @@ def delete_security_group(context, id):
     db_api.security_group_delete(context, group)
 
 
-def delete_security_group_rule(context, id):
+def delete_security_group_rule(context, id, net_driver):
     LOG.info("delete_security_group %s for tenant %s" %
             (id, context.tenant_id))
     rule = db_api.security_group_rule_find(context, id=id,
@@ -218,7 +215,7 @@ def get_security_group_rules(context, filters=None, fields=None,
     return [v._make_security_group_rule_dict(rule) for rule in rules]
 
 
-def update_security_group(context, id, security_group):
+def update_security_group(context, id, security_group, net_driver):
     if id == DEFAULT_SG_UUID:
         raise sg_ext.SecurityGroupCannotUpdateDefault()
     new_group = security_group["security_group"]

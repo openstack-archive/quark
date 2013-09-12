@@ -21,10 +21,9 @@ from neutron.openstack.common import timeutils
 from neutron.openstack.common import uuidutils
 from sqlalchemy import event
 from sqlalchemy import func as sql_func
-from sqlalchemy import orm, or_
+from sqlalchemy import and_, orm, or_
 
 from quark.db import models
-from quark import exceptions as quark_exc
 from quark import network_strategy
 
 
@@ -66,13 +65,6 @@ def _model_query(context, model, filters, fields=None):
     filters = filters or {}
     model_filters = []
 
-    if "shared" in filters and True in filters["shared"]:
-        return model_filters
-
-    # Inject the tenant id if none is set. We don't need unqualified queries
-    if not (context.is_admin or "tenant_id" in filters):
-        filters["tenant_id"] = [context.tenant_id]
-
     if filters.get("name"):
         model_filters.append(model.name.in_(filters["name"]))
 
@@ -81,9 +73,6 @@ def _model_query(context, model, filters, fields=None):
 
     if filters.get("mac_address"):
         model_filters.append(model.mac_address.in_(filters["mac_address"]))
-
-    if filters.get("tenant_id"):
-        model_filters.append(model.tenant_id.in_(filters["tenant_id"]))
 
     if filters.get("id"):
         model_filters.append(model.id.in_(filters["id"]))
@@ -126,6 +115,16 @@ def _model_query(context, model, filters, fields=None):
     if filters.get("cidr"):
         model_filters.append(model.cidr == filters["cidr"])
 
+    # Inject the tenant id if none is set. We don't need unqualified queries.
+    # This works even when a non-shared, other-tenant owned network is passed
+    # in because the authZ checks that happen in Neutron above us yank it back
+    # out of the result set.
+    if "tenant_id" in filters or not context.is_admin:
+        filters["tenant_id"] = [context.tenant_id]
+
+    if filters.get("tenant_id"):
+        model_filters.append(model.tenant_id.in_(filters["tenant_id"]))
+
     return model_filters
 
 
@@ -145,8 +144,12 @@ def scoped(f):
             res = res.order_by(kwargs["order_by"])
 
         if scope == ALL:
+            if isinstance(res, list):
+                return res
             return res.all()
         elif scope == ONE:
+            if isinstance(res, list):
+                return res[0]
             return res.first()
         return res
     return wrapped
@@ -300,31 +303,32 @@ def network_find(context, fields=None, **filters):
     defaults = []
     if "id" in filters:
         ids, defaults = STRATEGY.split_network_ids(context, filters["id"])
-        filters["ids"] = ids
+        if ids:
+            filters["id"] = ids
+        else:
+            filters.pop("id")
 
     if "shared" in filters and True in filters["shared"]:
         defaults = STRATEGY.get_assignable_networks(context)
+        filters.pop("shared")
         if ids:
             defaults = [net for net in ids if net in defaults]
             filters.pop("id")
         if not defaults:
             return []
 
-        if "segment_id" in filters and filters["segment_id"]:
-            # Ambiguous search, say we can't find anything
-            if len(defaults) > 1:
-                raise quark_exc.AmbiguousNetworkId()
-            defaults = [STRATEGY.best_match_network_id(
-                context, filters["id"][0], filters["segment_id"])]
-
     query = context.session.query(models.Network)
     model_filters = _model_query(context, models.Network, filters, query)
 
     if defaults:
-        query = query.filter(or_(models.Network.id.in_(defaults),
-                             *model_filters))
+        if filters:
+            query = query.filter(or_(models.Network.id.in_(defaults),
+                                     and_(*model_filters)))
+        else:
+            query = query.filter(models.Network.id.in_(defaults))
     else:
         query = query.filter(*model_filters)
+
     return query
 
 

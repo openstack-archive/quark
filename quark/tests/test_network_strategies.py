@@ -26,6 +26,7 @@ class TestJSONStrategy(test_base.TestBase):
         self.context = None
         self.strategy = {"public_network":
                          {"required": True,
+                          "bridge": "xenbr0",
                           "children": {"nova": "child_net"}}}
         strategy_json = json.dumps(self.strategy)
         cfg.CONF.set_override("default_net_strategy", strategy_json, "QUARK")
@@ -40,6 +41,11 @@ class TestJSONStrategy(test_base.TestBase):
         json_strategy = network_strategy.JSONStrategy(json.dumps(custom))
         net_ids = json_strategy.get_assignable_networks(self.context)
         self.assertEqual("private_network", net_ids[0])
+
+    def test_get_network(self):
+        json_strategy = network_strategy.JSONStrategy()
+        net = json_strategy.get_network(self.context, "public_network")
+        self.assertEqual(net["bridge"], "xenbr0")
 
     def test_split_network_ids(self):
         json_strategy = network_strategy.JSONStrategy()

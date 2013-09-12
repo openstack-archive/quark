@@ -139,6 +139,7 @@ class TestQuarkDeleteNetwork(test_quark_plugin.TestQuarkPlugin):
             net_mod.update(net)
             net_mod.ports = port_mods
             net_mod["subnets"] = subnet_mods
+            net_mod["network_plugin"] = "BASE"
 
         db_mod = "quark.db.api"
         with contextlib.nested(
@@ -247,6 +248,7 @@ class TestQuarkDiagnoseNetworks(test_quark_plugin.TestQuarkPlugin):
         if nets:
             for net in nets:
                 net_mod = models.Network()
+                net_mod["network_plugin"] = "BASE"
                 net_mod.update(net)
                 net_mod["subnets"] = subnet_mods
                 net_mods.append(net_mod)

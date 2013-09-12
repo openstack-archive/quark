@@ -30,7 +30,11 @@ quark_opts = [
                        "after deallocation.")),
     cfg.StrOpt("strategy_driver",
                default='quark.network_strategy.JSONStrategy',
-               help=_("Tree of network assignment strategy"))
+               help=_("Tree of network assignment strategy")),
+    cfg.StrOpt("default_network_type",
+               default='BASE',
+               help=_("Default network type to use when"
+                      "none is provided"))
 ]
 
 

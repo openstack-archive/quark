@@ -75,6 +75,11 @@ class NVPDriver(base.BaseDriver):
         self.limits = {'max_ports_per_switch': 0,
                        'max_rules_per_group': 0,
                        'max_rules_per_port': 0}
+        super(NVPDriver, self).__init__()
+
+    @classmethod
+    def get_name(klass):
+        return "NVP"
 
     def load_config(self):
         #NOTE(mdietz): What does default_tz actually mean?

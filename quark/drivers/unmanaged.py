@@ -15,13 +15,16 @@
 
 from neutron.openstack.common import log as logging
 
+from quark import network_strategy
+
+STRATEGY = network_strategy.STRATEGY
 LOG = logging.getLogger(__name__)
 
 
-class BaseDriver(object):
-    """Base interface for all Quark drivers.
+class UnmanagedDriver(object):
+    """Unmanaged network driver.
 
-    Usable as a replacement for the sample plugin.
+    Returns a bridge...
     """
     def __init__(self):
         self.load_config()
@@ -31,7 +34,7 @@ class BaseDriver(object):
 
     @classmethod
     def get_name(klass):
-        return "BASE"
+        return "UNMANAGED"
 
     def get_connection(self):
         LOG.info("get_connection")
@@ -51,7 +54,8 @@ class BaseDriver(object):
     def create_port(self, context, network_id, port_id, **kwargs):
         LOG.info("create_port %s %s %s" % (context.tenant_id, network_id,
                                            port_id))
-        return {"uuid": port_id}
+        bridge_name = STRATEGY.get_network(context, network_id)["bridge"]
+        return {"uuid": port_id, "bridge": bridge_name}
 
     def update_port(self, context, port_id, **kwargs):
         LOG.info("update_port %s %s" % (context.tenant_id, port_id))

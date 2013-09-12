@@ -41,8 +41,9 @@ class JSONStrategy(object):
     def _compile_strategy(self, strategy):
         strategy = json.loads(strategy)
         for network, definition in strategy.iteritems():
-            for _, child_net in definition["children"].iteritems():
-                self.reverse_strategy[child_net] = network
+            if "children" in definition:
+                for _, child_net in definition["children"].iteritems():
+                    self.reverse_strategy[child_net] = network
         self.strategy = strategy
 
     def split_network_ids(self, context, net_ids):
@@ -54,6 +55,9 @@ class JSONStrategy(object):
             else:
                 tenant.append(net_id)
         return tenant, assignable
+
+    def get_network(self, context, net_id):
+        return self.strategy.get(net_id)
 
     def get_assignable_networks(self, context):
         return self.strategy.keys()

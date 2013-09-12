@@ -27,7 +27,9 @@ RESOURCE_NAME = "port"
 RESOURCE_COLLECTION = RESOURCE_NAME + "s"
 EXTENDED_ATTRIBUTES_2_0 = {
     RESOURCE_COLLECTION: {
-        "segment_id": {"allow_post": True, "default": False}}}
+        "segment_id": {"allow_post": True, "default": False},
+        "bridge": {'allow_post': False, 'allow_put': False,
+                   'default': False, 'is_visible': True}}}
 
 
 class QuarkPortsIPAddressController(wsgi.Controller):

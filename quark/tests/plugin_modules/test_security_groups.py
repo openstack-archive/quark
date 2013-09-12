@@ -21,6 +21,7 @@ from neutron.extensions import securitygroup as sg_ext
 from oslo.config import cfg
 
 from quark.db import models
+import quark.drivers.base
 from quark.plugin_modules import security_groups
 from quark.tests import test_quark_plugin
 
@@ -126,6 +127,10 @@ class TestQuarkGetSecurityGroupRules(test_quark_plugin.TestQuarkPlugin):
 
 
 class TestQuarkUpdateSecurityGroup(test_quark_plugin.TestQuarkPlugin):
+    def setUp(self):
+        super(TestQuarkUpdateSecurityGroup, self).setUp()
+        self.net_driver = quark.drivers.base.BaseDriver()
+
     def test_update_security_group(self):
         rule = models.SecurityGroupRule()
         rule.update(dict(id=1))
@@ -143,20 +148,23 @@ class TestQuarkUpdateSecurityGroup(test_quark_plugin.TestQuarkPlugin):
             db_find.return_value = group
             db_update.return_value = updated_group
             update = dict(security_group=dict(name="bar"))
-            resp = self.plugin.update_security_group(self.context, 1, update)
+            resp = self.plugin.update_security_group(self.context, 1, update,
+                                                     self.net_driver)
             self.assertEqual(resp["name"], updated_group["name"])
 
     def test_update_security_group_with_deault_security_group_id(self):
         with self.assertRaises(sg_ext.SecurityGroupCannotUpdateDefault):
             self.plugin.update_security_group(self.context,
                                               security_groups.DEFAULT_SG_UUID,
-                                              None)
+                                              None,
+                                              self.net_driver)
 
 
 class TestQuarkCreateSecurityGroup(test_quark_plugin.TestQuarkPlugin):
     def setUp(self, *args, **kwargs):
         super(TestQuarkCreateSecurityGroup, self).setUp(*args, **kwargs)
         cfg.CONF.set_override('quota_security_group', 1, 'QUOTAS')
+        self.net_driver = quark.drivers.base.BaseDriver()
 
     @contextlib.contextmanager
     def _stubs(self, security_group, other=0):
@@ -179,7 +187,7 @@ class TestQuarkCreateSecurityGroup(test_quark_plugin.TestQuarkPlugin):
                     'security_group_rules': []}
         with self._stubs(group) as group_create:
             result = self.plugin.create_security_group(
-                self.context, {'security_group': group})
+                self.context, {'security_group': group}, self.net_driver)
             self.assertTrue(group_create.called)
             for key in expected.keys():
                 self.assertEqual(result[key], expected[key])
@@ -190,13 +198,15 @@ class TestQuarkCreateSecurityGroup(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(group) as group_create:
             with self.assertRaises(sg_ext.SecurityGroupDefaultAlreadyExists):
                 self.plugin.create_security_group(
-                    self.context, {'security_group': group})
+                    self.context, {'security_group': group},
+                    self.net_driver)
                 self.assertTrue(group_create.called)
 
 
 class TestQuarkDeleteSecurityGroup(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, security_group=None):
+        self.net_driver = quark.drivers.base.BaseDriver()
         dbgroup = None
         if security_group:
             dbgroup = models.SecurityGroup()
@@ -216,7 +226,7 @@ class TestQuarkDeleteSecurityGroup(test_quark_plugin.TestQuarkPlugin):
         group = {'name': 'foo', 'description': 'bar', 'id': 1,
                  'tenant_id': self.context.tenant_id}
         with self._stubs(group) as (db_delete, driver_delete):
-            self.plugin.delete_security_group(self.context, 1)
+            self.plugin.delete_security_group(self.context, 1, self.net_driver)
             self.assertTrue(db_delete.called)
             driver_delete.assert_called_once_with(self.context, 1)
 
@@ -225,7 +235,8 @@ class TestQuarkDeleteSecurityGroup(test_quark_plugin.TestQuarkPlugin):
                  'tenant_id': self.context.tenant_id}
         with self._stubs(group) as (db_delete, driver_delete):
             with self.assertRaises(sg_ext.SecurityGroupCannotRemoveDefault):
-                self.plugin.delete_security_group(self.context, 1)
+                self.plugin.delete_security_group(self.context, 1,
+                                                  self.net_driver)
 
     def test_delete_security_group_with_ports(self):
         port = models.Port()
@@ -233,12 +244,14 @@ class TestQuarkDeleteSecurityGroup(test_quark_plugin.TestQuarkPlugin):
                  'tenant_id': self.context.tenant_id, 'ports': [port]}
         with self._stubs(group) as (db_delete, driver_delete):
             with self.assertRaises(sg_ext.SecurityGroupInUse):
-                self.plugin.delete_security_group(self.context, 1)
+                self.plugin.delete_security_group(self.context, 1,
+                                                  self.net_driver)
 
     def test_delete_security_group_not_found(self):
         with self._stubs() as (db_delete, driver_delete):
             with self.assertRaises(sg_ext.SecurityGroupNotFound):
-                self.plugin.delete_security_group(self.context, 1)
+                self.plugin.delete_security_group(self.context, 1,
+                                                  self.net_driver)
 
 
 class TestQuarkCreateSecurityGroupRule(test_quark_plugin.TestQuarkPlugin):
@@ -261,6 +274,7 @@ class TestQuarkCreateSecurityGroupRule(test_quark_plugin.TestQuarkPlugin):
             'tenant_id': None,
             'protocol': None,
             'security_group_id': 1}
+        self.net_driver = quark.drivers.base.BaseDriver()
 
     @contextlib.contextmanager
     def _stubs(self, rule, group):
@@ -291,7 +305,8 @@ class TestQuarkCreateSecurityGroupRule(test_quark_plugin.TestQuarkPlugin):
         expected.pop('group', None)
         with self._stubs(rule, group) as rule_create:
             result = self.plugin.create_security_group_rule(
-                self.context, {'security_group_rule': rule})
+                self.context, {'security_group_rule': rule},
+                self.net_driver)
             self.assertTrue(rule_create.called)
             for key in expected.keys():
                 self.assertEqual(expected[key], result[key])
@@ -352,6 +367,7 @@ class TestQuarkCreateSecurityGroupRule(test_quark_plugin.TestQuarkPlugin):
 class TestQuarkDeleteSecurityGroupRule(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, rule={}, group={'id': 1}):
+        self.net_driver = quark.drivers.base.BaseDriver()
         dbrule = None
         dbgroup = None
         if group:
@@ -383,7 +399,8 @@ class TestQuarkDeleteSecurityGroupRule(test_quark_plugin.TestQuarkPlugin):
             'tenant_id': self.context.tenant_id, 'protocol': 6}
 
         with self._stubs(dict(rule, group_id=1)) as (db_delete, driver_delete):
-            self.plugin.delete_security_group_rule(self.context, 1)
+            self.plugin.delete_security_group_rule(self.context, 1,
+                                                   self.net_driver)
             self.assertTrue(db_delete.called)
             driver_delete.assert_called_once_with(self.context, 1,
                                                   expected)
@@ -391,11 +408,13 @@ class TestQuarkDeleteSecurityGroupRule(test_quark_plugin.TestQuarkPlugin):
     def test_delete_security_group_rule_rule_not_found(self):
         with self._stubs() as (db_delete, driver_delete):
             with self.assertRaises(sg_ext.SecurityGroupRuleNotFound):
-                self.plugin.delete_security_group_rule(self.context, 1)
+                self.plugin.delete_security_group_rule(self.context, 1,
+                                                       self.net_driver)
 
     def test_delete_security_group_rule_group_not_found(self):
         rule = {'id': 1, 'security_group_id': 1, 'ethertype': 'IPv4'}
         with self._stubs(dict(rule, group_id=1),
                          None) as (db_delete, driver_delete):
             with self.assertRaises(sg_ext.SecurityGroupNotFound):
-                self.plugin.delete_security_group_rule(self.context, 1)
+                self.plugin.delete_security_group_rule(self.context, 1,
+                                                       self.net_driver)

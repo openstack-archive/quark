@@ -23,6 +23,7 @@ from neutron import quota
 from oslo.config import cfg
 
 from quark.db import api as db_api
+from quark.drivers import registry
 from quark import plugin_views as v
 from quark import utils
 
@@ -30,8 +31,6 @@ CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
 ipam_driver = (importutils.import_class(CONF.QUARK.ipam_driver))()
-net_driver = (importutils.import_class(CONF.QUARK.net_driver))()
-net_driver.load_config()
 
 
 def create_port(context, port):
@@ -92,6 +91,7 @@ def create_port(context, port):
     address_pairs = [{'mac_address': mac_address_string,
                       'ip_address': address.get('address_readable', '')}
                      for address in addresses]
+    net_driver = registry.DRIVER_REGISTRY.get_driver(net["network_plugin"])
     backend_port = net_driver.create_port(context, net["id"], port_id=port_id,
                                           security_groups=group_ids,
                                           allowed_pairs=address_pairs)
@@ -99,9 +99,14 @@ def create_port(context, port):
     port_attrs["network_id"] = net["id"]
     port_attrs["id"] = port_id
     port_attrs["security_groups"] = security_groups
+
+    LOG.info("Including extra plugin attrs: %s" % backend_port)
+    port_attrs.update(backend_port)
     new_port = db_api.port_create(
         context, addresses=addresses, mac_address=mac["address"],
         backend_key=backend_port["uuid"], **port_attrs)
+
+    # Include any driver specific bits
     return v._make_port_dict(new_port)
 
 
@@ -148,6 +153,8 @@ def update_port(context, id, port):
 
     group_ids, security_groups = v.make_security_group_list(
         context, port["port"].pop("security_groups", None))
+    net_driver = registry.DRIVER_REGISTRY.get_driver(
+        port_db.network["network_plugin"])
     net_driver.update_port(context, port_id=port_db.backend_key,
                            security_groups=group_ids,
                            allowed_pairs=address_pairs)
@@ -295,6 +302,8 @@ def delete_port(context, id):
     ipam_driver.deallocate_ip_address(
         context, port, ipam_reuse_after=CONF.QUARK.ipam_reuse_after)
     db_api.port_delete(context, port)
+    net_driver = registry.DRIVER_REGISTRY.get_driver(
+        port.network["network_plugin"])
     net_driver.delete_port(context, backend_key)
 
 
@@ -325,9 +334,9 @@ def disassociate_port(context, id, ip_address_id):
 
 
 def _diag_port(context, port, fields):
-    if not port:
-        return False
     p = v._make_port_dict(port)
+    net_driver = registry.DRIVER_REGISTRY.get_driver(
+        port.network["network_plugin"])
     if 'config' in fields:
         p.update(net_driver.diag_port(
             context, port["backend_key"], get_status='status' in fields))

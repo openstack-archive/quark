@@ -297,6 +297,7 @@ class Port(BASEV2, models.HasTenant, models.HasId):
     mac_address = sa.Column(sa.BigInteger())
     device_id = sa.Column(sa.String(255), nullable=False)
     device_owner = sa.Column(sa.String(255))
+    bridge = sa.Column(sa.String(255))
 
     @declarative.declared_attr
     def ip_addresses(cls):
@@ -422,3 +423,4 @@ class Network(BASEV2, models.HasTenant, models.HasId):
     subnets = orm.relationship(Subnet, backref='network')
     ip_policy_id = sa.Column(sa.String(36),
                              sa.ForeignKey("quark_ip_policy.id"))
+    network_plugin = sa.Column(sa.String(36))
