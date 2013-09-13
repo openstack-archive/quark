@@ -20,12 +20,14 @@ View Helpers for Quark Plugin
 import netaddr
 
 from neutron.extensions import securitygroup as sg_ext
+from neutron.openstack.common import log as logging
 
 from quark.db import api as db_api
 from quark.db import models
 from quark import network_strategy
 from quark import utils
 
+LOG = logging.getLogger(__name__)
 STRATEGY = network_strategy.STRATEGY
 
 
@@ -140,9 +142,13 @@ def _port_dict(port, fields=None):
            "device_id": port.get("device_id"),
            "device_owner": port.get("device_owner")}
 
-    if res["mac_address"]:
+    if "mac_address" in res and res["mac_address"]:
         mac = str(netaddr.EUI(res["mac_address"])).replace('-', ':')
         res["mac_address"] = mac
+
+    #NOTE(mdietz): more pythonic key in dict check fails here. Leave as get
+    if port.get("bridge"):
+        res["bridge"] = port["bridge"]
     return res
 
 

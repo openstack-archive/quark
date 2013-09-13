@@ -43,6 +43,14 @@ class TestBaseDriver(test_base.TestBase):
     def test_delete_port(self):
         self.driver.delete_port(context=self.context, port_id=2)
 
+    def test_diag_network(self):
+        diag = self.driver.diag_network(self.context, network_id=1)
+        self.assertEqual(diag, {})
+
+    def test_diag_port(self):
+        diag = self.driver.diag_port(self.context, network_id=1)
+        self.assertEqual(diag, {})
+
     def test_create_security_group(self):
         self.driver.create_security_group(context=self.context,
                                           group_name="mygroup")

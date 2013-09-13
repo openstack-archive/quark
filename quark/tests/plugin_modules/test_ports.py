@@ -70,11 +70,13 @@ class TestQuarkGetPorts(test_quark_plugin.TestQuarkPlugin):
         ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
                   subnet_id=1, network_id=2, version=4)
         port = dict(mac_address="AA:BB:CC:DD:EE:FF", network_id=1,
-                    tenant_id=self.context.tenant_id, device_id=2)
+                    tenant_id=self.context.tenant_id, device_id=2,
+                    bridge="xenbr0")
         expected = {'status': "ACTIVE",
                     'device_owner': None,
                     'mac_address': 'AA:BB:CC:DD:EE:FF',
                     'network_id': 1,
+                    'bridge': "xenbr0",
                     'tenant_id': self.context.tenant_id,
                     'admin_state_up': None,
                     'device_id': 2}
@@ -135,6 +137,8 @@ class TestQuarkGetPorts(test_quark_plugin.TestQuarkPlugin):
 class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, port=None, network=None, addr=None, mac=None):
+        if network:
+            network["network_plugin"] = "BASE"
         port_model = models.Port()
         port_model.update(port)
         port_models = port_model
@@ -299,7 +303,10 @@ class TestQuarkUpdatePort(test_quark_plugin.TestQuarkPlugin):
     def _stubs(self, port):
         port_model = None
         if port:
+            net_model = models.Network()
+            net_model["network_plugin"] = "BASE"
             port_model = models.Port()
+            port_model.network = net_model
             port_model.update(port)
         with contextlib.nested(
             mock.patch("quark.db.api.port_find"),
@@ -490,8 +497,11 @@ class TestQuarkDeletePort(test_quark_plugin.TestQuarkPlugin):
     def _stubs(self, port=None, addr=None, mac=None):
         port_models = None
         if port:
+            net_model = models.Network()
+            net_model["network_plugin"] = "BASE"
             port_model = models.Port()
             port_model.update(port)
+            port_model.network = net_model
             port_models = port_model
 
         db_mod = "quark.db.api"
@@ -563,3 +573,133 @@ class TestQuarkDisassociatePort(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(port=None):
             with self.assertRaises(exceptions.PortNotFound):
                 self.plugin.disassociate_port(self.context, 1, 1)
+
+
+class TestPortDiagnose(test_quark_plugin.TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, port, list_format=False):
+        port_res = None
+        if port:
+            network_mod = models.Network()
+            port_mod = models.Port()
+            port_mod.update(port)
+            network_mod["network_plugin"] = "UNMANAGED"
+            port_mod.network = network_mod
+            port_res = port_mod
+            if list_format:
+                ports = mock.MagicMock()
+                ports.all.return_value = [port_mod]
+                port_res = ports
+
+        with mock.patch("quark.db.api.port_find") as port_find:
+            port_find.return_value = port_res
+            yield
+
+    def test_port_diagnose(self):
+        ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
+                  subnet_id=1, network_id=2, version=4)
+        fixed_ips = [{"subnet_id": ip["subnet_id"],
+                      "ip_address": ip["address_readable"]}]
+        port = dict(port=dict(network_id=1, tenant_id=self.context.tenant_id,
+                              device_id=2, mac_address="AA:BB:CC:DD:EE:FF",
+                              backend_key="foo", fixed_ips=fixed_ips,
+                              network_plugin="UNMANAGED"))
+        with self._stubs(port=port):
+            diag = self.plugin.diagnose_port(self.context, 1, [])
+            ports = diag["ports"]
+            # All none because we're using the unmanaged driver, which
+            # doesn't do anything with these
+            self.assertEqual(ports["status"], "ACTIVE")
+            self.assertEqual(ports["device_owner"], None)
+            self.assertEqual(ports["fixed_ips"], [])
+            self.assertEqual(ports["security_groups"], [])
+            self.assertEqual(ports["device_id"], None)
+            self.assertEqual(ports["admin_state_up"], None)
+            self.assertEqual(ports["network_id"], None)
+            self.assertEqual(ports["tenant_id"], None)
+            self.assertEqual(ports["mac_address"], None)
+
+    def test_port_diagnose_with_wildcard(self):
+        ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
+                  subnet_id=1, network_id=2, version=4)
+        fixed_ips = [{"subnet_id": ip["subnet_id"],
+                      "ip_address": ip["address_readable"]}]
+        port = dict(port=dict(network_id=1, tenant_id=self.context.tenant_id,
+                              device_id=2, mac_address="AA:BB:CC:DD:EE:FF",
+                              backend_key="foo", fixed_ips=fixed_ips,
+                              network_plugin="UNMANAGED"))
+        with self._stubs(port=port, list_format=True):
+            diag = self.plugin.diagnose_port(self.context, '*', [])
+            ports = diag["ports"]
+            # All none because we're using the unmanaged driver, which
+            # doesn't do anything with these
+            self.assertEqual(ports[0]["status"], "ACTIVE")
+            self.assertEqual(ports[0]["device_owner"], None)
+            self.assertEqual(ports[0]["fixed_ips"], [])
+            self.assertEqual(ports[0]["security_groups"], [])
+            self.assertEqual(ports[0]["device_id"], None)
+            self.assertEqual(ports[0]["admin_state_up"], None)
+            self.assertEqual(ports[0]["network_id"], None)
+            self.assertEqual(ports[0]["tenant_id"], None)
+            self.assertEqual(ports[0]["mac_address"], None)
+
+    def test_port_diagnose_with_config_field(self):
+        ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
+                  subnet_id=1, network_id=2, version=4)
+        fixed_ips = [{"subnet_id": ip["subnet_id"],
+                      "ip_address": ip["address_readable"]}]
+        port = dict(port=dict(network_id=1, tenant_id=self.context.tenant_id,
+                              device_id=2, mac_address="AA:BB:CC:DD:EE:FF",
+                              backend_key="foo", fixed_ips=fixed_ips,
+                              network_plugin="UNMANAGED"))
+        with self._stubs(port=port, list_format=True):
+            diag = self.plugin.diagnose_port(self.context, '*', ["config"])
+            ports = diag["ports"]
+            # All none because we're using the unmanaged driver, which
+            # doesn't do anything with these
+            self.assertEqual(ports[0]["status"], "ACTIVE")
+            self.assertEqual(ports[0]["device_owner"], None)
+            self.assertEqual(ports[0]["fixed_ips"], [])
+            self.assertEqual(ports[0]["security_groups"], [])
+            self.assertEqual(ports[0]["device_id"], None)
+            self.assertEqual(ports[0]["admin_state_up"], None)
+            self.assertEqual(ports[0]["network_id"], None)
+            self.assertEqual(ports[0]["tenant_id"], None)
+            self.assertEqual(ports[0]["mac_address"], None)
+
+    def test_port_diagnose_no_port_raises(self):
+        with self._stubs(port=None):
+            with self.assertRaises(exceptions.PortNotFound):
+                self.plugin.diagnose_port(self.context, 1, [])
+
+
+class TestPortBadNetworkPlugin(test_quark_plugin.TestQuarkPlugin):
+    def test_create_port_with_bad_network_plugin_fails(self):
+        network_dict = dict(id=1)
+        port_name = "foobar"
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
+        port = dict(port=dict(mac_address=mac["address"], network_id=1,
+                              tenant_id=self.context.tenant_id, device_id=2,
+                              name=port_name))
+        network = models.Network()
+        network.update(network_dict)
+        network["network_plugin"] = "FAIL"
+        port_model = models.Port()
+        port_model.update(port)
+        port_models = port_model
+
+        db_mod = "quark.db.api"
+        ipam = "quark.ipam.QuarkIpam"
+        with contextlib.nested(
+            mock.patch("%s.port_create" % db_mod),
+            mock.patch("%s.network_find" % db_mod),
+            mock.patch("%s.allocate_ip_address" % ipam),
+            mock.patch("%s.allocate_mac_address" % ipam),
+        ) as (port_create, net_find, alloc_ip, alloc_mac):
+            port_create.return_value = port_models
+            net_find.return_value = network
+            alloc_ip.return_value = {}
+            alloc_mac.return_value = mac
+
+            with self.assertRaises(Exception):
+                self.plugin.create_port(self.context, port)
