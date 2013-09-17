@@ -96,9 +96,6 @@ def _model_query(context, model, filters, fields=None):
         else:
             model_filters.append(model._deallocated != 1)
 
-    if filters.get("device_id"):
-        model_filters.append(models.Port.device_id.in_(filters["device_id"]))
-
     if filters.get("address"):
         model_filters.append(model.address == filters["address"])
 
@@ -119,7 +116,7 @@ def _model_query(context, model, filters, fields=None):
     # This works even when a non-shared, other-tenant owned network is passed
     # in because the authZ checks that happen in Neutron above us yank it back
     # out of the result set.
-    if "tenant_id" in filters or not context.is_admin:
+    if "tenant_id" not in filters and not context.is_admin:
         filters["tenant_id"] = [context.tenant_id]
 
     if filters.get("tenant_id"):
@@ -164,6 +161,9 @@ def port_find(context, **filters):
     if filters.get("ip_address_id"):
         model_filters.append(models.Port.ip_addresses.any(
             models.IPAddress.id.in_(filters["ip_address_id"])))
+
+    if filters.get("device_id"):
+        model_filters.append(models.Port.device_id.in_(filters["device_id"]))
 
     return query.filter(*model_filters)
 
