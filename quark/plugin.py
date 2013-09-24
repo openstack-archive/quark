@@ -18,13 +18,9 @@ v2 Neutron Plug-in API Quark Implementation
 """
 from oslo.config import cfg
 
-from sqlalchemy.orm import sessionmaker, scoped_session
-from zope import sqlalchemy as zsa
-
 from neutron.db import api as neutron_db_api
 from neutron.extensions import securitygroup as sg_ext
 from neutron import neutron_plugin_base_v2
-from neutron.openstack.common.db.sqlalchemy import session as neutron_session
 from neutron import quota
 
 from quark.api import extensions
@@ -79,15 +75,8 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
                                    "subnets_quark", "provider",
                                    "ip_policies", "quotas"]
 
-    def _initDBMaker(self):
-        # This needs to be called after _ENGINE is configured
-        session_maker = sessionmaker(bind=neutron_session._ENGINE,
-                                     extension=zsa.ZopeTransactionExtension())
-        neutron_session._MAKER = scoped_session(session_maker)
-
     def __init__(self):
         neutron_db_api.configure_db()
-        self._initDBMaker()
         neutron_db_api.register_models(base=models.BASEV2)
 
     def get_mac_address_range(self, context, id, fields=None):

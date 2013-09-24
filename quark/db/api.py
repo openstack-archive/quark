@@ -116,7 +116,7 @@ def _model_query(context, model, filters, fields=None):
     # This works even when a non-shared, other-tenant owned network is passed
     # in because the authZ checks that happen in Neutron above us yank it back
     # out of the result set.
-    if "tenant_id" not in filters and not context.is_admin:
+    if not filters and not context.is_admin:
         filters["tenant_id"] = [context.tenant_id]
 
     if filters.get("tenant_id"):
@@ -215,7 +215,7 @@ def ip_address_create(context, **address_dict):
 
 
 @scoped
-def ip_address_find(context, **filters):
+def ip_address_find(context, lock_mode=False, **filters):
     query = context.session.query(models.IPAddress)
 
     ip_shared = filters.pop("shared", None)
@@ -223,6 +223,8 @@ def ip_address_find(context, **filters):
         cnt = sql_func.count(models.port_ip_association_table.c.port_id)
         stmt = context.session.query(models.IPAddress,
                                      cnt.label("ports_count"))
+        if lock_mode:
+            stmt = stmt.with_lockmode("update")
         stmt = stmt.outerjoin(models.port_ip_association_table)
         stmt = stmt.group_by(models.IPAddress).subquery()
 
@@ -239,13 +241,14 @@ def ip_address_find(context, **filters):
     if filters.get("device_id"):
         model_filters.append(models.IPAddress.ports.any(
             models.Port.device_id.in_(filters["device_id"])))
-
     return query.filter(*model_filters)
 
 
 @scoped
-def mac_address_find(context, **filters):
+def mac_address_find(context, lock_mode=False, **filters):
     query = context.session.query(models.MacAddress)
+    if lock_mode:
+        query.with_lockmode("update")
     model_filters = _model_query(context, models.MacAddress, filters)
     return query.filter(*model_filters)
 
@@ -253,7 +256,7 @@ def mac_address_find(context, **filters):
 def mac_address_range_find_allocation_counts(context, address=None):
     query = context.session.query(models.MacAddressRange,
                                   sql_func.count(models.MacAddress.address).
-                                  label("count"))
+                                  label("count")).with_lockmode("update")
     query = query.outerjoin(models.MacAddress)
     query = query.group_by(models.MacAddressRange)
     query = query.order_by("count DESC")
@@ -362,7 +365,7 @@ def network_delete(context, network):
 def subnet_find_allocation_counts(context, net_id, **filters):
     query = context.session.query(models.Subnet,
                                   sql_func.count(models.IPAddress.address).
-                                  label("count"))
+                                  label("count")).with_lockmode('update')
     query = query.outerjoin(models.Subnet.allocated_ips)
     query = query.group_by(models.Subnet)
     query = query.order_by("count DESC")

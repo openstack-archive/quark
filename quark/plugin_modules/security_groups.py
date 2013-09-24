@@ -76,16 +76,17 @@ def create_security_group(context, security_group, net_driver):
         raise sg_ext.SecurityGroupDefaultAlreadyExists()
     group_id = uuidutils.generate_uuid()
 
-    net_driver.create_security_group(
-        context,
-        group_name,
-        group_id=group_id,
-        **group)
+    with context.session.begin():
+        net_driver.create_security_group(
+            context,
+            group_name,
+            group_id=group_id,
+            **group)
 
-    group["id"] = group_id
-    group["name"] = group_name
-    group["tenant_id"] = context.tenant_id
-    dbgroup = db_api.security_group_create(context, **group)
+        group["id"] = group_id
+        group["name"] = group_name
+        group["tenant_id"] = context.tenant_id
+        dbgroup = db_api.security_group_create(context, **group)
     return v._make_security_group_dict(dbgroup)
 
 
@@ -121,21 +122,23 @@ def _create_default_security_group(context, net_driver):
 def create_security_group_rule(context, security_group_rule, net_driver):
     LOG.info("create_security_group for tenant %s" %
             (context.tenant_id))
-    rule = _validate_security_group_rule(
-        context, security_group_rule["security_group_rule"])
-    rule["id"] = uuidutils.generate_uuid()
 
-    group_id = rule["security_group_id"]
-    group = db_api.security_group_find(context, id=group_id,
-                                       scope=db_api.ONE)
-    if not group:
-        raise sg_ext.SecurityGroupNotFound(group_id=group_id)
+    with context.session.begin():
+        rule = _validate_security_group_rule(
+            context, security_group_rule["security_group_rule"])
+        rule["id"] = uuidutils.generate_uuid()
 
-    quota.QUOTAS.limit_check(
-        context, context.tenant_id,
-        security_rules_per_group=len(group.get("rules", [])) + 1)
+        group_id = rule["security_group_id"]
+        group = db_api.security_group_find(context, id=group_id,
+                                           scope=db_api.ONE)
+        if not group:
+            raise sg_ext.SecurityGroupNotFound(group_id=group_id)
 
-    net_driver.create_security_group_rule(context, group_id, rule)
+        quota.QUOTAS.limit_check(
+            context, context.tenant_id,
+            security_rules_per_group=len(group.get("rules", [])) + 1)
+
+        net_driver.create_security_group_rule(context, group_id, rule)
 
     return v._make_security_group_rule_dict(
         db_api.security_group_rule_create(context, **rule))
@@ -145,37 +148,39 @@ def delete_security_group(context, id, net_driver):
     LOG.info("delete_security_group %s for tenant %s" %
             (id, context.tenant_id))
 
-    group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
+    with context.session.begin():
+        group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
 
-    #TODO(anyone): name and ports are lazy-loaded. Could be good op later
-    if not group:
-        raise sg_ext.SecurityGroupNotFound(group_id=id)
-    if id == DEFAULT_SG_UUID or group.name == "default":
-        raise sg_ext.SecurityGroupCannotRemoveDefault()
-    if group.ports:
-        raise sg_ext.SecurityGroupInUse(id=id)
-    net_driver.delete_security_group(context, id)
-    db_api.security_group_delete(context, group)
+        #TODO(anyone): name and ports are lazy-loaded. Could be good op later
+        if not group:
+            raise sg_ext.SecurityGroupNotFound(group_id=id)
+        if id == DEFAULT_SG_UUID or group.name == "default":
+            raise sg_ext.SecurityGroupCannotRemoveDefault()
+        if group.ports:
+            raise sg_ext.SecurityGroupInUse(id=id)
+        net_driver.delete_security_group(context, id)
+        db_api.security_group_delete(context, group)
 
 
 def delete_security_group_rule(context, id, net_driver):
     LOG.info("delete_security_group %s for tenant %s" %
             (id, context.tenant_id))
-    rule = db_api.security_group_rule_find(context, id=id,
+    with context.session.begin():
+        rule = db_api.security_group_rule_find(context, id=id,
+                                               scope=db_api.ONE)
+        if not rule:
+            raise sg_ext.SecurityGroupRuleNotFound(group_id=id)
+
+        group = db_api.security_group_find(context, id=rule["group_id"],
                                            scope=db_api.ONE)
-    if not rule:
-        raise sg_ext.SecurityGroupRuleNotFound(group_id=id)
+        if not group:
+            raise sg_ext.SecurityGroupNotFound(id=id)
 
-    group = db_api.security_group_find(context, id=rule["group_id"],
-                                       scope=db_api.ONE)
-    if not group:
-        raise sg_ext.SecurityGroupNotFound(id=id)
+        net_driver.delete_security_group_rule(
+            context, group.id, v._make_security_group_rule_dict(rule))
 
-    net_driver.delete_security_group_rule(
-        context, group.id, v._make_security_group_rule_dict(rule))
-
-    rule["id"] = id
-    db_api.security_group_rule_delete(context, rule)
+        rule["id"] = id
+        db_api.security_group_rule_delete(context, rule)
 
 
 def get_security_group(context, id, fields=None):
@@ -219,8 +224,9 @@ def update_security_group(context, id, security_group, net_driver):
     if id == DEFAULT_SG_UUID:
         raise sg_ext.SecurityGroupCannotUpdateDefault()
     new_group = security_group["security_group"]
-    group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
-    net_driver.update_security_group(context, id, **new_group)
+    with context.session.begin():
+        group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
+        net_driver.update_security_group(context, id, **new_group)
 
-    db_group = db_api.security_group_update(context, group, **new_group)
+        db_group = db_api.security_group_update(context, group, **new_group)
     return v._make_security_group_dict(db_group)

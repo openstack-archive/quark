@@ -24,3 +24,15 @@ class TestBase(unittest2.TestCase):
     def setUp(self):
         super(TestBase, self).setUp()
         self.context = context.Context('fake', 'fake', is_admin=False)
+
+        class FakeContext(object):
+            def __new__(cls, *args, **kwargs):
+                return super(FakeContext, cls).__new__(cls)
+
+            def __enter__(*args, **kwargs):
+                pass
+
+            def __exit__(*args, **kwargs):
+                pass
+
+        self.context.session.begin = FakeContext

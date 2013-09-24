@@ -24,11 +24,14 @@ from neutron.openstack.common import log as logging
 from neutron.openstack.common.notifier import api as notifier_api
 from neutron.openstack.common import timeutils
 
+from oslo.config import cfg
+
 from quark.db import api as db_api
 from quark.db import models
 
 
 LOG = logging.getLogger(__name__)
+CONF = cfg.CONF
 
 
 class QuarkIpam(object):
@@ -60,36 +63,40 @@ class QuarkIpam(object):
         if mac_address:
             mac_address = netaddr.EUI(mac_address).value
 
-        deallocated_mac = db_api.mac_address_find(
-            context, reuse_after=reuse_after, scope=db_api.ONE,
-            address=mac_address)
-        if deallocated_mac:
-            return db_api.mac_address_update(
-                context, deallocated_mac, deallocated=False,
-                deallocated_at=None)
+        with context.session.begin(subtransactions=True):
+            deallocated_mac = db_api.mac_address_find(
+                context, lock_mode=True, reuse_after=reuse_after,
+                scope=db_api.ONE, address=mac_address)
+            if deallocated_mac:
+                return db_api.mac_address_update(
+                    context, deallocated_mac, deallocated=False,
+                    deallocated_at=None)
 
-        ranges = db_api.mac_address_range_find_allocation_counts(
-            context, address=mac_address)
-        for result in ranges:
-            rng, addr_count = result
-            if rng["last_address"] - rng["first_address"] <= addr_count:
-                continue
+        with context.session.begin(subtransactions=True):
+            ranges = db_api.mac_address_range_find_allocation_counts(
+                context, address=mac_address)
+            for result in ranges:
+                rng, addr_count = result
+                last = rng["last_address"]
+                first = rng["first_address"]
+                if last - first <= addr_count:
+                    continue
+                next_address = None
+                if mac_address:
+                    next_address = mac_address
+                else:
+                    address = True
+                    while address:
+                        next_address = rng["next_auto_assign_mac"]
+                        rng["next_auto_assign_mac"] = next_address + 1
+                        address = db_api.mac_address_find(
+                            context, tenant_id=context.tenant_id,
+                            scope=db_api.ONE, address=next_address)
 
-            next_address = None
-            if mac_address:
-                next_address = mac_address
-            else:
-                address = True
-                while address:
-                    next_address = rng["next_auto_assign_mac"]
-                    rng["next_auto_assign_mac"] = next_address + 1
-                    address = db_api.mac_address_find(
-                        context, tenant_id=context.tenant_id,
-                        scope=db_api.ONE, address=next_address)
-
-            address = db_api.mac_address_create(context, address=next_address,
-                                                mac_address_range_id=rng["id"])
-            return address
+                address = db_api.mac_address_create(
+                    context, address=next_address,
+                    mac_address_range_id=rng["id"])
+                return address
 
         raise exceptions.MacAddressGenerationFailure(net_id=net_id)
 
@@ -99,44 +106,52 @@ class QuarkIpam(object):
         if ip_address:
             ip_address = netaddr.IPAddress(ip_address)
 
-        address = db_api.ip_address_find(
-            elevated, network_id=net_id, reuse_after=reuse_after,
-            deallocated=True, scope=db_api.ONE, ip_address=ip_address)
-        if address:
-            return db_api.ip_address_update(
-                elevated, address, deallocated=False, deallocated_at=None)
-
-        subnet = self._choose_available_subnet(
-            elevated, net_id, ip_address=ip_address, version=version)
-        ip_policy_rules = models.IPPolicy.get_ip_policy_rule_set(subnet)
-
-        # Creating this IP for the first time
-        next_ip = None
-        if ip_address:
-            next_ip = ip_address
+        with context.session.begin(subtransactions=True):
             address = db_api.ip_address_find(
-                elevated, network_id=net_id, ip_address=next_ip,
-                tenant_id=elevated.tenant_id, scope=db_api.ONE)
+                elevated, network_id=net_id, reuse_after=reuse_after,
+                deallocated=True, scope=db_api.ONE, ip_address=ip_address,
+                lock_mode=True)
+
             if address:
-                raise exceptions.IpAddressGenerationFailure(net_id=net_id)
-        else:
-            address = True
-            while address:
-                next_ip_int = int(subnet["next_auto_assign_ip"])
-                next_ip = netaddr.IPAddress(next_ip_int)
-                if subnet["ip_version"] == 4:
-                    next_ip = next_ip.ipv4()
-                subnet["next_auto_assign_ip"] = next_ip_int + 1
-                if ip_policy_rules and next_ip in ip_policy_rules:
-                    continue
+                updated_address = db_api.ip_address_update(
+                    elevated, address, deallocated=False,
+                    deallocated_at=None)
+                return updated_address
+
+        with context.session.begin(subtransactions=True):
+            subnet = self._choose_available_subnet(
+                elevated, net_id, ip_address=ip_address, version=version)
+            ip_policy_rules = models.IPPolicy.get_ip_policy_rule_set(
+                subnet)
+
+            # Creating this IP for the first time
+            next_ip = None
+            if ip_address:
+                next_ip = ip_address
                 address = db_api.ip_address_find(
                     elevated, network_id=net_id, ip_address=next_ip,
                     tenant_id=elevated.tenant_id, scope=db_api.ONE)
-
-        address = db_api.ip_address_create(
-            elevated, address=next_ip, subnet_id=subnet["id"],
-            version=subnet["ip_version"], network_id=net_id)
-        address["deallocated"] = 0
+                if address:
+                    raise exceptions.IpAddressGenerationFailure(
+                        net_id=net_id)
+            else:
+                address = True
+                while address:
+                    next_ip_int = int(subnet["next_auto_assign_ip"])
+                    next_ip = netaddr.IPAddress(next_ip_int)
+                    if subnet["ip_version"] == 4:
+                        next_ip = next_ip.ipv4()
+                    subnet["next_auto_assign_ip"] = next_ip_int + 1
+                    if ip_policy_rules and next_ip in ip_policy_rules:
+                        continue
+                    address = db_api.ip_address_find(
+                        elevated, network_id=net_id, ip_address=next_ip,
+                        tenant_id=elevated.tenant_id, scope=db_api.ONE)
+            context.session.add(subnet)
+            address = db_api.ip_address_create(
+                elevated, address=next_ip, subnet_id=subnet["id"],
+                version=subnet["ip_version"], network_id=net_id)
+            address["deallocated"] = 0
 
         payload = dict(tenant_id=address["tenant_id"],
                        ip_block_id=address["subnet_id"],
@@ -167,17 +182,19 @@ class QuarkIpam(object):
                             payload)
 
     def deallocate_ip_address(self, context, port, **kwargs):
-        for addr in port["ip_addresses"]:
-            # Note: only deallocate ip if this is the only port mapped to it
-            if len(addr["ports"]) == 1:
-                self._deallocate_ip_address(context, addr)
-        port["ip_addresses"] = []
+        with context.session.begin(subtransactions=True):
+            for addr in port["ip_addresses"]:
+                # Note: only deallocate ip if this is the only port mapped
+                if len(addr["ports"]) == 1:
+                    self._deallocate_ip_address(context, addr)
+            port["ip_addresses"] = []
 
     def deallocate_mac_address(self, context, address):
-        mac = db_api.mac_address_find(context, address=address,
-                                      scope=db_api.ONE)
-        if not mac:
-            raise exceptions.NotFound(
-                message="No MAC address %s found" % netaddr.EUI(address))
-        db_api.mac_address_update(context, mac, deallocated=True,
-                                  deallocated_at=timeutils.utcnow())
+        with context.session.begin(subtransactions=True):
+            mac = db_api.mac_address_find(context, address=address,
+                                          scope=db_api.ONE)
+            if not mac:
+                raise exceptions.NotFound(
+                    message="No MAC address %s found" % netaddr.EUI(address))
+            db_api.mac_address_update(context, mac, deallocated=True,
+                                      deallocated_at=timeutils.utcnow())

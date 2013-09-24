@@ -60,46 +60,47 @@ def create_network(context, network):
     """
     LOG.info("create_network for tenant %s" % context.tenant_id)
 
-    # Generate a uuid that we're going to hand to the backend and db
-    net_uuid = uuidutils.generate_uuid()
+    with context.session.begin():
+        # Generate a uuid that we're going to hand to the backend and db
+        net_uuid = uuidutils.generate_uuid()
 
-    #TODO(mdietz) this will be the first component registry hook, but
-    #             lets make it work first
-    pnet_type, phys_net, seg_id = _adapt_provider_nets(context, network)
-    net_attrs = network["network"]
+        #TODO(mdietz) this will be the first component registry hook, but
+        #             lets make it work first
+        pnet_type, phys_net, seg_id = _adapt_provider_nets(context, network)
+        net_attrs = network["network"]
 
-    # NOTE(mdietz) I think ideally we would create the providernet
-    # elsewhere as a separate driver step that could be
-    # kept in a plugin and completely removed if desired. We could
-    # have a pre-callback/observer on the netdriver create_network
-    # that gathers any additional parameters from the network dict
+        # NOTE(mdietz) I think ideally we would create the providernet
+        # elsewhere as a separate driver step that could be
+        # kept in a plugin and completely removed if desired. We could
+        # have a pre-callback/observer on the netdriver create_network
+        # that gathers any additional parameters from the network dict
 
-    #TODO(dietz or perkins): Allow this to be overridden later with CLI
-    default_net_type = CONF.QUARK.default_network_type
-    net_driver = registry.DRIVER_REGISTRY.get_driver(default_net_type)
-    net_driver.create_network(context, net_attrs["name"], network_id=net_uuid,
-                              phys_type=pnet_type, phys_net=phys_net,
-                              segment_id=seg_id)
+        #TODO(dietz or perkins): Allow this to be overridden later with CLI
+        default_net_type = CONF.QUARK.default_network_type
+        net_driver = registry.DRIVER_REGISTRY.get_driver(default_net_type)
+        net_driver.create_network(context, net_attrs["name"],
+                                  network_id=net_uuid, phys_type=pnet_type,
+                                  phys_net=phys_net, segment_id=seg_id)
 
-    subs = net_attrs.pop("subnets", [])
+        subs = net_attrs.pop("subnets", [])
 
-    net_attrs["id"] = net_uuid
-    net_attrs["tenant_id"] = context.tenant_id
-    net_attrs["network_plugin"] = default_net_type
-    new_net = db_api.network_create(context, **net_attrs)
+        net_attrs["id"] = net_uuid
+        net_attrs["tenant_id"] = context.tenant_id
+        net_attrs["network_plugin"] = default_net_type
+        new_net = db_api.network_create(context, **net_attrs)
 
-    new_subnets = []
-    for sub in subs:
-        sub["subnet"]["network_id"] = new_net["id"]
-        sub["subnet"]["tenant_id"] = context.tenant_id
-        s = db_api.subnet_create(context, **sub["subnet"])
-        new_subnets.append(s)
-    new_net["subnets"] = new_subnets
+        new_subnets = []
+        for sub in subs:
+            sub["subnet"]["network_id"] = new_net["id"]
+            sub["subnet"]["tenant_id"] = context.tenant_id
+            s = db_api.subnet_create(context, **sub["subnet"])
+            new_subnets.append(s)
+        new_net["subnets"] = new_subnets
 
-    #if not security_groups.get_security_groups(
-    #        context,
-    #        filters={"id": security_groups.DEFAULT_SG_UUID}):
-    #    security_groups._create_default_security_group(context)
+        #if not security_groups.get_security_groups(
+        #        context,
+        #        filters={"id": security_groups.DEFAULT_SG_UUID}):
+        #    security_groups._create_default_security_group(context)
     return v._make_network_dict(new_net)
 
 
@@ -115,10 +116,11 @@ def update_network(context, id, network):
     """
     LOG.info("update_network %s for tenant %s" %
             (id, context.tenant_id))
-    net = db_api.network_find(context, id=id, scope=db_api.ONE)
-    if not net:
-        raise exceptions.NetworkNotFound(net_id=id)
-    net = db_api.network_update(context, net, **network["network"])
+    with context.session.begin():
+        net = db_api.network_find(context, id=id, scope=db_api.ONE)
+        if not net:
+            raise exceptions.NetworkNotFound(net_id=id)
+        net = db_api.network_update(context, net, **network["network"])
 
     return v._make_network_dict(net)
 
@@ -198,16 +200,17 @@ def delete_network(context, id):
     : param id: UUID representing the network to delete.
     """
     LOG.info("delete_network %s for tenant %s" % (id, context.tenant_id))
-    net = db_api.network_find(context, id=id, scope=db_api.ONE)
-    if not net:
-        raise exceptions.NetworkNotFound(net_id=id)
-    if net.ports:
-        raise exceptions.NetworkInUse(net_id=id)
-    net_driver = registry.DRIVER_REGISTRY.get_driver(net["network_plugin"])
-    net_driver.delete_network(context, id)
-    for subnet in net["subnets"]:
-        subnets._delete_subnet(context, subnet)
-    db_api.network_delete(context, net)
+    with context.session.begin():
+        net = db_api.network_find(context, id=id, scope=db_api.ONE)
+        if not net:
+            raise exceptions.NetworkNotFound(net_id=id)
+        if net.ports:
+            raise exceptions.NetworkInUse(net_id=id)
+        net_driver = registry.DRIVER_REGISTRY.get_driver(net["network_plugin"])
+        net_driver.delete_network(context, id)
+        for subnet in net["subnets"]:
+            subnets._delete_subnet(context, subnet)
+        db_api.network_delete(context, net)
 
 
 def _diag_network(context, network, fields):

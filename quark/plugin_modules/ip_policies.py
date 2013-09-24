@@ -42,26 +42,27 @@ def create_ip_policy(context, ip_policy):
             resource="ip_policy",
             msg="network_ids or subnet_ids not specified")
 
-    models = []
-    if subnet_ids:
-        subnets = db_api.subnet_find(
-            context, id=subnet_ids, scope=db_api.ALL)
-        if not subnets:
-            raise exceptions.SubnetNotFound(id=subnet_ids)
-        models.extend(subnets)
+    with context.session.begin():
+        models = []
+        if subnet_ids:
+            subnets = db_api.subnet_find(
+                context, id=subnet_ids, scope=db_api.ALL)
+            if not subnets:
+                raise exceptions.SubnetNotFound(id=subnet_ids)
+            models.extend(subnets)
 
-    if network_ids:
-        nets = db_api.network_find(
-            context, id=network_ids, scope=db_api.ALL)
-        if not nets:
-            raise exceptions.NetworkNotFound(net_id=network_ids)
-        models.extend(nets)
+        if network_ids:
+            nets = db_api.network_find(
+                context, id=network_ids, scope=db_api.ALL)
+            if not nets:
+                raise exceptions.NetworkNotFound(net_id=network_ids)
+            models.extend(nets)
 
-    for model in models:
-        if model["ip_policy"]:
-            raise quark_exceptions.IPPolicyAlreadyExists(
-                id=model["ip_policy"]["id"], n_id=model["id"])
-        model["ip_policy"] = db_api.ip_policy_create(context, **ipp)
+        for model in models:
+            if model["ip_policy"]:
+                raise quark_exceptions.IPPolicyAlreadyExists(
+                    id=model["ip_policy"]["id"], n_id=model["id"])
+            model["ip_policy"] = db_api.ip_policy_create(context, **ipp)
 
     return v._make_ip_policy_dict(model["ip_policy"])
 
@@ -85,46 +86,49 @@ def update_ip_policy(context, id, ip_policy):
 
     ipp = ip_policy["ip_policy"]
 
-    ipp_db = db_api.ip_policy_find(context, id=id, scope=db_api.ONE)
-    if not ipp_db:
-        raise quark_exceptions.IPPolicyNotFound(id=id)
+    with context.session.begin():
+        ipp_db = db_api.ip_policy_find(context, id=id, scope=db_api.ONE)
+        if not ipp_db:
+            raise quark_exceptions.IPPolicyNotFound(id=id)
 
-    network_ids = ipp.get("network_ids")
-    subnet_ids = ipp.get("subnet_ids")
+        network_ids = ipp.get("network_ids")
+        subnet_ids = ipp.get("subnet_ids")
 
-    models = []
-    if subnet_ids:
-        for subnet in ipp_db["subnets"]:
-            subnet["ip_policy"] = None
-        subnets = db_api.subnet_find(
-            context, id=subnet_ids, scope=db_api.ALL)
-        if len(subnets) != len(subnet_ids):
-            raise exceptions.SubnetNotFound(id=subnet_ids)
-        models.extend(subnets)
+        models = []
+        if subnet_ids:
+            for subnet in ipp_db["subnets"]:
+                subnet["ip_policy"] = None
+            subnets = db_api.subnet_find(
+                context, id=subnet_ids, scope=db_api.ALL)
+            if len(subnets) != len(subnet_ids):
+                raise exceptions.SubnetNotFound(id=subnet_ids)
+            models.extend(subnets)
 
-    if network_ids:
-        for network in ipp_db["networks"]:
-            network["ip_policy"] = None
-        nets = db_api.network_find(context, id=network_ids, scope=db_api.ALL)
-        if len(nets) != len(network_ids):
-            raise exceptions.NetworkNotFound(net_id=network_ids)
-        models.extend(nets)
+        if network_ids:
+            for network in ipp_db["networks"]:
+                network["ip_policy"] = None
+            nets = db_api.network_find(context, id=network_ids,
+                                       scope=db_api.ALL)
+            if len(nets) != len(network_ids):
+                raise exceptions.NetworkNotFound(net_id=network_ids)
+            models.extend(nets)
 
-    for model in models:
-        if model["ip_policy"]:
-            raise quark_exceptions.IPPolicyAlreadyExists(
-                id=model["ip_policy"]["id"], n_id=model["id"])
-        model["ip_policy"] = ipp_db
+        for model in models:
+            if model["ip_policy"]:
+                raise quark_exceptions.IPPolicyAlreadyExists(
+                    id=model["ip_policy"]["id"], n_id=model["id"])
+            model["ip_policy"] = ipp_db
 
-    ipp_db = db_api.ip_policy_update(context, ipp_db, **ipp)
+        ipp_db = db_api.ip_policy_update(context, ipp_db, **ipp)
     return v._make_ip_policy_dict(ipp_db)
 
 
 def delete_ip_policy(context, id):
     LOG.info("delete_ip_policy %s for tenant %s" % (id, context.tenant_id))
-    ipp = db_api.ip_policy_find(context, id=id, scope=db_api.ONE)
-    if not ipp:
-        raise quark_exceptions.IPPolicyNotFound(id=id)
-    if ipp["networks"] or ipp["subnets"]:
-        raise quark_exceptions.IPPolicyInUse(id=id)
-    db_api.ip_policy_delete(context, ipp)
+    with context.session.begin():
+        ipp = db_api.ip_policy_find(context, id=id, scope=db_api.ONE)
+        if not ipp:
+            raise quark_exceptions.IPPolicyNotFound(id=id)
+        if ipp["networks"] or ipp["subnets"]:
+            raise quark_exceptions.IPPolicyInUse(id=id)
+        db_api.ip_policy_delete(context, ipp)
