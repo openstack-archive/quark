@@ -82,9 +82,10 @@ def create_mac_address_range(context, mac_range):
     LOG.info("create_mac_address_range for tenant %s" % context.tenant_id)
     cidr = mac_range["mac_address_range"]["cidr"]
     cidr, first_address, last_address = _to_mac_range(cidr)
-    new_range = db_api.mac_address_range_create(
-        context, cidr=cidr, first_address=first_address,
-        last_address=last_address, next_auto_assign_mac=first_address)
+    with context.session.begin():
+        new_range = db_api.mac_address_range_create(
+            context, cidr=cidr, first_address=first_address,
+            last_address=last_address, next_auto_assign_mac=first_address)
     return v._make_mac_range_dict(new_range)
 
 
@@ -103,8 +104,9 @@ def delete_mac_address_range(context, id):
     """
     LOG.info("delete_mac_address_range %s for tenant %s" %
              (id, context.tenant_id))
-    mar = db_api.mac_address_range_find(context, id=id, scope=db_api.ONE)
-    if not mar:
-        raise quark_exceptions.MacAddressRangeNotFound(
-            mac_address_range_id=id)
-    _delete_mac_address_range(context, mar)
+    with context.session.begin():
+        mar = db_api.mac_address_range_find(context, id=id, scope=db_api.ONE)
+        if not mar:
+            raise quark_exceptions.MacAddressRangeNotFound(
+                mac_address_range_id=id)
+        _delete_mac_address_range(context, mar)

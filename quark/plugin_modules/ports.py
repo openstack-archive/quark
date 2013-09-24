@@ -52,61 +52,63 @@ def create_port(context, port):
     net_id = port_attrs["network_id"]
     addresses = []
 
-    port_id = uuidutils.generate_uuid()
+    with context.session.begin():
+        port_id = uuidutils.generate_uuid()
 
-    net = db_api.network_find(context, id=net_id, shared=True,
-                              segment_id=segment_id, scope=db_api.ONE)
-    if not net:
-        # Maybe it's a tenant network
-        net = db_api.network_find(context, id=net_id, scope=db_api.ONE)
+        net = db_api.network_find(context, id=net_id,
+                                  segment_id=segment_id, scope=db_api.ONE)
         if not net:
-            raise exceptions.NetworkNotFound(net_id=net_id)
+            # Maybe it's a tenant network
+            net = db_api.network_find(context, id=net_id, scope=db_api.ONE)
+            if not net:
+                raise exceptions.NetworkNotFound(net_id=net_id)
 
-    quota.QUOTAS.limit_check(
-        context, context.tenant_id,
-        ports_per_network=len(net.get('ports', [])) + 1)
+        quota.QUOTAS.limit_check(
+            context, context.tenant_id,
+            ports_per_network=len(net.get('ports', [])) + 1)
 
-    if fixed_ips:
-        for fixed_ip in fixed_ips:
-            subnet_id = fixed_ip.get("subnet_id")
-            ip_address = fixed_ip.get("ip_address")
-            if not (subnet_id and ip_address):
-                raise exceptions.BadRequest(
-                    resource="fixed_ips",
-                    msg="subnet_id and ip_address required")
+        if fixed_ips:
+            for fixed_ip in fixed_ips:
+                subnet_id = fixed_ip.get("subnet_id")
+                ip_address = fixed_ip.get("ip_address")
+                if not (subnet_id and ip_address):
+                    raise exceptions.BadRequest(
+                        resource="fixed_ips",
+                        msg="subnet_id and ip_address required")
+                addresses.append(ipam_driver.allocate_ip_address(
+                    context, net["id"], port_id, CONF.QUARK.ipam_reuse_after,
+                    ip_address=ip_address))
+        else:
             addresses.append(ipam_driver.allocate_ip_address(
-                context, net["id"], port_id, CONF.QUARK.ipam_reuse_after,
-                ip_address=ip_address))
-    else:
-        addresses.append(ipam_driver.allocate_ip_address(
-            context, net["id"], port_id, CONF.QUARK.ipam_reuse_after))
+                context, net["id"], port_id, CONF.QUARK.ipam_reuse_after))
 
-    group_ids, security_groups = v.make_security_group_list(
-        context, port["port"].pop("security_groups", None))
-    mac = ipam_driver.allocate_mac_address(context, net["id"], port_id,
-                                           CONF.QUARK.ipam_reuse_after,
-                                           mac_address=mac_address)
-    mac_address_string = str(netaddr.EUI(mac['address'],
-                                         dialect=netaddr.mac_unix))
-    address_pairs = [{'mac_address': mac_address_string,
-                      'ip_address': address.get('address_readable', '')}
-                     for address in addresses]
-    net_driver = registry.DRIVER_REGISTRY.get_driver(net["network_plugin"])
-    backend_port = net_driver.create_port(context, net["id"], port_id=port_id,
-                                          security_groups=group_ids,
-                                          allowed_pairs=address_pairs)
+        group_ids, security_groups = v.make_security_group_list(
+            context, port["port"].pop("security_groups", None))
+        mac = ipam_driver.allocate_mac_address(context, net["id"], port_id,
+                                               CONF.QUARK.ipam_reuse_after,
+                                               mac_address=mac_address)
+        mac_address_string = str(netaddr.EUI(mac['address'],
+                                             dialect=netaddr.mac_unix))
+        address_pairs = [{'mac_address': mac_address_string,
+                          'ip_address': address.get('address_readable', '')}
+                         for address in addresses]
+        net_driver = registry.DRIVER_REGISTRY.get_driver(net["network_plugin"])
+        backend_port = net_driver.create_port(context, net["id"],
+                                              port_id=port_id,
+                                              security_groups=group_ids,
+                                              allowed_pairs=address_pairs)
 
-    port_attrs["network_id"] = net["id"]
-    port_attrs["id"] = port_id
-    port_attrs["security_groups"] = security_groups
+        port_attrs["network_id"] = net["id"]
+        port_attrs["id"] = port_id
+        port_attrs["security_groups"] = security_groups
 
-    LOG.info("Including extra plugin attrs: %s" % backend_port)
-    port_attrs.update(backend_port)
-    new_port = db_api.port_create(
-        context, addresses=addresses, mac_address=mac["address"],
-        backend_key=backend_port["uuid"], **port_attrs)
+        LOG.info("Including extra plugin attrs: %s" % backend_port)
+        port_attrs.update(backend_port)
+        new_port = db_api.port_create(
+            context, addresses=addresses, mac_address=mac["address"],
+            backend_key=backend_port["uuid"], **port_attrs)
 
-    # Include any driver specific bits
+        # Include any driver specific bits
     return v._make_port_dict(new_port)
 
 
@@ -121,46 +123,47 @@ def update_port(context, id, port):
         neutron/api/v2/attributes.py.
     """
     LOG.info("update_port %s for tenant %s" % (id, context.tenant_id))
-    port_db = db_api.port_find(context, id=id, scope=db_api.ONE)
-    if not port_db:
-        raise exceptions.PortNotFound(port_id=id)
+    with context.session.begin():
+        port_db = db_api.port_find(context, id=id, scope=db_api.ONE)
+        if not port_db:
+            raise exceptions.PortNotFound(port_id=id)
 
-    address_pairs = []
-    fixed_ips = port["port"].pop("fixed_ips", None)
-    if fixed_ips:
-        ipam_driver.deallocate_ip_address(
-            context, port_db, ipam_reuse_after=CONF.QUARK.ipam_reuse_after)
-        addresses = []
-        for fixed_ip in fixed_ips:
-            subnet_id = fixed_ip.get("subnet_id")
-            ip_address = fixed_ip.get("ip_address")
-            if not (subnet_id and ip_address):
-                raise exceptions.BadRequest(
-                    resource="fixed_ips",
-                    msg="subnet_id and ip_address required")
-            # Note: we don't allow overlapping subnets, thus subnet_id is
-            #       ignored.
-            addresses.append(ipam_driver.allocate_ip_address(
-                context, port_db["network_id"], id,
-                CONF.QUARK.ipam_reuse_after, ip_address=ip_address))
-        port["port"]["addresses"] = addresses
-        mac_address_string = str(netaddr.EUI(port_db.mac_address,
-                                             dialect=netaddr.mac_unix))
-        address_pairs = [{'mac_address': mac_address_string,
-                          'ip_address':
-                          address.get('address_readable', '')}
-                         for address in addresses]
+        address_pairs = []
+        fixed_ips = port["port"].pop("fixed_ips", None)
+        if fixed_ips:
+            ipam_driver.deallocate_ip_address(
+                context, port_db, ipam_reuse_after=CONF.QUARK.ipam_reuse_after)
+            addresses = []
+            for fixed_ip in fixed_ips:
+                subnet_id = fixed_ip.get("subnet_id")
+                ip_address = fixed_ip.get("ip_address")
+                if not (subnet_id and ip_address):
+                    raise exceptions.BadRequest(
+                        resource="fixed_ips",
+                        msg="subnet_id and ip_address required")
+                # Note: we don't allow overlapping subnets, thus subnet_id is
+                #       ignored.
+                addresses.append(ipam_driver.allocate_ip_address(
+                    context, port_db["network_id"], id,
+                    CONF.QUARK.ipam_reuse_after, ip_address=ip_address))
+            port["port"]["addresses"] = addresses
+            mac_address_string = str(netaddr.EUI(port_db.mac_address,
+                                                 dialect=netaddr.mac_unix))
+            address_pairs = [{'mac_address': mac_address_string,
+                              'ip_address':
+                              address.get('address_readable', '')}
+                             for address in addresses]
 
-    group_ids, security_groups = v.make_security_group_list(
-        context, port["port"].pop("security_groups", None))
-    net_driver = registry.DRIVER_REGISTRY.get_driver(
-        port_db.network["network_plugin"])
-    net_driver.update_port(context, port_id=port_db.backend_key,
-                           security_groups=group_ids,
-                           allowed_pairs=address_pairs)
+        group_ids, security_groups = v.make_security_group_list(
+            context, port["port"].pop("security_groups", None))
+        net_driver = registry.DRIVER_REGISTRY.get_driver(
+            port_db.network["network_plugin"])
+        net_driver.update_port(context, port_id=port_db.backend_key,
+                               security_groups=group_ids,
+                               allowed_pairs=address_pairs)
 
-    port["port"]["security_groups"] = security_groups
-    port = db_api.port_update(context, port_db, **port["port"])
+        port["port"]["security_groups"] = security_groups
+        port = db_api.port_update(context, port_db, **port["port"])
     return v._make_port_dict(port)
 
 
@@ -170,46 +173,48 @@ def post_update_port(context, id, port):
         raise exceptions.BadRequest(resource="ports",
                                     msg="Port body required")
 
-    port_db = db_api.port_find(context, id=id, scope=db_api.ONE)
-    if not port_db:
-        raise exceptions.PortNotFound(port_id=id, net_id="")
+    with context.session.begin():
+        port_db = db_api.port_find(context, id=id, scope=db_api.ONE)
+        if not port_db:
+            raise exceptions.PortNotFound(port_id=id, net_id="")
 
-    port = port["port"]
-    if "fixed_ips" in port and port["fixed_ips"]:
-        for ip in port["fixed_ips"]:
-            address = None
-            if ip:
-                if "ip_id" in ip:
-                    ip_id = ip["ip_id"]
-                    address = db_api.ip_address_find(
-                        context, id=ip_id, tenant_id=context.tenant_id,
-                        scope=db_api.ONE)
-                elif "ip_address" in ip:
-                    ip_address = ip["ip_address"]
-                    net_address = netaddr.IPAddress(ip_address)
-                    address = db_api.ip_address_find(
-                        context, ip_address=net_address,
-                        network_id=port_db["network_id"],
-                        tenant_id=context.tenant_id, scope=db_api.ONE)
-                    if not address:
-                        address = ipam_driver.allocate_ip_address(
-                            context, port_db["network_id"], id,
-                            CONF.QUARK.ipam_reuse_after, ip_address=ip_address)
-            else:
-                address = ipam_driver.allocate_ip_address(
-                    context, port_db["network_id"], id,
-                    CONF.QUARK.ipam_reuse_after)
+        port = port["port"]
+        if "fixed_ips" in port and port["fixed_ips"]:
+            for ip in port["fixed_ips"]:
+                address = None
+                if ip:
+                    if "ip_id" in ip:
+                        ip_id = ip["ip_id"]
+                        address = db_api.ip_address_find(
+                            context, id=ip_id, tenant_id=context.tenant_id,
+                            scope=db_api.ONE)
+                    elif "ip_address" in ip:
+                        ip_address = ip["ip_address"]
+                        net_address = netaddr.IPAddress(ip_address)
+                        address = db_api.ip_address_find(
+                            context, ip_address=net_address,
+                            network_id=port_db["network_id"],
+                            tenant_id=context.tenant_id, scope=db_api.ONE)
+                        if not address:
+                            address = ipam_driver.allocate_ip_address(
+                                context, port_db["network_id"], id,
+                                CONF.QUARK.ipam_reuse_after,
+                                ip_address=ip_address)
+                else:
+                    address = ipam_driver.allocate_ip_address(
+                        context, port_db["network_id"], id,
+                        CONF.QUARK.ipam_reuse_after)
 
-        address["deallocated"] = 0
+            address["deallocated"] = 0
 
-        already_contained = False
-        for port_address in port_db["ip_addresses"]:
-            if address["id"] == port_address["id"]:
-                already_contained = True
-                break
+            already_contained = False
+            for port_address in port_db["ip_addresses"]:
+                if address["id"] == port_address["id"]:
+                    already_contained = True
+                    break
 
-        if not already_contained:
-            port_db["ip_addresses"].append(address)
+            if not already_contained:
+                port_db["ip_addresses"].append(address)
     return v._make_port_dict(port_db)
 
 
@@ -296,15 +301,16 @@ def delete_port(context, id):
     if not port:
         raise exceptions.PortNotFound(net_id=id)
 
-    backend_key = port["backend_key"]
-    mac_address = netaddr.EUI(port["mac_address"]).value
-    ipam_driver.deallocate_mac_address(context, mac_address)
-    ipam_driver.deallocate_ip_address(
-        context, port, ipam_reuse_after=CONF.QUARK.ipam_reuse_after)
-    db_api.port_delete(context, port)
-    net_driver = registry.DRIVER_REGISTRY.get_driver(
-        port.network["network_plugin"])
-    net_driver.delete_port(context, backend_key)
+    with context.session.begin():
+        backend_key = port["backend_key"]
+        mac_address = netaddr.EUI(port["mac_address"]).value
+        ipam_driver.deallocate_mac_address(context, mac_address)
+        ipam_driver.deallocate_ip_address(
+            context, port, ipam_reuse_after=CONF.QUARK.ipam_reuse_after)
+        db_api.port_delete(context, port)
+        net_driver = registry.DRIVER_REGISTRY.get_driver(
+            port.network["network_plugin"])
+        net_driver.delete_port(context, backend_key)
 
 
 def disassociate_port(context, id, ip_address_id):
@@ -317,19 +323,20 @@ def disassociate_port(context, id, ip_address_id):
     """
     LOG.info("disassociate_port %s for tenant %s ip_address_id %s" %
             (id, context.tenant_id, ip_address_id))
-    port = db_api.port_find(context, id=id, ip_address_id=[ip_address_id],
-                            scope=db_api.ONE)
+    with context.session.begin():
+        port = db_api.port_find(context, id=id, ip_address_id=[ip_address_id],
+                                scope=db_api.ONE)
 
-    if not port:
-        raise exceptions.PortNotFound(port_id=id, net_id='')
+        if not port:
+            raise exceptions.PortNotFound(port_id=id, net_id='')
 
-    the_address = [address for address in port["ip_addresses"]
-                   if address["id"] == ip_address_id][0]
-    port["ip_addresses"] = [address for address in port["ip_addresses"]
-                            if address.id != ip_address_id]
+        the_address = [address for address in port["ip_addresses"]
+                       if address["id"] == ip_address_id][0]
+        port["ip_addresses"] = [address for address in port["ip_addresses"]
+                                if address.id != ip_address_id]
 
-    if len(the_address["ports"]) == 0:
-        the_address["deallocated"] = 1
+        if len(the_address["ports"]) == 0:
+            the_address["deallocated"] = 1
     return v._make_port_dict(port)
 
 

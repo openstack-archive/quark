@@ -60,33 +60,34 @@ def create_ip_address(context, ip_address):
         raise exceptions.BadRequest(
             resource="ip_addresses",
             msg="network_id is required if device_ids are supplied.")
-    if network_id and device_ids:
-        for device_id in device_ids:
-            port = db_api.port_find(
-                context, network_id=network_id, device_id=device_id,
-                tenant_id=context.tenant_id, scope=db_api.ONE)
-            ports.append(port)
-    elif port_ids:
-        for port_id in port_ids:
-            port = db_api.port_find(context, id=port_id,
-                                    tenant_id=context.tenant_id,
-                                    scope=db_api.ONE)
-            ports.append(port)
+    with context.session.begin():
+        if network_id and device_ids:
+            for device_id in device_ids:
+                port = db_api.port_find(
+                    context, network_id=network_id, device_id=device_id,
+                    tenant_id=context.tenant_id, scope=db_api.ONE)
+                ports.append(port)
+        elif port_ids:
+            for port_id in port_ids:
+                port = db_api.port_find(context, id=port_id,
+                                        tenant_id=context.tenant_id,
+                                        scope=db_api.ONE)
+                ports.append(port)
 
-    if not ports:
-        raise exceptions.PortNotFound(port_id=port_ids,
-                                      net_id=network_id)
+        if not ports:
+            raise exceptions.PortNotFound(port_id=port_ids,
+                                          net_id=network_id)
 
-    address = ipam_driver.allocate_ip_address(
-        context,
-        port['network_id'],
-        port['id'],
-        CONF.QUARK.ipam_reuse_after,
-        ip_version,
-        ip_address)
+        address = ipam_driver.allocate_ip_address(
+            context,
+            port['network_id'],
+            port['id'],
+            CONF.QUARK.ipam_reuse_after,
+            ip_version,
+            ip_address)
 
-    for port in ports:
-        port["ip_addresses"].append(address)
+        for port in ports:
+            port["ip_addresses"].append(address)
 
     return v._make_ip_dict(address)
 
@@ -95,34 +96,35 @@ def update_ip_address(context, id, ip_address):
     LOG.info("update_ip_address %s for tenant %s" %
             (id, context.tenant_id))
 
-    address = db_api.ip_address_find(
-        context, id=id, tenant_id=context.tenant_id, scope=db_api.ONE)
+    with context.session.begin():
+        address = db_api.ip_address_find(
+            context, id=id, tenant_id=context.tenant_id, scope=db_api.ONE)
 
-    if not address:
-        raise exceptions.NotFound(
-            message="No IP address found with id=%s" % id)
-
-    old_ports = address['ports']
-    port_ids = ip_address['ip_address'].get('port_ids')
-    if port_ids is None:
-        return v._make_ip_dict(address)
-
-    for port in old_ports:
-        port['ip_addresses'].remove(address)
-
-    if port_ids:
-        ports = db_api.port_find(
-            context, tenant_id=context.tenant_id, id=port_ids,
-            scope=db_api.ALL)
-
-        # NOTE: could be considered inefficient because we're converting
-        #       to a list to check length. Maybe revisit
-        if len(ports) != len(port_ids):
+        if not address:
             raise exceptions.NotFound(
-                message="No ports not found with ids=%s" % port_ids)
-        for port in ports:
-            port['ip_addresses'].extend([address])
-    else:
-        address["deallocated"] = 1
+                message="No IP address found with id=%s" % id)
+
+        old_ports = address['ports']
+        port_ids = ip_address['ip_address'].get('port_ids')
+        if port_ids is None:
+            return v._make_ip_dict(address)
+
+        for port in old_ports:
+            port['ip_addresses'].remove(address)
+
+        if port_ids:
+            ports = db_api.port_find(
+                context, tenant_id=context.tenant_id, id=port_ids,
+                scope=db_api.ALL)
+
+            # NOTE: could be considered inefficient because we're converting
+            #       to a list to check length. Maybe revisit
+            if len(ports) != len(port_ids):
+                raise exceptions.NotFound(
+                    message="No ports not found with ids=%s" % port_ids)
+            for port in ports:
+                port['ip_addresses'].extend([address])
+        else:
+            address["deallocated"] = 1
 
     return v._make_ip_dict(address)

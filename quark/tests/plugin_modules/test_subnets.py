@@ -15,6 +15,7 @@
 
 import contextlib
 import copy
+import time
 import uuid
 
 import mock
@@ -697,7 +698,17 @@ class TestQuarkDeleteSubnet(test_quark_plugin.TestQuarkPlugin):
 class TestSubnetsNotification(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, s, deleted_at=None):
+        class FakeContext(object):
+            def __enter__(*args, **kwargs):
+                pass
+
+            def __exit__(*args, **kwargs):
+                pass
+
+        self.context.session.begin = FakeContext
+
         s["network"] = models.Network()
+        s["network"]["created_at"] = s["created_at"]
         subnet = models.Subnet(**s)
         db_mod = "quark.db.api"
         api_mod = "neutron.openstack.common.notifier.api"
@@ -706,13 +717,15 @@ class TestSubnetsNotification(test_quark_plugin.TestQuarkPlugin):
             mock.patch("%s.subnet_find" % db_mod),
             mock.patch("%s.network_find" % db_mod),
             mock.patch("%s.subnet_create" % db_mod),
+            mock.patch("%s.ip_policy_create" % db_mod),
             mock.patch("%s.subnet_delete" % db_mod),
             mock.patch("%s.notify" % api_mod),
             mock.patch("%s.utcnow" % time_mod)
-        ) as (sub_find, net_find, sub_create, sub_del, notify, time):
+        ) as (sub_find, net_find, sub_create, pol_cre, sub_del, notify,
+              time_func):
             sub_create.return_value = subnet
             sub_find.return_value = subnet
-            time.return_value = deleted_at
+            time_func.return_value = deleted_at
             yield notify
 
     def test_create_subnet_notification(self):
@@ -730,8 +743,10 @@ class TestSubnetsNotification(test_quark_plugin.TestQuarkPlugin):
                      created_at=s["created_at"]))
 
     def test_delete_subnet_notification(self):
-        s = dict(tenant_id=1, id=1, created_at="123")
-        with self._stubs(s, deleted_at="456") as notify:
+        now = time.strftime('%Y-%m-%d %H:%M:%S')
+        later = time.strftime('%Y-%m-%d %H:%M:%S')
+        s = dict(tenant_id=1, id=1, created_at=now)
+        with self._stubs(s, deleted_at=later) as notify:
             self.plugin.delete_subnet(self.context, 1)
             notify.assert_called_once_with(
                 self.context,
@@ -741,7 +756,7 @@ class TestSubnetsNotification(test_quark_plugin.TestQuarkPlugin):
                 dict(tenant_id=s["tenant_id"],
                      created_at=s["created_at"],
                      ip_block_id=s["id"],
-                     deleted_at="456"))
+                     deleted_at=later))
 
 
 class TestQuarkDiagnoseSubnets(test_quark_plugin.TestQuarkPlugin):

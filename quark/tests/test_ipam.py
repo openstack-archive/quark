@@ -202,6 +202,7 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
         if not addresses:
             addresses = [None]
         db_mod = "quark.db.api"
+        self.context.session.add = mock.Mock()
         with contextlib.nested(
             mock.patch("%s.ip_address_find" % db_mod),
             mock.patch("%s.subnet_find_allocation_counts" % db_mod)
@@ -310,6 +311,7 @@ class QuarkIPAddressAllocateDeallocated(QuarkIpamBaseTest):
     @contextlib.contextmanager
     def _stubs(self, ip_find, subnet, address, addresses_found):
         db_mod = "quark.db.api"
+        self.context.session.add = mock.Mock()
         with contextlib.nested(
             mock.patch("%s.ip_address_find" % db_mod),
             mock.patch("%s.ip_address_update" % db_mod),
@@ -360,13 +362,17 @@ class QuarkIPAddressAllocateDeallocated(QuarkIpamBaseTest):
         This edge case occurs because users are allowed to select a specific IP
         address to create.
         """
+        network_mod = models.Network()
+        network_mod.update(dict(ip_policy=None))
         subnet = dict(id=1, ip_version=4, next_auto_assign_ip=0,
                       cidr="0.0.0.0/24", first_ip=0, last_ip=255,
-                      network=dict(ip_policy=None), ip_policy=None)
+                      network=network_mod, ip_policy=None)
         address0 = dict(id=1, address=0)
         addresses_found = [None, None]
+        subnet_mod = models.Subnet()
+        subnet_mod.update(subnet)
         with self._stubs(
-            False, subnet, address0, addresses_found
+            False, subnet_mod, address0, addresses_found
         ) as (choose_subnet):
             ipaddress = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
             self.assertEqual(ipaddress["address"], 2)
@@ -380,6 +386,7 @@ class TestQuarkIpPoliciesIpAllocation(QuarkIpamBaseTest):
         if not addresses:
             addresses = [None]
         db_mod = "quark.db.api"
+        self.context.session.add = mock.Mock()
         with contextlib.nested(
             mock.patch("%s.ip_address_find" % db_mod),
             mock.patch("%s.subnet_find_allocation_counts" % db_mod)
@@ -491,6 +498,7 @@ class QuarkIPAddressAllocationNotifications(QuarkIpamBaseTest):
         db_mod = "quark.db.api"
         api_mod = "neutron.openstack.common.notifier.api"
         time_mod = "neutron.openstack.common.timeutils"
+        self.context.session.add = mock.Mock()
         with contextlib.nested(
             mock.patch("%s.ip_address_find" % db_mod),
             mock.patch("%s.ip_address_create" % db_mod),

@@ -25,9 +25,9 @@ quark_opts = [
                help=_('The client to use to talk to the backend')),
     cfg.StrOpt('ipam_driver', default='quark.ipam.QuarkIpam',
                help=_('IPAM Implementation to use')),
-    cfg.BoolOpt('ipam_reuse_after', default=7200,
-                help=_("Time in seconds til IP and MAC reuse"
-                       "after deallocation.")),
+    cfg.IntOpt('ipam_reuse_after', default=7200,
+               help=_("Time in seconds til IP and MAC reuse"
+                      "after deallocation.")),
     cfg.StrOpt("strategy_driver",
                default='quark.network_strategy.JSONStrategy',
                help=_("Tree of network assignment strategy")),

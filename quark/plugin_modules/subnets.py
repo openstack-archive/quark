@@ -85,53 +85,54 @@ def create_subnet(context, subnet):
     LOG.info("create_subnet for tenant %s" % context.tenant_id)
     net_id = subnet["subnet"]["network_id"]
 
-    net = db_api.network_find(context, id=net_id, scope=db_api.ONE)
-    if not net:
-        raise exceptions.NetworkNotFound(net_id=net_id)
+    with context.session.begin():
+        net = db_api.network_find(context, id=net_id, scope=db_api.ONE)
+        if not net:
+            raise exceptions.NetworkNotFound(net_id=net_id)
 
-    sub_attrs = subnet["subnet"]
+        sub_attrs = subnet["subnet"]
 
-    _validate_subnet_cidr(context, net_id, sub_attrs["cidr"])
+        _validate_subnet_cidr(context, net_id, sub_attrs["cidr"])
 
-    cidr = netaddr.IPNetwork(sub_attrs["cidr"])
-    gateway_ip = utils.pop_param(sub_attrs, "gateway_ip", str(cidr[1]))
-    dns_ips = utils.pop_param(sub_attrs, "dns_nameservers", [])
-    host_routes = utils.pop_param(sub_attrs, "host_routes", [])
-    allocation_pools = utils.pop_param(sub_attrs, "allocation_pools", None)
-    sub_attrs["network"] = net
+        cidr = netaddr.IPNetwork(sub_attrs["cidr"])
+        gateway_ip = utils.pop_param(sub_attrs, "gateway_ip", str(cidr[1]))
+        dns_ips = utils.pop_param(sub_attrs, "dns_nameservers", [])
+        host_routes = utils.pop_param(sub_attrs, "host_routes", [])
+        allocation_pools = utils.pop_param(sub_attrs, "allocation_pools", None)
+        sub_attrs["network"] = net
 
-    new_subnet = db_api.subnet_create(context, **sub_attrs)
+        new_subnet = db_api.subnet_create(context, **sub_attrs)
 
-    default_route = None
-    for route in host_routes:
-        netaddr_route = netaddr.IPNetwork(route["destination"])
-        if netaddr_route.value == routes.DEFAULT_ROUTE.value:
-            default_route = route
-            gateway_ip = default_route["nexthop"]
-        new_subnet["routes"].append(db_api.route_create(
-            context, cidr=route["destination"], gateway=route["nexthop"]))
+        default_route = None
+        for route in host_routes:
+            netaddr_route = netaddr.IPNetwork(route["destination"])
+            if netaddr_route.value == routes.DEFAULT_ROUTE.value:
+                default_route = route
+                gateway_ip = default_route["nexthop"]
+            new_subnet["routes"].append(db_api.route_create(
+                context, cidr=route["destination"], gateway=route["nexthop"]))
 
-    if default_route is None:
-        new_subnet["routes"].append(db_api.route_create(
-            context, cidr=str(routes.DEFAULT_ROUTE), gateway=gateway_ip))
+        if default_route is None:
+            new_subnet["routes"].append(db_api.route_create(
+                context, cidr=str(routes.DEFAULT_ROUTE), gateway=gateway_ip))
 
-    for dns_ip in dns_ips:
-        new_subnet["dns_nameservers"].append(db_api.dns_create(
-            context, ip=netaddr.IPAddress(dns_ip)))
+        for dns_ip in dns_ips:
+            new_subnet["dns_nameservers"].append(db_api.dns_create(
+                context, ip=netaddr.IPAddress(dns_ip)))
 
-    if isinstance(allocation_pools, list):
-        ranges = []
-        cidrset = netaddr.IPSet([netaddr.IPNetwork(new_subnet["cidr"])])
-        for p in allocation_pools:
-            cidrset -= netaddr.IPSet(netaddr.IPRange(p["start"], p["end"]))
-        non_allocation_pools = v._pools_from_cidr(cidrset)
-        for p in non_allocation_pools:
-            r = netaddr.IPRange(p["start"], p["end"])
-            ranges.append(dict(
-                length=len(r),
-                offset=int(r[0]) - int(cidr[0])))
-        new_subnet["ip_policy"] = db_api.ip_policy_create(context,
-                                                          exclude=ranges)
+        if isinstance(allocation_pools, list):
+            ranges = []
+            cidrset = netaddr.IPSet([netaddr.IPNetwork(new_subnet["cidr"])])
+            for p in allocation_pools:
+                cidrset -= netaddr.IPSet(netaddr.IPRange(p["start"], p["end"]))
+            non_allocation_pools = v._pools_from_cidr(cidrset)
+            for p in non_allocation_pools:
+                r = netaddr.IPRange(p["start"], p["end"])
+                ranges.append(dict(
+                    length=len(r),
+                    offset=int(r[0]) - int(cidr[0])))
+            new_subnet["ip_policy"] = db_api.ip_policy_create(context,
+                                                              exclude=ranges)
 
     subnet_dict = v._make_subnet_dict(new_subnet,
                                       default_route=routes.DEFAULT_ROUTE)
@@ -161,49 +162,50 @@ def update_subnet(context, id, subnet):
     LOG.info("update_subnet %s for tenant %s" %
              (id, context.tenant_id))
 
-    subnet_db = db_api.subnet_find(context, id=id, scope=db_api.ONE)
-    if not subnet_db:
-        raise exceptions.SubnetNotFound(id=id)
+    with context.session.begin():
+        subnet_db = db_api.subnet_find(context, id=id, scope=db_api.ONE)
+        if not subnet_db:
+            raise exceptions.SubnetNotFound(id=id)
 
-    s = subnet["subnet"]
+        s = subnet["subnet"]
 
-    dns_ips = s.pop("dns_nameservers", [])
-    host_routes = s.pop("host_routes", [])
-    gateway_ip = s.pop("gateway_ip", None)
+        dns_ips = s.pop("dns_nameservers", [])
+        host_routes = s.pop("host_routes", [])
+        gateway_ip = s.pop("gateway_ip", None)
 
-    if gateway_ip:
-        default_route = None
+        if gateway_ip:
+            default_route = None
+            for route in host_routes:
+                netaddr_route = netaddr.IPNetwork(route["destination"])
+                if netaddr_route.value == routes.DEFAULT_ROUTE.value:
+                    default_route = route
+                    break
+            if default_route is None:
+                route_model = db_api.route_find(
+                    context, cidr=str(routes.DEFAULT_ROUTE), subnet_id=id,
+                    scope=db_api.ONE)
+                if route_model:
+                    db_api.route_update(context, route_model,
+                                        gateway=gateway_ip)
+                else:
+                    db_api.route_create(context,
+                                        cidr=str(routes.DEFAULT_ROUTE),
+                                        gateway=gateway_ip, subnet_id=id)
+
+        if dns_ips:
+            subnet_db["dns_nameservers"] = []
+        for dns_ip in dns_ips:
+            subnet_db["dns_nameservers"].append(db_api.dns_create(
+                context,
+                ip=netaddr.IPAddress(dns_ip)))
+
+        if host_routes:
+            subnet_db["routes"] = []
         for route in host_routes:
-            netaddr_route = netaddr.IPNetwork(route["destination"])
-            if netaddr_route.value == routes.DEFAULT_ROUTE.value:
-                default_route = route
-                break
-        if default_route is None:
-            route_model = db_api.route_find(
-                context, cidr=str(routes.DEFAULT_ROUTE), subnet_id=id,
-                scope=db_api.ONE)
-            if route_model:
-                db_api.route_update(context, route_model,
-                                    gateway=gateway_ip)
-            else:
-                db_api.route_create(context,
-                                    cidr=str(routes.DEFAULT_ROUTE),
-                                    gateway=gateway_ip, subnet_id=id)
+            subnet_db["routes"].append(db_api.route_create(
+                context, cidr=route["destination"], gateway=route["nexthop"]))
 
-    if dns_ips:
-        subnet_db["dns_nameservers"] = []
-    for dns_ip in dns_ips:
-        subnet_db["dns_nameservers"].append(db_api.dns_create(
-            context,
-            ip=netaddr.IPAddress(dns_ip)))
-
-    if host_routes:
-        subnet_db["routes"] = []
-    for route in host_routes:
-        subnet_db["routes"].append(db_api.route_create(
-            context, cidr=route["destination"], gateway=route["nexthop"]))
-
-    subnet = db_api.subnet_update(context, subnet_db, **s)
+        subnet = db_api.subnet_update(context, subnet_db, **s)
     return v._make_subnet_dict(subnet, default_route=routes.DEFAULT_ROUTE)
 
 
@@ -292,22 +294,23 @@ def delete_subnet(context, id):
     : param id: UUID representing the subnet to delete.
     """
     LOG.info("delete_subnet %s for tenant %s" % (id, context.tenant_id))
-    subnet = db_api.subnet_find(context, id=id, scope=db_api.ONE)
-    if not subnet:
-        raise exceptions.SubnetNotFound(subnet_id=id)
+    with context.session.begin():
+        subnet = db_api.subnet_find(context, id=id, scope=db_api.ONE)
+        if not subnet:
+            raise exceptions.SubnetNotFound(subnet_id=id)
 
-    payload = dict(tenant_id=subnet["tenant_id"],
-                   ip_block_id=subnet["id"],
-                   created_at=subnet["created_at"],
-                   deleted_at=timeutils.utcnow())
+        payload = dict(tenant_id=subnet["tenant_id"],
+                       ip_block_id=subnet["id"],
+                       created_at=subnet["created_at"],
+                       deleted_at=timeutils.utcnow())
 
-    _delete_subnet(context, subnet)
+        _delete_subnet(context, subnet)
 
-    notifier_api.notify(context,
-                        notifier_api.publisher_id("network"),
-                        "ip_block.delete",
-                        notifier_api.CONF.default_notification_level,
-                        payload)
+        notifier_api.notify(context,
+                            notifier_api.publisher_id("network"),
+                            "ip_block.delete",
+                            notifier_api.CONF.default_notification_level,
+                            payload)
 
 
 def diagnose_subnet(context, id, fields):
