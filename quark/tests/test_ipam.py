@@ -15,6 +15,7 @@
 
 import contextlib
 import mock
+
 from neutron.common import exceptions
 from neutron.db import api as neutron_db_api
 from neutron.openstack.common.db.sqlalchemy import session as neutron_session
@@ -35,7 +36,20 @@ class QuarkIpamBaseTest(test_base.TestBase):
         cfg.CONF.set_override('connection', 'sqlite://', 'database')
         neutron_db_api.configure_db()
         models.BASEV2.metadata.create_all(neutron_session._ENGINE)
-        self.ipam = quark.ipam.QuarkIpam()
+        self.ipam = quark.ipam.QuarkIpamANY()
+
+        class FakeContext(object):
+            def __new__(cls, *args, **kwargs):
+                return super(FakeContext, cls).__new__(cls)
+
+            def __enter__(*args, **kwargs):
+                pass
+
+            def __exit__(*args, **kwargs):
+                pass
+
+        self.context.session.begin = FakeContext
+        self.context.session.add = mock.Mock()
 
     def tearDown(self):
         neutron_db_api.clear_db()
@@ -196,6 +210,278 @@ class QuarkIPAddressDeallocation(QuarkIpamBaseTest):
         self.assertFalse(addr["deallocated"])
 
 
+class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
+    def setUp(self):
+        super(QuarkIpamTestBothIpAllocation, self).setUp()
+        self.ipam = quark.ipam.QuarkIpamBOTH()
+        self.v6_fip = 338854485284841385865528720941232685056L
+        self.v6_lip = 338854485284841385865528720941249462271L
+
+    @contextlib.contextmanager
+    def _stubs(self, addresses=None, subnets=None):
+        if not addresses:
+            addresses = [None, None]
+        db_mod = "quark.db.api"
+        self.context.session.add = mock.Mock()
+        with contextlib.nested(
+            mock.patch("%s.ip_address_find" % db_mod),
+            mock.patch("%s.subnet_find_allocation_counts" % db_mod)
+        ) as (addr_find, subnet_find):
+            addr_find.side_effect = addresses
+            subnet_find.side_effect = subnets
+            yield
+
+    def test_allocate_new_ip_address_two_empty_subnets(self):
+        subnet4 = dict(id=1, first_ip=0, last_ip=255,
+                       cidr="0.0.0.0/24", ip_version=4,
+                       next_auto_assign_ip=0, network=dict(ip_policy=None),
+                       ip_policy=None)
+        subnet6 = dict(id=1, first_ip=self.v6_fip, last_ip=self.v6_lip,
+                       cidr="feed::/104", ip_version=6,
+                       next_auto_assign_ip=0, network=dict(ip_policy=None),
+                       ip_policy=None)
+        with self._stubs(subnets=[[(subnet4, 0)], [(subnet6, 0)]],
+                         addresses=[None, None, None, None]):
+            address = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
+            self.assertEqual(address[0]["address"], 2)
+            self.assertEqual(address[1]["address"], 0)
+
+    def test_allocate_new_ip_address_one_v4_subnet_open(self):
+        subnet4 = dict(id=1, first_ip=0, last_ip=255,
+                       cidr="0.0.0.0/24", ip_version=4,
+                       next_auto_assign_ip=0, network=dict(ip_policy=None),
+                       ip_policy=None)
+        with self._stubs(subnets=[[(subnet4, 0)], []],
+                         addresses=[None, None, None, None]):
+            address = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
+            self.assertEqual(len(address), 1)
+            self.assertEqual(address[0]["version"], 4)
+
+    def test_allocate_new_ip_address_one_v6_subnet_open(self):
+        subnet6 = dict(id=1, first_ip=self.v6_fip, last_ip=self.v6_lip,
+                       cidr="feed::/104", ip_version=6,
+                       next_auto_assign_ip=0, network=dict(ip_policy=None),
+                       ip_policy=None)
+        with self._stubs(subnets=[[], [(subnet6, 0)]],
+                         addresses=[None, None, None, None]):
+            address = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
+            self.assertEqual(len(address), 1)
+            self.assertEqual(address[0]["version"], 6)
+
+    def test_allocate_new_ip_address_no_avail_subnets(self):
+        with self._stubs(subnets=[[], []],
+                         addresses=[None, None, None, None]):
+            with self.assertRaises(exceptions.IpAddressGenerationFailure):
+                self.ipam.allocate_ip_address(self.context, 0, 0, 0)
+
+    def test_reallocate_deallocated_v4_ip(self):
+        subnet6 = dict(id=1, first_ip=self.v6_fip, last_ip=self.v6_lip,
+                       cidr="feed::/104", ip_version=6,
+                       next_auto_assign_ip=0, network=dict(ip_policy=None),
+                       ip_policy=None)
+        address = models.IPAddress()
+        address["address"] = 4
+        address["version"] = 4
+        with self._stubs(subnets=[[(subnet6, 0)]],
+                         addresses=[address, None, None]):
+            address = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
+            self.assertEqual(len(address), 2)
+            self.assertEqual(address[0]["address"], 4)
+            self.assertEqual(address[0]["version"], 4)
+            self.assertEqual(address[1]["address"], 0)
+            self.assertEqual(address[1]["version"], 6)
+
+    def test_reallocate_deallocated_v6_ip(self):
+        subnet4 = dict(id=1, first_ip=0, last_ip=255,
+                       cidr="0.0.0.0/24", ip_version=4,
+                       next_auto_assign_ip=0, network=dict(ip_policy=None),
+                       ip_policy=None)
+        address = models.IPAddress()
+        address["address"] = 4
+        address["version"] = 6
+        with self._stubs(subnets=[[(subnet4, 0)]],
+                         addresses=[address, None, None]):
+            address = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
+            self.assertEqual(len(address), 2)
+            self.assertEqual(address[0]["address"], 4)
+            self.assertEqual(address[0]["version"], 6)
+            self.assertEqual(address[1]["address"], 2)
+            self.assertEqual(address[1]["version"], 4)
+
+    def test_reallocate_deallocated_v4_v6(self):
+        address1 = models.IPAddress()
+        address1["address"] = 4
+        address1["version"] = 4
+        address2 = models.IPAddress()
+        address2["address"] = 42
+        address2["version"] = 6
+        with self._stubs(subnets=[[]],
+                         addresses=[address1, address2]):
+            address = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
+            self.assertEqual(len(address), 2)
+            self.assertEqual(address[0]["address"], 4)
+            self.assertEqual(address[0]["version"], 4)
+            self.assertEqual(address[1]["address"], 42)
+            self.assertEqual(address[1]["version"], 6)
+
+
+class QuarkIpamTestBothRequiredIpAllocation(QuarkIpamBaseTest):
+    def setUp(self):
+        super(QuarkIpamTestBothRequiredIpAllocation, self).setUp()
+        self.ipam = quark.ipam.QuarkIpamBOTHREQ()
+        self.v6_fip = 338854485284841385865528720941232685056L
+        self.v6_lip = 338854485284841385865528720941249462271L
+
+    @contextlib.contextmanager
+    def _stubs(self, addresses=None, subnets=None):
+        if not addresses:
+            addresses = [None, None]
+        db_mod = "quark.db.api"
+        self.context.session.add = mock.Mock()
+        with contextlib.nested(
+            mock.patch("%s.ip_address_find" % db_mod),
+            mock.patch("%s.subnet_find_allocation_counts" % db_mod)
+        ) as (addr_find, subnet_find):
+            addr_find.side_effect = addresses
+            subnet_find.side_effect = subnets
+            yield
+
+    def test_allocate_new_ip_address_two_empty_subnets(self):
+        subnet4 = dict(id=1, first_ip=0, last_ip=255,
+                       cidr="0.0.0.0/24", ip_version=4,
+                       next_auto_assign_ip=0, network=dict(ip_policy=None),
+                       ip_policy=None)
+        subnet6 = dict(id=1, first_ip=self.v6_fip, last_ip=self.v6_lip,
+                       cidr="feed::/104", ip_version=6,
+                       next_auto_assign_ip=0, network=dict(ip_policy=None),
+                       ip_policy=None)
+        with self._stubs(subnets=[[(subnet4, 0)], [(subnet6, 0)]],
+                         addresses=[None, None, None, None]):
+            address = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
+            self.assertEqual(address[0]["address"], 2)
+            self.assertEqual(address[1]["address"], 0)
+
+    def test_allocate_new_ip_address_one_v4_subnet_open(self):
+        subnet4 = dict(id=1, first_ip=0, last_ip=255,
+                       cidr="0.0.0.0/24", ip_version=4,
+                       next_auto_assign_ip=0, network=dict(ip_policy=None),
+                       ip_policy=None)
+        with self._stubs(subnets=[[(subnet4, 0)], []],
+                         addresses=[None, None, None, None]):
+            with self.assertRaises(exceptions.IpAddressGenerationFailure):
+                self.ipam.allocate_ip_address(self.context, 0, 0, 0)
+
+    def test_allocate_new_ip_address_one_v6_subnet_open(self):
+        subnet6 = dict(id=1, first_ip=self.v6_fip, last_ip=self.v6_lip,
+                       cidr="feed::/104", ip_version=6,
+                       next_auto_assign_ip=0, network=dict(ip_policy=None),
+                       ip_policy=None)
+        with self._stubs(subnets=[[], [(subnet6, 0)]],
+                         addresses=[None, None, None, None]):
+            with self.assertRaises(exceptions.IpAddressGenerationFailure):
+                self.ipam.allocate_ip_address(self.context, 0, 0, 0)
+
+    def test_allocate_new_ip_address_no_avail_subnets(self):
+        with self._stubs(subnets=[[], []],
+                         addresses=[None, None, None, None]):
+            with self.assertRaises(exceptions.IpAddressGenerationFailure):
+                self.ipam.allocate_ip_address(self.context, 0, 0, 0)
+
+    def test_reallocate_deallocated_v4_ip(self):
+        subnet6 = dict(id=1, first_ip=self.v6_fip, last_ip=self.v6_lip,
+                       cidr="feed::/104", ip_version=6,
+                       next_auto_assign_ip=0, network=dict(ip_policy=None),
+                       ip_policy=None)
+        address = models.IPAddress()
+        address["address"] = 4
+        address["version"] = 4
+        with self._stubs(subnets=[[(subnet6, 0)]],
+                         addresses=[address, None, None]):
+            address = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
+            self.assertEqual(len(address), 2)
+            self.assertEqual(address[0]["address"], 4)
+            self.assertEqual(address[0]["version"], 4)
+            self.assertEqual(address[1]["address"], 0)
+            self.assertEqual(address[1]["version"], 6)
+
+    def test_reallocate_deallocated_v6_ip(self):
+        subnet4 = dict(id=1, first_ip=0, last_ip=255,
+                       cidr="0.0.0.0/24", ip_version=4,
+                       next_auto_assign_ip=0, network=dict(ip_policy=None),
+                       ip_policy=None)
+        address = models.IPAddress()
+        address["address"] = 4
+        address["version"] = 6
+        with self._stubs(subnets=[[(subnet4, 0)]],
+                         addresses=[address, None, None]):
+            address = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
+            self.assertEqual(len(address), 2)
+            self.assertEqual(address[0]["address"], 4)
+            self.assertEqual(address[0]["version"], 6)
+            self.assertEqual(address[1]["address"], 2)
+            self.assertEqual(address[1]["version"], 4)
+
+    def test_reallocate_deallocated_v4_v6(self):
+        address1 = models.IPAddress()
+        address1["address"] = 4
+        address1["version"] = 4
+        address2 = models.IPAddress()
+        address2["address"] = 42
+        address2["version"] = 6
+        with self._stubs(subnets=[[]],
+                         addresses=[address1, address2]):
+            address = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
+            self.assertEqual(len(address), 2)
+            self.assertEqual(address[0]["address"], 4)
+            self.assertEqual(address[0]["version"], 4)
+            self.assertEqual(address[1]["address"], 42)
+            self.assertEqual(address[1]["version"], 6)
+
+
+class QuarkIpamBoth(QuarkIpamBaseTest):
+    def setUp(self):
+        super(QuarkIpamBoth, self).setUp()
+        self.ipam = quark.ipam.QuarkIpamBOTH()
+        self.v4 = models.IPAddress()
+        self.v4["version"] = 4
+        self.v6 = models.IPAddress()
+        self.v6["version"] = 6
+
+    def test_is_strategy_satisfied_v4_only_fails(self):
+        self.assertFalse(self.ipam.is_strategy_satisfied([self.v4, None]))
+
+    def test_is_strategy_satisfied_v6_only_fails(self):
+        self.assertFalse(self.ipam.is_strategy_satisfied([None, self.v6]))
+
+    def test_is_strategy_satisfied_none_fails(self):
+        self.assertFalse(self.ipam.is_strategy_satisfied([None, None]))
+
+    def test_is_strategy_satisfied_both_passes(self):
+        self.assertTrue(self.ipam.is_strategy_satisfied([self.v4, self.v6]))
+
+
+class QuarkIpamBothRequired(QuarkIpamBaseTest):
+    def setUp(self):
+        super(QuarkIpamBothRequired, self).setUp()
+        self.ipam = quark.ipam.QuarkIpamBOTHREQ()
+        self.v4 = models.IPAddress()
+        self.v4["version"] = 4
+        self.v6 = models.IPAddress()
+        self.v6["version"] = 6
+
+    def test_is_strategy_satisfied_v4_only_fails(self):
+        self.assertFalse(self.ipam.is_strategy_satisfied([self.v4, None]))
+
+    def test_is_strategy_satisfied_v6_only_fails(self):
+        self.assertFalse(self.ipam.is_strategy_satisfied([None, self.v6]))
+
+    def test_is_strategy_satisfied_none_fails(self):
+        self.assertFalse(self.ipam.is_strategy_satisfied([None, None]))
+
+    def test_is_strategy_satisfied_both_passes(self):
+        self.assertTrue(self.ipam.is_strategy_satisfied([self.v4, self.v6]))
+
+
 class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
     @contextlib.contextmanager
     def _stubs(self, addresses=None, subnets=None):
@@ -219,7 +505,7 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
         with self._stubs(subnets=[(subnet, 0)], addresses=[None, None]):
             address = self.ipam.allocate_ip_address(self.context, 0, 0, 0,
                                                     version=4)
-            self.assertEqual(address["address"], 2)  # 0 => 2
+            self.assertEqual(address[0]["address"], 2)  # 0 => 2
 
     def test_allocate_new_ip_in_partially_allocated_range(self):
         addr = dict(id=1, address=3)
@@ -229,7 +515,7 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
                       ip_policy=None)
         with self._stubs(subnets=[(subnet, 0)], addresses=[None, addr, None]):
             address = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
-            self.assertEqual(address["address"], 3)
+            self.assertEqual(address[0]["address"], 3)
 
     def test_allocate_ip_one_full_one_open_subnet(self):
         subnet1 = dict(id=1, first_ip=0, last_ip=0,
@@ -243,8 +529,8 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
         subnets = [(subnet1, 1), (subnet2, 0)]
         with self._stubs(subnets=subnets, addresses=[None, None]):
             address = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
-            self.assertEqual(address["address"], 258)  # 256 => 258
-            self.assertEqual(address["subnet_id"], 2)
+            self.assertEqual(address[0]["address"], 258)  # 256 => 258
+            self.assertEqual(address[0]["subnet_id"], 2)
 
     def test_allocate_ip_no_subnet_fails(self):
         with self._stubs(subnets=[]):
@@ -271,8 +557,8 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
         subnets = [(subnet1, 1), (subnet2, 1)]
         with self._stubs(subnets=subnets, addresses=[None, None]):
             address = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
-            self.assertEqual(address["address"], 2)  # 0 => 2
-            self.assertEqual(address["subnet_id"], 1)
+            self.assertEqual(address[0]["address"], 2)  # 0 => 2
+            self.assertEqual(address[0]["subnet_id"], 1)
 
     def test_find_requested_ip_subnet(self):
         subnet1 = dict(id=1, first_ip=0, last_ip=255,
@@ -283,8 +569,8 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
         with self._stubs(subnets=subnets, addresses=[None, None]):
             address = self.ipam.allocate_ip_address(
                 self.context, 0, 0, 0, ip_address="0.0.0.240")
-            self.assertEqual(address["address"], 240)
-            self.assertEqual(address["subnet_id"], 1)
+            self.assertEqual(address[0]["address"], 240)
+            self.assertEqual(address[0]["subnet_id"], 1)
 
     def test_find_requested_ip_subnet_already_exists_fails(self):
         subnet1 = dict(id=1, first_ip=0, last_ip=255,
@@ -311,11 +597,10 @@ class QuarkIPAddressAllocateDeallocated(QuarkIpamBaseTest):
     @contextlib.contextmanager
     def _stubs(self, ip_find, subnet, address, addresses_found):
         db_mod = "quark.db.api"
-        self.context.session.add = mock.Mock()
         with contextlib.nested(
             mock.patch("%s.ip_address_find" % db_mod),
             mock.patch("%s.ip_address_update" % db_mod),
-            mock.patch("quark.ipam.QuarkIpam._choose_available_subnet")
+            mock.patch("quark.ipam.QuarkIpamANY._choose_available_subnet")
         ) as (addr_find, addr_update, choose_subnet):
             if ip_find:
                 addr_find.return_value = address
@@ -323,7 +608,7 @@ class QuarkIPAddressAllocateDeallocated(QuarkIpamBaseTest):
                 address["id"] = None
                 addr_find.side_effect = addresses_found
                 addr_update.return_value = address
-            choose_subnet.return_value = subnet
+            choose_subnet.return_value = [subnet]
             yield choose_subnet
 
     def test_allocate_finds_deallocated_ip_succeeds(self):
@@ -335,15 +620,10 @@ class QuarkIPAddressAllocateDeallocated(QuarkIpamBaseTest):
             True, subnet, address, addresses_found
         ) as (choose_subnet):
             ipaddress = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
-            self.assertIsNotNone(ipaddress['id'])
+            self.assertIsNotNone(ipaddress[0]['id'])
             self.assertFalse(choose_subnet.called)
 
     def test_allocate_finds_no_deallocated_creates_new_ip(self):
-        '''Fails based on the choice of reuse_after argument.
-
-        Allocates new ip address instead of previously deallocated mac
-        address.
-        '''
         subnet = dict(id=1, ip_version=4, next_auto_assign_ip=0,
                       cidr="0.0.0.0/24", first_ip=0, last_ip=255,
                       ip_policy=None, network=dict(ip_policy=None))
@@ -353,15 +633,10 @@ class QuarkIPAddressAllocateDeallocated(QuarkIpamBaseTest):
             False, subnet, address, addresses_found
         ) as (choose_subnet):
             ipaddress = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
-            self.assertIsNotNone(ipaddress['id'])
+            self.assertIsNotNone(ipaddress[0]['id'])
             self.assertTrue(choose_subnet.called)
 
     def test_allocate_finds_gap_in_address_space(self):
-        """Succeeds by looping through a gap in the address space.
-
-        This edge case occurs because users are allowed to select a specific IP
-        address to create.
-        """
         network_mod = models.Network()
         network_mod.update(dict(ip_policy=None))
         subnet = dict(id=1, ip_version=4, next_auto_assign_ip=0,
@@ -375,8 +650,8 @@ class QuarkIPAddressAllocateDeallocated(QuarkIpamBaseTest):
             False, subnet_mod, address0, addresses_found
         ) as (choose_subnet):
             ipaddress = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
-            self.assertEqual(ipaddress["address"], 2)
-            self.assertIsNotNone(ipaddress['id'])
+            self.assertEqual(ipaddress[0]["address"], 2)
+            self.assertIsNotNone(ipaddress[0]['id'])
             self.assertTrue(choose_subnet.called)
 
 
@@ -403,7 +678,7 @@ class TestQuarkIpPoliciesIpAllocation(QuarkIpamBaseTest):
         with self._stubs(subnets=[(subnet, 0)], addresses=[None, None]):
             address = self.ipam.allocate_ip_address(self.context, 0, 0, 0,
                                                     version=4)
-            self.assertEqual(address["address"], 2)
+            self.assertEqual(address[0]["address"], 2)
 
     def test_subnet_full_based_on_ip_policy(self):
         subnet = dict(id=1, first_ip=0, last_ip=255,
@@ -424,7 +699,7 @@ class TestQuarkIpPoliciesIpAllocation(QuarkIpamBaseTest):
         with self._stubs(subnets=[(subnet, 0)], addresses=[None, None]):
             address = self.ipam.allocate_ip_address(self.context, 0, 0, 0,
                                                     version=4)
-            self.assertEqual(address["address"], 2)
+            self.assertEqual(address[0]["address"], 2)
 
     def test_ip_policy_on_subnet_negative_offset(self):
         subnet = dict(id=1, first_ip=0, last_ip=255,
@@ -435,7 +710,7 @@ class TestQuarkIpPoliciesIpAllocation(QuarkIpamBaseTest):
         with self._stubs(subnets=[(subnet, 0)], addresses=[None, None]):
             address = self.ipam.allocate_ip_address(self.context, 0, 0, 0,
                                                     version=4)
-            self.assertEqual(address["address"], 2)
+            self.assertEqual(address[0]["address"], 2)
 
     def test_ip_policy_on_network(self):
         net = dict(ip_policy=dict(exclude=
@@ -447,7 +722,7 @@ class TestQuarkIpPoliciesIpAllocation(QuarkIpamBaseTest):
         with self._stubs(subnets=[(subnet, 0)], addresses=[None, None]):
             address = self.ipam.allocate_ip_address(self.context, 0, 0, 0,
                                                     version=4)
-            self.assertEqual(address["address"], 2)
+            self.assertEqual(address[0]["address"], 2)
 
     def test_ip_policy_on_network_exclusion_intersection(self):
         net = dict(ip_policy=dict(exclude=
@@ -460,7 +735,7 @@ class TestQuarkIpPoliciesIpAllocation(QuarkIpamBaseTest):
         with self._stubs(subnets=[(subnet, 0)], addresses=[None, None]):
             address = self.ipam.allocate_ip_address(self.context, 0, 0, 0,
                                                     version=4)
-            self.assertEqual(address["address"], 2)
+            self.assertEqual(address[0]["address"], 2)
 
     def test_ip_policy_on_both_subnet_preferred(self):
         net = dict(ip_policy=dict(exclude=
@@ -475,7 +750,7 @@ class TestQuarkIpPoliciesIpAllocation(QuarkIpamBaseTest):
         with self._stubs(subnets=[(subnet, 0)], addresses=[None, None]):
             address = self.ipam.allocate_ip_address(self.context, 0, 0, 0,
                                                     version=4)
-            self.assertEqual(address["address"], 2)  # 0 => 2
+            self.assertEqual(address[0]["address"], 2)  # 0 => 2
 
     def test_ip_policy_allows_specified_ip(self):
         subnet1 = dict(id=1, first_ip=0, last_ip=255,
@@ -486,19 +761,19 @@ class TestQuarkIpPoliciesIpAllocation(QuarkIpamBaseTest):
         with self._stubs(subnets=subnets, addresses=[None, None]):
             address = self.ipam.allocate_ip_address(
                 self.context, 0, 0, 0, ip_address="0.0.0.240")
-            self.assertEqual(address["address"], 240)
+            self.assertEqual(address[0]["address"], 240)
 
 
 class QuarkIPAddressAllocationNotifications(QuarkIpamBaseTest):
     @contextlib.contextmanager
     def _stubs(self, address, addresses=None, subnets=None, deleted_at=None):
+
         address = models.IPAddress(**address)
         if not addresses:
             addresses = [None]
         db_mod = "quark.db.api"
         api_mod = "neutron.openstack.common.notifier.api"
         time_mod = "neutron.openstack.common.timeutils"
-        self.context.session.add = mock.Mock()
         with contextlib.nested(
             mock.patch("%s.ip_address_find" % db_mod),
             mock.patch("%s.ip_address_create" % db_mod),
@@ -521,7 +796,7 @@ class QuarkIPAddressAllocationNotifications(QuarkIpamBaseTest):
                        subnet_id=1, address_readable="0.0.0.0")
         with self._stubs(
             address,
-            subnets=[(subnet, 0)],
+            subnets=[(subnet, 1)],
             addresses=[None, None]
         ) as notify:
             self.ipam.allocate_ip_address(self.context, 0, 0, 0,

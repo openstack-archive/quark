@@ -34,7 +34,11 @@ quark_opts = [
     cfg.StrOpt("default_network_type",
                default='BASE',
                help=_("Default network type to use when"
-                      "none is provided"))
+                      "none is provided")),
+    cfg.StrOpt("default_ipam_strategy",
+               default="ANY",
+               help=_("Default IPAM strategy to use when"
+                      "none is provided."))
 ]
 
 
