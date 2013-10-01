@@ -13,7 +13,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-
 from quark.drivers import base
 from quark.drivers import nvp_driver
 from quark.drivers import unmanaged

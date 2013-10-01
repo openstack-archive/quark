@@ -51,7 +51,7 @@ for _name, klass in inspect.getmembers(models, inspect.isclass):
 
 def _listify(filters):
     for key in ["name", "network_id", "id", "device_id", "tenant_id",
-                "mac_address", "shared"]:
+                "mac_address", "shared", "version"]:
         if key in filters:
             if not filters[key]:
                 continue
@@ -100,7 +100,10 @@ def _model_query(context, model, filters, fields=None):
         model_filters.append(model.address == filters["address"])
 
     if filters.get("version"):
-        model_filters.append(model.ip_version == filters["version"])
+        model_filters.append(model.version.in_(filters["version"]))
+
+    if filters.get("ip_version"):
+        model_filters.append(model.ip_version == filters["ip_version"])
 
     if filters.get("ip_address"):
         model_filters.append(model.address == int(filters["ip_address"]))
@@ -371,8 +374,8 @@ def subnet_find_allocation_counts(context, net_id, **filters):
     query = query.order_by("count DESC")
 
     query = query.filter(models.Subnet.network_id == net_id)
-    if "version" in filters:
-        query = query.filter(models.Subnet.ip_version == filters["version"])
+    if "ip_version" in filters:
+        query = query.filter(models.Subnet.ip_version == filters["ip_version"])
     return query
 
 

@@ -139,6 +139,7 @@ class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
     def _stubs(self, port=None, network=None, addr=None, mac=None):
         if network:
             network["network_plugin"] = "BASE"
+            network["ipam_strategy"] = "ANY"
         port_model = models.Port()
         port_model.update(port)
         port_models = port_model
@@ -373,6 +374,10 @@ class TestQuarkPostUpdatePort(test_quark_plugin.TestQuarkPlugin):
                     ip_mod = models.IPAddress()
                     ip_mod.update(ip)
                     port_model["ip_addresses"].append(ip_mod)
+            net_model = models.Network()
+            net_model["ipam_strategy"] = "ANY"
+            port_model["network"] = net_model
+
         if addr:
             addr_model = models.IPAddress()
             addr_model.update(addr)
@@ -499,6 +504,7 @@ class TestQuarkDeletePort(test_quark_plugin.TestQuarkPlugin):
         if port:
             net_model = models.Network()
             net_model["network_plugin"] = "BASE"
+            net_model["ipam_strategy"] = "ANY"
             port_model = models.Port()
             port_model.update(port)
             port_model.network = net_model

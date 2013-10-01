@@ -16,7 +16,6 @@
 import netaddr
 
 from neutron.common import exceptions
-from neutron.openstack.common import importutils
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import uuidutils
 from neutron import quota
@@ -24,13 +23,12 @@ from oslo.config import cfg
 
 from quark.db import api as db_api
 from quark.drivers import registry
+from quark import ipam
 from quark import plugin_views as v
 from quark import utils
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
-
-ipam_driver = (importutils.import_class(CONF.QUARK.ipam_driver))()
 
 
 def create_port(context, port):
@@ -67,6 +65,7 @@ def create_port(context, port):
             context, context.tenant_id,
             ports_per_network=len(net.get('ports', [])) + 1)
 
+        ipam_driver = ipam.IPAM_REGISTRY.get_strategy(net["ipam_strategy"])
         if fixed_ips:
             for fixed_ip in fixed_ips:
                 subnet_id = fixed_ip.get("subnet_id")
@@ -75,11 +74,11 @@ def create_port(context, port):
                     raise exceptions.BadRequest(
                         resource="fixed_ips",
                         msg="subnet_id and ip_address required")
-                addresses.append(ipam_driver.allocate_ip_address(
+                addresses.extend(ipam_driver.allocate_ip_address(
                     context, net["id"], port_id, CONF.QUARK.ipam_reuse_after,
                     ip_address=ip_address))
         else:
-            addresses.append(ipam_driver.allocate_ip_address(
+            addresses.extend(ipam_driver.allocate_ip_address(
                 context, net["id"], port_id, CONF.QUARK.ipam_reuse_after))
 
         group_ids, security_groups = v.make_security_group_list(
@@ -131,6 +130,8 @@ def update_port(context, id, port):
         address_pairs = []
         fixed_ips = port["port"].pop("fixed_ips", None)
         if fixed_ips:
+            ipam_driver = ipam.IPAM_REGISTRY.get_strategy(
+                port_db["network"]["ipam_strategy"])
             ipam_driver.deallocate_ip_address(
                 context, port_db, ipam_reuse_after=CONF.QUARK.ipam_reuse_after)
             addresses = []
@@ -182,6 +183,8 @@ def post_update_port(context, id, port):
         if "fixed_ips" in port and port["fixed_ips"]:
             for ip in port["fixed_ips"]:
                 address = None
+                ipam_driver = ipam.IPAM_REGISTRY.get_strategy(
+                    port_db["network"]["ipam_strategy"])
                 if ip:
                     if "ip_id" in ip:
                         ip_id = ip["ip_id"]
@@ -304,6 +307,8 @@ def delete_port(context, id):
     with context.session.begin():
         backend_key = port["backend_key"]
         mac_address = netaddr.EUI(port["mac_address"]).value
+        ipam_driver = ipam.IPAM_REGISTRY.get_strategy(
+            port["network"]["ipam_strategy"])
         ipam_driver.deallocate_mac_address(context, mac_address)
         ipam_driver.deallocate_ip_address(
             context, port, ipam_reuse_after=CONF.QUARK.ipam_reuse_after)
