@@ -68,6 +68,7 @@ def create_network(context, network):
         #             lets make it work first
         pnet_type, phys_net, seg_id = _adapt_provider_nets(context, network)
         net_attrs = network["network"]
+        net_attrs["ipam_strategy"] = CONF.QUARK.default_ipam_strategy
 
         # NOTE(mdietz) I think ideally we would create the providernet
         # elsewhere as a separate driver step that could be

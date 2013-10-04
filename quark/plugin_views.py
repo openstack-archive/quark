@@ -37,6 +37,7 @@ def _make_network_dict(network, fields=None):
            "name": network.get("name"),
            "tenant_id": network.get("tenant_id"),
            "admin_state_up": None,
+           "ipam_strategy": network.get("ipam_strategy"),
            "status": "ACTIVE",
            "shared": shared_net,
            #TODO(mdietz): this is the expected return. Then the client

@@ -206,7 +206,7 @@ class TestQuarkCreateNetwork(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(net=net) as net_create:
             net = self.plugin.create_network(self.context, dict(network=net))
             self.assertTrue(net_create.called)
-            self.assertEqual(len(net.keys()), 7)
+            self.assertEqual(len(net.keys()), 8)
             self.assertIsNotNone(net["id"])
             self.assertEqual(net["name"], "public")
             self.assertIsNone(net["admin_state_up"])
@@ -214,6 +214,7 @@ class TestQuarkCreateNetwork(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(net["subnets"], [])
             self.assertEqual(net["shared"], False)
             self.assertEqual(net["tenant_id"], 0)
+            self.assertEqual(net["ipam_strategy"], None)
 
     def test_create_network_with_subnets(self):
         subnet = dict(id=2, cidr="172.168.0.0/24", tenant_id=0)
@@ -223,7 +224,7 @@ class TestQuarkCreateNetwork(test_quark_plugin.TestQuarkPlugin):
             net.update(dict(subnets=[dict(subnet=subnet)]))
             net = self.plugin.create_network(self.context, dict(network=net))
             self.assertTrue(net_create.called)
-            self.assertEqual(len(net.keys()), 7)
+            self.assertEqual(len(net.keys()), 8)
             self.assertIsNotNone(net["id"])
             self.assertEqual(net["name"], "public")
             self.assertIsNone(net["admin_state_up"])
@@ -231,6 +232,7 @@ class TestQuarkCreateNetwork(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(net["subnets"], [2])
             self.assertEqual(net["shared"], False)
             self.assertEqual(net["tenant_id"], 0)
+            self.assertEqual(net["ipam_strategy"], None)
 
 
 class TestQuarkDiagnoseNetworks(test_quark_plugin.TestQuarkPlugin):
