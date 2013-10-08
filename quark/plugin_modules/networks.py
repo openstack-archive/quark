@@ -24,6 +24,8 @@ from oslo.config import cfg
 
 from quark.db import api as db_api
 from quark.drivers import registry
+from quark import exceptions as q_exc
+from quark import ipam
 from quark import network_strategy
 from quark.plugin_modules import ports
 from quark.plugin_modules import subnets
@@ -62,13 +64,24 @@ def create_network(context, network):
 
     with context.session.begin():
         # Generate a uuid that we're going to hand to the backend and db
-        net_uuid = uuidutils.generate_uuid()
+        net_attrs = network["network"]
+        net_uuid = utils.pop_param(net_attrs, "id", None)
+        if net_uuid and context.is_admin:
+            net = db_api.network_find(context, id=net_uuid, scope=db_api.ONE)
+            if net:
+                raise q_exc.NetworkAlreadyExists(id=net_uuid)
+        else:
+            net_uuid = uuidutils.generate_uuid()
 
         #TODO(mdietz) this will be the first component registry hook, but
         #             lets make it work first
         pnet_type, phys_net, seg_id = _adapt_provider_nets(context, network)
-        net_attrs = network["network"]
-        net_attrs["ipam_strategy"] = CONF.QUARK.default_ipam_strategy
+        if "ipam_strategy" not in net_attrs:
+            net_attrs["ipam_strategy"] = CONF.QUARK.default_ipam_strategy
+
+        strat = net_attrs["ipam_strategy"]
+        if not ipam.IPAM_REGISTRY.is_valid_strategy(strat):
+            raise q_exc.InvalidIpamStrategy(strat=strat)
 
         # NOTE(mdietz) I think ideally we would create the providernet
         # elsewhere as a separate driver step that could be

@@ -17,8 +17,10 @@ import contextlib
 
 import mock
 from neutron.common import exceptions
+from neutron import context
 
 from quark.db import models
+from quark import exceptions as q_exc
 from quark.tests import test_quark_plugin
 
 
@@ -179,7 +181,7 @@ class TestQuarkDeleteNetwork(test_quark_plugin.TestQuarkPlugin):
 
 class TestQuarkCreateNetwork(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
-    def _stubs(self, net=None, subnet=None, ports=None):
+    def _stubs(self, net=None, subnet=None, ports=None, find_net=False):
         net_mod = net
         subnet_mod = None
         if net:
@@ -190,14 +192,20 @@ class TestQuarkCreateNetwork(test_quark_plugin.TestQuarkPlugin):
             subnet_mod = models.Subnet()
             subnet_mod.update(subnet)
 
+        found_net = None
+        if find_net:
+            found_net = models.Network()
+
         db_mod = "quark.db.api"
         with contextlib.nested(
             mock.patch("%s.network_create" % db_mod),
             mock.patch("%s.subnet_create" % db_mod),
             mock.patch("quark.drivers.base.BaseDriver.create_network"),
-        ) as (net_create, sub_create, driver_net_create):
+            mock.patch("%s.network_find" % db_mod)
+        ) as (net_create, sub_create, driver_net_create, net_find):
             net_create.return_value = net_mod
             sub_create.return_value = subnet_mod
+            net_find.return_value = found_net
             yield net_create
 
     def test_create_network(self):
@@ -233,6 +241,45 @@ class TestQuarkCreateNetwork(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(net["shared"], False)
             self.assertEqual(net["tenant_id"], 0)
             self.assertEqual(net["ipam_strategy"], None)
+
+    def test_create_network_with_id(self):
+        net = dict(id="abcdef", name="public", admin_state_up=True,
+                   tenant_id=0)
+        ctxt = context.Context('fake', 'fake', is_admin=True,
+                               load_admin_roles=False)
+        with self._stubs(net=net):
+            res = self.plugin.create_network(ctxt, dict(network=net))
+            self.assertEqual(net["id"], res["id"])
+
+    def test_create_network_with_id_already_exists_raises(self):
+        net = dict(id="abcdef", name="public", admin_state_up=True,
+                   tenant_id=0)
+        ctxt = context.Context('fake', 'fake', is_admin=True,
+                               load_admin_roles=False)
+        with self._stubs(net=net, find_net=True):
+            with self.assertRaises(q_exc.NetworkAlreadyExists):
+                self.plugin.create_network(ctxt, dict(network=net))
+
+    def test_create_network_with_id_not_admin_ignores_id(self):
+        net = dict(id="abcdef", name="public", admin_state_up=True,
+                   tenant_id=0)
+        with self._stubs(net=net):
+            res = self.plugin.create_network(self.context, dict(network=net))
+            self.assertNotEqual(net["id"], res["id"])
+
+    def test_create_network_with_ipam_strategy(self):
+        net = dict(id="abcdef", name="public", admin_state_up=True,
+                   tenant_id=0, ipam_strategy="BOTH")
+        with self._stubs(net=net):
+            res = self.plugin.create_network(self.context, dict(network=net))
+            self.assertEqual(res["ipam_strategy"], net["ipam_strategy"])
+
+    def test_create_network_with_bad_ipam_strategy_raises(self):
+        net = dict(id="abcdef", name="public", admin_state_up=True,
+                   tenant_id=0, ipam_strategy="BUSTED")
+        with self._stubs(net=net):
+            with self.assertRaises(q_exc.InvalidIpamStrategy):
+                self.plugin.create_network(self.context, dict(network=net))
 
 
 class TestQuarkDiagnoseNetworks(test_quark_plugin.TestQuarkPlugin):

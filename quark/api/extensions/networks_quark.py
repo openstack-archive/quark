@@ -18,11 +18,12 @@ RESOURCE_NAME = "network"
 RESOURCE_COLLECTION = RESOURCE_NAME + "s"
 EXTENDED_ATTRIBUTES_2_0 = {
     RESOURCE_COLLECTION: {
-        "ipam_strategy": {"allow_post": False, "is_visible": True,
-                          "default": False}}}
+        "ipam_strategy": {"allow_post": True, "is_visible": True,
+                          "default": False},
+        "id": {"allow_post": True, "is_visible": True, "default": False}}}
 
 
-class Networks(object):
+class Networks_quark(object):
     """Extends Networks for quark API purposes."""
 
     @classmethod
@@ -31,7 +32,7 @@ class Networks(object):
 
     @classmethod
     def get_alias(cls):
-        return "networks"
+        return "networks_quark"
 
     @classmethod
     def get_description(cls):
@@ -40,7 +41,7 @@ class Networks(object):
     @classmethod
     def get_namespace(cls):
         return ("http://docs.openstack.org/network/ext/"
-                "networks/api/v2.0")
+                "networks_quark/api/v2.0")
 
     @classmethod
     def get_updated(cls):

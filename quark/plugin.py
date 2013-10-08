@@ -73,7 +73,8 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
                                    "ip_addresses", "ports_quark",
                                    "security-group", "diagnostics",
                                    "subnets_quark", "provider",
-                                   "ip_policies", "quotas"]
+                                   "ip_policies", "quotas",
+                                   "networks_quark"]
 
     def __init__(self):
         neutron_db_api.configure_db()
