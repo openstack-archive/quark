@@ -306,8 +306,13 @@ class IpamRegistry(object):
             QuarkIpamBOTH.get_name(): QuarkIpamBOTH(),
             QuarkIpamBOTHREQ.get_name(): QuarkIpamBOTHREQ()}
 
-    def get_strategy(self, strategy_name):
+    def is_valid_strategy(self, strategy_name):
         if strategy_name in self.strategies:
+            return True
+        return False
+
+    def get_strategy(self, strategy_name):
+        if self.is_valid_strategy(strategy_name):
             return self.strategies[strategy_name]
         fallback = CONF.QUARK.default_ipam_strategy
         LOG.warn("IPAM strategy %s not found, "

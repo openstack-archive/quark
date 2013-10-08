@@ -1,6 +1,10 @@
 from neutron.common import exceptions
 
 
+class NetworkAlreadyExists(exceptions.Conflict):
+    message = _("Network %(id)s already exists.")
+
+
 class InvalidMacAddressRange(exceptions.NeutronException):
     message = _("Invalid MAC address range %(cidr)s.")
 
@@ -47,6 +51,10 @@ class SegmentIdRequired(exceptions.NeutronException):
 
 class PhysicalNetworkNotFound(exceptions.NeutronException):
     message = _("Physical network %(phys_net)s not found!")
+
+
+class InvalidIpamStrategy(exceptions.BadRequest):
+    message = _("IPAM Strategy %(strat)s is invalid.")
 
 
 class ProvidernetParamError(exceptions.NeutronException):
