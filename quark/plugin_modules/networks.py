@@ -76,12 +76,14 @@ def create_network(context, network):
         #TODO(mdietz) this will be the first component registry hook, but
         #             lets make it work first
         pnet_type, phys_net, seg_id = _adapt_provider_nets(context, network)
-        if "ipam_strategy" not in net_attrs:
-            net_attrs["ipam_strategy"] = CONF.QUARK.default_ipam_strategy
 
-        strat = net_attrs["ipam_strategy"]
-        if not ipam.IPAM_REGISTRY.is_valid_strategy(strat):
-            raise q_exc.InvalidIpamStrategy(strat=strat)
+        ipam_strategy = utils.pop_param(net_attrs, "ipam_strategy", None)
+        if not ipam_strategy:
+            ipam_strategy = CONF.QUARK.default_ipam_strategy
+
+        if not ipam.IPAM_REGISTRY.is_valid_strategy(ipam_strategy):
+            raise q_exc.InvalidIpamStrategy(strat=ipam_strategy)
+        net_attrs["ipam_strategy"] = ipam_strategy
 
         # NOTE(mdietz) I think ideally we would create the providernet
         # elsewhere as a separate driver step that could be
