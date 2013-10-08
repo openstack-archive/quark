@@ -89,7 +89,7 @@ class QuarkIpam(object):
             if address:
                 updated_address = db_api.ip_address_update(
                     elevated, address, deallocated=False,
-                    deallocated_at=None)
+                    deallocated_at=None, allocated_at=timeutils.utcnow())
                 return [updated_address]
         return []
 
