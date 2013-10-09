@@ -314,15 +314,19 @@ def network_find(context, fields=None, **filters):
         else:
             filters.pop("id")
 
-    if "shared" in filters and True in filters["shared"]:
-        defaults = STRATEGY.get_assignable_networks(context)
+    if "shared" in filters:
+        if True in filters["shared"]:
+            defaults = STRATEGY.get_assignable_networks(context)
+            if ids:
+                defaults = [net for net in ids if net in defaults]
+                filters.pop("id")
+            if not defaults:
+                return []
         filters.pop("shared")
-        if ids:
-            defaults = [net for net in ids if net in defaults]
-            filters.pop("id")
-        if not defaults:
-            return []
+    return _network_find(context, fields, defaults=defaults, **filters)
 
+
+def _network_find(context, fields, defaults=None, **filters):
     query = context.session.query(models.Network)
     model_filters = _model_query(context, models.Network, filters, query)
 

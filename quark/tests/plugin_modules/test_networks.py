@@ -14,13 +14,16 @@
 #  under the License.
 
 import contextlib
+import json
 
 import mock
 from neutron.common import exceptions
 from neutron import context
 
+from quark.db import api as db_api
 from quark.db import models
 from quark import exceptions as q_exc
+from quark import network_strategy
 from quark.tests import test_quark_plugin
 
 
@@ -81,6 +84,58 @@ class TestQuarkGetNetworks(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(nets=None, subnets=[]):
             with self.assertRaises(exceptions.NetworkNotFound):
                 self.plugin.get_network(self.context, 1)
+
+
+class TestQuarkGetNetworksShared(test_quark_plugin.TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, nets=None, subnets=None):
+        net_mods = []
+
+        if isinstance(nets, list):
+            for net in nets:
+                net_mod = models.Network()
+                net_mod.update(net)
+                net_mods.append(net_mod)
+        else:
+            if nets:
+                net_mods = nets.copy()
+            else:
+                net_mods = nets
+
+        db_mod = "quark.db.api"
+
+        self.strategy = {"public_network":
+                         {"required": True,
+                          "bridge": "xenbr0",
+                          "children": {"nova": "child_net"}}}
+        strategy_json = json.dumps(self.strategy)
+        db_api.STRATEGY = network_strategy.JSONStrategy(strategy_json)
+
+        with mock.patch("%s._network_find" % db_mod) as net_find:
+            net_find.return_value = net_mods
+            yield net_find
+
+    def test_get_networks_shared(self):
+        net = dict(id=1, tenant_id=self.context.tenant_id, name="mynet",
+                   status="ACTIVE")
+        with self._stubs(nets=[net]) as net_find:
+            self.plugin.get_networks(self.context, {"shared": [True]})
+            net_find.assert_called_with(self.context, None,
+                                        defaults=["public_network"])
+
+    def test_get_networks_shared_false(self):
+        net = dict(id=1, tenant_id=self.context.tenant_id, name="mynet",
+                   status="ACTIVE")
+        with self._stubs(nets=[net]) as net_find:
+            self.plugin.get_networks(self.context, {"shared": [False]})
+            net_find.assert_called_with(self.context, None, defaults=[])
+
+    def test_get_networks_no_shared(self):
+        net = dict(id=1, tenant_id=self.context.tenant_id, name="mynet",
+                   status="ACTIVE")
+        with self._stubs(nets=[net]) as net_find:
+            self.plugin.get_networks(self.context, {})
+            net_find.assert_called_with(self.context, None, defaults=[])
 
 
 class TestQuarkGetNetworkCount(test_quark_plugin.TestQuarkPlugin):
