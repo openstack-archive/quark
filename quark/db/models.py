@@ -140,6 +140,7 @@ class IPAddress(BASEV2, models.HasId, models.HasTenant):
     version = sa.Column(sa.Integer())
 
     allocated_at = sa.Column(sa.DateTime())
+    subnet = orm.relationship("Subnet", lazy="joined")
 
     # Need a constant to facilitate the indexed search for new IPs
     _deallocated = sa.Column(sa.Boolean())
@@ -229,9 +230,7 @@ class Subnet(BASEV2, models.HasId, models.HasTenant, IsHazTags):
 
     allocated_ips = orm.relationship(IPAddress,
                                      primaryjoin='and_(Subnet.id=='
-                                     'IPAddress.subnet_id, '
-                                     'IPAddress._deallocated!=1)',
-                                     backref="subnet")
+                                     'IPAddress.subnet_id)')
     routes = orm.relationship(Route, primaryjoin="Route.subnet_id==Subnet.id",
                               backref='subnet', cascade='delete')
     enable_dhcp = sa.Column(sa.Boolean(), default=False)

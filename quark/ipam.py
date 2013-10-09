@@ -81,16 +81,35 @@ class QuarkIpam(object):
                                  version=None, ip_address=None):
         version = version or [4, 6]
         elevated = context.elevated()
-        with context.session.begin(subtransactions=True):
-            address = db_api.ip_address_find(
-                elevated, network_id=net_id, reuse_after=reuse_after,
-                deallocated=True, scope=db_api.ONE, ip_address=ip_address,
-                lock_mode=True, version=version, order_by="address")
-            if address:
-                updated_address = db_api.ip_address_update(
-                    elevated, address, deallocated=False,
-                    deallocated_at=None, allocated_at=timeutils.utcnow())
-                return [updated_address]
+
+        # We never want to take the chance of an infinite loop here. Instead,
+        # we'll clean up multiple bad IPs if we find them (assuming something
+        # is really wrong)
+        for times in xrange(3):
+            with context.session.begin(subtransactions=True):
+                address = db_api.ip_address_find(
+                    elevated, network_id=net_id, reuse_after=reuse_after,
+                    deallocated=True, scope=db_api.ONE, ip_address=ip_address,
+                    lock_mode=True, version=version, order_by="address")
+
+                if address:
+                    #NOTE(mdietz): We should always be in the CIDR but we've
+                    #              also said that before :-/
+                    if address.get("subnet"):
+                        cidr = netaddr.IPNetwork(address["subnet"]["cidr"])
+                        addr = netaddr.IPAddress(address["address"],
+                                                 version=cidr.version)
+                        if addr in cidr:
+                            updated_address = db_api.ip_address_update(
+                                elevated, address, deallocated=False,
+                                deallocated_at=None,
+                                allocated_at=timeutils.utcnow())
+                            return [updated_address]
+                        else:
+                            # Make sure we never find it again
+                            context.session.delete(address)
+                            continue
+                break
         return []
 
     def is_strategy_satisfied(self, ip_addresses):
@@ -260,8 +279,7 @@ class QuarkIpamBOTH(QuarkIpam):
             for ver in (4, 6):
                 address = super(QuarkIpamBOTH, self).attempt_to_reallocate_ip(
                     context, net_id, port_id, reuse_after, ver, ip_address)
-                if address:
-                    both_versions.extend(address)
+                both_versions.extend(address)
         return both_versions
 
     def _choose_available_subnet(self, context, net_id, version=None,

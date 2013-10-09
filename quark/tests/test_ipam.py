@@ -282,6 +282,7 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
         address = models.IPAddress()
         address["address"] = 4
         address["version"] = 4
+        address["subnet"] = models.Subnet(cidr="0.0.0.0/24")
         with self._stubs(subnets=[[(subnet6, 0)]],
                          addresses=[address, None, None]):
             address = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
@@ -295,6 +296,7 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
         address = models.IPAddress()
         address["address"] = 4
         address["version"] = 4
+        address["subnet"] = models.Subnet(cidr="0.0.0.0/24")
         with self._stubs(subnets=[[]],
                          addresses=[address, None, None]):
             address = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
@@ -310,6 +312,7 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
         address = models.IPAddress()
         address["address"] = 4
         address["version"] = 6
+        address["subnet"] = models.Subnet(cidr="::/120")
         with self._stubs(subnets=[[(subnet4, 0)]],
                          addresses=[address, None, None]):
             address = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
@@ -323,9 +326,11 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
         address1 = models.IPAddress()
         address1["address"] = 4
         address1["version"] = 4
+        address1["subnet"] = models.Subnet(cidr="0.0.0.0/24")
         address2 = models.IPAddress()
         address2["address"] = 42
         address2["version"] = 6
+        address2["subnet"] = models.Subnet(cidr="0::/120")
         with self._stubs(subnets=[[]],
                          addresses=[address1, address2]):
             address = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
@@ -406,6 +411,7 @@ class QuarkIpamTestBothRequiredIpAllocation(QuarkIpamBaseTest):
         address = models.IPAddress()
         address["address"] = 4
         address["version"] = 4
+        address["subnet"] = models.Subnet(cidr="0.0.0.0/24")
         with self._stubs(subnets=[[(subnet6, 0)]],
                          addresses=[address, None, None]):
             address = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
@@ -423,6 +429,7 @@ class QuarkIpamTestBothRequiredIpAllocation(QuarkIpamBaseTest):
         address = models.IPAddress()
         address["address"] = 4
         address["version"] = 6
+        address["subnet"] = models.Subnet(cidr="::/120")
         with self._stubs(subnets=[[(subnet4, 0)]],
                          addresses=[address, None, None]):
             address = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
@@ -436,9 +443,11 @@ class QuarkIpamTestBothRequiredIpAllocation(QuarkIpamBaseTest):
         address1 = models.IPAddress()
         address1["address"] = 4
         address1["version"] = 4
+        address1["subnet"] = models.Subnet(cidr="0.0.0.0/24")
         address2 = models.IPAddress()
         address2["address"] = 42
         address2["version"] = 6
+        address2["subnet"] = models.Subnet(cidr="0::/120")
         with self._stubs(subnets=[[]],
                          addresses=[address1, address2]):
             address = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
@@ -606,7 +615,8 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
 
 class QuarkIPAddressAllocateDeallocated(QuarkIpamBaseTest):
     @contextlib.contextmanager
-    def _stubs(self, ip_find, subnet, address, addresses_found):
+    def _stubs(self, ip_find, subnet, address, addresses_found,
+               sub_found=True):
         db_mod = "quark.db.api"
         with contextlib.nested(
             mock.patch("%s.ip_address_find" % db_mod),
@@ -620,12 +630,14 @@ class QuarkIPAddressAllocateDeallocated(QuarkIpamBaseTest):
                 addr_find.side_effect = addresses_found
                 addr_update.return_value = address
             choose_subnet.return_value = [subnet]
+            if not sub_found:
+                choose_subnet.return_value = []
             yield choose_subnet
 
     def test_allocate_finds_deallocated_ip_succeeds(self):
         subnet = dict(id=1, ip_version=4, next_auto_assign_ip=0,
                       cidr="0.0.0.0/24")
-        address = dict(id=1, address=0)
+        address = dict(id=1, address=0, subnet=subnet)
         addresses_found = [None, address, None]
         with self._stubs(
             True, subnet, address, addresses_found
@@ -633,6 +645,20 @@ class QuarkIPAddressAllocateDeallocated(QuarkIpamBaseTest):
             ipaddress = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
             self.assertIsNotNone(ipaddress[0]['id'])
             self.assertFalse(choose_subnet.called)
+
+    def test_allocate_finds_deallocated_ip_out_of_range_deletes(self):
+        subnet = dict(id=1, ip_version=4, next_auto_assign_ip=0,
+                      cidr="0.0.0.0/29")
+        address = dict(id=1, address=254)
+        address["subnet"] = subnet
+        addresses_found = [address, None]
+        self.context.session.delete = mock.Mock()
+        with self._stubs(False, subnet, address, addresses_found,
+                         sub_found=False):
+            addr = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
+            self.assertTrue(self.context.session.delete.called)
+            self.assertEqual(len(addr), 0)
+        self.context.session.delete = mock.Mock()
 
     def test_allocate_finds_no_deallocated_creates_new_ip(self):
         subnet = dict(id=1, ip_version=4, next_auto_assign_ip=0,
