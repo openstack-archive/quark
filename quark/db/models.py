@@ -139,6 +139,8 @@ class IPAddress(BASEV2, models.HasId, models.HasTenant):
 
     version = sa.Column(sa.Integer())
 
+    allocated_at = sa.Column(sa.DateTime())
+
     # Need a constant to facilitate the indexed search for new IPs
     _deallocated = sa.Column(sa.Boolean())
 
@@ -152,6 +154,7 @@ class IPAddress(BASEV2, models.HasId, models.HasTenant):
         self.deallocated_at = None
         if val:
             self.deallocated_at = timeutils.utcnow()
+            self.allocated_at = None
 
     # TODO(jkoelker) update the expression to use the jointable as well
     @deallocated.expression
@@ -307,7 +310,8 @@ class Port(BASEV2, models.HasTenant, models.HasId):
         return orm.relationship(IPAddress, primaryjoin=primaryjoin,
                                 secondaryjoin=secondaryjoin,
                                 secondary=port_ip_association_table,
-                                backref="ports")
+                                backref="ports",
+                                order_by='IPAddress.allocated_at')
 
     @declarative.declared_attr
     def security_groups(cls):

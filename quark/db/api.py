@@ -213,6 +213,7 @@ def ip_address_create(context, **address_dict):
     ip_address["address_readable"] = str(address)
     ip_address["tenant_id"] = context.tenant_id
     ip_address["_deallocated"] = 0
+    ip_address["allocated_at"] = timeutils.utcnow()
     context.session.add(ip_address)
     return ip_address
 
