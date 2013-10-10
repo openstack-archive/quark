@@ -291,6 +291,17 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
             self.assertEqual(address[1]["address"], 0)
             self.assertEqual(address[1]["version"], 6)
 
+    def test_reallocate_deallocated_v4_ip_no_avail_subnets(self):
+        address = models.IPAddress()
+        address["address"] = 4
+        address["version"] = 4
+        with self._stubs(subnets=[[]],
+                         addresses=[address, None, None]):
+            address = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
+            self.assertEqual(len(address), 1)
+            self.assertEqual(address[0]["address"], 4)
+            self.assertEqual(address[0]["version"], 4)
+
     def test_reallocate_deallocated_v6_ip(self):
         subnet4 = dict(id=1, first_ip=0, last_ip=255,
                        cidr="0.0.0.0/24", ip_version=4,

@@ -278,7 +278,7 @@ class QuarkIpamBOTH(QuarkIpam):
 
             if sub:
                 both_subnet_versions.append(sub)
-        if not both_subnet_versions:
+        if not reallocated_ips and not both_subnet_versions:
             raise exceptions.IpAddressGenerationFailure(net_id=net_id)
 
         return both_subnet_versions
