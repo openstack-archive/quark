@@ -68,6 +68,7 @@ class TestNVPDriver(test_base.TestBase):
         port_query = self._create_lport_query(switch_count)
         port.query = mock.Mock(return_value=port_query)
         port.delete = mock.Mock(return_value=None)
+        port.attachment_vif = mock.Mock()
         return port
 
     def _create_lport_query(self, switch_count, profiles=[]):
@@ -326,6 +327,7 @@ class TestNVPDriverCreatePort(TestNVPDriver):
             port = self.driver.create_port(self.context, self.net_id,
                                            self.port_id)
             self.assertTrue("uuid" in port)
+            self.assertTrue(connection.lswitch_port().attachment_vif.called)
             self.assertFalse(connection.lswitch().create.called)
             self.assertTrue(connection.lswitch_port().create.called)
             self.assertTrue(connection.lswitch().query.called)
