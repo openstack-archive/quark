@@ -97,8 +97,8 @@ class QuarkIpam(object):
                     #              also said that before :-/
                     if address.get("subnet"):
                         cidr = netaddr.IPNetwork(address["subnet"]["cidr"])
-                        addr = netaddr.IPAddress(address["address"],
-                                                 version=cidr.version)
+                        addr = netaddr.IPAddress(int(address["address"]),
+                                                 version=int(cidr.version))
                         if addr in cidr:
                             updated_address = db_api.ip_address_update(
                                 elevated, address, deallocated=False,
