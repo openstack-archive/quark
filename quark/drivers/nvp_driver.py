@@ -173,6 +173,9 @@ class NVPDriver(base.BaseDriver):
         port.tags(tags)
         res = port.create()
         res["lswitch"] = lswitch
+        port = connection.lswitch_port(lswitch)
+        port.uuid = res["uuid"]
+        port.attachment_vif(port_id)
         return res
 
     def update_port(self, context, port_id, status=True,
