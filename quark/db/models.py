@@ -230,7 +230,11 @@ class Subnet(BASEV2, models.HasId, models.HasTenant, IsHazTags):
 
     allocated_ips = orm.relationship(IPAddress,
                                      primaryjoin='and_(Subnet.id=='
-                                     'IPAddress.subnet_id)')
+                                     'IPAddress.subnet_id,'
+                                     'IPAddress._deallocated != 1)')
+    generated_ips = orm.relationship(IPAddress,
+                                     primaryjoin='Subnet.id=='
+                                     'IPAddress.subnet_id')
     routes = orm.relationship(Route, primaryjoin="Route.subnet_id==Subnet.id",
                               backref='subnet', cascade='delete')
     enable_dhcp = sa.Column(sa.Boolean(), default=False)
