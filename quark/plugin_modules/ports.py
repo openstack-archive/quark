@@ -24,11 +24,13 @@ from oslo.config import cfg
 from quark.db import api as db_api
 from quark.drivers import registry
 from quark import ipam
+from quark import network_strategy
 from quark import plugin_views as v
 from quark import utils
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
+STRATEGY = network_strategy.STRATEGY
 
 
 def create_port(context, port):
@@ -61,9 +63,10 @@ def create_port(context, port):
             if not net:
                 raise exceptions.NetworkNotFound(net_id=net_id)
 
-        quota.QUOTAS.limit_check(
-            context, context.tenant_id,
-            ports_per_network=len(net.get('ports', [])) + 1)
+        if not STRATEGY.is_parent_network(net_id):
+            quota.QUOTAS.limit_check(
+                context, context.tenant_id,
+                ports_per_network=len(net.get('ports', [])) + 1)
 
         ipam_driver = ipam.IPAM_REGISTRY.get_strategy(net["ipam_strategy"])
         if fixed_ips:

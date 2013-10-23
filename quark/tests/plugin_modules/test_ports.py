@@ -14,6 +14,7 @@
 #  under the License.
 
 import contextlib
+import json
 
 import mock
 from neutron.api.v2 import attributes as neutron_attrs
@@ -22,6 +23,8 @@ from neutron.extensions import securitygroup as sg_ext
 
 from quark.db import api as quark_db_api
 from quark.db import models
+from quark import network_strategy
+from quark.plugin_modules import ports as quark_ports
 from quark.tests import test_quark_plugin
 
 
@@ -488,6 +491,53 @@ class TestQuarkPostUpdatePort(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(ip_find.call_count, 0)
             self.assertEqual(response["fixed_ips"][0]["ip_address"],
                              "192.168.1.100")
+
+
+class TestQuarkCreatePortOnSharedNetworks(test_quark_plugin.TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, port=None, network=None, addr=None, mac=None):
+        self.strategy = {"public_network":
+                         {"required": True,
+                          "bridge": "xenbr0",
+                          "children": {"nova": "child_net"}}}
+        strategy_json = json.dumps(self.strategy)
+        quark_ports.STRATEGY = network_strategy.JSONStrategy(strategy_json)
+
+        if network:
+            network["network_plugin"] = "BASE"
+            network["ipam_strategy"] = "ANY"
+        port_model = models.Port()
+        port_model.update(port)
+        port_models = port_model
+
+        db_mod = "quark.db.api"
+        ipam = "quark.ipam.QuarkIpam"
+        with contextlib.nested(
+            mock.patch("%s.port_create" % db_mod),
+            mock.patch("%s.network_find" % db_mod),
+            mock.patch("%s.allocate_ip_address" % ipam),
+            mock.patch("%s.allocate_mac_address" % ipam),
+        ) as (port_create, net_find, alloc_ip, alloc_mac):
+            port_create.return_value = port_models
+            net_find.return_value = network
+            alloc_ip.return_value = addr
+            alloc_mac.return_value = mac
+            yield port_create
+
+    def test_create_port_shared_net_no_quota_check(self):
+        network = dict(id=1, ports=[models.Port()])
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
+        port_name = "foobar"
+        ip = dict()
+        port = dict(port=dict(mac_address=mac["address"],
+                              network_id="public_network",
+                              tenant_id=self.context.tenant_id, device_id=2,
+                              name=port_name))
+        with self._stubs(port=port["port"], network=network, addr=ip, mac=mac):
+            try:
+                self.plugin.create_port(self.context, port)
+            except Exception:
+                self.fail("create_port raised OverQuota")
 
 
 class TestQuarkGetPortCount(test_quark_plugin.TestQuarkPlugin):

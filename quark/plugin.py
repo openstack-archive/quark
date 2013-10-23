@@ -46,7 +46,7 @@ quark_resources = [
 quark_quota_opts = [
     cfg.IntOpt('quota_ports_per_network',
                default=64,
-               help=_('Maximum ports per network per tenant')),
+               help=_('Maximum ports per network')),
     cfg.IntOpt('quota_security_rules_per_group',
                default=20,
                help=_('Maximum security group rules in a group')),
