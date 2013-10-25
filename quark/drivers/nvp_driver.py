@@ -35,6 +35,9 @@ nvp_opts = [
     cfg.IntOpt('max_ports_per_switch',
                default=0,
                help=_('Maximum amount of NVP ports on an NVP lswitch')),
+    cfg.StrOpt('default_tz_type',
+               help=_('The type of connector to use for the default tz'),
+               default="stt"),
     cfg.StrOpt('default_tz',
                help=_('The default transport zone UUID')),
     cfg.MultiStrOpt('controller_connection',
@@ -451,6 +454,9 @@ class NVPDriver(base.BaseDriver):
         if network_id:
             tags.append({"tag": network_id, "scope": "neutron_net_id"})
         switch.tags(tags)
+        pnet = phys_net or CONF.NVP.default_tz
+        ptype = phys_type or CONF.NVP.default_tz_type
+        switch.transport_zone(pnet, ptype)
         LOG.debug("Creating lswitch for network %s" % network_id)
 
         # When connecting to public or snet, we need switches that are

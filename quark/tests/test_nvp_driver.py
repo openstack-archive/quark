@@ -142,6 +142,7 @@ class TestNVPDriverCreateNetwork(TestNVPDriver):
         with self._stubs() as (connection):
             self.driver.create_network(self.context, "test")
             self.assertTrue(connection.lswitch().create.called)
+            self.assertTrue(connection.lswitch().transport_zone.called)
 
 
 class TestNVPDriverProviderNetwork(TestNVPDriver):
