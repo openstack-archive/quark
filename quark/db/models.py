@@ -123,27 +123,22 @@ class IPAddress(BASEV2, models.HasId, models.HasTenant):
     We always mark the record as deallocated rather than deleting it.
     Gives us an IP address owner audit log for free, essentially.
     """
-
     __tablename__ = "quark_ip_addresses"
-
     address_readable = sa.Column(sa.String(128), nullable=False)
-
     address = sa.Column(custom_types.INET(), nullable=False)
-
     subnet_id = sa.Column(sa.String(36),
                           sa.ForeignKey("quark_subnets.id",
                                         ondelete="CASCADE"))
     network_id = sa.Column(sa.String(36),
                            sa.ForeignKey("quark_networks.id",
                                          ondelete="CASCADE"))
-
     version = sa.Column(sa.Integer())
-
     allocated_at = sa.Column(sa.DateTime())
     subnet = orm.relationship("Subnet", lazy="joined")
-
     # Need a constant to facilitate the indexed search for new IPs
     _deallocated = sa.Column(sa.Boolean())
+    # Legacy data
+    used_by_tenant_id = sa.Column(sa.String(255))
 
     @hybrid.hybrid_property
     def deallocated(self):
@@ -245,7 +240,8 @@ class Subnet(BASEV2, models.HasId, models.HasTenant, IsHazTags):
         cascade='delete')
     ip_policy_id = sa.Column(sa.String(36),
                              sa.ForeignKey("quark_ip_policy.id"))
-
+    # Legacy data
+    do_not_use = sa.Column(sa.Boolean(), default=False)
 
 port_ip_association_table = sa.Table(
     "quark_port_ip_address_associations",
@@ -367,6 +363,7 @@ class IPPolicy(BASEV2, models.HasId, models.HasTenant):
         primaryjoin="IPPolicy.id==IPPolicyRange.ip_policy_id",
         backref="ip_policy")
     name = sa.Column(sa.String(255), nullable=True)
+    description = sa.Column(sa.String(255), nullable=True)
 
     class JSONIPPolicy(object):
         def __init__(self, policy=None):
@@ -418,7 +415,6 @@ class IPPolicyRange(BASEV2, models.HasId):
     __tablename__ = "quark_ip_policy_rules"
     ip_policy_id = sa.Column(sa.String(36), sa.ForeignKey(
         "quark_ip_policy.id", ondelete="CASCADE"))
-
     offset = sa.Column(sa.Integer())
     length = sa.Column(sa.Integer())
 
