@@ -14,7 +14,7 @@
 #    under the License.
 
 from quark.drivers import base
-from quark.drivers import nvp_driver
+from quark.drivers import optimized_nvp_driver as optnvp
 from quark.drivers import unmanaged
 
 
@@ -22,7 +22,7 @@ class DriverRegistry(object):
     def __init__(self):
         self.drivers = {
             base.BaseDriver.get_name(): base.BaseDriver(),
-            nvp_driver.NVPDriver.get_name(): nvp_driver.NVPDriver(),
+            optnvp.OptimizedNVPDriver.get_name(): optnvp.OptimizedNVPDriver(),
             unmanaged.UnmanagedDriver.get_name(): unmanaged.UnmanagedDriver()}
 
     def get_driver(self, driver_name):
