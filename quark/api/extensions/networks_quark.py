@@ -20,6 +20,8 @@ EXTENDED_ATTRIBUTES_2_0 = {
     RESOURCE_COLLECTION: {
         "ipam_strategy": {"allow_post": True, "is_visible": True,
                           "default": False},
+        "network_plugin": {"allow_post": True, "is_visible": False,
+                           "default": False},
         "id": {"allow_post": True, "is_visible": True, "default": False}}}
 
 

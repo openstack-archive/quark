@@ -265,7 +265,7 @@ class TestQuarkCreateNetwork(test_quark_plugin.TestQuarkPlugin):
 
     def test_create_network(self):
         net = dict(id=1, name="public", admin_state_up=True,
-                   tenant_id=0)
+                   tenant_id=0, network_plugin="BASE")
         with self._stubs(net=net) as net_create:
             net = self.plugin.create_network(self.context, dict(network=net))
             self.assertTrue(net_create.called)

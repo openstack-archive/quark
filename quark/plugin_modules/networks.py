@@ -66,8 +66,10 @@ def create_network(context, network):
         # Generate a uuid that we're going to hand to the backend and db
         net_attrs = network["network"]
         net_uuid = utils.pop_param(net_attrs, "id", None)
+        net_type = None
         if net_uuid and context.is_admin:
             net = db_api.network_find(context, id=net_uuid, scope=db_api.ONE)
+            net_type = utils.pop_param(net_attrs, "network_plugin", None)
             if net:
                 raise q_exc.NetworkAlreadyExists(id=net_uuid)
         else:
@@ -91,8 +93,7 @@ def create_network(context, network):
         # have a pre-callback/observer on the netdriver create_network
         # that gathers any additional parameters from the network dict
 
-        #TODO(dietz or perkins): Allow this to be overridden later with CLI
-        default_net_type = CONF.QUARK.default_network_type
+        default_net_type = net_type or CONF.QUARK.default_network_type
         net_driver = registry.DRIVER_REGISTRY.get_driver(default_net_type)
         net_driver.create_network(context, net_attrs["name"],
                                   network_id=net_uuid, phys_type=pnet_type,
