@@ -27,6 +27,13 @@ LOG = logging.getLogger(__name__)
 
 
 class OptimizedNVPDriver(NVPDriver):
+    def __init__(self):
+        super(OptimizedNVPDriver, self).__init__()
+
+    @classmethod
+    def get_name(klass):
+        return "NVP"
+
     def delete_network(self, context, network_id):
         lswitches = self._lswitches_for_network(context, network_id)
         for switch in lswitches:
