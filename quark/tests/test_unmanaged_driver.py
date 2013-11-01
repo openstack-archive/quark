@@ -44,12 +44,12 @@ class TestUnmanagedDriver(test_base.TestBase):
         self.driver.delete_network(context=self.context, network_id=1)
 
     def test_diag_network(self):
-        self.assertEquals(self.driver.diag_network(context=self.context,
-                                                   network_id=2), {})
+        self.assertEqual(self.driver.diag_network(context=self.context,
+                                                  network_id=2), {})
 
     def test_diag_port(self):
-        self.assertEquals(self.driver.diag_port(context=self.context,
-                                                network_id=2), {})
+        self.assertEqual(self.driver.diag_port(context=self.context,
+                                               network_id=2), {})
 
     def test_create_port(self):
         self.driver.create_port(context=self.context,

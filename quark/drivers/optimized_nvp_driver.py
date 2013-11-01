@@ -78,7 +78,9 @@ class OptimizedNVPDriver(NVPDriver):
         context.session.delete(port)
         switch.port_count = switch.port_count - 1
         if switch.port_count == 0:
-            self._lswitch_delete(context, switch.nvp_id)
+            switches = self._lswitches_for_network(context, switch.network_id)
+            if len(switches) > 1:
+                self._lswitch_delete(context, switch.nvp_id)
 
     def create_security_group(self, context, group_name, **group):
         nvp_group = super(OptimizedNVPDriver, self).create_security_group(
