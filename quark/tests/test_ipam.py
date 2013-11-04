@@ -190,8 +190,8 @@ class QuarkMacAddressDeallocation(QuarkIpamBaseTest):
 class QuarkIPAddressDeallocation(QuarkIpamBaseTest):
     def test_deallocate_ip_address(self):
         port = dict(ip_addresses=[], device_id="foo")
-        addr = dict(ports=[port], tenant_id=1, subnet_id=1,
-                    address_readable=None, created_at=None)
+        addr = dict(ports=[port], subnet_id=1, address_readable=None,
+                    created_at=None, used_by_tenant_id=1)
         port["ip_addresses"].append(addr)
         self.ipam.deallocate_ip_address(self.context, port)
         # ORM takes care of other model if one model is modified
@@ -847,8 +847,8 @@ class QuarkIPAddressAllocationNotifications(QuarkIpamBaseTest):
                       cidr="0.0.0.0/24", ip_version=4,
                       next_auto_assign_ip=0, network=dict(ip_policy=None),
                       ip_policy=None)
-        address = dict(tenant_id=1, address=0, created_at="123",
-                       subnet_id=1, address_readable="0.0.0.0")
+        address = dict(address=0, created_at="123", subnet_id=1,
+                       address_readable="0.0.0.0", used_by_tenant_id=1)
         with self._stubs(
             address,
             subnets=[(subnet, 1)],
@@ -861,15 +861,15 @@ class QuarkIPAddressAllocationNotifications(QuarkIpamBaseTest):
                 notifier_api.publisher_id("network"),
                 "ip_block.address.create",
                 notifier_api.CONF.default_notification_level,
-                dict(tenant_id=address["tenant_id"],
-                     ip_block_id=address["subnet_id"],
+                dict(ip_block_id=address["subnet_id"],
                      ip_address="0.0.0.0",
                      device_ids=[],
-                     created_at=address["created_at"]))
+                     created_at=address["created_at"],
+                     used_by_tenant_id=1))
 
     def test_deallocation_notification(self):
-        address = dict(tenant_id=1, address=0, created_at="123",
-                       subnet_id=1, address_readable="0.0.0.0",
+        address = dict(address=0, created_at="123", subnet_id=1,
+                       address_readable="0.0.0.0", used_by_tenant_id=1,
                        ports=[dict(device_id="foo")])
         port = dict(ip_addresses=[address])
         with self._stubs(dict(), deleted_at="456") as notify:
@@ -879,9 +879,9 @@ class QuarkIPAddressAllocationNotifications(QuarkIpamBaseTest):
                 notifier_api.publisher_id("network"),
                 "ip_block.address.delete",
                 notifier_api.CONF.default_notification_level,
-                dict(tenant_id=address["tenant_id"],
-                     ip_block_id=address["subnet_id"],
+                dict(ip_block_id=address["subnet_id"],
                      ip_address="0.0.0.0",
                      device_ids=["foo"],
                      created_at=address["created_at"],
-                     deleted_at="456"))
+                     deleted_at="456",
+                     used_by_tenant_id=1))

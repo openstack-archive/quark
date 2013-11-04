@@ -117,7 +117,7 @@ class IsHazTags(object):
         return orm.relationship("TagAssociation", backref=backref)
 
 
-class IPAddress(BASEV2, models.HasId, models.HasTenant):
+class IPAddress(BASEV2, models.HasId):
     """More closely emulate the melange version of the IP table.
 
     We always mark the record as deallocated rather than deleting it.
