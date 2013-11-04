@@ -117,7 +117,7 @@ class IsHazTags(object):
         return orm.relationship("TagAssociation", backref=backref)
 
 
-class IPAddress(BASEV2, models.HasId, models.HasTenant):
+class IPAddress(BASEV2, models.HasId):
     """More closely emulate the melange version of the IP table.
 
     We always mark the record as deallocated rather than deleting it.
@@ -428,3 +428,4 @@ class Network(BASEV2, models.HasTenant, models.HasId):
                              sa.ForeignKey("quark_ip_policy.id"))
     network_plugin = sa.Column(sa.String(36))
     ipam_strategy = sa.Column(sa.String(255))
+    max_allocation = sa.Column(sa.Integer())

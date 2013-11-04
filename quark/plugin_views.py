@@ -206,7 +206,7 @@ def _make_ip_dict(address):
             "device_ids": [port["device_id"] or ""
                            for port in address["ports"]],
             "subnet_id": address["subnet_id"],
-            "tenant_id": address["tenant_id"],
+            "used_by_tenant_id": address["used_by_tenant_id"],
             "version": address["version"],
             "shared": len(address["ports"]) > 1}
 

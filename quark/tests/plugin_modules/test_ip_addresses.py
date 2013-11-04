@@ -45,8 +45,7 @@ class TestIpAddresses(test_quark_plugin.TestQuarkPlugin):
     def test_create_ip_address_by_network_and_device(self):
         port = dict(id=1, network_id=2, ip_addresses=[])
         ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
-                  subnet_id=1, network_id=2, version=4,
-                  tenant_id=self.context.tenant_id)
+                  subnet_id=1, network_id=2, version=4, used_by_tenant_id=1)
         with self._stubs(port=port, addr=ip):
             ip_address = dict(network_id=ip["network_id"],
                               device_ids=[4])
@@ -58,10 +57,10 @@ class TestIpAddresses(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(response["device_ids"], [""])
             self.assertEqual(response["port_ids"], [port["id"]])
             self.assertEqual(response["subnet_id"], ip["subnet_id"])
-            self.assertEqual(response["tenant_id"], self.context.tenant_id)
             self.assertFalse(response["shared"])
             self.assertEqual(response["version"], 4)
             self.assertEqual(response["address"], "192.168.1.100")
+            self.assertEqual(response["used_by_tenant_id"], 1)
 
     def test_create_ip_address_with_port(self):
         port = dict(id=1, network_id=2, ip_addresses=[])

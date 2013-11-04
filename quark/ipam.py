@@ -128,7 +128,7 @@ class QuarkIpam(object):
                 continue
             address = db_api.ip_address_find(
                 context, network_id=network_id, ip_address=next_ip,
-                tenant_id=context.tenant_id, scope=db_api.ONE)
+                used_by_tenant_id=context.tenant_id, scope=db_api.ONE)
 
         ipnet = netaddr.IPNetwork(subnet["cidr"])
         next_addr = netaddr.IPAddress(
@@ -164,7 +164,7 @@ class QuarkIpam(object):
                     next_ip = ip_address
                     address = db_api.ip_address_find(
                         elevated, network_id=net_id, ip_address=next_ip,
-                        tenant_id=elevated.tenant_id, scope=db_api.ONE)
+                        used_by_tenant_id=elevated.tenant_id, scope=db_api.ONE)
                     if address:
                         raise exceptions.IpAddressGenerationFailure(
                             net_id=net_id)
@@ -180,7 +180,7 @@ class QuarkIpam(object):
                 new_addresses.append(address)
 
         for addr in new_addresses:
-            payload = dict(tenant_id=addr["tenant_id"],
+            payload = dict(used_by_tenant_id=addr["used_by_tenant_id"],
                            ip_block_id=addr["subnet_id"],
                            ip_address=addr["address_readable"],
                            device_ids=[p["device_id"] for p in addr["ports"]],
@@ -194,7 +194,7 @@ class QuarkIpam(object):
 
     def _deallocate_ip_address(self, context, address):
         address["deallocated"] = 1
-        payload = dict(tenant_id=address["tenant_id"],
+        payload = dict(used_by_tenant_id=address["used_by_tenant_id"],
                        ip_block_id=address["subnet_id"],
                        ip_address=address["address_readable"],
                        device_ids=[p["device_id"] for p in address["ports"]],
