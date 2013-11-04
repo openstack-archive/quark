@@ -428,3 +428,4 @@ class Network(BASEV2, models.HasTenant, models.HasId):
                              sa.ForeignKey("quark_ip_policy.id"))
     network_plugin = sa.Column(sa.String(36))
     ipam_strategy = sa.Column(sa.String(255))
+    max_allocation = sa.Column(sa.Integer())
