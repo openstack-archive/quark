@@ -181,7 +181,7 @@ class DNSNameserver(BASEV2, models.HasTenant, models.HasId, IsHazTags):
                                                        ondelete="CASCADE"))
 
 
-class Subnet(BASEV2, models.HasId, models.HasTenant, IsHazTags):
+class Subnet(BASEV2, models.HasId, IsHazTags):
     """Upstream model for IPs.
 
     Subnet -> has_many(IPAllocationPool)
@@ -196,9 +196,11 @@ class Subnet(BASEV2, models.HasId, models.HasTenant, IsHazTags):
     for your subnet
     """
     __tablename__ = "quark_subnets"
+    id = sa.Column(sa.String(36), primary_key=True)
     name = sa.Column(sa.String(255))
     network_id = sa.Column(sa.String(36), sa.ForeignKey('quark_networks.id'))
     _cidr = sa.Column(sa.String(64), nullable=False)
+    tenant_id = sa.Column(sa.String(255), index=True)
 
     @hybrid.hybrid_property
     def cidr(self):
@@ -276,7 +278,7 @@ class SecurityGroupRule(BASEV2, models.HasId, models.HasTenant):
     remote_group_id = sa.Column(sa.String(36), nullable=True)
 
 
-class SecurityGroup(BASEV2, models.HasId, models.HasTenant):
+class SecurityGroup(BASEV2, models.HasId):
     __tablename__ = "quark_security_groups"
     id = sa.Column(sa.String(36), primary_key=True)
     name = sa.Column(sa.String(255), nullable=False)
@@ -285,6 +287,7 @@ class SecurityGroup(BASEV2, models.HasId, models.HasTenant):
     rules = orm.relationship(SecurityGroupRule, backref='group',
                              cascade='delete',
                              primaryjoin=join)
+    tenant_id = sa.Column(sa.String(255), index=True)
 
 
 class Port(BASEV2, models.HasTenant, models.HasId):
@@ -297,7 +300,7 @@ class Port(BASEV2, models.HasTenant, models.HasId):
 
     backend_key = sa.Column(sa.String(36), nullable=False)
     mac_address = sa.Column(sa.BigInteger())
-    device_id = sa.Column(sa.String(255), nullable=False)
+    device_id = sa.Column(sa.String(255), nullable=False, index=True)
     device_owner = sa.Column(sa.String(255))
     bridge = sa.Column(sa.String(255))
 
@@ -321,6 +324,11 @@ class Port(BASEV2, models.HasTenant, models.HasId):
                                 secondaryjoin=secondaryjoin,
                                 secondary=port_group_association_table,
                                 backref="ports")
+
+# Indices tailored specifically to get_instance_nw_info calls from nova
+sa.Index("idx_ports_1", Port.__table__.c.device_id, Port.__table__.c.tenant_id)
+sa.Index("idx_ports_2", Port.__table__.c.device_owner,
+         Port.__table__.c.network_id)
 
 
 class MacAddress(BASEV2, models.HasTenant):
@@ -419,7 +427,7 @@ class IPPolicyRange(BASEV2, models.HasId):
     length = sa.Column(sa.Integer())
 
 
-class Network(BASEV2, models.HasTenant, models.HasId):
+class Network(BASEV2, models.HasId):
     __tablename__ = "quark_networks"
     name = sa.Column(sa.String(255))
     ports = orm.relationship(Port, backref='network')
@@ -429,3 +437,4 @@ class Network(BASEV2, models.HasTenant, models.HasId):
     network_plugin = sa.Column(sa.String(36))
     ipam_strategy = sa.Column(sa.String(255))
     max_allocation = sa.Column(sa.Integer())
+    tenant_id = sa.Column(sa.String(255), index=True)
