@@ -21,7 +21,7 @@ from neutron.openstack.common import timeutils
 from neutron.openstack.common import uuidutils
 from sqlalchemy import event
 from sqlalchemy import func as sql_func
-from sqlalchemy import and_, orm, or_
+from sqlalchemy import and_, asc, orm, or_
 
 from quark.db import models
 from quark import network_strategy
@@ -159,8 +159,8 @@ def scoped(f):
 def port_find(context, **filters):
     query = context.session.query(models.Port).\
         options(orm.joinedload(models.Port.ip_addresses))
-    model_filters = _model_query(context, models.Port, filters)
 
+    model_filters = _model_query(context, models.Port, filters)
     if filters.get("ip_address_id"):
         model_filters.append(models.Port.ip_addresses.any(
             models.IPAddress.id.in_(filters["ip_address_id"])))
@@ -168,7 +168,7 @@ def port_find(context, **filters):
     if filters.get("device_id"):
         model_filters.append(models.Port.device_id.in_(filters["device_id"]))
 
-    return query.filter(*model_filters)
+    return query.filter(*model_filters).order_by(asc(models.Port.created_at))
 
 
 def port_count_all(context, **filters):
