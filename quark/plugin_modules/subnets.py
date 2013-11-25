@@ -112,7 +112,7 @@ def create_subnet(context, subnet):
             new_subnet["routes"].append(db_api.route_create(
                 context, cidr=route["destination"], gateway=route["nexthop"]))
 
-        if default_route is None:
+        if gateway_ip and default_route is None:
             new_subnet["routes"].append(db_api.route_create(
                 context, cidr=str(routes.DEFAULT_ROUTE), gateway=gateway_ip))
 

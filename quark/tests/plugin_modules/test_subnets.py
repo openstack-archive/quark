@@ -480,6 +480,37 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                 else:
                     self.assertEqual(res[key], subnet["subnet"][key])
 
+    def test_create_subnet_null_gateway_no_routes(self):
+        """Creating a subnet with a NULL gateway IP shouldn't
+        create routes.
+        """
+        routes = [dict(cidr="0.0.0.0/0", gateway="172.16.0.4")]
+        subnet = dict(
+            subnet=dict(network_id=1,
+                        tenant_id=self.context.tenant_id, ip_version=4,
+                        cidr="172.16.0.0/24",
+                        gateway_ip=None,
+                        dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
+                        enable_dhcp=None))
+        network = dict(network_id=1)
+        with self._stubs(
+            subnet=subnet["subnet"],
+            network=network,
+            routes=routes
+        ) as (subnet_create, dns_create, route_create):
+            dns_nameservers = subnet["subnet"].pop("dns_nameservers")
+            subnet_request = copy.deepcopy(subnet)
+            subnet_request["subnet"]["dns_nameservers"] = dns_nameservers
+            res = self.plugin.create_subnet(self.context, subnet_request)
+            self.assertEqual(subnet_create.call_count, 1)
+            self.assertEqual(dns_create.call_count, 0)
+            self.assertEqual(route_create.call_count, 0)
+            for key in subnet["subnet"].keys():
+                if key == "gateway_ip":
+                    self.assertIsNone(res[key])
+                else:
+                    self.assertEqual(res[key], subnet["subnet"][key])
+
 
 class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
     DEFAULT_ROUTE = [dict(destination="0.0.0.0/0",
