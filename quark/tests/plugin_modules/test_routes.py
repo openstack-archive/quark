@@ -18,6 +18,7 @@ import contextlib
 import mock
 from neutron.common import exceptions
 
+from quark.db import api as db_api
 from quark import exceptions as quark_exceptions
 from quark.tests import test_quark_plugin
 
@@ -118,12 +119,12 @@ class TestQuarkDeleteRoutes(test_quark_plugin.TestQuarkPlugin):
             mock.patch("%s.route_find" % db_mod),
         ) as (route_delete, route_find):
             route_find.return_value = route
-            yield route_delete
+            yield route_delete, route_find
 
     def test_delete_route(self):
         route = dict(id=1, cidr="192.168.0.0/24", gateway="192.168.0.1",
                      subnet_id=2)
-        with self._stubs(route=route) as route_delete:
+        with self._stubs(route=route) as (route_delete, route_find):
             self.plugin.delete_route(self.context, 1)
             self.assertTrue(route_delete.called)
 
@@ -131,3 +132,12 @@ class TestQuarkDeleteRoutes(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(route=None):
             with self.assertRaises(quark_exceptions.RouteNotFound):
                 self.plugin.delete_route(self.context, 1)
+
+    def test_delete_route_deletes_correct_route(self):
+        route = dict(id=1, cidr="192.168.0.0/24", gateway="192.168.0.1",
+                     subnet_id=2)
+        with self._stubs(route=route) as (route_delete, route_find):
+            self.plugin.delete_route(self.context, 1)
+            self.assertTrue(route_find.called_with(context=self.context, id=1,
+                                                   scope=db_api.ONE))
+            self.assertTrue(route_delete.called)
