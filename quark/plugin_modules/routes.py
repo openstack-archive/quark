@@ -76,7 +76,7 @@ def delete_route(context, id):
     #              for all the above later
     LOG.info("delete_route %s for tenant %s" % (id, context.tenant_id))
     with context.session.begin():
-        route = db_api.route_find(context, id, scope=db_api.ONE)
+        route = db_api.route_find(context, id=id, scope=db_api.ONE)
         if not route:
             raise quark_exceptions.RouteNotFound(route_id=id)
         db_api.route_delete(context, route)
