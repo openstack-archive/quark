@@ -114,7 +114,7 @@ class OptimizedNVPDriver(NVPDriver):
 
     def _lswitch_select_first(self, context, network_id):
         query = context.session.query(LSwitch)
-        query.filter(LSwitch.network_id == network_id)
+        query = query.filter(LSwitch.network_id == network_id)
         return query.first()
 
     def _lswitch_select_free(self, context, network_id):

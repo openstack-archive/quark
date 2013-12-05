@@ -459,6 +459,13 @@ class TestQueryMethods(TestOptimizedNVPDriver):
             self.driver._lswitch_select_first(self.context, 1)
             self.assertTrue(query_return.filter.called)
 
+            # NOTE(mdietz): This is probably pretty brittle, but I didn't want
+            #               this patch going in without a test
+            bin_expr = query_return.filter.__dict__["_mock_call_args"][0][0]
+            children = bin_expr.get_children()
+            self.assertEqual(str(children[0]),
+                             "quark_nvp_driver_lswitch.network_id")
+
     def test_lswitch_select_free(self):
         with self._stubs() as query_return:
             self.driver._lswitch_select_free(self.context, 1)
