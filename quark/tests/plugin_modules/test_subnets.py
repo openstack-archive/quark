@@ -306,6 +306,41 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                 else:
                     self.assertEqual(res[key], subnet["subnet"][key])
 
+    def test_create_subnet_not_admin_segment_id_ignored(self):
+        routes = [dict(cidr="0.0.0.0/0", gateway="0.0.0.0")]
+        subnet = dict(
+            subnet=dict(network_id=1,
+                        tenant_id=self.context.tenant_id, ip_version=4,
+                        cidr="172.16.0.0/24", gateway_ip="0.0.0.0",
+                        dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
+                        host_routes=neutron_attrs.ATTR_NOT_SPECIFIED,
+                        enable_dhcp=None))
+        network = dict(network_id=1)
+        with self._stubs(
+            subnet=subnet["subnet"],
+            network=network,
+            routes=routes
+        ) as (subnet_create, dns_create, route_create):
+            dns_nameservers = subnet["subnet"].pop("dns_nameservers")
+            host_routes = subnet["subnet"].pop("host_routes")
+            subnet_request = copy.deepcopy(subnet)
+            subnet_request["subnet"]["dns_nameservers"] = dns_nameservers
+            subnet_request["subnet"]["host_routes"] = host_routes
+            subnet_request["subnet"]["segment_id"] = "cell01"
+            res = self.plugin.create_subnet(self.context,
+                                            subnet_request)
+            self.assertEqual(subnet_create.call_count, 1)
+            self.assertTrue("segment_id" not in subnet_create.called_with)
+
+            self.assertEqual(dns_create.call_count, 0)
+            self.assertEqual(route_create.call_count, 1)
+            for key in subnet["subnet"].keys():
+                if key == "host_routes":
+                    self.assertEqual(res[key][0]["destination"], "0.0.0.0/0")
+                    self.assertEqual(res[key][0]["nexthop"], "0.0.0.0")
+                else:
+                    self.assertEqual(res[key], subnet["subnet"][key])
+
     def test_create_subnet_no_network_fails(self):
         subnet = dict(subnet=dict(network_id=1))
         with self._stubs(subnet=dict(), network=None):

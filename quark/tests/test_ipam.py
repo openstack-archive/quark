@@ -225,10 +225,13 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
         self.context.session.add = mock.Mock()
         with contextlib.nested(
             mock.patch("%s.ip_address_find" % db_mod),
-            mock.patch("%s.subnet_find_allocation_counts" % db_mod)
-        ) as (addr_find, subnet_find):
+            mock.patch("%s.subnet_find_allocation_counts" % db_mod),
+            mock.patch("%s.subnet_find" % db_mod)
+        ) as (addr_find, subnet_alloc_find, subnet_find):
             addr_find.side_effect = addresses
-            subnet_find.side_effect = subnets
+            if subnets and len(subnets[0]):
+                subnet_find.return_value = [subnets[0][0][0]]
+            subnet_alloc_find.side_effect = subnets
             yield
 
     def test_allocate_new_ip_address_two_empty_subnets(self):
@@ -291,6 +294,32 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
             self.assertEqual(address[0]["version"], 4)
             self.assertEqual(address[1]["address"], 0)
             self.assertEqual(address[1]["version"], 6)
+
+    def test_reallocate_deallocated_v4_ip_shared_net(self):
+        subnet6 = dict(id=1, first_ip=self.v6_fip, last_ip=self.v6_lip,
+                       cidr="feed::/104", ip_version=6,
+                       next_auto_assign_ip=0, network=dict(ip_policy=None),
+                       ip_policy=None)
+        address = models.IPAddress()
+        address["address"] = 4
+        address["version"] = 4
+        address["subnet"] = models.Subnet(cidr="0.0.0.0/24")
+        with self._stubs(subnets=[[(subnet6, 0)]],
+                         addresses=[address, None, None]):
+            address = self.ipam.allocate_ip_address(self.context, 0, 0, 0,
+                                                    segment_id="cell01")
+            self.assertEqual(len(address), 2)
+            self.assertEqual(address[0]["address"], 4)
+            self.assertEqual(address[0]["version"], 4)
+            self.assertEqual(address[1]["address"], 0)
+            self.assertEqual(address[1]["version"], 6)
+
+    def test_reallocate_deallocated_v4_ip_shared_net_no_subs_raises(self):
+        with self._stubs(subnets=[],
+                         addresses=[None]):
+            with self.assertRaises(exceptions.IpAddressGenerationFailure):
+                self.ipam.allocate_ip_address(self.context, 0, 0, 0,
+                                              segment_id="cell01")
 
     def test_reallocate_deallocated_v4_ip_no_avail_subnets(self):
         address = models.IPAddress()

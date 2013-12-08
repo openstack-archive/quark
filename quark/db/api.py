@@ -51,7 +51,7 @@ for _name, klass in inspect.getmembers(models, inspect.isclass):
 
 def _listify(filters):
     for key in ["name", "network_id", "id", "device_id", "tenant_id",
-                "mac_address", "shared", "version"]:
+                "subnet_id", "mac_address", "shared", "version"]:
         if key in filters:
             if not filters[key]:
                 continue
@@ -74,6 +74,9 @@ def _model_query(context, model, filters, fields=None):
     if filters.get("mac_address"):
         model_filters.append(model.mac_address.in_(filters["mac_address"]))
 
+    if filters.get("segment_id"):
+        model_filters.append(model.segment_id == filters["segment_id"])
+
     if filters.get("id"):
         model_filters.append(model.id.in_(filters["id"]))
 
@@ -84,8 +87,7 @@ def _model_query(context, model, filters, fields=None):
         model_filters.append(model.deallocated_at <= reuse)
 
     if filters.get("subnet_id"):
-        model_filters.append(model.subnet_id ==
-                             filters["subnet_id"])
+        model_filters.append(model.subnet_id.in_(filters["subnet_id"]))
 
     if filters.get("deallocated"):
         model_filters.append(model.deallocated == filters["deallocated"])
@@ -381,6 +383,8 @@ def subnet_find_allocation_counts(context, net_id, **filters):
     query = query.filter(models.Subnet.network_id == net_id)
     if "ip_version" in filters:
         query = query.filter(models.Subnet.ip_version == filters["ip_version"])
+    if "segment_id" in filters:
+        query = query.filter(models.Subnet.segment_id == filters["segment_id"])
     return query
 
 

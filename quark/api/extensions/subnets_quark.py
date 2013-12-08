@@ -19,6 +19,7 @@ from neutron.api import extensions
 
 EXTENDED_ATTRIBUTES_2_0 = {
     'subnets': {
+        "segment_id": {"allow_post": True, "default": False},
         "enable_dhcp": {'allow_post': False, 'allow_put': False,
                         'default': False,
                         'is_visible': True},

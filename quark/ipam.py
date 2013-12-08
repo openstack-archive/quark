@@ -78,7 +78,8 @@ class QuarkIpam(object):
         raise exceptions.MacAddressGenerationFailure(net_id=net_id)
 
     def attempt_to_reallocate_ip(self, context, net_id, port_id, reuse_after,
-                                 version=None, ip_address=None):
+                                 version=None, ip_address=None,
+                                 segment_id=None):
         version = version or [4, 6]
         elevated = context.elevated()
 
@@ -87,10 +88,26 @@ class QuarkIpam(object):
         # is really wrong)
         for times in xrange(3):
             with context.session.begin(subtransactions=True):
-                address = db_api.ip_address_find(
-                    elevated, network_id=net_id, reuse_after=reuse_after,
-                    deallocated=True, scope=db_api.ONE, ip_address=ip_address,
-                    lock_mode=True, version=version, order_by="address")
+
+                sub_ids = []
+                if segment_id:
+                    subnets = db_api.subnet_find(elevated, network_id=net_id,
+                                                 segment_id=segment_id)
+                    sub_ids = [s["id"] for s in subnets]
+                    if not sub_ids:
+                        raise exceptions.IpAddressGenerationFailure(
+                            net_id=net_id)
+
+                ip_kwargs = {
+                    "network_id": net_id, "reuse_after": reuse_after,
+                    "deallocated": True, "scope": db_api.ONE,
+                    "ip_address": ip_address, "lock_mode": True,
+                    "version": version, "order_by": "address"}
+
+                if sub_ids:
+                    ip_kwargs["subnet_id"] = sub_ids
+
+                address = db_api.ip_address_find(elevated, **ip_kwargs)
 
                 if address:
                     #NOTE(mdietz): We should always be in the CIDR but we've
@@ -138,7 +155,7 @@ class QuarkIpam(object):
         return next_ip
 
     def allocate_ip_address(self, context, net_id, port_id, reuse_after,
-                            version=None, ip_address=None):
+                            segment_id=None, version=None, ip_address=None):
         elevated = context.elevated()
         if ip_address:
             ip_address = netaddr.IPAddress(ip_address)
@@ -147,14 +164,15 @@ class QuarkIpam(object):
         realloc_ips = self.attempt_to_reallocate_ip(context, net_id,
                                                     port_id, reuse_after,
                                                     version=None,
-                                                    ip_address=None)
+                                                    ip_address=None,
+                                                    segment_id=segment_id)
         if self.is_strategy_satisfied(realloc_ips):
             return realloc_ips
         new_addresses.extend(realloc_ips)
         with context.session.begin(subtransactions=True):
             subnets = self._choose_available_subnet(
-                elevated, net_id, version, ip_address=ip_address,
-                reallocated_ips=realloc_ips)
+                elevated, net_id, version, segment_id=segment_id,
+                ip_address=ip_address, reallocated_ips=realloc_ips)
             for subnet in subnets:
                 ip_policy_rules = models.IPPolicy.get_ip_policy_rule_set(
                     subnet)
@@ -224,8 +242,10 @@ class QuarkIpam(object):
             db_api.mac_address_update(context, mac, deallocated=True,
                                       deallocated_at=timeutils.utcnow())
 
-    def select_subnet(self, context, net_id, ip_address, **filters):
+    def select_subnet(self, context, net_id, ip_address, segment_id,
+                      **filters):
         subnets = db_api.subnet_find_allocation_counts(context, net_id,
+                                                       segment_id=segment_id,
                                                        scope=db_api.ALL,
                                                        **filters)
         for subnet, ips_in_subnet in subnets:
@@ -247,11 +267,13 @@ class QuarkIpamANY(QuarkIpam):
         return "ANY"
 
     def _choose_available_subnet(self, context, net_id, version=None,
-                                 ip_address=None, reallocated_ips=None):
+                                 segment_id=None, ip_address=None,
+                                 reallocated_ips=None):
         filters = {}
         if version:
             filters["ip_version"] = version
-        subnet = self.select_subnet(context, net_id, ip_address, **filters)
+        subnet = self.select_subnet(context, net_id, ip_address, segment_id,
+                                    **filters)
         if subnet:
             return [subnet]
         raise exceptions.IpAddressGenerationFailure(net_id=net_id)
@@ -273,17 +295,19 @@ class QuarkIpamBOTH(QuarkIpam):
 
     def attempt_to_reallocate_ip(self, context, net_id, port_id,
                                  reuse_after, version=None,
-                                 ip_address=None):
+                                 ip_address=None, segment_id=None):
         both_versions = []
         with context.session.begin(subtransactions=True):
             for ver in (4, 6):
                 address = super(QuarkIpamBOTH, self).attempt_to_reallocate_ip(
-                    context, net_id, port_id, reuse_after, ver, ip_address)
+                    context, net_id, port_id, reuse_after, ver, ip_address,
+                    segment_id)
                 both_versions.extend(address)
         return both_versions
 
     def _choose_available_subnet(self, context, net_id, version=None,
-                                 ip_address=None, reallocated_ips=None):
+                                 segment_id=None, ip_address=None,
+                                 reallocated_ips=None):
         both_subnet_versions = []
         need_versions = [4, 6]
         for i in reallocated_ips:
@@ -292,7 +316,8 @@ class QuarkIpamBOTH(QuarkIpam):
         filters = {}
         for ver in need_versions:
             filters["ip_version"] = ver
-            sub = self.select_subnet(context, net_id, ip_address, **filters)
+            sub = self.select_subnet(context, net_id, ip_address, segment_id,
+                                     **filters)
 
             if sub:
                 both_subnet_versions.append(sub)
@@ -308,9 +333,10 @@ class QuarkIpamBOTHREQ(QuarkIpamBOTH):
         return "BOTH_REQUIRED"
 
     def _choose_available_subnet(self, context, net_id, version=None,
-                                 ip_address=None, reallocated_ips=None):
+                                 segment_id=None, ip_address=None,
+                                 reallocated_ips=None):
         subnets = super(QuarkIpamBOTHREQ, self)._choose_available_subnet(
-            context, net_id, version, ip_address, reallocated_ips)
+            context, net_id, version, segment_id, ip_address, reallocated_ips)
 
         if len(reallocated_ips) + len(subnets) < 2:
             raise exceptions.IpAddressGenerationFailure(net_id=net_id)

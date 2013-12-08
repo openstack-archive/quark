@@ -23,6 +23,7 @@ from oslo.config import cfg
 
 from quark.db import api as db_api
 from quark.drivers import registry
+from quark import exceptions as q_exc
 from quark import ipam
 from quark import network_strategy
 from quark import plugin_views as v
@@ -55,18 +56,19 @@ def create_port(context, port):
     with context.session.begin():
         port_id = uuidutils.generate_uuid()
 
-        net = db_api.network_find(context, id=net_id,
-                                  segment_id=segment_id, scope=db_api.ONE)
+        net = db_api.network_find(context, id=net_id, scope=db_api.ONE)
         if not net:
-            # Maybe it's a tenant network
-            net = db_api.network_find(context, id=net_id, scope=db_api.ONE)
-            if not net:
-                raise exceptions.NetworkNotFound(net_id=net_id)
+            raise exceptions.NetworkNotFound(net_id=net_id)
 
         if not STRATEGY.is_parent_network(net_id):
+            # We don't honor segmented networks when they aren't "shared"
+            segment_id = None
             quota.QUOTAS.limit_check(
                 context, context.tenant_id,
                 ports_per_network=len(net.get('ports', [])) + 1)
+        else:
+            if not segment_id:
+                raise q_exc.AmbiguousNetworkId(net_id=net_id)
 
         ipam_driver = ipam.IPAM_REGISTRY.get_strategy(net["ipam_strategy"])
         if fixed_ips:
@@ -79,10 +81,11 @@ def create_port(context, port):
                         msg="subnet_id and ip_address required")
                 addresses.extend(ipam_driver.allocate_ip_address(
                     context, net["id"], port_id, CONF.QUARK.ipam_reuse_after,
-                    ip_address=ip_address))
+                    segment_id=segment_id, ip_address=ip_address))
         else:
             addresses.extend(ipam_driver.allocate_ip_address(
-                context, net["id"], port_id, CONF.QUARK.ipam_reuse_after))
+                context, net["id"], port_id, CONF.QUARK.ipam_reuse_after,
+                segment_id=segment_id))
 
         group_ids, security_groups = v.make_security_group_list(
             context, port["port"].pop("security_groups", None))
