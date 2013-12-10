@@ -99,6 +99,10 @@ def create_subnet(context, subnet):
         dns_ips = utils.pop_param(sub_attrs, "dns_nameservers", [])
         host_routes = utils.pop_param(sub_attrs, "host_routes", [])
         allocation_pools = utils.pop_param(sub_attrs, "allocation_pools", None)
+
+        if not context.is_admin and "segment_id" in sub_attrs:
+            sub_attrs.pop("segment_id")
+
         sub_attrs["network"] = net
 
         new_subnet = db_api.subnet_create(context, **sub_attrs)

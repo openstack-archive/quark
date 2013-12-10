@@ -201,6 +201,7 @@ class Subnet(BASEV2, models.HasId, IsHazTags):
     network_id = sa.Column(sa.String(36), sa.ForeignKey('quark_networks.id'))
     _cidr = sa.Column(sa.String(64), nullable=False)
     tenant_id = sa.Column(sa.String(255), index=True)
+    segment_id = sa.Column(sa.String(255), index=True)
 
     @hybrid.hybrid_property
     def cidr(self):

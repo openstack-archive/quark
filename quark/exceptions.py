@@ -21,8 +21,8 @@ class RouteNotFound(exceptions.NotFound):
     message = _("Route %(route_id)s not found.")
 
 
-class AmbiguousNetworkId(exceptions.NeutronException):
-    message = _("Segment ID required for network %(net_id)s.")
+class AmbiguousNetworkId(exceptions.InvalidInput):
+    msg = _("Segment ID required for network %(net_id)s.")
 
 
 class AmbigiousLswitchCount(exceptions.NeutronException):

@@ -23,6 +23,7 @@ from neutron.extensions import securitygroup as sg_ext
 
 from quark.db import api as quark_db_api
 from quark.db import models
+from quark import exceptions as q_exc
 from quark import network_strategy
 from quark.plugin_modules import ports as quark_ports
 from quark.tests import test_quark_plugin
@@ -169,6 +170,30 @@ class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
         port = dict(port=dict(mac_address=mac["address"], network_id=1,
                               tenant_id=self.context.tenant_id, device_id=2,
                               name=port_name))
+        expected = {'status': "ACTIVE",
+                    'name': port_name,
+                    'device_owner': None,
+                    'mac_address': mac["address"],
+                    'network_id': network["id"],
+                    'tenant_id': self.context.tenant_id,
+                    'admin_state_up': None,
+                    'fixed_ips': [],
+                    'device_id': 2}
+        with self._stubs(port=port["port"], network=network, addr=ip,
+                         mac=mac) as port_create:
+            result = self.plugin.create_port(self.context, port)
+            self.assertTrue(port_create.called)
+            for key in expected.keys():
+                self.assertEqual(result[key], expected[key])
+
+    def test_create_port_segment_id_on_unshared_net_ignored(self):
+        network = dict(id=1)
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
+        port_name = "foobar"
+        ip = dict()
+        port = dict(port=dict(mac_address=mac["address"], network_id=1,
+                              tenant_id=self.context.tenant_id, device_id=2,
+                              segment_id="cell01", name=port_name))
         expected = {'status': "ACTIVE",
                     'name': port_name,
                     'device_owner': None,
@@ -532,12 +557,26 @@ class TestQuarkCreatePortOnSharedNetworks(test_quark_plugin.TestQuarkPlugin):
         port = dict(port=dict(mac_address=mac["address"],
                               network_id="public_network",
                               tenant_id=self.context.tenant_id, device_id=2,
+                              segment_id="cell01",
                               name=port_name))
         with self._stubs(port=port["port"], network=network, addr=ip, mac=mac):
             try:
                 self.plugin.create_port(self.context, port)
             except Exception:
                 self.fail("create_port raised OverQuota")
+
+    def test_create_port_shared_net_no_segment_id_fails(self):
+        network = dict(id=1, ports=[models.Port()])
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
+        port_name = "foobar"
+        ip = dict()
+        port = dict(port=dict(mac_address=mac["address"],
+                              network_id="public_network",
+                              tenant_id=self.context.tenant_id, device_id=2,
+                              name=port_name))
+        with self._stubs(port=port["port"], network=network, addr=ip, mac=mac):
+            with self.assertRaises(q_exc.AmbiguousNetworkId):
+                self.plugin.create_port(self.context, port)
 
 
 class TestQuarkGetPortCount(test_quark_plugin.TestQuarkPlugin):
