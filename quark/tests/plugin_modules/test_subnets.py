@@ -202,7 +202,7 @@ class TestQuarkCreateSubnetAllocationPools(test_quark_plugin.TestQuarkPlugin):
             resp = self.plugin.create_subnet(self.context, s)
             self.assertEqual(subnet_create.call_count, 1)
             self.assertEqual(resp["allocation_pools"],
-                             [dict(start="192.168.1.2", end="192.168.1.254")])
+                             [dict(start="192.168.1.1", end="192.168.1.254")])
 
     def test_create_subnet_allocation_pools_one(self):
         pools = [dict(start="192.168.1.10", end="192.168.1.20")]

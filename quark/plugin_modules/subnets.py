@@ -125,18 +125,12 @@ def create_subnet(context, subnet):
                 context, ip=netaddr.IPAddress(dns_ip)))
 
         if isinstance(allocation_pools, list):
-            ranges = []
             cidrset = netaddr.IPSet([netaddr.IPNetwork(new_subnet["cidr"])])
             for p in allocation_pools:
                 cidrset -= netaddr.IPSet(netaddr.IPRange(p["start"], p["end"]))
-            non_allocation_pools = v._pools_from_cidr(cidrset)
-            for p in non_allocation_pools:
-                r = netaddr.IPRange(p["start"], p["end"])
-                ranges.append(dict(
-                    length=len(r),
-                    offset=int(r[0]) - int(cidr[0])))
+            cidrs = [str(x.cidr) for x in cidrset.iter_cidrs()]
             new_subnet["ip_policy"] = db_api.ip_policy_create(context,
-                                                              exclude=ranges)
+                                                              exclude=cidrs)
 
     subnet_dict = v._make_subnet_dict(new_subnet,
                                       default_route=routes.DEFAULT_ROUTE)

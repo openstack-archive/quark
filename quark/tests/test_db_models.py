@@ -22,22 +22,22 @@ class TestDBModels(test_base.TestBase):
     def setUp(self):
         super(TestDBModels, self).setUp()
 
-    def test_get_ip_policy_rule_set(self):
+    def test_get_ip_policy_cidrs(self):
         subnet = dict(id=1, ip_version=4, next_auto_assign_ip=0,
                       cidr="0.0.0.0/24", first_ip=0, last_ip=255,
                       network=dict(ip_policy=None), ip_policy=None)
-        ip_policy_rules = models.IPPolicy.get_ip_policy_rule_set(subnet)
+        ip_policy_rules = models.IPPolicy.get_ip_policy_cidrs(subnet)
         self.assertEqual(ip_policy_rules,
-                         IPSet(['0.0.0.0/31', '0.0.0.255/32']))
+                         IPSet(['0.0.0.0/32', '0.0.0.255/32']))
 
-    def test_get_ip_policy_rule_set_v6(self):
+    def test_get_ip_policy_cidrs_v6(self):
         subnet = dict(id=1, ip_version=6, next_auto_assign_ip=0,
                       cidr="fc00::/7",
                       first_ip=334965454937798799971759379190646833152L,
                       last_ip=337623910929368631717566993311207522303L,
                       network=dict(ip_policy=None), ip_policy=None)
-        ip_policy_rules = models.IPPolicy.get_ip_policy_rule_set(subnet)
+        ip_policy_rules = models.IPPolicy.get_ip_policy_cidrs(subnet)
         self.assertEqual(
             ip_policy_rules,
-            IPSet(["fc00::/127",
+            IPSet(["fc00::/128",
                    "fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128"]))
