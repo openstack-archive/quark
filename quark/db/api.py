@@ -376,6 +376,7 @@ def subnet_find_allocation_counts(context, net_id, **filters):
     query = context.session.query(models.Subnet,
                                   sql_func.count(models.IPAddress.address).
                                   label("count")).with_lockmode('update')
+    query = query.filter_by(do_not_use=False)
     query = query.outerjoin(models.Subnet.generated_ips)
     query = query.group_by(models.Subnet)
     query = query.order_by("count DESC")

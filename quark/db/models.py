@@ -30,6 +30,9 @@ from neutron.openstack.common import timeutils
 from oslo.config import cfg
 
 from quark.db import custom_types
+#NOTE(mdietz): This is the only way to actually create the quotas table,
+#              regardless if we need it. This is how it's done upstream.
+from quark import quota_driver  # noqa
 
 import json
 
@@ -437,5 +440,4 @@ class Network(BASEV2, models.HasId):
                              sa.ForeignKey("quark_ip_policy.id"))
     network_plugin = sa.Column(sa.String(36))
     ipam_strategy = sa.Column(sa.String(255))
-    max_allocation = sa.Column(sa.Integer())
     tenant_id = sa.Column(sa.String(255), index=True)
