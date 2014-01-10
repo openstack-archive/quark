@@ -75,7 +75,7 @@ def _model_query(context, model, filters, fields=None):
         model_filters.append(model.mac_address.in_(filters["mac_address"]))
 
     if filters.get("segment_id"):
-        model_filters.append(model.tenant_id.in_(filters["segment_id"]))
+        model_filters.append(model.segment_id.in_(filters["segment_id"]))
 
     if filters.get("id"):
         model_filters.append(model.id.in_(filters["id"]))
