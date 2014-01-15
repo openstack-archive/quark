@@ -329,7 +329,7 @@ class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
 
 class TestQuarkUpdatePort(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
-    def _stubs(self, port):
+    def _stubs(self, port, new_ips=None):
         port_model = None
         if port:
             net_model = models.Network()
@@ -345,6 +345,8 @@ class TestQuarkUpdatePort(test_quark_plugin.TestQuarkPlugin):
         ) as (port_find, port_update, alloc_ip, dealloc_ip):
             port_find.return_value = port_model
             port_update.return_value = port_model
+            if new_ips:
+                alloc_ip.return_value = new_ips
             yield port_find, port_update, alloc_ip, dealloc_ip
 
     def test_update_port_not_found(self):
@@ -383,7 +385,43 @@ class TestQuarkUpdatePort(test_quark_plugin.TestQuarkPlugin):
                 fixed_ips=[dict(subnet_id=1,
                                 ip_address="1.1.1.1")]))
             self.plugin.update_port(self.context, 1, new_port)
-            self.assertEqual(dealloc_ip.call_count, 1)
+            self.assertEqual(alloc_ip.call_count, 1)
+
+    def test_update_port_fixed_ip_no_subnet_raises(self):
+        with self._stubs(
+            port=dict(id=1, name="myport", mac_address="0:0:0:0:0:1")
+        ) as (port_find, port_update, alloc_ip, dealloc_ip):
+            new_port = dict(port=dict(
+                fixed_ips=[dict(ip_address="1.1.1.1")]))
+            with self.assertRaises(exceptions.BadRequest):
+                self.plugin.update_port(self.context, 1, new_port)
+
+    def test_update_port_fixed_ip_subnet_only_allocates_ip(self):
+        with self._stubs(
+            port=dict(id=1, name="myport", mac_address="0:0:0:0:0:1")
+        ) as (port_find, port_update, alloc_ip, dealloc_ip):
+            new_port = dict(port=dict(
+                fixed_ips=[dict(subnet_id=1)]))
+            self.plugin.update_port(self.context, 1, new_port)
+            self.assertEqual(alloc_ip.call_count, 1)
+
+    def test_update_port_fixed_ip_allocs_new_deallocs_existing(self):
+        addr_dict = {"address": 0, "address_readable": "0.0.0.0"}
+        addr = models.IPAddress()
+        addr.update(addr_dict)
+        new_addr_dict = {"address": 16843009, "address_readable": "1.1.1.1"}
+        new_addr = models.IPAddress()
+        new_addr.update(new_addr_dict)
+
+        with self._stubs(
+            port=dict(id=1, name="myport", mac_address="0:0:0:0:0:1",
+                      ip_addresses=[addr]),
+            new_ips=[new_addr]
+        ) as (port_find, port_update, alloc_ip, dealloc_ip):
+            new_port = dict(port=dict(
+                fixed_ips=[dict(subnet_id=1,
+                                ip_address=new_addr["address_readable"])]))
+            self.plugin.update_port(self.context, 1, new_port)
             self.assertEqual(alloc_ip.call_count, 1)
 
 
