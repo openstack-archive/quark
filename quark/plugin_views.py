@@ -75,9 +75,9 @@ def _make_subnet_dict(subnet, default_route=None, fields=None):
     net_id = STRATEGY.get_parent_network(subnet["network_id"])
 
     def _allocation_pools(subnet):
-        ip_policy_rules = models.IPPolicy.get_ip_policy_rule_set(subnet)
+        ip_policy_cidrs = models.IPPolicy.get_ip_policy_cidrs(subnet)
         cidr = netaddr.IPSet([netaddr.IPNetwork(subnet["cidr"])])
-        allocatable = cidr - ip_policy_rules
+        allocatable = cidr - ip_policy_cidrs
         return _pools_from_cidr(allocatable)
 
     res = {"id": subnet.get("id"),
@@ -212,14 +212,12 @@ def _make_ip_dict(address):
 
 
 def _make_ip_policy_dict(ipp):
-    excludes = [dict(offset=range["offset"], length=range["length"])
-                for range in ipp["exclude"]]
     return {"id": ipp["id"],
             "tenant_id": ipp["tenant_id"],
             "name": ipp["name"],
             "subnet_ids": [s["id"] for s in ipp["subnets"]],
             "network_ids": [n["id"] for n in ipp["networks"]],
-            "exclude": excludes}
+            "exclude": ipp["exclude"]}
 
 
 def make_security_group_list(context, group_ids):

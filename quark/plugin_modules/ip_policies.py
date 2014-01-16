@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import netaddr
 from neutron.common import exceptions
 from neutron.openstack.common import log as logging
 from oslo.config import cfg
@@ -32,10 +33,16 @@ def create_ip_policy(context, ip_policy):
 
     if not ipp.get("exclude"):
         raise exceptions.BadRequest(resource="ip_policy",
-                                    msg="Empty ip_policy.exclude regions")
+                                    msg="Empty ip_policy.exclude")
 
+    ip_policy_cidrs = ipp.get("exclude", [])
     network_ids = ipp.get("network_ids")
     subnet_ids = ipp.get("subnet_ids")
+
+    if subnet_ids and network_ids:
+        raise exceptions.BadRequest(
+            resource="ip_policy",
+            msg="network_ids and subnet_ids specified. only one allowed")
 
     if not subnet_ids and not network_ids:
         raise exceptions.BadRequest(
@@ -49,6 +56,8 @@ def create_ip_policy(context, ip_policy):
                 context, id=subnet_ids, scope=db_api.ALL)
             if not subnets:
                 raise exceptions.SubnetNotFound(id=subnet_ids)
+            if ip_policy_cidrs:
+                _validate_cidrs_fit_into_subnets(ip_policy_cidrs, subnets)
             models.extend(subnets)
 
         if network_ids:
@@ -56,6 +65,10 @@ def create_ip_policy(context, ip_policy):
                 context, id=network_ids, scope=db_api.ALL)
             if not nets:
                 raise exceptions.NetworkNotFound(net_id=network_ids)
+            subnets = [subnet for net in nets
+                       for subnet in net.get("subnets", [])]
+            if ip_policy_cidrs and subnets:
+                _validate_cidrs_fit_into_subnets(ip_policy_cidrs, subnets)
             models.extend(nets)
 
         for model in models:
@@ -91,8 +104,14 @@ def update_ip_policy(context, id, ip_policy):
         if not ipp_db:
             raise quark_exceptions.IPPolicyNotFound(id=id)
 
+        ip_policy_cidrs = ipp.get("exclude", [])
         network_ids = ipp.get("network_ids")
         subnet_ids = ipp.get("subnet_ids")
+
+        if subnet_ids and network_ids:
+            raise exceptions.BadRequest(
+                resource="ip_policy",
+                msg="network_ids and subnet_ids specified. only one allowed")
 
         models = []
         if subnet_ids:
@@ -102,6 +121,8 @@ def update_ip_policy(context, id, ip_policy):
                 context, id=subnet_ids, scope=db_api.ALL)
             if len(subnets) != len(subnet_ids):
                 raise exceptions.SubnetNotFound(id=subnet_ids)
+            if ip_policy_cidrs:
+                _validate_cidrs_fit_into_subnets(ip_policy_cidrs, subnets)
             models.extend(subnets)
 
         if network_ids:
@@ -111,6 +132,10 @@ def update_ip_policy(context, id, ip_policy):
                                        scope=db_api.ALL)
             if len(nets) != len(network_ids):
                 raise exceptions.NetworkNotFound(net_id=network_ids)
+            subnets = [subnet for net in nets
+                       for subnet in net.get("subnets", [])]
+            if ip_policy_cidrs and subnets:
+                _validate_cidrs_fit_into_subnets(ip_policy_cidrs, subnets)
             models.extend(nets)
 
         for model in models:
@@ -132,3 +157,17 @@ def delete_ip_policy(context, id):
         if ipp["networks"] or ipp["subnets"]:
             raise quark_exceptions.IPPolicyInUse(id=id)
         db_api.ip_policy_delete(context, ipp)
+
+
+def _validate_cidrs_fit_into_subnets(cidrs, subnets):
+    LOG.info("validate_cidrs_all_fit_into_subnets with CIDRs (%s) "
+             "and subnets (%s)" % (cidrs, subnets))
+    for cidr in cidrs:
+        cidr = netaddr.IPNetwork(cidr)
+        for subnet in subnets:
+            subnet_cidr = netaddr.IPNetwork(subnet["cidr"])
+            if cidr.version == subnet_cidr.version and cidr not in subnet_cidr:
+                raise exceptions.BadRequest(
+                    resource="ip_policy",
+                    msg="CIDR %s not in subnet CIDR %s"
+                    % (cidr, subnet_cidr))

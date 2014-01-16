@@ -139,7 +139,7 @@ class QuarkIpam(object):
         return ip_addresses
 
     def _iterate_until_available_ip(self, context, subnet, network_id,
-                                    ip_policy_rules):
+                                    ip_policy_cidrs):
         address = True
         while address:
             next_ip_int = int(subnet["next_auto_assign_ip"])
@@ -147,7 +147,7 @@ class QuarkIpam(object):
             if subnet["ip_version"] == 4:
                 next_ip = next_ip.ipv4()
             subnet["next_auto_assign_ip"] = next_ip_int + 1
-            if ip_policy_rules and next_ip in ip_policy_rules:
+            if ip_policy_cidrs and next_ip in ip_policy_cidrs:
                 continue
             address = db_api.ip_address_find(
                 context, network_id=network_id, ip_address=next_ip,
@@ -164,8 +164,7 @@ class QuarkIpam(object):
                                    ip_address=None):
         new_addresses = []
         for subnet in subnets:
-            ip_policy_rules = models.IPPolicy.get_ip_policy_rule_set(
-                subnet)
+            ip_policy_cidrs = models.IPPolicy.get_ip_policy_cidrs(subnet)
             # Creating this IP for the first time
             next_ip = None
             if ip_address:
@@ -178,7 +177,7 @@ class QuarkIpam(object):
                         net_id=net_id)
             else:
                 next_ip = self._iterate_until_available_ip(
-                    context, subnet, net_id, ip_policy_rules)
+                    context, subnet, net_id, ip_policy_cidrs)
 
             context.session.add(subnet)
             address = db_api.ip_address_create(
@@ -289,11 +288,10 @@ class QuarkIpam(object):
             ipnet = netaddr.IPNetwork(subnet["cidr"])
             if ip_address and ip_address not in ipnet:
                 continue
-            ip_policy_rules = None
+            ip_policy_cidrs = None
             if not ip_address:
-                ip_policy_rules = models.IPPolicy.get_ip_policy_rule_set(
-                    subnet)
-            policy_size = ip_policy_rules.size if ip_policy_rules else 0
+                ip_policy_cidrs = models.IPPolicy.get_ip_policy_cidrs(subnet)
+            policy_size = ip_policy_cidrs.size if ip_policy_cidrs else 0
             if ipnet.size > (ips_in_subnet + policy_size):
                 return subnet
 

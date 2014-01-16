@@ -61,4 +61,4 @@ class QuarkIPAddressAllocate(QuarkIpamBaseFunctionalTest):
             ipaddress = self.ipam.allocate_ip_address(self.context, net["id"],
                                                       0, 0)
             self.assertIsNotNone(ipaddress[0]['id'])
-            self.assertEqual(ipaddress[0]['address'], 2)
+            self.assertEqual(ipaddress[0]['address'], 1)

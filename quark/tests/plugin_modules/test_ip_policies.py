@@ -14,12 +14,11 @@
 #  under the License.
 
 import contextlib
-
 import mock
-import netaddr
 from neutron.common import exceptions
 
 from quark import exceptions as quark_exceptions
+from quark.plugin_modules import ip_policies as ippol
 from quark.tests import test_quark_plugin
 
 
@@ -43,7 +42,7 @@ class TestQuarkGetIpPolicies(test_quark_plugin.TestQuarkPlugin):
             name="foo",
             subnets=[dict(id=1)],
             networks=[dict(id=2)],
-            exclude=[dict(offset=1, length=256)])
+            exclude=["0.0.0.0/32"])
         with self._stubs(ip_policy):
             resp = self.plugin.get_ip_policy(self.context, 1)
             self.assertEqual(len(resp.keys()), 6)
@@ -61,7 +60,7 @@ class TestQuarkGetIpPolicies(test_quark_plugin.TestQuarkPlugin):
             name="foo",
             subnets=[dict(id=1)],
             networks=[dict(id=2)],
-            exclude=[dict(offset=1, length=256)])
+            exclude=["0.0.0.0/32"])
         with self._stubs([ip_policy]):
             resp = self.plugin.get_ip_policies(self.context)
             self.assertEqual(len(resp), 1)
@@ -95,6 +94,12 @@ class TestQuarkCreateIpPolicies(test_quark_plugin.TestQuarkPlugin):
                 self.plugin.create_ip_policy(self.context, dict(
                     ip_policy=dict()))
 
+    def test_create_ip_policy_with_both_network_and_subnet_ids(self):
+        with self._stubs(None):
+            with self.assertRaises(exceptions.BadRequest):
+                self.plugin.create_ip_policy(self.context, dict(
+                    ip_policy=dict(network_ids=[1], subnet_ids=[1])))
+
     def test_create_ip_policy_invalid_body_missing_netsubnet(self):
         with self._stubs(None):
             with self.assertRaises(exceptions.BadRequest):
@@ -116,64 +121,95 @@ class TestQuarkCreateIpPolicies(test_quark_plugin.TestQuarkPlugin):
                                    exclude=["1.1.1.1/24"])))
 
     def test_create_ip_policy_network_ip_policy_already_exists(self):
-        with self._stubs(None, net=dict(id=1, ip_policy=dict(id=2))):
+        with self._stubs(None, net=dict(id=1, ip_policy=dict(id=2),
+                                        subnets=[dict(id=1,
+                                                      cidr="1.1.1.1/16")])):
             with self.assertRaises(quark_exceptions.IPPolicyAlreadyExists):
                 self.plugin.create_ip_policy(self.context, dict(
                     ip_policy=dict(network_ids=[1],
                                    exclude=["1.1.1.1/24"])))
 
     def test_create_ip_policy_subnet_ip_policy_already_exists(self):
-        with self._stubs(None, subnet=dict(id=1, ip_policy=dict(id=2))):
+        with self._stubs(None, subnet=dict(id=1, ip_policy=dict(id=2),
+                                           cidr="1.1.1.1/16")):
             with self.assertRaises(quark_exceptions.IPPolicyAlreadyExists):
                 self.plugin.create_ip_policy(self.context, dict(
                     ip_policy=dict(subnet_ids=[1],
                                    exclude=["1.1.1.1/24"])))
 
     def test_create_ip_policy_network(self):
-        ipp = dict(subnet_id=None, network_id=1,
-                   exclude=[dict(address=int(netaddr.IPAddress("1.1.1.1")),
-                                 prefix=24)])
-        with self._stubs(ipp, net=dict(id=1, ip_policy=dict(id=2))):
+        ipp = dict(subnet_id=None, network_id=1, exclude=["1.1.1.1/24"])
+        with self._stubs(ipp, net=dict(id=1, ip_policy=dict(id=2),
+                                       subnets=[dict(id=1,
+                                                     cidr="1.1.1.1/16")])):
             with self.assertRaises(quark_exceptions.IPPolicyAlreadyExists):
-                resp = self.plugin.create_ip_policy(self.context, dict(
-                    ip_policy=dict(network_ids=[1],
-                                   exclude=["1.1.1.1/24"])))
-                self.assertEqual(len(resp.keys()), 3)
-                self.assertIsNone(resp["subnet_ids"])
-                self.assertEqual(resp["network_ids"], 1)
-                self.assertEqual(resp["exclude"], [dict()])
+                self.plugin.create_ip_policy(self.context, dict(
+                    ip_policy=dict(network_ids=[ipp["network_id"]],
+                                   exclude=ipp["exclude"])))
 
     def test_create_ip_policy_subnet(self):
-        ipp = dict(subnet_id=1, network_id=None,
-                   exclude=[dict(address=int(netaddr.IPAddress("1.1.1.1")),
-                                 prefix=24)])
-        with self._stubs(ipp, subnet=dict(id=1, ip_policy=dict(id=2))):
+        ipp = dict(subnet_id=1, network_id=None, exclude=["1.1.1.1/24"])
+        with self._stubs(ipp, subnet=dict(id=1, ip_policy=dict(id=2),
+                                          cidr="1.1.1.1/16")):
             with self.assertRaises(quark_exceptions.IPPolicyAlreadyExists):
-                resp = self.plugin.create_ip_policy(self.context, dict(
-                    ip_policy=dict(subnet_ids=[1],
-                                   exclude=["1.1.1.1/24"])))
-                self.assertEqual(len(resp.keys()), 3)
-                self.assertEqual(resp["subnet_id"], 1)
-                self.assertIsNone(resp["network_id"])
-                self.assertEqual(resp["exclude"], ["1.1.1.1/24"])
+                self.plugin.create_ip_policy(self.context, dict(
+                    ip_policy=dict(subnet_ids=[ipp["subnet_id"]],
+                                   exclude=ipp["exclude"])))
 
-    def test_create_ip_policy(self):
+    def test_create_ip_policy_with_cidr_that_does_not_fit_into_subnet(self):
         ipp = dict(
-            subnets=[dict(id=1)],
+            subnets=[dict(id=1, version=4, cidr="192.168.1.1/24")],
             networks=[],
             id=1,
             tenant_id=1,
-            exclude=[dict(offset=0, length=256)],
+            exclude=["10.10.10.100/32"],
             name="foo")
-        with self._stubs(ipp, subnet=dict(id=1, ip_policy=None)):
+        with self._stubs(ipp, subnet=dict(id=1, ip_policy=None,
+                                          version=ipp["subnets"][0]["version"],
+                                          cidr=ipp["subnets"][0]["cidr"])):
+            with self.assertRaises(exceptions.BadRequest):
+                self.plugin.create_ip_policy(self.context, dict(
+                    ip_policy=dict(subnet_ids=[1],
+                                   exclude=ipp["exclude"])))
+
+    def test_create_ip_policy_with_ipv6_subnet_cidr(self):
+        ipp = dict(
+            subnets=[dict(id=1, version=6, cidr='::/64')],
+            networks=[],
+            id=1,
+            tenant_id=1,
+            exclude=["::/128"],
+            name="foo")
+        with self._stubs(ipp, subnet=dict(id=1, ip_policy=None,
+                                          version=ipp["subnets"][0]["version"],
+                                          cidr=ipp["subnets"][0]["cidr"])):
             resp = self.plugin.create_ip_policy(self.context, dict(
                 ip_policy=dict(subnet_ids=[1],
-                               exclude=[dict(offset=0, length=256)])))
+                               exclude=ipp["exclude"])))
             self.assertEqual(len(resp.keys()), 6)
             self.assertEqual(resp["subnet_ids"], [1])
             self.assertEqual(resp["network_ids"], [])
-            self.assertEqual(resp["exclude"],
-                             [dict(offset=0, length=256)])
+            self.assertEqual(resp["exclude"], ["::/128"])
+            self.assertEqual(resp["name"], "foo")
+            self.assertEqual(resp["tenant_id"], 1)
+
+    def test_create_ip_policy(self):
+        ipp = dict(
+            subnets=[dict(id=1, cidr='0.0.0.0/16')],
+            networks=[],
+            id=1,
+            tenant_id=1,
+            exclude=["0.0.0.0/24"],
+            name="foo")
+        with self._stubs(ipp, subnet=dict(id=1, ip_policy=None,
+                                          cidr=ipp["subnets"][0]["cidr"])):
+            resp = self.plugin.create_ip_policy(self.context, dict(
+                ip_policy=dict(subnet_ids=[1],
+                               exclude=ipp["exclude"])))
+            self.assertEqual(len(resp.keys()), 6)
+            self.assertEqual(resp["subnet_ids"], [1])
+            self.assertEqual(resp["network_ids"], [])
+            self.assertEqual(resp["exclude"], ["0.0.0.0/24"])
             self.assertEqual(resp["name"], "foo")
             self.assertEqual(resp["tenant_id"], 1)
 
@@ -198,37 +234,41 @@ class TestQuarkUpdateIpPolicies(test_quark_plugin.TestQuarkPlugin):
             yield ip_policy_update
 
     def test_update_ip_policy_not_found(self):
-        with self._stubs(None) as (ip_policy_update):
+        with self._stubs(None):
             with self.assertRaises(quark_exceptions.IPPolicyNotFound):
                 self.plugin.update_ip_policy(self.context, 1,
                                              dict(ip_policy=None))
-                self.assertEqual(ip_policy_update.called, 0)
+
+    def test_update_ip_policy_with_both_network_and_subnet_ids(self):
+        ipp = dict(id=1, subnets=[])
+        with self._stubs(ipp):
+            with self.assertRaises(exceptions.BadRequest):
+                self.plugin.update_ip_policy(self.context, 1, dict(
+                    ip_policy=dict(network_ids=[1], subnet_ids=[1])))
 
     def test_update_ip_policy_subnets_not_found(self):
         ipp = dict(id=1, subnets=[])
-        with self._stubs(ipp) as (ip_policy_update):
+        with self._stubs(ipp):
             with self.assertRaises(exceptions.SubnetNotFound):
                 self.plugin.update_ip_policy(
                     self.context,
                     1,
                     dict(ip_policy=dict(subnet_ids=[100])))
-                self.assertEqual(ip_policy_update.called, 0)
 
     def test_update_ip_policy_subnets_already_exists(self):
         ipp = dict(id=1, subnets=[dict()])
         with self._stubs(
             ipp, subnets=[dict(id=1, ip_policy=dict(id=1))]
-        ) as (ip_policy_update):
+        ):
             with self.assertRaises(quark_exceptions.IPPolicyAlreadyExists):
                 self.plugin.update_ip_policy(
                     self.context,
                     1,
                     dict(ip_policy=dict(subnet_ids=[100])))
-                self.assertEqual(ip_policy_update.called, 0)
 
     def test_update_ip_policy_subnets(self):
         ipp = dict(id=1, subnets=[dict()],
-                   exclude=[dict(offset=0, length=256)],
+                   exclude=["0.0.0.0/24"],
                    name="foo", tenant_id=1)
         with self._stubs(
             ipp, subnets=[dict(id=1, ip_policy=None)]
@@ -247,11 +287,12 @@ class TestQuarkUpdateIpPolicies(test_quark_plugin.TestQuarkPlugin):
                     self.context,
                     1,
                     dict(ip_policy=dict(network_ids=[100])))
+                self.fai("HI")
                 self.assertEqual(ip_policy_update.called, 0)
 
     def test_update_ip_policy_networks(self):
         ipp = dict(id=1, networks=[dict()],
-                   exclude=[dict(offset=0, length=256)],
+                   exclude=["0.0.0.0/24"],
                    name="foo", tenant_id=1)
         with self._stubs(
             ipp, networks=[dict(id=1, ip_policy=None)]
@@ -293,3 +334,75 @@ class TestQuarkDeleteIpPolicies(test_quark_plugin.TestQuarkPlugin):
             self.plugin.delete_ip_policy(self.context, 1)
             self.assertEqual(ip_policy_find.call_count, 1)
             self.assertEqual(ip_policy_delete.call_count, 1)
+
+
+class TestQuarkValidateCIDRsFitsIntoSubnets(test_quark_plugin.TestQuarkPlugin):
+    def test_normal_cidr_and_valid_subnet(self):
+        try:
+            ippol._validate_cidrs_fit_into_subnets(
+                ["192.168.0.100/32"], [dict(id=1, cidr="192.168.0.0/24")])
+        except Exception:
+            self.fail("Should not have failed")
+
+    def test_normal_ipv4_cidr_and_valid_ipv6_subnet(self):
+        try:
+            ippol._validate_cidrs_fit_into_subnets(
+                ["192.168.0.100/32"], [dict(id=1, cidr="::/96")])
+        except Exception:
+            self.fail("Should not have failed")
+
+    def test_normal_ipv6_cidr_and_valid_ipv6_subnet(self):
+        try:
+            ippol._validate_cidrs_fit_into_subnets(
+                ["::/128"], [dict(id=1, cidr="::/96")])
+        except Exception:
+            self.fail("Should not have failed")
+
+    def test_normal_ipv6_cidr_and_valid_ipv4_subnet(self):
+        try:
+            ippol._validate_cidrs_fit_into_subnets(
+                ["::/128"], [dict(id=1, cidr="192.168.0.0/24")])
+        except Exception:
+            self.fail("Should not have failed")
+
+    def test_normal_cidr_and_multiple_valid_subnet(self):
+        try:
+            ippol._validate_cidrs_fit_into_subnets(
+                ["192.168.0.100/32"],
+                [dict(id=1, cidr="192.168.0.0/24"),
+                    dict(id=2, cidr="192.168.0.0/16")])
+        except Exception:
+            self.fail("Should not have failed")
+
+    def test_normal_ipv6_cidr_and_multiple_valid_ipv6_subnet(self):
+        try:
+            ippol._validate_cidrs_fit_into_subnets(
+                ["::/128"],
+                [dict(id=1, cidr="::/96"),
+                    dict(id=2, cidr="::/64")])
+        except Exception:
+            self.fail("Should not have failed")
+
+    def test_normal_cidr_and_invalid_subnet(self):
+        with self.assertRaises(exceptions.BadRequest):
+            ippol._validate_cidrs_fit_into_subnets(
+                ["192.168.0.100/32"], [dict(id=1, cidr="10.10.10.0/24")])
+
+    def test_normal_ipv6_cidr_and_invalid_ipv6_subnet(self):
+        with self.assertRaises(exceptions.BadRequest):
+            ippol._validate_cidrs_fit_into_subnets(
+                ["::/64"], [dict(id=1, cidr="::/96")])
+
+    def test_normal_cidr_and_one_invalid_and_one_valid_subnet(self):
+        with self.assertRaises(exceptions.BadRequest):
+            ippol._validate_cidrs_fit_into_subnets(
+                ["192.168.0.100/32"],
+                [dict(id=1, cidr="10.10.10.0/24"),
+                    dict(id=1, cidr="192.168.0.0/24")])
+
+    def test_normal_ipv6_cidr_and_one_invalid_and_one_valid_ipv6_subnet(self):
+        with self.assertRaises(exceptions.BadRequest):
+            ippol._validate_cidrs_fit_into_subnets(
+                ["::/127"],
+                [dict(id=1, cidr="::/96"),
+                    dict(id=1, cidr="::/128")])

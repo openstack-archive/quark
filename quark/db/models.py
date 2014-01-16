@@ -27,26 +27,13 @@ from neutron.db import models_v2 as models
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import timeutils
 
-from oslo.config import cfg
-
 from quark.db import custom_types
 #NOTE(mdietz): This is the only way to actually create the quotas table,
 #              regardless if we need it. This is how it's done upstream.
-from quark import quota_driver  # noqa
-
-import json
 
 HasId = models.HasId
 
 LOG = logging.getLogger(__name__)
-CONF = cfg.CONF
-
-quark_opts = [
-    cfg.StrOpt('default_ip_policy',
-               default='{"exclude": [{"offset": -1, "length": 3}]}',
-               help=_("Default IP allocation policy"))
-]
-CONF.register_opts(quark_opts, "QUARK")
 
 
 def _default_list_getset(collection_class, proxy):
@@ -371,64 +358,44 @@ class IPPolicy(BASEV2, models.HasId, models.HasTenant):
         primaryjoin="IPPolicy.id==Subnet.ip_policy_id",
         backref="ip_policy")
     exclude = orm.relationship(
-        "IPPolicyRange",
-        primaryjoin="IPPolicy.id==IPPolicyRange.ip_policy_id",
+        "IPPolicyCIDR",
+        primaryjoin="IPPolicy.id==IPPolicyCIDR.ip_policy_id",
         backref="ip_policy")
     name = sa.Column(sa.String(255), nullable=True)
     description = sa.Column(sa.String(255), nullable=True)
 
-    class JSONIPPolicy(object):
-        def __init__(self, policy=None):
-            self.policy = {}
-            if not policy:
-                self._compile_policy(CONF.QUARK.default_ip_policy)
-            else:
-                self._compile_policy(policy)
-
-        def _compile_policy(self, policy):
-            self.policy = json.loads(policy)
-
-        def __getattr__(self, name):
-            return getattr(self.policy, name)
-
-    DEFAULT_POLICY = JSONIPPolicy()
-
     @staticmethod
-    def get_ip_policy_rule_set(subnet):
+    def get_ip_policy_cidrs(subnet):
         ip_policy = subnet["ip_policy"] or \
             subnet["network"]["ip_policy"] or \
             dict()
-        ip_policy_ranges = ip_policy.get("exclude", []) + \
-            IPPolicy.DEFAULT_POLICY.get("exclude", [])
 
-        ip_policy_rules = netaddr.IPSet()
-        subnet_net = netaddr.IPNetwork(subnet["cidr"])
+        subnet_cidr = netaddr.IPNetwork(subnet["cidr"])
+        network_ip = subnet_cidr.network
+        broadcast_ip = subnet_cidr.broadcast
+        prefix_len = '32' if subnet_cidr.version == 4 else '128'
+        default_policy_cidrs = ["%s/%s" % (network_ip, prefix_len),
+                                "%s/%s" % (broadcast_ip, prefix_len)]
+        ip_policy_cidrs = []
+        ip_policies = ip_policy.get("exclude", [])
+        if ip_policies:
+            ip_policy_cidrs = [ip_policy_cidr.cidr
+                               for ip_policy_cidr in ip_policies]
 
-        def _policy_set(offset, length):
-            start = subnet_net.first + offset
-            end = start + length
-            return netaddr.IPSet(netaddr.IPRange(start, end - 1))
+        ip_policy_cidrs = ip_policy_cidrs + default_policy_cidrs
 
-        for arange in ip_policy_ranges:
-            offset, length = arange["offset"], arange["length"]
-            if offset < 0:
-                if offset + length > 0:
-                    ip_policy_rules |= _policy_set(0, offset + length)
-                pos_offset = subnet_net.size + offset
-                capped_length = min(length, -offset)
-                ip_policy_rules |= _policy_set(pos_offset, capped_length)
-            else:
-                ip_policy_rules |= _policy_set(offset, length)
+        ip_set = netaddr.IPSet()
+        for cidr in ip_policy_cidrs:
+            ip_set.add(cidr)
 
-        return ip_policy_rules
+        return ip_set
 
 
-class IPPolicyRange(BASEV2, models.HasId):
-    __tablename__ = "quark_ip_policy_rules"
+class IPPolicyCIDR(BASEV2, models.HasId):
+    __tablename__ = "quark_ip_policy_cidrs"
     ip_policy_id = sa.Column(sa.String(36), sa.ForeignKey(
         "quark_ip_policy.id", ondelete="CASCADE"))
-    offset = sa.Column(sa.Integer())
-    length = sa.Column(sa.Integer())
+    cidr = sa.Column(sa.String(64))
 
 
 class Network(BASEV2, models.HasId):

@@ -516,11 +516,10 @@ def security_group_rule_delete(context, rule):
 
 def ip_policy_create(context, **ip_policy_dict):
     new_policy = models.IPPolicy()
-    ranges = ip_policy_dict.pop("exclude")
-    for arange in ranges:
-        new_policy["exclude"].append(models.IPPolicyRange(
-            offset=arange["offset"],
-            length=arange["length"]))
+    exclude = ip_policy_dict.pop("exclude")
+    for excluded_cidr in exclude:
+        new_policy["exclude"].append(
+            models.IPPolicyCIDR(cidr=excluded_cidr))
 
     new_policy.update(ip_policy_dict)
     new_policy["tenant_id"] = context.tenant_id
@@ -536,13 +535,12 @@ def ip_policy_find(context, **filters):
 
 
 def ip_policy_update(context, ip_policy, **ip_policy_dict):
-    ranges = ip_policy_dict.pop("exclude", [])
-    if ranges:
+    exclude = ip_policy_dict.pop("exclude", [])
+    if exclude:
         ip_policy["exclude"] = []
-    for arange in ranges:
-        ip_policy["exclude"].append(models.IPPolicyRange(
-            offset=arange["offset"],
-            length=arange["length"]))
+    for excluded_cidr in exclude:
+        ip_policy["exclude"].append(
+            models.IPPolicyCIDR(cidr=excluded_cidr))
 
     ip_policy.update(ip_policy_dict)
     context.session.add(ip_policy)
