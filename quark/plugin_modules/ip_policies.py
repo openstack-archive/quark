@@ -28,7 +28,7 @@ LOG = logging.getLogger(__name__)
 def create_ip_policy(context, ip_policy):
     LOG.info("create_ip_policy for tenant %s" % context.tenant_id)
 
-    ipp = ip_policy["ip_policy"]
+    ipp = ip_policy['ip_policy']
 
     if not ipp.get("exclude"):
         raise exceptions.BadRequest(resource="ip_policy",

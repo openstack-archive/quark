@@ -301,12 +301,18 @@ class TestQuarkCreateSecurityGroupRule(test_quark_plugin.TestQuarkPlugin):
         ruleset['tenant_id'] = self.context.tenant_id
         rule = dict(self.rule, **ruleset)
         group = rule.pop('group')
+        if group:
+            sec_group = group['id']
+        else:
+            sec_group = None
         expected = dict(self.expected, **ruleset)
         expected.pop('group', None)
+        hax1 = {'security_group': sec_group}
+        hax2 = {'security_group_rule': rule}
         with self._stubs(rule, group) as rule_create:
-            result = self.plugin.create_security_group_rule(
-                self.context, {'security_group_rule': rule},
-                self.net_driver)
+            result = self.plugin.create_security_group_rule(self.context,
+                                                            hax1, hax2,
+                                                            self.net_driver)
             self.assertTrue(rule_create.called)
             for key in expected.keys():
                 self.assertEqual(expected[key], result[key])
