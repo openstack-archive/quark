@@ -15,6 +15,7 @@
 
 import contextlib
 import mock
+import netaddr
 
 from neutron.common import exceptions
 from neutron.db import api as neutron_db_api
@@ -189,9 +190,16 @@ class QuarkMacAddressDeallocation(QuarkIpamBaseTest):
 
 class QuarkIPAddressDeallocation(QuarkIpamBaseTest):
     def test_deallocate_ip_address(self):
-        port = dict(ip_addresses=[], device_id="foo")
-        addr = dict(ports=[port], subnet_id=1, address_readable=None,
-                    created_at=None, used_by_tenant_id=1)
+        port_dict = dict(ip_addresses=[], device_id="foo")
+        addr_dict = dict(subnet_id=1, address_readable=None,
+                         created_at=None, used_by_tenant_id=1)
+
+        port = models.Port()
+        port.update(port_dict)
+
+        addr = models.IPAddress()
+        addr.update(addr_dict)
+
         port["ip_addresses"].append(addr)
         self.ipam.deallocate_ip_address(self.context, port)
         # ORM takes care of other model if one model is modified
@@ -199,10 +207,61 @@ class QuarkIPAddressDeallocation(QuarkIpamBaseTest):
                         len(port["ip_addresses"]) == 0)
         self.assertTrue(addr["deallocated"])
 
-    def test_deallocate_ip_address_multiple_ports_no_deallocation(self):
-        port = dict(ip_addresses=[])
-        addr = dict(ports=[port, 2], deallocated=False)
+    def test_deallocate_ip_address_specific_ip(self):
+        port_dict = dict(ip_addresses=[], device_id="foo")
+        addr_dict = dict(subnet_id=1, address_readable="0.0.0.0",
+                         created_at=None, used_by_tenant_id=1,
+                         address=0)
+
+        port = models.Port()
+        port.update(port_dict)
+
+        addr = models.IPAddress()
+        addr.update(addr_dict)
+
         port["ip_addresses"].append(addr)
+        to_delete = netaddr.IPAddress(addr["address"])
+        self.ipam.deallocate_ip_address(self.context, port,
+                                        ip_address=to_delete)
+        # ORM takes care of other model if one model is modified
+        self.assertTrue(len(addr["ports"]) == 0 or
+                        len(port["ip_addresses"]) == 0)
+        self.assertTrue(addr["deallocated"])
+
+    def test_deallocate_ip_address_specific_ip_not_on_port_noop(self):
+        port_dict = dict(ip_addresses=[], device_id="foo")
+        addr_dict = dict(subnet_id=1, address_readable="0.0.0.0",
+                         created_at=None, used_by_tenant_id=1,
+                         address=0)
+
+        port = models.Port()
+        port.update(port_dict)
+
+        addr = models.IPAddress()
+        addr.update(addr_dict)
+
+        port["ip_addresses"].append(addr)
+        to_delete = netaddr.IPAddress(1)
+        self.ipam.deallocate_ip_address(self.context, port,
+                                        ip_address=to_delete)
+        # ORM takes care of other model if one model is modified
+        self.assertTrue(len(addr["ports"]) == 1 or
+                        len(port["ip_addresses"]) == 1)
+        self.assertFalse(addr["deallocated"])
+
+    def test_deallocate_ip_address_multiple_ports_no_deallocation(self):
+        port_dict = dict(ip_addresses=[])
+        addr_dict = dict(deallocated=False)
+
+        port = models.Port()
+        port.update(port_dict)
+
+        addr = models.IPAddress()
+        addr.update(addr_dict)
+
+        port["ip_addresses"].append(addr)
+        addr["ports"].append(port)
+
         self.ipam.deallocate_ip_address(self.context, port)
         # ORM takes care of other model if one model is modified
         self.assertTrue(len(addr["ports"]) == 1 or
@@ -289,6 +348,31 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
         with self._stubs(subnets=[[(subnet6, 0)]],
                          addresses=[address, None, None]):
             address = self.ipam.allocate_ip_address(self.context, 0, 0, 0)
+            self.assertEqual(len(address), 2)
+            self.assertEqual(address[0]["address"], 4)
+            self.assertEqual(address[0]["version"], 4)
+            self.assertEqual(address[1]["address"], 0)
+            self.assertEqual(address[1]["version"], 6)
+
+    def test_reallocate_deallocated_v4_ip_passed_subnets(self):
+        subnet4 = dict(id=1, first_ip=0, last_ip=255,
+                       cidr="0.0.0.0/24", ip_version=4,
+                       next_auto_assign_ip=0, network=dict(ip_policy=None),
+                       ip_policy=None)
+
+        subnet6 = dict(id=1, first_ip=self.v6_fip, last_ip=self.v6_lip,
+                       cidr="feed::/104", ip_version=6,
+                       next_auto_assign_ip=0, network=dict(ip_policy=None),
+                       ip_policy=None)
+        address = models.IPAddress()
+
+        address["address"] = 4
+        address["version"] = 4
+        address["subnet"] = models.Subnet(cidr="0.0.0.0/24")
+        with self._stubs(subnets=[[(subnet6, 0)]],
+                         addresses=[address, None, None]):
+            address = self.ipam.allocate_ip_address(self.context, 0, 0, 0,
+                                                    subnets=[subnet4])
             self.assertEqual(len(address), 2)
             self.assertEqual(address[0]["address"], 4)
             self.assertEqual(address[0]["version"], 4)
@@ -897,10 +981,16 @@ class QuarkIPAddressAllocationNotifications(QuarkIpamBaseTest):
                      used_by_tenant_id=1))
 
     def test_deallocation_notification(self):
-        address = dict(address=0, created_at="123", subnet_id=1,
-                       address_readable="0.0.0.0", used_by_tenant_id=1,
-                       ports=[dict(device_id="foo")])
-        port = dict(ip_addresses=[address])
+        addr_dict = dict(address=0, created_at="123", subnet_id=1,
+                         address_readable="0.0.0.0", used_by_tenant_id=1)
+        address = models.IPAddress()
+        address.update(addr_dict)
+
+        port_dict = dict(ip_addresses=[address], device_id="foo")
+        port = models.Port()
+        port.update(port_dict)
+        address["ports"] = [port]
+
         with self._stubs(dict(), deleted_at="456") as notify:
             self.ipam.deallocate_ip_address(self.context, port)
             notify.assert_called_once_with(

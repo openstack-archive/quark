@@ -386,6 +386,9 @@ def subnet_find_allocation_counts(context, net_id, **filters):
         query = query.filter(models.Subnet.ip_version == filters["ip_version"])
     if "segment_id" in filters:
         query = query.filter(models.Subnet.segment_id == filters["segment_id"])
+    if "subnet_id" in filters and filters["subnet_id"]:
+        query = query.filter(models.Subnet.id.in_(filters["subnet_id"]))
+
     return query
 
 
