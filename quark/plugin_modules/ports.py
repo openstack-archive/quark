@@ -136,8 +136,12 @@ def update_port(context, id, port):
         address_pairs = []
         fixed_ips = port["port"].pop("fixed_ips", None)
         if fixed_ips is not None:
+
+            #NOTE(mdietz): we want full control over IPAM since
+            #              we're allocating by subnet instead of
+            #              network.
             ipam_driver = ipam.IPAM_REGISTRY.get_strategy(
-                port_db["network"]["ipam_strategy"])
+                ipam.QuarkIpamANY.get_name())
 
             addresses, subnet_ids = [], []
             ip_addresses = {}
