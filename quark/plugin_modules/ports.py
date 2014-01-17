@@ -161,7 +161,7 @@ def update_port(context, id, port):
                 else:
                     subnet_ids.append(subnet_id)
 
-            port_ips = set([netaddr.IPAddress(a["address"])
+            port_ips = set([netaddr.IPAddress(int(a["address"]))
                             for a in port_db["ip_addresses"]])
             new_ips = set([a for a in ip_addresses.keys()])
 
