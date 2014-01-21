@@ -255,7 +255,7 @@ class QuarkIpam(object):
             for addr in port["ip_addresses"]:
                 if "ip_address" in kwargs:
                     ip = kwargs["ip_address"]
-                    if ip != netaddr.IPAddress(addr["address"]):
+                    if ip != netaddr.IPAddress(int(addr["address"])):
                         continue
 
                 # Note: only deallocate ip if this is the
