@@ -20,5 +20,6 @@ import setuptools
 
 setuptools.setup(
     setup_requires=['d2to1', 'pbr'],
+    packages=setuptools.find_packages(),
     d2to1=True,
 )
