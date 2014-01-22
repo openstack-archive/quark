@@ -175,7 +175,13 @@ class NVPDriver(base.BaseDriver):
         LOG.debug("Creating port on switch %s" % lswitch)
         port.tags(tags)
         res = port.create()
-        res["lswitch"] = lswitch
+        try:
+            """Catching odd NVP returns here will make it safe to assume that
+            NVP returned something correct."""
+            res["lswitch"] = lswitch
+        except TypeError:
+            LOG.exception("Unexpected return from NVP: %s" % res)
+            raise
         port = connection.lswitch_port(lswitch)
         port.uuid = res["uuid"]
         port.attachment_vif(port_id)
@@ -466,7 +472,12 @@ class NVPDriver(base.BaseDriver):
         self._config_provider_attrs(connection, switch, phys_net, phys_type,
                                     segment_id)
         res = switch.create()
-        return res["uuid"]
+        try:
+            uuid = res["uuid"]
+            return uuid
+        except TypeError:
+            LOG.exception("Unexpected return from NVP: %s" % res)
+            raise
 
     def _lswitches_for_network(self, context, network_id):
         connection = self.get_connection()
