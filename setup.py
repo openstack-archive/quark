@@ -19,7 +19,7 @@ import setuptools
 
 
 setuptools.setup(
-    setup_requires=['d2to1', 'pbr'],
+    setup_requires=['pbr'],
     packages=setuptools.find_packages(),
-    d2to1=True,
+    pbr=True,
 )
