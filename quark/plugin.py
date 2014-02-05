@@ -89,7 +89,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
                                    "security-group", "diagnostics",
                                    "subnets_quark", "provider",
                                    "ip_policies", "quotas",
-                                   "networks_quark"]
+                                   "networks_quark", "router"]
 
     def __init__(self):
         LOG.info("Starting quark plugin")
@@ -333,3 +333,51 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
     @sessioned
     def diagnose_network(self, context, id, fields):
         return networks.diagnose_network(context, id, fields)
+
+    # NOTE(mdietz): we don't actually support these, but despite the fact that
+    #               they're extensions in Neutron, Nova still expects to be
+    #               able to call some of these as if they aren't
+    def create_router(self, context, router):
+        pass
+
+    def update_router(self, context, id, router):
+        pass
+
+    def get_router(self, context, id, fields=None):
+        pass
+
+    def delete_router(self, context, id):
+        pass
+
+    def get_routers(self, context, filters=None, fields=None,
+                    sorts=None, limit=None, marker=None, page_reverse=False):
+        pass
+
+    def add_router_interface(self, context, router_id, interface_info):
+        pass
+
+    def remove_router_interface(self, context, router_id, interface_info):
+        pass
+
+    def create_floatingip(self, context, floatingip):
+        pass
+
+    def update_floatingip(self, context, id, floatingip):
+        pass
+
+    def get_floatingip(self, context, id, fields=None):
+        return None
+
+    def delete_floatingip(self, context, id):
+        pass
+
+    def get_floatingips(self, context, filters=None, fields=None,
+                        sorts=None, limit=None, marker=None,
+                        page_reverse=False):
+        return []
+
+    def get_routers_count(self, context, filters=None):
+        raise NotImplementedError()
+
+    def get_floatingips_count(self, context, filters=None):
+        raise NotImplementedError()
