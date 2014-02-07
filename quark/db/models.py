@@ -336,7 +336,7 @@ class MacAddress(BASEV2, models.HasTenant):
         sa.ForeignKey("quark_mac_address_ranges.id", ondelete="CASCADE"),
         nullable=False)
     deallocated = sa.Column(sa.Boolean())
-    deallocated_at = sa.Column(sa.DateTime())
+    deallocated_at = sa.Column(sa.DateTime(), index=True)
     orm.relationship(Port, backref="mac_address")
 
 
