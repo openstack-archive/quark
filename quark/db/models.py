@@ -37,6 +37,7 @@ from quark import quota_driver  # noqa
 HasId = models.HasId
 
 LOG = logging.getLogger(__name__)
+TABLE_KWARGS = {"mysql_engine": "InnoDB"}
 
 
 def _default_list_getset(collection_class, proxy):
@@ -56,7 +57,7 @@ def _default_list_getset(collection_class, proxy):
 
 class QuarkBase(neutron.db.model_base.NeutronBaseV2):
     created_at = sa.Column(sa.DateTime(), default=timeutils.utcnow)
-    __table_args__ = {"mysql_engine": "InnoDB"}
+    __table_args__ = TABLE_KWARGS
 
 
 BASEV2 = declarative.declarative_base(cls=QuarkBase)
@@ -245,7 +246,8 @@ port_ip_association_table = sa.Table(
     sa.Column("port_id", sa.String(36),
               sa.ForeignKey("quark_ports.id")),
     sa.Column("ip_address_id", sa.String(36),
-              sa.ForeignKey("quark_ip_addresses.id")))
+              sa.ForeignKey("quark_ip_addresses.id")),
+    **TABLE_KWARGS)
 
 
 port_group_association_table = sa.Table(
@@ -254,7 +256,8 @@ port_group_association_table = sa.Table(
     sa.Column("port_id", sa.String(36),
               sa.ForeignKey("quark_ports.id")),
     sa.Column("group_id", sa.String(36),
-              sa.ForeignKey("quark_security_groups.id")))
+              sa.ForeignKey("quark_security_groups.id")),
+    **TABLE_KWARGS)
 
 
 class SecurityGroupRule(BASEV2, models.HasId, models.HasTenant):
