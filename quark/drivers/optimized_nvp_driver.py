@@ -221,7 +221,7 @@ class OptimizedNVPDriver(NVPDriver):
 
 class LSwitchPort(models.BASEV2, models.HasId):
     __tablename__ = "quark_nvp_driver_lswitchport"
-    port_id = sa.Column(sa.String(36), nullable=False)
+    port_id = sa.Column(sa.String(36), nullable=False, index=True)
     switch_id = sa.Column(sa.String(36),
                           sa.ForeignKey("quark_nvp_driver_lswitch.id"),
                           nullable=False)
@@ -229,8 +229,8 @@ class LSwitchPort(models.BASEV2, models.HasId):
 
 class LSwitch(models.BASEV2, models.HasId):
     __tablename__ = "quark_nvp_driver_lswitch"
-    nvp_id = sa.Column(sa.String(36), nullable=False)
-    network_id = sa.Column(sa.String(36), nullable=False)
+    nvp_id = sa.Column(sa.String(36), nullable=False, index=True)
+    network_id = sa.Column(sa.String(36), nullable=False, index=True)
     display_name = sa.Column(sa.String(255))
     port_count = sa.Column(sa.Integer())
     ports = orm.relationship(LSwitchPort, backref='switch')
@@ -248,4 +248,4 @@ class QOS(models.BASEV2, models.HasId):
 
 class SecurityProfile(models.BASEV2, models.HasId):
     __tablename__ = "quark_nvp_driver_security_profile"
-    nvp_id = sa.Column(sa.String(36), nullable=False)
+    nvp_id = sa.Column(sa.String(36), nullable=False, index=True)
