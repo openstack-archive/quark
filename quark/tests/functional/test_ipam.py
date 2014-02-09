@@ -44,9 +44,14 @@ class QuarkIPAddressAllocate(QuarkIpamBaseFunctionalTest):
     def _stubs(self, network, subnet):
         self.ipam = quark.ipam.QuarkIpamANY()
         with self.context.session.begin():
+            next_ip = subnet.pop("next_auto_assign_ip", 0)
             net_mod = db_api.network_create(self.context, **network)
             subnet["network"] = net_mod
             sub_mod = db_api.subnet_create(self.context, **subnet)
+            # NOTE(asadoughi): update after cidr constructor has been invoked
+            db_api.subnet_update(self.context,
+                                 sub_mod,
+                                 next_auto_assign_ip=next_ip)
         yield net_mod
         with self.context.session.begin():
             db_api.subnet_delete(self.context, sub_mod)
@@ -54,11 +59,10 @@ class QuarkIPAddressAllocate(QuarkIpamBaseFunctionalTest):
 
     def test_allocate_finds_no_deallocated_creates_new_ip(self):
         network = dict(name="public", tenant_id="fake")
-        subnet = dict(id=1, ip_version=4, next_auto_assign_ip=2,
-                      cidr="0.0.0.0/24", first_ip=0, last_ip=255,
+        subnet = dict(id=1, cidr="0.0.0.0/24", next_auto_assign_ip=2,
                       ip_policy=None, tenant_id="fake")
         with self._stubs(network, subnet) as net:
             ipaddress = self.ipam.allocate_ip_address(self.context, net["id"],
                                                       0, 0)
             self.assertIsNotNone(ipaddress[0]['id'])
-            self.assertEqual(ipaddress[0]['address'], 1)
+            self.assertEqual(ipaddress[0]['address'], 2)
