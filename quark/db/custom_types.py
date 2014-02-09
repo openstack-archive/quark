@@ -18,31 +18,21 @@ from sqlalchemy import types
 
 
 class INET(types.TypeDecorator):
-    impl = types.LargeBinary
+    impl = types.CHAR
 
     def load_dialect_impl(self, dialect):
-        if dialect.name == 'sqlite':
-            # IPv6 is 128 bits => 2^128 == 3.4e38 => 39 digits
-            return dialect.type_descriptor(sqlite.CHAR(39))
-        return dialect.type_descriptor(self.impl)
+        # IPv6 is 128 bits => 2^128 == 3.4e38 => 39 digits
+        return dialect.type_descriptor(types.CHAR(39))
 
     def process_bind_param(self, value, dialect):
         if value is None:
             return value
-
-        if dialect.name == 'sqlite':
-            return str(value)
-
-        return value
+        return str(value)
 
     def process_result_value(self, value, dialect):
         if value is None:
             return value
-
-        if dialect.name == 'sqlite':
-            return long(value)
-
-        return value
+        return long(value)
 
 
 class MACAddress(types.TypeDecorator):
