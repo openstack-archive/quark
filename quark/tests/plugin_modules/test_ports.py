@@ -341,7 +341,7 @@ class TestQuarkUpdatePort(test_quark_plugin.TestQuarkPlugin):
             mock.patch("quark.db.api.port_find"),
             mock.patch("quark.db.api.port_update"),
             mock.patch("quark.ipam.QuarkIpam.allocate_ip_address"),
-            mock.patch("quark.ipam.QuarkIpam.deallocate_ip_address")
+            mock.patch("quark.ipam.QuarkIpam.deallocate_ips_by_port")
         ) as (port_find, port_update, alloc_ip, dealloc_ip):
             port_find.return_value = port_model
             port_update.return_value = port_model
@@ -641,7 +641,7 @@ class TestQuarkDeletePort(test_quark_plugin.TestQuarkPlugin):
         ipam = "quark.ipam.QuarkIpam"
         with contextlib.nested(
             mock.patch("%s.port_find" % db_mod),
-            mock.patch("%s.deallocate_ip_address" % ipam),
+            mock.patch("%s.deallocate_ips_by_port" % ipam),
             mock.patch("%s.deallocate_mac_address" % ipam),
             mock.patch("%s.port_delete" % db_mod),
             mock.patch("quark.drivers.base.BaseDriver.delete_port")

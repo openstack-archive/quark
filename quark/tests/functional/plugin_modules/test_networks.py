@@ -49,11 +49,11 @@ class QuarkDeleteNetworKDeallocatedIPs(QuarkNetworkFunctionalTest):
             net_mod = db_api.network_create(self.context, **network)
             subnet["network"] = net_mod
             db_api.subnet_create(self.context, **subnet)
-            ip_addr = self.ipam.allocate_ip_address(self.context,
-                                                    net_mod["id"],
-                                                    0, 0)
-            if dealloc:
-                self.ipam._deallocate_ip_address(self.context, ip_addr[0])
+
+        ip_addr = self.ipam.allocate_ip_address(self.context, net_mod["id"],
+                                                0, 0)
+        if dealloc:
+            self.ipam.deallocate_ip_address(self.context, ip_addr[0])
         yield net_mod
 
     def test_delete_network_with_allocated_ips_fails(self):
