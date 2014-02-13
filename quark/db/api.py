@@ -254,7 +254,7 @@ def ip_address_find(context, lock_mode=False, **filters):
 def mac_address_find(context, lock_mode=False, **filters):
     query = context.session.query(models.MacAddress)
     if lock_mode:
-        query.with_lockmode("update")
+        query = query.with_lockmode("update")
     model_filters = _model_query(context, models.MacAddress, filters)
     return query.filter(*model_filters)
 

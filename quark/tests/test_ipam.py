@@ -189,7 +189,7 @@ class QuarkMacAddressDeallocation(QuarkIpamBaseTest):
 
 
 class QuarkIPAddressDeallocation(QuarkIpamBaseTest):
-    def test_deallocate_ip_address(self):
+    def test_deallocate_ips_by_port(self):
         port_dict = dict(ip_addresses=[], device_id="foo")
         addr_dict = dict(subnet_id=1, address_readable=None,
                          created_at=None, used_by_tenant_id=1)
@@ -201,7 +201,7 @@ class QuarkIPAddressDeallocation(QuarkIpamBaseTest):
         addr.update(addr_dict)
 
         port["ip_addresses"].append(addr)
-        self.ipam.deallocate_ip_address(self.context, port)
+        self.ipam.deallocate_ips_by_port(self.context, port)
         # ORM takes care of other model if one model is modified
         self.assertTrue(len(addr["ports"]) == 0 or
                         len(port["ip_addresses"]) == 0)
@@ -221,8 +221,8 @@ class QuarkIPAddressDeallocation(QuarkIpamBaseTest):
 
         port["ip_addresses"].append(addr)
         to_delete = netaddr.IPAddress(addr["address"])
-        self.ipam.deallocate_ip_address(self.context, port,
-                                        ip_address=to_delete)
+        self.ipam.deallocate_ips_by_port(self.context, port,
+                                         ip_address=to_delete)
         # ORM takes care of other model if one model is modified
         self.assertTrue(len(addr["ports"]) == 0 or
                         len(port["ip_addresses"]) == 0)
@@ -242,8 +242,8 @@ class QuarkIPAddressDeallocation(QuarkIpamBaseTest):
 
         port["ip_addresses"].append(addr)
         to_delete = netaddr.IPAddress(1)
-        self.ipam.deallocate_ip_address(self.context, port,
-                                        ip_address=to_delete)
+        self.ipam.deallocate_ips_by_port(self.context, port,
+                                         ip_address=to_delete)
         # ORM takes care of other model if one model is modified
         self.assertTrue(len(addr["ports"]) == 1 or
                         len(port["ip_addresses"]) == 1)
@@ -262,7 +262,7 @@ class QuarkIPAddressDeallocation(QuarkIpamBaseTest):
         port["ip_addresses"].append(addr)
         addr["ports"].append(port)
 
-        self.ipam.deallocate_ip_address(self.context, port)
+        self.ipam.deallocate_ips_by_port(self.context, port)
         # ORM takes care of other model if one model is modified
         self.assertTrue(len(addr["ports"]) == 1 or
                         len(port["ip_addresses"]) == 0)
@@ -981,7 +981,7 @@ class QuarkIPAddressAllocationNotifications(QuarkIpamBaseTest):
         address["ports"] = [port]
 
         with self._stubs(dict(), deleted_at="456") as notify:
-            self.ipam.deallocate_ip_address(self.context, port)
+            self.ipam.deallocate_ips_by_port(self.context, port)
             notify.assert_called_once_with(
                 self.context,
                 notifier_api.publisher_id("network"),

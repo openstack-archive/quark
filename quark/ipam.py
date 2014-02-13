@@ -40,7 +40,7 @@ class QuarkIpam(object):
         if mac_address:
             mac_address = netaddr.EUI(mac_address).value
 
-        with context.session.begin(subtransactions=True):
+        with context.session.begin():
             deallocated_mac = db_api.mac_address_find(
                 context, lock_mode=True, reuse_after=reuse_after,
                 scope=db_api.ONE, address=mac_address)
@@ -49,7 +49,7 @@ class QuarkIpam(object):
                     context, deallocated_mac, deallocated=False,
                     deallocated_at=None)
 
-        with context.session.begin(subtransactions=True):
+        with context.session.begin():
             ranges = db_api.mac_address_range_find_allocation_counts(
                 context, address=mac_address)
             for result in ranges:
@@ -89,7 +89,7 @@ class QuarkIpam(object):
 
         #TODO(mdietz & mpath): Perhaps remove, select for update might quash
         for times in xrange(3):
-            with context.session.begin(subtransactions=True):
+            with context.session.begin():
 
                 sub_ids = []
                 if subnets:
@@ -219,7 +219,7 @@ class QuarkIpam(object):
             return realloc_ips
 
         new_addresses.extend(realloc_ips)
-        with context.session.begin(subtransactions=True):
+        with context.session.begin():
             if not subnets:
                 subnets = self._choose_available_subnet(
                     elevated, net_id, version, segment_id=segment_id,
@@ -235,7 +235,7 @@ class QuarkIpam(object):
         self._notify_new_addresses(context, new_addresses)
         return new_addresses
 
-    def _deallocate_ip_address(self, context, address):
+    def deallocate_ip_address(self, context, address):
         address["deallocated"] = 1
         payload = dict(used_by_tenant_id=address["used_by_tenant_id"],
                        ip_block_id=address["subnet_id"],
@@ -249,8 +249,8 @@ class QuarkIpam(object):
                             notifier_api.CONF.default_notification_level,
                             payload)
 
-    def deallocate_ip_address(self, context, port, **kwargs):
-        with context.session.begin(subtransactions=True):
+    def deallocate_ips_by_port(self, context, port=None, **kwargs):
+        with context.session.begin():
             ips_removed = []
             for addr in port["ip_addresses"]:
                 if "ip_address" in kwargs:
@@ -261,14 +261,14 @@ class QuarkIpam(object):
                 # Note: only deallocate ip if this is the
                 # only port mapped
                 if len(addr["ports"]) == 1:
-                    self._deallocate_ip_address(context, addr)
+                    self.deallocate_ip_address(context, addr)
                 ips_removed.append(addr)
 
             port["ip_addresses"] = list(
                 set(port["ip_addresses"]) - set(ips_removed))
 
     def deallocate_mac_address(self, context, address):
-        with context.session.begin(subtransactions=True):
+        with context.session.begin():
             mac = db_api.mac_address_find(context, address=address,
                                           scope=db_api.ONE)
             if not mac:
@@ -333,7 +333,7 @@ class QuarkIpamBOTH(QuarkIpam):
                                  ip_address=None, segment_id=None,
                                  subnets=None):
         both_versions = []
-        with context.session.begin(subtransactions=True):
+        with context.session.begin():
             for ver in (4, 6):
                 address = super(QuarkIpamBOTH, self).attempt_to_reallocate_ip(
                     context, net_id, port_id, reuse_after, ver, ip_address,
