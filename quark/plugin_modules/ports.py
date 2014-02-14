@@ -415,18 +415,20 @@ def delete_port(context, id):
     if not port:
         raise exceptions.PortNotFound(net_id=id)
 
+    backend_key = port["backend_key"]
+    mac_address = netaddr.EUI(port["mac_address"]).value
+    ipam_driver = ipam.IPAM_REGISTRY.get_strategy(
+        port["network"]["ipam_strategy"])
+    ipam_driver.deallocate_mac_address(context, mac_address)
+    ipam_driver.deallocate_ips_by_port(
+        context, port, ipam_reuse_after=CONF.QUARK.ipam_reuse_after)
+
+    net_driver = registry.DRIVER_REGISTRY.get_driver(
+        port.network["network_plugin"])
+    net_driver.delete_port(context, backend_key)
+
     with context.session.begin():
-        backend_key = port["backend_key"]
-        mac_address = netaddr.EUI(port["mac_address"]).value
-        ipam_driver = ipam.IPAM_REGISTRY.get_strategy(
-            port["network"]["ipam_strategy"])
-        ipam_driver.deallocate_mac_address(context, mac_address)
-        ipam_driver.deallocate_ips_by_port(
-            context, port, ipam_reuse_after=CONF.QUARK.ipam_reuse_after)
         db_api.port_delete(context, port)
-        net_driver = registry.DRIVER_REGISTRY.get_driver(
-            port.network["network_plugin"])
-        net_driver.delete_port(context, backend_key)
 
 
 def disassociate_port(context, id, ip_address_id):
