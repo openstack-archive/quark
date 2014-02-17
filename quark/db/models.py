@@ -155,7 +155,7 @@ class IPAddress(BASEV2, models.HasId):
         ip = netaddr.IPAddress(self.address_readable)
         if self.version == 4:
             return str(ip.ipv4())
-        return str(ip.ipv6())
+        return ip.ipv6().format(dialect=netaddr.ipv6_verbose)
 
     deallocated_at = sa.Column(sa.DateTime())
 
