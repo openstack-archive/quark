@@ -51,7 +51,8 @@ for _name, klass in inspect.getmembers(models, inspect.isclass):
 
 def _listify(filters):
     for key in ["name", "network_id", "id", "device_id", "tenant_id",
-                "subnet_id", "mac_address", "shared", "version", "segment_id"]:
+                "subnet_id", "mac_address", "shared", "version", "segment_id",
+                "device_owner"]:
         if key in filters:
             if not filters[key]:
                 continue
@@ -127,6 +128,9 @@ def _model_query(context, model, filters, fields=None):
     if filters.get("tenant_id"):
         model_filters.append(model.tenant_id.in_(filters["tenant_id"]))
 
+    if filters.get("device_owner"):
+        model_filters.append(model.device_owner.in_(filters["device_owner"]))
+
     return model_filters
 
 
@@ -161,7 +165,6 @@ def scoped(f):
 def port_find(context, **filters):
     query = context.session.query(models.Port).\
         options(orm.joinedload(models.Port.ip_addresses))
-
     model_filters = _model_query(context, models.Port, filters)
     if filters.get("ip_address_id"):
         model_filters.append(models.Port.ip_addresses.any(

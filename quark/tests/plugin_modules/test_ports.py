@@ -70,6 +70,20 @@ class TestQuarkGetPorts(test_quark_plugin.TestQuarkPlugin):
                                           fields=None)
             self.assertEqual(ports, [])
 
+    def test_port_list_with_device_owner_dhcp(self):
+        ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
+                  subnet_id=1, network_id=2, version=4)
+        filters = {'network_id': ip['network_id'],
+                   'device_owner': 'network:dhcp'}
+        port = dict(mac_address="AA:BB:CC:DD:EE:FF", network_id=1,
+                    tenant_id=self.context.tenant_id, device_id=2,
+                    bridge="xenbr0", device_owner='network:dhcp')
+        with self._stubs(ports=[port], addrs=[ip]):
+            ports = self.plugin.get_ports(self.context, filters=filters,
+                                          fields=None)
+            self.assertEqual(len(ports), 1)
+            self.assertEqual(ports[0]["device_owner"], "network:dhcp")
+
     def test_port_list_with_ports(self):
         ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
                   subnet_id=1, network_id=2, version=4)
