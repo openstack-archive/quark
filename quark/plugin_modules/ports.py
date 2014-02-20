@@ -79,25 +79,27 @@ def create_port(context, port):
 
     with utils.CommandManager().execute() as cmd_mgr:
         @cmd_mgr.do
-        def _allocate_ips(fixed_ips, net, port_id, segment_id):
-            addresses = []
-            if fixed_ips:
-                for fixed_ip in fixed_ips:
-                    subnet_id = fixed_ip.get("subnet_id")
-                    ip_address = fixed_ip.get("ip_address")
-                    if not (subnet_id and ip_address):
-                        raise exceptions.BadRequest(
-                            resource="fixed_ips",
-                            msg="subnet_id and ip_address required")
+        def _allocate_ips(fixed_ips, net, port_id, segment_id, mac):
+            with context.session.begin():
+                addresses = []
+                if fixed_ips:
+                    for fixed_ip in fixed_ips:
+                        subnet_id = fixed_ip.get("subnet_id")
+                        ip_address = fixed_ip.get("ip_address")
+                        if not (subnet_id and ip_address):
+                            raise exceptions.BadRequest(
+                                resource="fixed_ips",
+                                msg="subnet_id and ip_address required")
+                        addresses.extend(ipam_driver.allocate_ip_address(
+                            context, net["id"], port_id,
+                            CONF.QUARK.ipam_reuse_after, segment_id=segment_id,
+                            ip_address=ip_address, mac_address=mac))
+                else:
                     addresses.extend(ipam_driver.allocate_ip_address(
                         context, net["id"], port_id,
                         CONF.QUARK.ipam_reuse_after, segment_id=segment_id,
-                        ip_address=ip_address))
-            else:
-                addresses.extend(ipam_driver.allocate_ip_address(
-                    context, net["id"], port_id, CONF.QUARK.ipam_reuse_after,
-                    segment_id=segment_id))
-            return addresses
+                        mac_address=mac))
+                return addresses
 
         @cmd_mgr.undo
         def _allocate_ips_undo(addresses):
@@ -111,16 +113,18 @@ def create_port(context, port):
 
         @cmd_mgr.do
         def _allocate_mac(net, port_id, mac_address):
-            mac = ipam_driver.allocate_mac_address(context, net["id"], port_id,
-                                                   CONF.QUARK.ipam_reuse_after,
-                                                   mac_address=mac_address)
+            with context.session.begin():
+                mac = ipam_driver.allocate_mac_address(
+                    context, net["id"], port_id, CONF.QUARK.ipam_reuse_after,
+                    mac_address=mac_address)
             return mac
 
         @cmd_mgr.undo
         def _allocate_mac_undo(mac):
             LOG.info("Rolling back MAC address...")
             try:
-                ipam_driver.deallocate_mac_address(context, mac["address"])
+                with context.session.begin():
+                    ipam_driver.deallocate_mac_address(context, mac["address"])
             except Exception:
                 LOG.exception("Couldn't release MAC %s" % mac)
 
@@ -134,6 +138,7 @@ def create_port(context, port):
                 for address in addresses]
             backend_port = net_driver.create_port(context, net["id"],
                                                   port_id=port_id,
+
                                                   security_groups=group_ids,
                                                   allowed_pairs=address_pairs)
             return backend_port
@@ -168,14 +173,16 @@ def create_port(context, port):
             if not new_port:
                 return
             try:
-                db_api.port_delete(context, new_port)
+                with context.session.begin():
+                    db_api.port_delete(context, new_port)
             except Exception:
                 LOG.exception(
                     "Couldn't rollback db port %s" % backend_port)
 
         # addresses, mac, backend_port, new_port
-        addresses.extend(_allocate_ips(fixed_ips, net, port_id, segment_id))
         mac = _allocate_mac(net, port_id, mac_address)
+        addresses.extend(_allocate_ips(fixed_ips, net, port_id, segment_id,
+                                       mac))
         backend_port = _allocate_backend_port(mac, addresses, net, port_id)
         new_port = _allocate_db_port(port_attrs, backend_port, addresses, mac)
 
