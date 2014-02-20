@@ -75,8 +75,8 @@ class TestNVPDriver(test_base.TestBase):
         query = mock.Mock()
         port_list = {"_relations":
                     {"LogicalSwitchConfig":
-                    {"uuid": self.lswitch_uuid,
-                     "security_profiles": profiles}}}
+                        {"uuid": self.lswitch_uuid,
+                         "security_profiles": profiles}}}
         port_query = {"results": [port_list], "result_count": switch_count}
         query.results = mock.Mock(return_value=port_query)
         query.security_profile_uuid().results.return_value = {
@@ -98,10 +98,9 @@ class TestNVPDriver(test_base.TestBase):
         if maxed_ports:
             port_count = self.max_spanning
         lswitch_list = [{'uuid': 'abcd',
-                        '_relations': {
-                        'LogicalSwitchStatus': {
-                        'lport_count': port_count
-                        }}}]
+                         '_relations': {
+                             'LogicalSwitchStatus': {
+                                 'lport_count': port_count}}}]
         if not switches_available:
             lswitch_list = []
         lswitch_query = {"results": lswitch_list}
@@ -834,9 +833,9 @@ class TestNVPDriverLoadConfig(TestNVPDriver):
         self.driver.load_config()
         conn = self.driver.nvp_connections[0]
         self.assertEqual(conn["username"], "admin")
-        self.assertEqual(conn["retries"], "2")
-        self.assertEqual(conn["redirects"], "2")
-        self.assertEqual(conn["http_timeout"], "10")
+        self.assertEqual(conn["retries"], 2)
+        self.assertEqual(conn["redirects"], '2')
+        self.assertEqual(conn["http_timeout"], 10)
         self.assertEqual(conn["req_timeout"], "30")
         self.assertEqual(conn["default_tz"], None)
         self.assertEqual(conn["password"], "admin")
@@ -860,7 +859,10 @@ class TestNVPGetConnection(TestNVPDriver):
             self.driver.nvp_connections.append(dict(port="443",
                                                     ip_address="192.168.0.1",
                                                     username="admin",
-                                                    password="admin"))
+                                                    password="admin",
+                                                    http_timeout=10,
+                                                    retries=1,
+                                                    backoff=0))
         with mock.patch("aiclib.nvp.Connection") as (aiclib_conn):
             yield aiclib_conn
         cfg.CONF.clear_override("controller_connection", "NVP")

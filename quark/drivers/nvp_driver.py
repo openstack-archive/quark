@@ -49,6 +49,9 @@ nvp_opts = [
     cfg.IntOpt('max_rules_per_port',
                default=30,
                help=_('Maximum rules per NVP lport across all groups')),
+    cfg.IntOpt('backoff',
+               default=0,
+               help=_('Base seconds for exponential backoff')),
 ]
 
 physical_net_type_map = {
@@ -87,9 +90,12 @@ class NVPDriver(base.BaseDriver):
     def load_config(self):
         #NOTE(mdietz): What does default_tz actually mean?
         #              We don't have one default.
+        # NOTE(jkoelker): Transport Zone
         default_tz = CONF.NVP.default_tz
         LOG.info("Loading NVP settings " + str(default_tz))
         connections = CONF.NVP.controller_connection
+        backoff = CONF.NVP.backoff
+
         self.limits.update({
             'max_ports_per_switch': CONF.NVP.max_ports_per_switch,
             'max_rules_per_group': CONF.NVP.max_rules_per_group,
@@ -104,10 +110,11 @@ class NVPDriver(base.BaseDriver):
                                         username=user,
                                         password=pw,
                                         req_timeout=req_timeout,
-                                        http_timeout=http_timeout,
-                                        retries=retries,
+                                        http_timeout=int(http_timeout),
+                                        retries=int(retries),
                                         redirects=redirects,
-                                        default_tz=default_tz))
+                                        default_tz=default_tz,
+                                        backoff=backoff))
 
     def get_connection(self):
         conn = self.nvp_connections[self.conn_index]
@@ -116,9 +123,15 @@ class NVPDriver(base.BaseDriver):
             uri = "%s://%s:%s" % (scheme, conn["ip_address"], conn["port"])
             user = conn['username']
             passwd = conn['password']
+            timeout = conn['http_timeout']
+            retries = conn['retries']
+            backoff = conn['backoff']
             conn["connection"] = aiclib.nvp.Connection(uri,
                                                        username=user,
-                                                       password=passwd)
+                                                       password=passwd,
+                                                       timeout=timeout,
+                                                       retries=retries,
+                                                       backoff=backoff)
         return conn["connection"]
 
     def create_network(self, context, network_name, tags=None,
