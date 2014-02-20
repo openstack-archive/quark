@@ -227,6 +227,31 @@ class TestQuarkCreateSubnetAllocationPools(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(subnet_create.call_count, 1)
             self.assertEqual(resp["allocation_pools"], pools)
 
+    def test_create_subnet_allocation_pools_three(self):
+        pools = [dict(start="192.168.1.5", end="192.168.1.254")]
+        s = dict(subnet=dict(
+            allocation_pools=pools,
+            ip_version=4,
+            cidr="192.168.1.1/24",
+            network_id=1))
+        with self._stubs(s["subnet"]) as (subnet_create):
+            resp = self.plugin.create_subnet(self.context, s)
+            self.assertEqual(subnet_create.call_count, 1)
+            self.assertEqual(resp["allocation_pools"], pools)
+
+    def test_create_subnet_allocation_pools_four(self):
+        pools = [dict(start="2607:f0d0:1002:51::a",
+                 end="2607:f0d0:1002:51::ffff:fffe")]
+        s = dict(subnet=dict(
+            allocation_pools=pools,
+            ip_version=6,
+            cidr="2607:f0d0:1002:51::0/96",
+            network_id=1))
+        with self._stubs(s["subnet"]) as (subnet_create):
+            resp = self.plugin.create_subnet(self.context, s)
+            self.assertEqual(subnet_create.call_count, 1)
+            self.assertEqual(resp["allocation_pools"], pools)
+
     def test_create_subnet_allocation_pools_empty_list(self):
         pools = []
         s = dict(subnet=dict(
@@ -236,7 +261,9 @@ class TestQuarkCreateSubnetAllocationPools(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(s["subnet"]) as (subnet_create):
             resp = self.plugin.create_subnet(self.context, s)
             self.assertEqual(subnet_create.call_count, 1)
-            self.assertEqual(resp["allocation_pools"], pools)
+            expected_pools = [{'start': '192.168.1.1',
+                              'end': '192.168.1.254'}]
+            self.assertEqual(resp["allocation_pools"], expected_pools)
 
 
 # TODO(amir): Refactor the tests to test individual subnet attributes.
@@ -305,6 +332,9 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                     self.assertEqual(res[key][0]["nexthop"], "0.0.0.0")
                 else:
                     self.assertEqual(res[key], subnet["subnet"][key])
+            expected_pools = [{'start': '172.16.0.1',
+                              'end': '172.16.0.254'}]
+            self.assertEqual(res["allocation_pools"], expected_pools)
 
     def test_create_subnet_not_admin_segment_id_ignored(self):
         routes = [dict(cidr="0.0.0.0/0", gateway="0.0.0.0")]
@@ -779,16 +809,17 @@ class TestSubnetsNotification(test_quark_plugin.TestQuarkPlugin):
         db_mod = "quark.db.api"
         api_mod = "neutron.openstack.common.notifier.api"
         time_mod = "neutron.openstack.common.timeutils"
+        sub_plugin_mod = "quark.plugin_modules.subnets"
         with contextlib.nested(
             mock.patch("%s.subnet_find" % db_mod),
             mock.patch("%s.network_find" % db_mod),
             mock.patch("%s.subnet_create" % db_mod),
-            mock.patch("%s.ip_policy_create" % db_mod),
             mock.patch("%s.subnet_delete" % db_mod),
             mock.patch("%s.notify" % api_mod),
-            mock.patch("%s.utcnow" % time_mod)
-        ) as (sub_find, net_find, sub_create, pol_cre, sub_del, notify,
-              time_func):
+            mock.patch("%s.utcnow" % time_mod),
+            mock.patch("%s._validate_subnet_cidr" % sub_plugin_mod)
+        ) as (sub_find, net_find, sub_create, sub_del, notify,
+              time_func, sub_validate):
             sub_create.return_value = subnet
             sub_find.return_value = subnet
             time_func.return_value = deleted_at
