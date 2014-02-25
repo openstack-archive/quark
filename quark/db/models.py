@@ -290,7 +290,7 @@ class SecurityGroup(BASEV2, models.HasId):
 class Port(BASEV2, models.HasTenant, models.HasId):
     __tablename__ = "quark_ports"
     id = sa.Column(sa.String(36), primary_key=True)
-    name = sa.Column(sa.String(255))
+    name = sa.Column(sa.String(255), index=True)
     admin_state_up = sa.Column(sa.Boolean(), default=True)
     network_id = sa.Column(sa.String(36), sa.ForeignKey("quark_networks.id"),
                            nullable=False)
@@ -326,6 +326,7 @@ class Port(BASEV2, models.HasTenant, models.HasId):
 sa.Index("idx_ports_1", Port.__table__.c.device_id, Port.__table__.c.tenant_id)
 sa.Index("idx_ports_2", Port.__table__.c.device_owner,
          Port.__table__.c.network_id)
+sa.Index("idx_ports_3", Port.__table__.c.tenant_id)
 
 
 class MacAddress(BASEV2, models.HasTenant):
