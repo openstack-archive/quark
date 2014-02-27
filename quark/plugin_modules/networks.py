@@ -156,7 +156,6 @@ def get_network(context, id, fields=None):
             (id, context.tenant_id, fields))
 
     network = db_api.network_find(context, id=id, scope=db_api.ONE)
-
     if not network:
         raise exceptions.NetworkNotFound(net_id=id)
     return v._make_network_dict(network)
