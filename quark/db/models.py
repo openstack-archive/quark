@@ -119,14 +119,14 @@ class IPAddress(BASEV2, models.HasId):
     """
     __tablename__ = "quark_ip_addresses"
     address_readable = sa.Column(sa.String(128), nullable=False)
-    address = sa.Column(custom_types.INET(), nullable=False)
+    address = sa.Column(custom_types.INET(), nullable=False, index=True)
     subnet_id = sa.Column(sa.String(36),
                           sa.ForeignKey("quark_subnets.id",
                                         ondelete="CASCADE"))
     network_id = sa.Column(sa.String(36),
                            sa.ForeignKey("quark_networks.id",
                                          ondelete="CASCADE"))
-    version = sa.Column(sa.Integer())
+    version = sa.Column(sa.Integer(), index=True)
     allocated_at = sa.Column(sa.DateTime())
     subnet = orm.relationship("Subnet", lazy="joined")
     # Need a constant to facilitate the indexed search for new IPs
@@ -157,7 +157,7 @@ class IPAddress(BASEV2, models.HasId):
             return str(ip.ipv4())
         return str(ip.ipv6())
 
-    deallocated_at = sa.Column(sa.DateTime())
+    deallocated_at = sa.Column(sa.DateTime(), index=True)
 
 
 class Route(BASEV2, models.HasTenant, models.HasId, IsHazTags):

@@ -267,7 +267,7 @@ def mac_address_range_find_allocation_counts(context, address=None):
                                   sql_func.count(models.MacAddress.address).
                                   label("count")).with_lockmode("update")
     query = query.outerjoin(models.MacAddress)
-    query = query.group_by(models.MacAddressRange)
+    query = query.group_by(models.MacAddressRange.id)
     query = query.order_by("count DESC")
     if address:
         query = query.filter(models.MacAddressRange.last_address >= address)
