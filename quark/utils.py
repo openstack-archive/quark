@@ -13,7 +13,16 @@
 # License for the specific language governing permissions and limitations
 #  under the License.
 
+
+import cProfile as profiler
+import gc
+try:
+    import pstats
+except Exception:
+    # Don't want to force pstats into the venv if it's not always used
+    pass
 import sys
+import time
 
 import contextlib
 
@@ -25,6 +34,59 @@ LOG = logging.getLogger(__name__)
 
 def attr_specified(param):
     return param is not attributes.ATTR_NOT_SPECIFIED
+
+
+def timed(fn):
+    def _wrapped(*args, **kwargs):
+        began = time.time()
+        res = fn(*args, **kwargs)
+        elapsed = time.time() - began
+        LOG.info("Time for %s = %s" % (fn, elapsed))
+        return res
+    return _wrapped
+
+
+def profile(output):
+    def _inner(fn):
+        def _wrapped(*args, **kw):
+            result = _profile(output, fn, *args, **kw)
+            # uncomment this to see who's calling what
+            # stats.print_callers()
+            return result
+        return _wrapped
+    return _inner
+
+
+def live_profile(fn):
+    def _wrapped(*args, **kw):
+        elapsed, stat_loader, result = _live_profile(fn, *args, **kw)
+        stats = stat_loader()
+        stats.sort_stats('cumulative')
+        stats.print_stats()
+        # uncomment this to see who's calling what
+        # stats.print_callers()
+        return result
+    return _wrapped
+
+
+def _profile(filename, fn, *args, **kw):
+    gc.collect()
+
+    profiler.runctx('result = fn(*args, **kw)', globals(), locals(),
+                    filename=filename)
+
+    return locals()['result']
+
+
+def _live_profile(fn, *args, **kw):
+    load_stats = lambda: pstats.Stats()
+    gc.collect()
+
+    began = time.time()
+    profiler.runctx('result = fn(*args, **kw)', globals(), locals())
+    ended = time.time()
+
+    return ended - began, load_stats, locals()['result']
 
 
 def pop_param(attrs, param, default=None):

@@ -231,7 +231,8 @@ def get_subnet(context, id, fields=None):
     """
     LOG.info("get_subnet %s for tenant %s with fields %s" %
             (id, context.tenant_id, fields))
-    subnet = db_api.subnet_find(context, id=id, scope=db_api.ONE)
+    subnet = db_api.subnet_find(context, id=id, join_dns=True,
+                                join_routes=True, scope=db_api.ONE)
     if not subnet:
         raise exceptions.SubnetNotFound(subnet_id=id)
 
@@ -264,7 +265,8 @@ def get_subnets(context, filters=None, fields=None):
     """
     LOG.info("get_subnets for tenant %s with filters %s fields %s" %
             (context.tenant_id, filters, fields))
-    subnets = db_api.subnet_find(context, **filters)
+    subnets = db_api.subnet_find(context, join_dns=True, join_routes=True,
+                                 **filters)
     return v._make_subnets_list(subnets, fields=fields,
                                 default_route=routes.DEFAULT_ROUTE)
 

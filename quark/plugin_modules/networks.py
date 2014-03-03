@@ -155,7 +155,8 @@ def get_network(context, id, fields=None):
     LOG.info("get_network %s for tenant %s fields %s" %
             (id, context.tenant_id, fields))
 
-    network = db_api.network_find(context, id=id, scope=db_api.ONE)
+    network = db_api.network_find(context, id=id, join_subnets=True,
+                                  scope=db_api.ONE)
     if not network:
         raise exceptions.NetworkNotFound(net_id=id)
     return v._make_network_dict(network)
@@ -182,7 +183,7 @@ def get_networks(context, filters=None, fields=None):
     """
     LOG.info("get_networks for tenant %s with filters %s, fields %s" %
             (context.tenant_id, filters, fields))
-    nets = db_api.network_find(context, **filters) or []
+    nets = db_api.network_find(context, join_subnets=True, **filters) or []
     nets = [v._make_network_dict(net) for net in nets]
     return nets
 

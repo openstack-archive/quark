@@ -173,6 +173,9 @@ def port_find(context, **filters):
     if filters.get("device_id"):
         model_filters.append(models.Port.device_id.in_(filters["device_id"]))
 
+    if "join_security_groups" in filters:
+        query = query.options(orm.joinedload(models.Port.security_groups))
+
     return query.filter(*model_filters).order_by(asc(models.Port.created_at))
 
 
@@ -235,7 +238,7 @@ def ip_address_find(context, lock_mode=False, **filters):
         if lock_mode:
             stmt = stmt.with_lockmode("update")
         stmt = stmt.outerjoin(models.port_ip_association_table)
-        stmt = stmt.group_by(models.IPAddress).subquery()
+        stmt = stmt.group_by(models.IPAddress.id).subquery()
 
         query = query.outerjoin(stmt, stmt.c.id == models.IPAddress.id)
 
@@ -345,6 +348,9 @@ def _network_find(context, fields, defaults=None, **filters):
     else:
         query = query.filter(*model_filters)
 
+    if "join_subnets" in filters:
+        query = query.options(orm.joinedload(models.Network.subnets))
+
     return query
 
 
@@ -381,7 +387,7 @@ def subnet_find_allocation_counts(context, net_id, **filters):
                                   label("count")).with_lockmode('update')
     query = query.filter_by(do_not_use=False)
     query = query.outerjoin(models.Subnet.generated_ips)
-    query = query.group_by(models.Subnet)
+    query = query.group_by(models.Subnet.id)
     query = query.order_by("count DESC")
 
     query = query.filter(models.Subnet.network_id == net_id)
@@ -399,9 +405,15 @@ def subnet_find_allocation_counts(context, net_id, **filters):
 def subnet_find(context, **filters):
     if "shared" in filters and True in filters["shared"]:
         return []
-    query = context.session.query(models.Subnet).\
-        options(orm.joinedload(models.Subnet.routes))
+    query = context.session.query(models.Subnet)
     model_filters = _model_query(context, models.Subnet, filters)
+
+    if "join_dns" in filters:
+        query = query.options(orm.joinedload(models.Subnet.dns_nameservers))
+
+    if "join_routes" in filters:
+        query = query.options(orm.joinedload(models.Subnet.routes))
+
     return query.filter(*model_filters)
 
 

@@ -117,6 +117,37 @@ class TestQuarkGetSubnets(test_quark_plugin.TestQuarkPlugin):
                 self.assertEqual(routes[0][key], expected_route[key])
 
 
+class TestQuarkGetSubnetsHideAllocPools(test_quark_plugin.TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, subnets=None):
+        if isinstance(subnets, list):
+            subnet_models = []
+            for subnet in subnets:
+                s_dict = subnet.copy()
+                s = models.Subnet(network=models.Network())
+                s.update(s_dict)
+                subnet_models.append(s)
+
+        cfg.CONF.set_override('show_allocation_pools', False, "QUARK")
+        with mock.patch("quark.db.api.subnet_find") as subnet_find:
+            subnet_find.return_value = subnet_models
+            yield
+        cfg.CONF.set_override('show_allocation_pools', True, "QUARK")
+
+    def test_subnets_list(self):
+        subnet_id = str(uuid.uuid4())
+
+        subnet = dict(id=subnet_id, network_id=1, name=subnet_id,
+                      tenant_id=self.context.tenant_id, ip_version=4,
+                      cidr="192.168.0.0/24", gateway_ip="192.168.0.1",
+                      dns_nameservers=[],
+                      enable_dhcp=None)
+
+        with self._stubs(subnets=[subnet]):
+            res = self.plugin.get_subnets(self.context, {}, {})
+            self.assertEqual(res[0]["allocation_pools"], [])
+
+
 class TestQuarkCreateSubnetOverlapping(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, subnets=None):
