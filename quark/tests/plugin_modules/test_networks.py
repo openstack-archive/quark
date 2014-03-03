@@ -121,6 +121,7 @@ class TestQuarkGetNetworksShared(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(nets=[net]) as net_find:
             self.plugin.get_networks(self.context, {"shared": [True]})
             net_find.assert_called_with(self.context, None,
+                                        join_subnets=True,
                                         defaults=["public_network"])
 
     def test_get_networks_shared_false(self):
@@ -128,14 +129,16 @@ class TestQuarkGetNetworksShared(test_quark_plugin.TestQuarkPlugin):
                    status="ACTIVE")
         with self._stubs(nets=[net]) as net_find:
             self.plugin.get_networks(self.context, {"shared": [False]})
-            net_find.assert_called_with(self.context, None, defaults=[])
+            net_find.assert_called_with(self.context, None, join_subnets=True,
+                                        defaults=[])
 
     def test_get_networks_no_shared(self):
         net = dict(id=1, tenant_id=self.context.tenant_id, name="mynet",
                    status="ACTIVE")
         with self._stubs(nets=[net]) as net_find:
             self.plugin.get_networks(self.context, {})
-            net_find.assert_called_with(self.context, None, defaults=[])
+            net_find.assert_called_with(self.context, None, join_subnets=True,
+                                        defaults=[])
 
 
 class TestQuarkGetNetworkCount(test_quark_plugin.TestQuarkPlugin):

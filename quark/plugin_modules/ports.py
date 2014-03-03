@@ -383,7 +383,8 @@ def get_ports(context, filters=None, fields=None):
             (context.tenant_id, filters, fields))
     if filters is None:
         filters = {}
-    query = db_api.port_find(context, fields=fields, **filters)
+    query = db_api.port_find(context, fields=fields, join_security_groups=True,
+                             **filters)
     return v._make_ports_list(query, fields)
 
 
@@ -406,7 +407,7 @@ def get_ports_count(context, filters=None):
     """
     LOG.info("get_ports_count for tenant %s filters %s" %
             (context.tenant_id, filters))
-    return db_api.port_count_all(context, **filters)
+    return db_api.port_count_all(context, join_security_groups=True, **filters)
 
 
 def delete_port(context, id):

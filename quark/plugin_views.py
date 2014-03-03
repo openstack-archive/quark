@@ -21,14 +21,25 @@ import netaddr
 
 from neutron.extensions import securitygroup as sg_ext
 from neutron.openstack.common import log as logging
+from oslo.config import cfg
 
 from quark.db import api as db_api
 from quark.db import models
 from quark import network_strategy
 from quark import utils
 
+CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 STRATEGY = network_strategy.STRATEGY
+
+quark_view_opts = [
+    cfg.BoolOpt('show_allocation_pools',
+                default=True,
+                help=_('Controls whether or not to calculate and display'
+                       'allocation pools or not'))
+]
+
+CONF.register_opts(quark_view_opts, "QUARK")
 
 
 def _make_network_dict(network, fields=None):
@@ -85,11 +96,15 @@ def _make_subnet_dict(subnet, default_route=None, fields=None):
            "tenant_id": subnet.get("tenant_id"),
            "network_id": net_id,
            "ip_version": subnet.get("ip_version"),
-           "allocation_pools": _allocation_pools(subnet),
            "dns_nameservers": dns_nameservers or [],
            "cidr": subnet.get("cidr"),
            "shared": STRATEGY.is_parent_network(net_id),
            "enable_dhcp": None}
+
+    if CONF.QUARK.show_allocation_pools:
+        res["allocation_pools"] = _allocation_pools(subnet)
+    else:
+        res["allocation_pools"] = []
 
     def _host_route(route):
         return {"destination": route["cidr"],
