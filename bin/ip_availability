@@ -1,0 +1,123 @@
+# Copyright 2014 Openstack Foundation
+# All Rights Reserved.
+#
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
+
+from oslo.config import cfg
+
+from neutron.common import config
+from neutron.db import api as neutron_db_api
+
+from quark.db import models
+
+from sqlalchemy import and_, not_, or_, func
+from sqlalchemy.sql.expression import text
+
+from collections import defaultdict
+import json
+import netaddr
+import sys
+
+
+def main():
+    config.parse(sys.argv[1:])
+    if not cfg.CONF.config_file:
+        sys.exit(_("ERROR: Unable to find configuration file via the default"
+                   " search paths (~/.neutron/, ~/, /etc/neutron/, /etc/) and"
+                   " the '--config-file' option!"))
+
+    neutron_db_api.configure_db()
+    neutron_db_api.register_models(base=models.BASEV2)
+    used_ips = get_used_ips(neutron_db_api.get_session())
+    unused_ips = get_unused_ips(neutron_db_api.get_session(), used_ips)
+    print(json.dumps(dict(used=used_ips, unused=unused_ips)))
+
+
+def _rackspace_filter(query):
+    # NOTE(asadoughi): should be moved to config?
+    query = query.filter(and_(not_(models.Subnet._cidr.like("%:%")),
+                              not_(models.Subnet._cidr.like("10.%"))))
+    query = query.filter(or_(models.Subnet.tenant_id.like("%-%"),
+                             models.Subnet.tenant_id == "rackspace"))
+    return query
+
+
+def get_used_ips(session):
+    """Returns dictionary with keys tenant_id and value used IPs count.
+
+    Used IP address count is determined by the sum of:
+    - allocated IPs
+    - deallocated IPs whose `deallocated_at` is within the `reuse_after`
+    window compared to the present time.
+    """
+    with session.begin():
+        query = session.query(
+            models.Subnet.tenant_id,
+            func.count(models.IPAddress.id).label("count"))
+        query = query.filter(models.Subnet.id == models.IPAddress.subnet_id)
+        query = query.filter(or_(models.Subnet.do_not_use == None,
+                                 models.Subnet.do_not_use == 0))
+        window = text('interval %s second' % cfg.CONF.QUARK.ipam_reuse_after)
+        query = query.filter(or_(
+            models.IPAddress._deallocated == None,
+            models.IPAddress._deallocated == 0,
+            func.date_add(
+                models.IPAddress.deallocated_at, window) > func.now()))
+        query = _rackspace_filter(query)
+        query = query.group_by(models.Subnet.tenant_id)
+        return dict(query.all())
+
+
+def get_unused_ips(session, used_ips_counts):
+    """Returns dictionary with key tenant_id, and value unused IPs count.
+
+    Unused IP address count is determined by:
+    - adding subnet's cidr's size
+    - subtracting IP policy exclusions on subnet
+    - adding deallocated, reusable IPs, available after their reuse_after
+      window
+    - subtracting used ips per tenant
+    """
+    with session.begin():
+        query = session.query(
+            models.Subnet.tenant_id,
+            models.Subnet,
+            func.count(models.IPAddress.id).label("count"))
+        query = query.outerjoin(models.IPAddress)
+        query = query.filter(models.Subnet.id == models.IPAddress.subnet_id)
+        query = query.filter(or_(models.Subnet.do_not_use == None,
+                                 models.Subnet.do_not_use == 0))
+        window = text('interval %s second' % cfg.CONF.QUARK.ipam_reuse_after)
+        query = query.filter(models.IPAddress._deallocated == 1)
+        query = query.filter(or_(
+            models.IPAddress.deallocated_at == None,
+            func.date_add(
+                models.IPAddress.deallocated_at, window) <= func.now()))
+        query = _rackspace_filter(query)
+        query = query.group_by(models.Subnet.tenant_id, models.Subnet.id)
+
+        ret = defaultdict(int)
+        for tenant_id, subnet, reusable_ips_count in query.all():
+            ret[tenant_id] += reusable_ips_count
+            net_size = netaddr.IPNetwork(subnet._cidr).size
+            policy_size = models.IPPolicy.get_ip_policy_cidrs(subnet).size
+            ret[tenant_id] += net_size - policy_size
+
+        for tenant_id in used_ips_counts:
+            ret[tenant_id] -= used_ips_counts[tenant_id]
+
+        return ret
+
+
+if __name__ == "__main__":
+    main()
