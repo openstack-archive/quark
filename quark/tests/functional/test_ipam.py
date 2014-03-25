@@ -62,7 +62,8 @@ class QuarkIPAddressAllocate(QuarkIpamBaseFunctionalTest):
         subnet = dict(id=1, cidr="0.0.0.0/24", next_auto_assign_ip=2,
                       ip_policy=None, tenant_id="fake")
         with self._stubs(network, subnet) as net:
-            ipaddress = self.ipam.allocate_ip_address(self.context, net["id"],
-                                                      0, 0)
+            ipaddress = []
+            self.ipam.allocate_ip_address(self.context, ipaddress,
+                                          net["id"], 0, 0)
             self.assertIsNotNone(ipaddress[0]['id'])
             self.assertEqual(ipaddress[0]['address'], 2)

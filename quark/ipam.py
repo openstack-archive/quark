@@ -30,6 +30,7 @@ from oslo.config import cfg
 
 from quark.db import api as db_api
 from quark.db import models
+from quark import exceptions as q_exc
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
@@ -40,7 +41,15 @@ quark_opts = [
                help=_('Number of times to retry generating v6 addresses'
                       ' before failure. Also implicitly controls how many'
                       ' v6 addresses we assign to any port, as the random'
-                      ' values generated will be the same every time.'))
+                      ' values generated will be the same every time.')),
+    cfg.IntOpt("mac_address_retry_max",
+               default=20,
+               help=_("Number of times to attempt to allocate a new MAC"
+                      " address before giving up.")),
+    cfg.IntOpt("ip_address_retry_max",
+               default=20,
+               help=_("Number of times to attempt to allocate a new IP"
+                      " address before giving up."))
 ]
 
 CONF.register_opts(quark_opts, "QUARK")
@@ -82,38 +91,68 @@ class QuarkIpam(object):
         if mac_address:
             mac_address = netaddr.EUI(mac_address).value
 
-        deallocated_mac = db_api.mac_address_find(
-            context, lock_mode=True, reuse_after=reuse_after,
-            scope=db_api.ONE, address=mac_address)
-        if deallocated_mac:
-            return db_api.mac_address_update(
-                context, deallocated_mac, deallocated=False,
-                deallocated_at=None)
+        with context.session.begin():
+            deallocated_mac = db_api.mac_address_find(
+                context, lock_mode=True, reuse_after=reuse_after,
+                scope=db_api.ONE, address=mac_address)
+            if deallocated_mac:
+                return db_api.mac_address_update(
+                    context, deallocated_mac, deallocated=False,
+                    deallocated_at=None)
 
-        ranges = db_api.mac_address_range_find_allocation_counts(
-            context, address=mac_address)
-        for result in ranges:
-            rng, addr_count = result
-            last = rng["last_address"]
-            first = rng["first_address"]
-            if last - first <= addr_count:
-                continue
+        # This could fail if a large chunk of MACs were chosen explicitly,
+        # but under concurrent load enough MAC creates should iterate without
+        # any given thread exhausting its retry count.
+        for retry in xrange(cfg.CONF.QUARK.mac_address_retry_max):
+
             next_address = None
-            if mac_address:
-                next_address = mac_address
-            else:
-                address = True
-                while address:
-                    next_address = rng["next_auto_assign_mac"]
-                    rng["next_auto_assign_mac"] = next_address + 1
-                    address = db_api.mac_address_find(
-                        context, tenant_id=context.tenant_id,
-                        scope=db_api.ONE, address=next_address)
+            with context.session.begin():
+                mac_range = db_api.mac_address_range_find_allocation_counts(
+                    context, address=mac_address)
 
-            address = db_api.mac_address_create(
-                context, address=next_address,
-                mac_address_range_id=rng["id"])
-            return address
+                if not mac_range:
+                    break
+
+                try:
+                    rng, addr_count = mac_range
+
+                    last = rng["last_address"]
+                    first = rng["first_address"]
+                    if (last - first + 1) <= addr_count:
+                        # Somehow, the range got filled up without us
+                        # knowing, so set the next_auto_assign to be -1
+                        # so we never try to create new ones
+                        # in this range
+                        rng["next_auto_assign_mac"] = -1
+                        context.session.add(rng)
+                        continue
+
+                    if mac_address:
+                        next_address = mac_address
+                    else:
+                        next_address = rng["next_auto_assign_mac"]
+                        next_auto = next_address + 1
+                        if next_auto > last:
+                            next_auto = -1
+                        db_api.mac_address_range_update(
+                            context, rng, next_auto_assign_mac=next_auto)
+
+                except Exception:
+                    LOG.exception("Error in updating mac range")
+                    continue
+
+            # Based on the above, this should only fail if a MAC was
+            # was explicitly chosen at some point. As such, fall through
+            # here and get in line for a new MAC address to try
+            try:
+                with context.session.begin():
+                    address = db_api.mac_address_create(
+                        context, address=next_address,
+                        mac_address_range_id=rng["id"])
+                    return address
+            except Exception:
+                LOG.exception("Error in creating mac. MAC possibly duplicate")
+                continue
 
         raise exceptions.MacAddressGenerationFailure(net_id=net_id)
 
@@ -156,77 +195,63 @@ class QuarkIpam(object):
         if sub_ids:
             ip_kwargs["subnet_id"] = sub_ids
 
-        address = db_api.ip_address_find(elevated, **ip_kwargs)
+        with context.session.begin():
+            address = db_api.ip_address_find(elevated, **ip_kwargs)
 
-        if address:
-            #NOTE(mdietz): We should always be in the CIDR but we've
-            #              also said that before :-/
-            if address.get("subnet"):
-                cidr = netaddr.IPNetwork(address["subnet"]["cidr"])
-                addr = netaddr.IPAddress(int(address["address"]),
-                                         version=int(cidr.version))
-                if addr in cidr:
-                    updated_address = db_api.ip_address_update(
-                        elevated, address, deallocated=False,
-                        deallocated_at=None,
-                        allocated_at=timeutils.utcnow())
-                    return [updated_address]
-                else:
-                    # Make sure we never find it again
-                    context.session.delete(address)
+            if address:
+                #NOTE(mdietz): We should always be in the CIDR but we've
+                #              also said that before :-/
+                if address.get("subnet"):
+                    cidr = netaddr.IPNetwork(address["subnet"]["cidr"])
+                    addr = netaddr.IPAddress(int(address["address"]),
+                                             version=int(cidr.version))
+                    if addr in cidr:
+                        updated_address = db_api.ip_address_update(
+                            elevated, address, deallocated=False,
+                            deallocated_at=None,
+                            allocated_at=timeutils.utcnow())
+                        return [updated_address]
+                    else:
+                        # Make sure we never find it again
+                        context.session.delete(address)
         return []
 
-    def is_strategy_satisfied(self, ip_addresses):
+    def is_strategy_satisfied(self, ip_addresses, allocate_complete=False):
         return ip_addresses
-
-    def _iterate_until_available_ip(self, context, subnet, network_id,
-                                    ip_policy_cidrs):
-        address = True
-        while address:
-            next_ip_int = int(subnet["next_auto_assign_ip"])
-            next_ip = netaddr.IPAddress(next_ip_int)
-            if subnet["ip_version"] == 4:
-                next_ip = next_ip.ipv4()
-            subnet["next_auto_assign_ip"] = next_ip_int + 1
-
-            #NOTE(mdietz): treating the IPSet as a boolean caused netaddr to
-            #              attempt to enumerate the entire set!
-            if (ip_policy_cidrs is not None and
-                    next_ip in ip_policy_cidrs):
-                continue
-            address = db_api.ip_address_find(
-                context, network_id=network_id, ip_address=next_ip,
-                used_by_tenant_id=context.tenant_id, scope=db_api.ONE)
-
-        ipnet = netaddr.IPNetwork(subnet["cidr"])
-        next_addr = netaddr.IPAddress(
-            subnet["next_auto_assign_ip"])
-        if ipnet.is_ipv4_mapped() or ipnet.version == 4:
-            next_addr = next_addr.ipv4()
-        return next_ip
 
     def _allocate_from_subnet(self, context, net_id, subnet,
                               port_id, ip_address=None, **kwargs):
         ip_policy_cidrs = models.IPPolicy.get_ip_policy_cidrs(subnet)
-        # Creating this IP for the first time
-        next_ip = None
-        if ip_address:
-            next_ip = ip_address
-            address = db_api.ip_address_find(
-                context, network_id=net_id, ip_address=next_ip,
-                used_by_tenant_id=context.tenant_id, scope=db_api.ONE)
-            if address:
-                raise exceptions.IpAddressGenerationFailure(
-                    net_id=net_id)
-        else:
-            next_ip = self._iterate_until_available_ip(
-                context, subnet, net_id, ip_policy_cidrs)
+        next_ip = ip_address
+        if not next_ip:
+            if subnet["next_auto_assign_ip"] != -1:
+                next_ip = netaddr.IPAddress(subnet["next_auto_assign_ip"] - 1)
+            else:
+                next_ip = netaddr.IPAddress(subnet["last_ip"])
 
-        context.session.add(subnet)
-        address = db_api.ip_address_create(
-            context, address=next_ip, subnet_id=subnet["id"],
-            version=subnet["ip_version"], network_id=net_id)
-        address["deallocated"] = 0
+            if subnet["ip_version"] == 4:
+                next_ip = next_ip.ipv4()
+
+        if (ip_policy_cidrs is not None and next_ip in ip_policy_cidrs):
+            if not ip_address:
+                raise q_exc.IPAddressRetryableFailure(ip_addr=next_ip,
+                                                      net_id=net_id)
+        try:
+            with context.session.begin():
+                address = db_api.ip_address_create(
+                    context, address=next_ip, subnet_id=subnet["id"],
+                    deallocated=0, version=subnet["ip_version"],
+                    network_id=net_id)
+                address["deallocated"] = 0
+        except Exception:
+            # NOTE(mdietz): Our version of sqlalchemy incorrectly raises None
+            #               here when there's an IP conflict
+            if ip_address:
+                raise exceptions.IpAddressInUse(ip_address=next_ip,
+                                                net_id=net_id)
+            raise q_exc.IPAddressRetryableFailure(ip_addr=next_ip,
+                                                  net_id=net_id)
+
         return address
 
     def _allocate_from_v6_subnet(self, context, net_id, subnet,
@@ -263,25 +288,28 @@ class QuarkIpam(object):
                         ip_address in ip_policy_cidrs):
                     continue
 
-                address = db_api.ip_address_find(
-                    context, network_id=net_id, ip_address=ip_address,
-                    used_by_tenant_id=context.tenant_id, scope=db_api.ONE,
-                    lock_mode=True)
+                with context.session.begin():
+                    address = db_api.ip_address_find(
+                        context, network_id=net_id, ip_address=ip_address,
+                        used_by_tenant_id=context.tenant_id, scope=db_api.ONE,
+                        lock_mode=True)
 
-                break
+                    if address:
+                        return db_api.ip_address_update(
+                            context, address, deallocated=False,
+                            deallocated_at=None,
+                            allocated_at=timeutils.utcnow())
 
-            if address:
-                return db_api.ip_address_update(
-                    context, address, deallocated=False, deallocated_at=None,
-                    allocated_at=timeutils.utcnow())
-            else:
-                return db_api.ip_address_create(
-                    context, address=ip_address, subnet_id=subnet["id"],
-                    version=subnet["ip_version"], network_id=net_id)
+                with context.session.begin():
+                    return db_api.ip_address_create(
+                        context, address=ip_address,
+                        subnet_id=subnet["id"],
+                        version=subnet["ip_version"], network_id=net_id)
 
-    def _allocate_ips_from_subnets(self, context, net_id, subnets,
-                                   port_id, ip_address=None, **kwargs):
-        new_addresses = []
+    def _allocate_ips_from_subnets(self, context, new_addresses, net_id,
+                                   subnets, port_id, ip_address=None,
+                                   **kwargs):
+        subnets = subnets or []
         for subnet in subnets:
             address = None
             if int(subnet["ip_version"]) == 4:
@@ -310,40 +338,45 @@ class QuarkIpam(object):
                                 notifier_api.CONF.default_notification_level,
                                 payload)
 
-    def allocate_ip_address(self, context, net_id, port_id, reuse_after,
-                            segment_id=None, version=None, ip_address=None,
-                            subnets=None, **kwargs):
+    def allocate_ip_address(self, context, new_addresses, net_id, port_id,
+                            reuse_after, segment_id=None, version=None,
+                            ip_address=None, subnets=None, **kwargs):
         elevated = context.elevated()
         if ip_address:
             ip_address = netaddr.IPAddress(ip_address)
 
-        new_addresses = []
+        new_addresses.extend(self.attempt_to_reallocate_ip(
+            context, net_id, port_id, reuse_after, version=None,
+            ip_address=ip_address, segment_id=segment_id, subnets=subnets,
+            **kwargs))
 
-        realloc_ips = self.attempt_to_reallocate_ip(context, net_id,
-                                                    port_id, reuse_after,
-                                                    version=None,
-                                                    ip_address=ip_address,
-                                                    segment_id=segment_id,
-                                                    subnets=subnets,
-                                                    **kwargs)
-        if self.is_strategy_satisfied(realloc_ips):
-            return realloc_ips
+        if self.is_strategy_satisfied(new_addresses):
+            return
 
-        new_addresses.extend(realloc_ips)
-        if not subnets:
-            subnets = self._choose_available_subnet(
-                elevated, net_id, version, segment_id=segment_id,
-                ip_address=ip_address, reallocated_ips=realloc_ips)
-        else:
-            subnets = [self.select_subnet(context, net_id, ip_address,
-                                          segment_id, subnet_ids=subnets)]
+        for retry in xrange(cfg.CONF.QUARK.ip_address_retry_max):
+            if not subnets:
+                subs = self._choose_available_subnet(
+                    elevated, net_id, version, segment_id=segment_id,
+                    ip_address=ip_address, reallocated_ips=new_addresses)
+            else:
+                subs = [self.select_subnet(context, net_id, ip_address,
+                                           segment_id, subnet_ids=subnets)]
 
-        ips = self._allocate_ips_from_subnets(context, net_id, subnets,
-                                              port_id, ip_address, **kwargs)
-        new_addresses.extend(ips)
+            try:
+                self._allocate_ips_from_subnets(context, new_addresses, net_id,
+                                                subs, port_id,
+                                                ip_address, **kwargs)
+            except q_exc.IPAddressRetryableFailure:
+                LOG.exception("Error in allocating IP")
+                continue
 
-        self._notify_new_addresses(context, new_addresses)
-        return new_addresses
+            break
+
+        if self.is_strategy_satisfied(new_addresses, allocate_complete=True):
+            self._notify_new_addresses(context, new_addresses)
+            return
+
+        raise exceptions.IpAddressGenerationFailure(net_id=net_id)
 
     def deallocate_ip_address(self, context, address):
         address["deallocated"] = 1
@@ -387,21 +420,36 @@ class QuarkIpam(object):
 
     def select_subnet(self, context, net_id, ip_address, segment_id,
                       subnet_ids=None, **filters):
-        subnets = db_api.subnet_find_allocation_counts(context, net_id,
-                                                       segment_id=segment_id,
-                                                       scope=db_api.ALL,
-                                                       subnet_id=subnet_ids,
-                                                       **filters)
-        for subnet, ips_in_subnet in subnets:
-            ipnet = netaddr.IPNetwork(subnet["cidr"])
-            if ip_address and ip_address not in ipnet:
-                continue
-            ip_policy_cidrs = None
-            if not ip_address:
-                ip_policy_cidrs = models.IPPolicy.get_ip_policy_cidrs(subnet)
-            policy_size = ip_policy_cidrs.size if ip_policy_cidrs else 0
-            if ipnet.size > (ips_in_subnet + policy_size):
-                return subnet
+        with context.session.begin():
+            subnets = db_api.subnet_find_allocation_counts(
+                context, net_id, segment_id=segment_id, scope=db_api.ALL,
+                subnet_id=subnet_ids, **filters)
+
+            for subnet, ips_in_subnet in subnets:
+                ipnet = netaddr.IPNetwork(subnet["cidr"])
+                if ip_address and ip_address not in ipnet:
+                    if subnet_ids is not None:
+                        raise q_exc.IPAddressNotInSubnet(
+                            ip_addr=ip_address, subnet_id=subnet["id"])
+                    continue
+
+                ip_policy_cidrs = None
+                if not ip_address:
+                    # Policies don't prevent explicit assignment, so we only
+                    # need to check if we're allocating a new IP
+                    ip_policy_cidrs = models.IPPolicy.get_ip_policy_cidrs(
+                        subnet)
+
+                policy_size = ip_policy_cidrs.size if ip_policy_cidrs else 0
+
+                if ipnet.size > (ips_in_subnet + policy_size):
+                    if not ip_address:
+                        next_ip = subnet["next_auto_assign_ip"] + 1
+                        if next_ip >= subnet["last_ip"]:
+                            next_ip = -1
+                        db_api.subnet_update(context, subnet,
+                                             next_auto_assign_ip=next_ip)
+                    return subnet
 
 
 class QuarkIpamANY(QuarkIpam):
@@ -427,13 +475,17 @@ class QuarkIpamBOTH(QuarkIpam):
     def get_name(self):
         return "BOTH"
 
-    def is_strategy_satisfied(self, reallocated_ips):
+    def is_strategy_satisfied(self, reallocated_ips, allocate_complete=False):
         req = [4, 6]
         for ip in reallocated_ips:
             if ip is not None:
                 req.remove(ip["version"])
-        if len(req) == 0:
+        ips_allocated = len(req)
+        if ips_allocated == 0:
             return True
+        elif ips_allocated == 1 and allocate_complete:
+            return True
+
         return False
 
     def attempt_to_reallocate_ip(self, context, net_id, port_id,
@@ -474,6 +526,17 @@ class QuarkIpamBOTHREQ(QuarkIpamBOTH):
     @classmethod
     def get_name(self):
         return "BOTH_REQUIRED"
+
+    def is_strategy_satisfied(self, reallocated_ips, allocate_complete=False):
+        req = [4, 6]
+        for ip in reallocated_ips:
+            if ip is not None:
+                req.remove(ip["version"])
+        ips_allocated = len(req)
+        if ips_allocated == 0:
+            return True
+
+        return False
 
     def _choose_available_subnet(self, context, net_id, version=None,
                                  segment_id=None, ip_address=None,

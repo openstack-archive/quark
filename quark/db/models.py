@@ -118,6 +118,9 @@ class IPAddress(BASEV2, models.HasId):
     Gives us an IP address owner audit log for free, essentially.
     """
     __tablename__ = "quark_ip_addresses"
+    __table_args__ = (sa.UniqueConstraint("subnet_id", "address"),
+                      TABLE_KWARGS)
+
     address_readable = sa.Column(sa.String(128), nullable=False)
     address = sa.Column(custom_types.INET(), nullable=False, index=True)
     subnet_id = sa.Column(sa.String(36),
@@ -240,6 +243,7 @@ class Subnet(BASEV2, models.HasId, IsHazTags):
     # Legacy data
     do_not_use = sa.Column(sa.Boolean(), default=False)
 
+
 port_ip_association_table = sa.Table(
     "quark_port_ip_address_associations",
     BASEV2.metadata,
@@ -331,6 +335,8 @@ sa.Index("idx_ports_3", Port.__table__.c.tenant_id)
 
 class MacAddress(BASEV2, models.HasTenant):
     __tablename__ = "quark_mac_addresses"
+    __table_args__ = (sa.UniqueConstraint("mac_address_range_id", "address"),
+                      TABLE_KWARGS)
     address = sa.Column(sa.BigInteger(), primary_key=True)
     mac_address_range_id = sa.Column(
         sa.String(36),

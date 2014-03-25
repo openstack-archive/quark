@@ -112,7 +112,6 @@ class CommandManager(object):
     def __init__(self):
         self.do_commands = []
         self.undo_commands = []
-        self.results = []
 
     @contextlib.contextmanager
     def execute(self, exc=None):
