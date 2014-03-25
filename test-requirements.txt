@@ -4,6 +4,7 @@ mock
 coverage
 discover
 pep8==1.4.5
+pyflakes>=0.7.2,<0.7.4
 flake8==2.0
 python-subunit
 nose
