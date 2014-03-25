@@ -230,13 +230,14 @@ def ip_address_create(context, **address_dict):
 def ip_address_find(context, lock_mode=False, **filters):
     query = context.session.query(models.IPAddress)
 
+    if lock_mode:
+        query = query.with_lockmode("update")
+
     ip_shared = filters.pop("shared", None)
     if ip_shared is not None:
         cnt = sql_func.count(models.port_ip_association_table.c.port_id)
         stmt = context.session.query(models.IPAddress,
                                      cnt.label("ports_count"))
-        if lock_mode:
-            stmt = stmt.with_lockmode("update")
         stmt = stmt.outerjoin(models.port_ip_association_table)
         stmt = stmt.group_by(models.IPAddress.id).subquery()
 
@@ -275,7 +276,9 @@ def mac_address_range_find_allocation_counts(context, address=None):
     if address:
         query = query.filter(models.MacAddressRange.last_address >= address)
         query = query.filter(models.MacAddressRange.first_address <= address)
-    return query
+    query = query.filter(models.MacAddressRange.next_auto_assign_mac != -1)
+    query = query.limit(1)
+    return query.first()
 
 
 @scoped
@@ -294,6 +297,12 @@ def mac_address_range_create(context, **range_dict):
 
 def mac_address_range_delete(context, mac_address_range):
     context.session.delete(mac_address_range)
+
+
+def mac_address_range_update(context, mac_range, **kwargs):
+    mac_range.update(kwargs)
+    context.session.add(mac_range)
+    return mac_range
 
 
 def mac_address_update(context, mac, **kwargs):
@@ -397,7 +406,7 @@ def subnet_find_allocation_counts(context, net_id, **filters):
         query = query.filter(models.Subnet.segment_id == filters["segment_id"])
     if "subnet_id" in filters and filters["subnet_id"]:
         query = query.filter(models.Subnet.id.in_(filters["subnet_id"]))
-
+    query = query.filter(models.Subnet.next_auto_assign_ip != -1)
     return query
 
 

@@ -65,6 +65,19 @@ class BadNVPState(exceptions.NeutronException):
     message = _("No networking information found for network %(net_id)s")
 
 
+class IPAddressRetryableFailure(exceptions.NeutronException):
+    message = _("Allocation of %(ip_addr)s for net %(net_id)s failed, "
+                "retrying...")
+
+
+class IPAddressNotInSubnet(exceptions.InvalidInput):
+    message = _("Requested IP %(ip_addr)s not in subnet %(subnet_id)s")
+
+
+class IPAddressProhibitedByPolicy(exceptions.InvalidInput):
+    message = _("IP %(ip_addr)s is prohibited by policies on the subnet")
+
+
 class IPPolicyNotFound(exceptions.NeutronException):
     message = _("IP Policy %(id)s not found.")
 
