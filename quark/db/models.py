@@ -391,9 +391,7 @@ class IPPolicy(BASEV2, models.HasId, models.HasTenant):
 
         ip_policy_cidrs = ip_policy_cidrs + default_policy_cidrs
 
-        ip_set = netaddr.IPSet()
-        for cidr in ip_policy_cidrs:
-            ip_set.add(cidr)
+        ip_set = netaddr.IPSet(ip_policy_cidrs)
 
         return ip_set & netaddr.IPSet([subnet_cidr])
 
