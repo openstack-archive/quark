@@ -203,8 +203,12 @@ class QuarkIpam(object):
                 #              also said that before :-/
                 if address.get("subnet"):
                     cidr = netaddr.IPNetwork(address["subnet"]["cidr"])
-                    addr = netaddr.IPAddress(int(address["address"]),
-                                             version=int(cidr.version))
+                    addr = netaddr.IPAddress(int(address["address"]))
+                    if address["subnet"]["ip_version"] == 4:
+                        addr = addr.ipv4()
+                    else:
+                        addr = addr.ipv6()
+
                     if addr in cidr:
                         updated_address = db_api.ip_address_update(
                             elevated, address, deallocated=False,
