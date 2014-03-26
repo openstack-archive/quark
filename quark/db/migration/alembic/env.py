@@ -1,6 +1,6 @@
 from __future__ import with_statement
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import create_engine, pool
 from logging import config as logging_config
 
 from quark.db import models
@@ -8,6 +8,7 @@ from quark.db import models
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
+neutron_config = config.neutron_config
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -35,8 +36,7 @@ def run_migrations_offline():
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
-    context.configure(url=url)
+    context.configure(url=neutron_config.database.connection)
 
     with context.begin_transaction():
         context.run_migrations()
@@ -49,9 +49,8 @@ def run_migrations_online():
     and associate a connection with the context.
 
     """
-    engine = engine_from_config(
-        config.get_section(config.config_ini_section),
-        prefix='sqlalchemy.',
+    engine = create_engine(
+        neutron_config.database.connection,
         poolclass=pool.NullPool)
 
     connection = engine.connect()
