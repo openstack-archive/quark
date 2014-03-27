@@ -29,5 +29,4 @@ def main():
 
     cli.CONF()
     #TODO(gongysh) enable logging
-    cli.legacy.modernize_quantum_config(cli.CONF)
     cli.CONF.command.func(config, cli.CONF.command.name)
