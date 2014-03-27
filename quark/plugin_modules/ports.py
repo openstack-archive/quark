@@ -133,17 +133,9 @@ def create_port(context, port):
 
         @cmd_mgr.do
         def _allocate_backend_port(mac, addresses, net, port_id):
-            mac_address_string = str(netaddr.EUI(mac['address'],
-                                                 dialect=netaddr.mac_unix))
-            address_pairs = [
-                {'mac_address': mac_address_string,
-                 'ip_address': address.get('address_readable', '')}
-                for address in addresses]
             backend_port = net_driver.create_port(context, net["id"],
                                                   port_id=port_id,
-
-                                                  security_groups=group_ids,
-                                                  allowed_pairs=address_pairs)
+                                                  security_groups=group_ids)
             return backend_port
 
         @cmd_mgr.undo
@@ -206,7 +198,6 @@ def update_port(context, id, port):
     if not port_db:
         raise exceptions.PortNotFound(port_id=id)
 
-    address_pairs = []
     fixed_ips = port["port"].pop("fixed_ips", None)
     if fixed_ips is not None:
 
@@ -267,20 +258,12 @@ def update_port(context, id, port):
             port["port"]["addresses"] = port_db["ip_addresses"]
             port["port"]["addresses"].extend(addresses)
 
-            mac_address_string = str(netaddr.EUI(port_db.mac_address,
-                                                 dialect=netaddr.mac_unix))
-            address_pairs = [{'mac_address': mac_address_string,
-                              'ip_address':
-                              address.get('address_readable', '')}
-                             for address in addresses]
-
     group_ids, security_groups = v.make_security_group_list(
         context, port["port"].pop("security_groups", None))
     net_driver = registry.DRIVER_REGISTRY.get_driver(
         port_db.network["network_plugin"])
     net_driver.update_port(context, port_id=port_db.backend_key,
-                           security_groups=group_ids,
-                           allowed_pairs=address_pairs)
+                           security_groups=group_ids)
 
     port["port"]["security_groups"] = security_groups
 
