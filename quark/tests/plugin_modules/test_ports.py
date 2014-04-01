@@ -466,6 +466,48 @@ class TestQuarkUpdatePort(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(alloc_ip.call_count, 1)
 
 
+class TestQuarkUpdatePortSetsIps(test_quark_plugin.TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, port, new_ips=None):
+        def alloc_mock(kls, context, addresses, *args, **kwargs):
+            addresses.extend(new_ips)
+            self.called = True
+
+        port_model = None
+        if port:
+            net_model = models.Network()
+            net_model["network_plugin"] = "BASE"
+            port_model = models.Port()
+            port_model.network = net_model
+            port_model.update(port)
+        with contextlib.nested(
+            mock.patch("quark.db.api.port_find"),
+            mock.patch("quark.db.api.port_update"),
+            mock.patch("quark.ipam.QuarkIpam.deallocate_ips_by_port")
+        ) as (port_find, port_update, dealloc_ip):
+            port_find.return_value = port_model
+            port_update.return_value = port_model
+            alloc_ip = mock.patch("quark.ipam.QuarkIpam.allocate_ip_address",
+                                  new=alloc_mock)
+            alloc_ip.start()
+            yield port_find, port_update, alloc_ip, dealloc_ip
+            alloc_ip.stop()
+
+    def test_update_port_fixed_ip_subnet_only_allocates_ip(self):
+        self.called = False
+        new_addr_dict = {"address": 16843009, "address_readable": "1.1.1.1"}
+        new_addr = models.IPAddress()
+        new_addr.update(new_addr_dict)
+        with self._stubs(
+            port=dict(id=1, name="myport", mac_address="0:0:0:0:0:1"),
+            new_ips=[new_addr]
+        ) as (port_find, port_update, alloc_ip, dealloc_ip):
+            new_port = dict(port=dict(
+                fixed_ips=[dict(subnet_id=1)]))
+            self.plugin.update_port(self.context, 1, new_port)
+            self.assertTrue(self.called)
+
+
 class TestQuarkPostUpdatePort(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, port, addr, addr2=None, port_ips=None):
