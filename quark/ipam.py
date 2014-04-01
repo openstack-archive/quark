@@ -91,29 +91,35 @@ class QuarkIpam(object):
         if mac_address:
             mac_address = netaddr.EUI(mac_address).value
 
-        with context.session.begin():
-            deallocated_mac = db_api.mac_address_find(
-                context, lock_mode=True, reuse_after=reuse_after,
-                scope=db_api.ONE, address=mac_address)
-            if deallocated_mac:
-                return db_api.mac_address_update(
-                    context, deallocated_mac, deallocated=False,
-                    deallocated_at=None)
+        for retry in xrange(cfg.CONF.QUARK.mac_address_retry_max):
+            try:
+                with context.session.begin():
+                    deallocated_mac = db_api.mac_address_find(
+                        context, lock_mode=True, reuse_after=reuse_after,
+                        deallocated=True, scope=db_api.ONE,
+                        address=mac_address, order_by="address ASC")
+                    if deallocated_mac:
+                        return db_api.mac_address_update(
+                            context, deallocated_mac, deallocated=False,
+                            deallocated_at=None)
+                    break
+            except Exception:
+                LOG.exception("Error in mac reallocate...")
+                continue
 
         # This could fail if a large chunk of MACs were chosen explicitly,
         # but under concurrent load enough MAC creates should iterate without
         # any given thread exhausting its retry count.
         for retry in xrange(cfg.CONF.QUARK.mac_address_retry_max):
-
             next_address = None
             with context.session.begin():
-                mac_range = db_api.mac_address_range_find_allocation_counts(
-                    context, address=mac_address)
-
-                if not mac_range:
-                    break
-
                 try:
+                    fn = db_api.mac_address_range_find_allocation_counts
+                    mac_range = fn(context, address=mac_address)
+
+                    if not mac_range:
+                        break
+
                     rng, addr_count = mac_range
 
                     last = rng["last_address"]
@@ -195,29 +201,34 @@ class QuarkIpam(object):
         if sub_ids:
             ip_kwargs["subnet_id"] = sub_ids
 
-        with context.session.begin():
-            address = db_api.ip_address_find(elevated, **ip_kwargs)
+        for retry in xrange(cfg.CONF.QUARK.ip_address_retry_max):
+            try:
+                with context.session.begin():
+                    address = db_api.ip_address_find(elevated, **ip_kwargs)
 
-            if address:
-                #NOTE(mdietz): We should always be in the CIDR but we've
-                #              also said that before :-/
-                if address.get("subnet"):
-                    cidr = netaddr.IPNetwork(address["subnet"]["cidr"])
-                    addr = netaddr.IPAddress(int(address["address"]))
-                    if address["subnet"]["ip_version"] == 4:
-                        addr = addr.ipv4()
+                    if address:
+                        #NOTE(mdietz): We should always be in the CIDR but we
+                        #              also said that before :-/
+                        if address.get("subnet"):
+                            cidr = netaddr.IPNetwork(address["subnet"]["cidr"])
+                            addr = netaddr.IPAddress(int(address["address"]))
+                            if address["subnet"]["ip_version"] == 4:
+                                addr = addr.ipv4()
+                            else:
+                                addr = addr.ipv6()
+                            if addr in cidr:
+                                updated_address = db_api.ip_address_update(
+                                    elevated, address, deallocated=False,
+                                    deallocated_at=None,
+                                    allocated_at=timeutils.utcnow())
+                                return [updated_address]
+                            else:
+                                # Make sure we never find it again
+                                context.session.delete(address)
                     else:
-                        addr = addr.ipv6()
-
-                    if addr in cidr:
-                        updated_address = db_api.ip_address_update(
-                            elevated, address, deallocated=False,
-                            deallocated_at=None,
-                            allocated_at=timeutils.utcnow())
-                        return [updated_address]
-                    else:
-                        # Make sure we never find it again
-                        context.session.delete(address)
+                        break
+            except Exception:
+                LOG.exception("Error in reallocate ip...")
         return []
 
     def is_strategy_satisfied(self, ip_addresses, allocate_complete=False):
