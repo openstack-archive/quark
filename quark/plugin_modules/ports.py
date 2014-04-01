@@ -61,9 +61,12 @@ def create_port(context, port):
     if not STRATEGY.is_parent_network(net_id):
         # We don't honor segmented networks when they aren't "shared"
         segment_id = None
+        port_count = db_api.port_count_all(context, network_id=[net_id],
+                                           tenant_id=[context.tenant_id])
+
         quota.QUOTAS.limit_check(
             context, context.tenant_id,
-            ports_per_network=len(net.get('ports', [])) + 1)
+            ports_per_network=port_count + 1)
     else:
         if not segment_id:
             raise q_exc.AmbiguousNetworkId(net_id=net_id)

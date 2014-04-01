@@ -180,6 +180,36 @@ class QuarkNewMacAddressAllocationCreateConflict(QuarkIpamBaseTest):
             self.assertEqual(address["address"], 254)
 
 
+class QuarkNewMacAddressReallocationDeadlocks(QuarkIpamBaseTest):
+    @contextlib.contextmanager
+    def _stubs(self, addresses=None, ranges=None):
+        if not addresses:
+            addresses = [None]
+        db_mod = "quark.db.api"
+        old_override = cfg.CONF.QUARK.mac_address_retry_max
+        cfg.CONF.set_override('mac_address_retry_max', 1, 'QUARK')
+        with contextlib.nested(
+            mock.patch("%s.mac_address_find" % db_mod),
+            mock.patch("%s.mac_address_create" % db_mod),
+            mock.patch("%s.mac_address_range_find_allocation_counts" % db_mod),
+        ) as (mac_find, mac_create, mac_range_count):
+            mac_find.side_effect = [Exception, None]
+            mac_create.side_effect = addresses
+            mac_range_count.return_value = ranges
+            yield mac_find
+        cfg.CONF.set_override('mac_address_retry_max', old_override, 'QUARK')
+
+    def test_reallocate_mac_deadlock_raises_retry(self):
+        mar = dict(id=1, first_address=0, last_address=255,
+                   next_auto_assign_mac=0)
+        mac = dict(id=1, address=254)
+        with self._stubs(ranges=(mar, 0), addresses=[Exception, mac]) as (
+                mac_find):
+            with self.assertRaises(exceptions.MacAddressGenerationFailure):
+                self.ipam.allocate_mac_address(self.context, 0, 0, 0)
+            self.assertEqual(mac_find.call_count, 1)
+
+
 class QuarkMacAddressDeallocation(QuarkIpamBaseTest):
     @contextlib.contextmanager
     def _stubs(self, mac):

@@ -293,18 +293,6 @@ class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
             with self.assertRaises(exceptions.NetworkNotFound):
                 self.plugin.create_port(self.context, port)
 
-    def test_create_port_net_at_max(self):
-        network = dict(id=1, ports=[models.Port()])
-        mac = dict(address="AA:BB:CC:DD:EE:FF")
-        port_name = "foobar"
-        ip = dict()
-        port = dict(port=dict(mac_address=mac["address"], network_id=1,
-                              tenant_id=self.context.tenant_id, device_id=2,
-                              name=port_name))
-        with self._stubs(port=port["port"], network=network, addr=ip, mac=mac):
-            with self.assertRaises(exceptions.OverQuota):
-                self.plugin.create_port(self.context, port)
-
     def test_create_port_security_groups(self, groups=[1]):
         network = dict(id=1)
         mac = dict(address="AA:BB:CC:DD:EE:FF")
@@ -339,6 +327,45 @@ class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
     def test_create_port_security_groups_not_found(self):
         with self.assertRaises(sg_ext.SecurityGroupNotFound):
             self.test_create_port_security_groups([])
+
+
+class TestQuarkPortCreateQuota(test_quark_plugin.TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, port=None, network=None, addr=None, mac=None):
+        if network:
+            network["network_plugin"] = "BASE"
+            network["ipam_strategy"] = "ANY"
+        port_model = models.Port()
+        port_model.update(port)
+        port_models = port_model
+
+        db_mod = "quark.db.api"
+        ipam = "quark.ipam.QuarkIpam"
+        with contextlib.nested(
+            mock.patch("%s.port_create" % db_mod),
+            mock.patch("%s.network_find" % db_mod),
+            mock.patch("%s.allocate_ip_address" % ipam),
+            mock.patch("%s.allocate_mac_address" % ipam),
+            mock.patch("quark.db.api.port_count_all"),
+        ) as (port_create, net_find, alloc_ip, alloc_mac, port_count):
+            port_create.return_value = port_models
+            net_find.return_value = network
+            alloc_ip.return_value = addr
+            alloc_mac.return_value = mac
+            port_count.return_value = len(network["ports"])
+            yield port_create
+
+    def test_create_port_net_at_max(self):
+        network = dict(id=1, ports=[models.Port()])
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
+        port_name = "foobar"
+        ip = dict()
+        port = dict(port=dict(mac_address=mac["address"], network_id=1,
+                              tenant_id=self.context.tenant_id, device_id=2,
+                              name=port_name))
+        with self._stubs(port=port["port"], network=network, addr=ip, mac=mac):
+            with self.assertRaises(exceptions.OverQuota):
+                self.plugin.create_port(self.context, port)
 
 
 class TestQuarkUpdatePort(test_quark_plugin.TestQuarkPlugin):
