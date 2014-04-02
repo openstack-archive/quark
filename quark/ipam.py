@@ -326,6 +326,9 @@ class QuarkIpam(object):
                                    **kwargs):
         subnets = subnets or []
         for subnet in subnets:
+            if not subnet:
+                continue
+
             address = None
             if int(subnet["ip_version"]) == 4:
                 address = self._allocate_from_subnet(context, net_id,

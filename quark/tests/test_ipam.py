@@ -992,6 +992,21 @@ class QuarkIPAddressAllocationTestRetries(QuarkIpamBaseTest):
                     self.context, [], 0, 0, 0, ip_address="0.0.1.0",
                     subnets=subnet1)
 
+    def test_allocate_specific_subnet_unusable_fails(self):
+        subnet1 = dict(id=1, first_ip=0, last_ip=255, next_auto_assign_ip=1,
+                       cidr="0.0.0.0/24", ip_version=4,
+                       network=dict(ip_policy=None), ip_policy=None,
+                       do_not_use=1)
+        subnets = []
+        addr_found = dict(id=1, address=256)
+        with self._stubs(subnets=subnets,
+                         address=[q_exc.IPAddressRetryableFailure,
+                                  addr_found]):
+            with self.assertRaises(exceptions.IpAddressGenerationFailure):
+                self.ipam.allocate_ip_address(
+                    self.context, [], 0, 0, 0, ip_address="0.0.1.0",
+                    subnets=subnet1)
+
     def test_allocate_last_ip_closes_subnet(self):
         subnet1 = dict(id=1, first_ip=0, last_ip=1, next_auto_assign_ip=1,
                        cidr="0.0.0.0/24", ip_version=4,

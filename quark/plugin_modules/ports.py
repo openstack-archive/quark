@@ -202,89 +202,91 @@ def update_port(context, id, port):
         neutron/api/v2/attributes.py.
     """
     LOG.info("update_port %s for tenant %s" % (id, context.tenant_id))
+    port_db = db_api.port_find(context, id=id, scope=db_api.ONE)
+    if not port_db:
+        raise exceptions.PortNotFound(port_id=id)
+
+    address_pairs = []
+    fixed_ips = port["port"].pop("fixed_ips", None)
+    if fixed_ips is not None:
+
+        #NOTE(mdietz): we want full control over IPAM since
+        #              we're allocating by subnet instead of
+        #              network.
+        ipam_driver = ipam.IPAM_REGISTRY.get_strategy(
+            ipam.QuarkIpamANY.get_name())
+
+        addresses, subnet_ids = [], []
+        ip_addresses = {}
+
+        for fixed_ip in fixed_ips:
+            subnet_id = fixed_ip.get("subnet_id")
+            ip_address = fixed_ip.get("ip_address")
+            if not (subnet_id or ip_address):
+                raise exceptions.BadRequest(
+                    resource="fixed_ips",
+                    msg="subnet_id or ip_address required")
+
+            if ip_address and not subnet_id:
+                raise exceptions.BadRequest(
+                    resource="fixed_ips",
+                    msg="subnet_id required for ip_address allocation")
+
+            if subnet_id and ip_address:
+                ip_netaddr = netaddr.IPAddress(ip_address)
+                ip_addresses[ip_netaddr] = subnet_id
+            else:
+                subnet_ids.append(subnet_id)
+
+        port_ips = set([netaddr.IPAddress(int(a["address"]))
+                        for a in port_db["ip_addresses"]])
+        new_ips = set([a for a in ip_addresses.keys()])
+
+        ips_to_allocate = list(new_ips - port_ips)
+        ips_to_deallocate = list(port_ips - new_ips)
+
+        for ip in ips_to_allocate:
+            if ip in ip_addresses:
+                ipam_driver.allocate_ip_address(
+                    context, addresses, port_db["network_id"],
+                    port_db["id"], reuse_after=None, ip_address=ip,
+                    subnets=[ip_addresses[ip]])
+
+        for ip in ips_to_deallocate:
+            ipam_driver.deallocate_ips_by_port(
+                context, port_db, ip_address=ip)
+
+        for subnet_id in subnet_ids:
+            ipam_driver.allocate_ip_address(
+                context, addresses, port_db["network_id"], port_db["id"],
+                reuse_after=CONF.QUARK.ipam_reuse_after,
+                subnets=[subnet_id])
+
+        # Need to return all existing addresses and the new ones
+        if addresses:
+            port["port"]["addresses"] = port_db["ip_addresses"]
+            port["port"]["addresses"].extend(addresses)
+
+            mac_address_string = str(netaddr.EUI(port_db.mac_address,
+                                                 dialect=netaddr.mac_unix))
+            address_pairs = [{'mac_address': mac_address_string,
+                              'ip_address':
+                              address.get('address_readable', '')}
+                             for address in addresses]
+
+    group_ids, security_groups = v.make_security_group_list(
+        context, port["port"].pop("security_groups", None))
+    net_driver = registry.DRIVER_REGISTRY.get_driver(
+        port_db.network["network_plugin"])
+    net_driver.update_port(context, port_id=port_db.backend_key,
+                           security_groups=group_ids,
+                           allowed_pairs=address_pairs)
+
+    port["port"]["security_groups"] = security_groups
+
     with context.session.begin():
-        port_db = db_api.port_find(context, id=id, scope=db_api.ONE)
-        if not port_db:
-            raise exceptions.PortNotFound(port_id=id)
-
-        address_pairs = []
-        fixed_ips = port["port"].pop("fixed_ips", None)
-        if fixed_ips is not None:
-
-            #NOTE(mdietz): we want full control over IPAM since
-            #              we're allocating by subnet instead of
-            #              network.
-            ipam_driver = ipam.IPAM_REGISTRY.get_strategy(
-                ipam.QuarkIpamANY.get_name())
-
-            addresses, subnet_ids = [], []
-            ip_addresses = {}
-
-            for fixed_ip in fixed_ips:
-                subnet_id = fixed_ip.get("subnet_id")
-                ip_address = fixed_ip.get("ip_address")
-                if not (subnet_id or ip_address):
-                    raise exceptions.BadRequest(
-                        resource="fixed_ips",
-                        msg="subnet_id or ip_address required")
-
-                if ip_address and not subnet_id:
-                    raise exceptions.BadRequest(
-                        resource="fixed_ips",
-                        msg="subnet_id required for ip_address allocation")
-
-                if subnet_id and ip_address:
-                    ip_netaddr = netaddr.IPAddress(ip_address)
-                    ip_addresses[ip_netaddr] = subnet_id
-                else:
-                    subnet_ids.append(subnet_id)
-
-            port_ips = set([netaddr.IPAddress(int(a["address"]))
-                            for a in port_db["ip_addresses"]])
-            new_ips = set([a for a in ip_addresses.keys()])
-
-            ips_to_allocate = list(new_ips - port_ips)
-            ips_to_deallocate = list(port_ips - new_ips)
-
-            for ip in ips_to_allocate:
-                if ip in ip_addresses:
-                    addresses.extend(ipam_driver.allocate_ip_address(
-                        context, port_db["network_id"], port_db["id"],
-                        reuse_after=None, ip_address=ip,
-                        subnets=[ip_addresses[ip]]))
-
-            for ip in ips_to_deallocate:
-                ipam_driver.deallocate_ips_by_port(
-                    context, port_db, ip_address=ip)
-
-            for subnet_id in subnet_ids:
-                addresses.extend(ipam_driver.allocate_ip_address(
-                    context, port_db["network_id"], port_db["id"],
-                    reuse_after=CONF.QUARK.ipam_reuse_after,
-                    subnets=[subnet_id]))
-
-            # Need to return all existing addresses and the new ones
-            if addresses:
-                port["port"]["addresses"] = port_db["ip_addresses"]
-                port["port"]["addresses"].extend(addresses)
-
-                mac_address_string = str(netaddr.EUI(port_db.mac_address,
-                                                     dialect=netaddr.mac_unix))
-                address_pairs = [{'mac_address': mac_address_string,
-                                  'ip_address':
-                                  address.get('address_readable', '')}
-                                 for address in addresses]
-
-        group_ids, security_groups = v.make_security_group_list(
-            context, port["port"].pop("security_groups", None))
-        net_driver = registry.DRIVER_REGISTRY.get_driver(
-            port_db.network["network_plugin"])
-        net_driver.update_port(context, port_id=port_db.backend_key,
-                               security_groups=group_ids,
-                               allowed_pairs=address_pairs)
-
-        port["port"]["security_groups"] = security_groups
         port = db_api.port_update(context, port_db, **port["port"])
+
     return v._make_port_dict(port)
 
 
@@ -294,50 +296,49 @@ def post_update_port(context, id, port):
         raise exceptions.BadRequest(resource="ports",
                                     msg="Port body required")
 
-    with context.session.begin():
-        port_db = db_api.port_find(context, id=id, scope=db_api.ONE)
-        if not port_db:
-            raise exceptions.PortNotFound(port_id=id, net_id="")
+    port_db = db_api.port_find(context, id=id, scope=db_api.ONE)
+    if not port_db:
+        raise exceptions.PortNotFound(port_id=id, net_id="")
 
-        port = port["port"]
-        if "fixed_ips" in port and port["fixed_ips"]:
-            for ip in port["fixed_ips"]:
-                address = None
-                ipam_driver = ipam.IPAM_REGISTRY.get_strategy(
-                    port_db["network"]["ipam_strategy"])
-                if ip:
-                    if "ip_id" in ip:
-                        ip_id = ip["ip_id"]
-                        address = db_api.ip_address_find(
-                            context, id=ip_id, tenant_id=context.tenant_id,
-                            scope=db_api.ONE)
-                    elif "ip_address" in ip:
-                        ip_address = ip["ip_address"]
-                        net_address = netaddr.IPAddress(ip_address)
-                        address = db_api.ip_address_find(
-                            context, ip_address=net_address,
-                            network_id=port_db["network_id"],
-                            tenant_id=context.tenant_id, scope=db_api.ONE)
-                        if not address:
-                            address = ipam_driver.allocate_ip_address(
-                                context, port_db["network_id"], id,
-                                CONF.QUARK.ipam_reuse_after,
-                                ip_address=ip_address)
-                else:
-                    address = ipam_driver.allocate_ip_address(
-                        context, port_db["network_id"], id,
-                        CONF.QUARK.ipam_reuse_after)
+    port = port["port"]
+    if "fixed_ips" in port and port["fixed_ips"]:
+        for ip in port["fixed_ips"]:
+            address = None
+            ipam_driver = ipam.IPAM_REGISTRY.get_strategy(
+                port_db["network"]["ipam_strategy"])
+            if ip:
+                if "ip_id" in ip:
+                    ip_id = ip["ip_id"]
+                    address = db_api.ip_address_find(
+                        context, id=ip_id, tenant_id=context.tenant_id,
+                        scope=db_api.ONE)
+                elif "ip_address" in ip:
+                    ip_address = ip["ip_address"]
+                    net_address = netaddr.IPAddress(ip_address)
+                    address = db_api.ip_address_find(
+                        context, ip_address=net_address,
+                        network_id=port_db["network_id"],
+                        tenant_id=context.tenant_id, scope=db_api.ONE)
+                    if not address:
+                        address = ipam_driver.allocate_ip_address(
+                            context, port_db["network_id"], id,
+                            CONF.QUARK.ipam_reuse_after,
+                            ip_address=ip_address)
+            else:
+                address = ipam_driver.allocate_ip_address(
+                    context, port_db["network_id"], id,
+                    CONF.QUARK.ipam_reuse_after)
 
-            address["deallocated"] = 0
+        address["deallocated"] = 0
 
-            already_contained = False
-            for port_address in port_db["ip_addresses"]:
-                if address["id"] == port_address["id"]:
-                    already_contained = True
-                    break
+        already_contained = False
+        for port_address in port_db["ip_addresses"]:
+            if address["id"] == port_address["id"]:
+                already_contained = True
+                break
 
-            if not already_contained:
-                port_db["ip_addresses"].append(address)
+        if not already_contained:
+            port_db["ip_addresses"].append(address)
     return v._make_port_dict(port_db)
 
 
