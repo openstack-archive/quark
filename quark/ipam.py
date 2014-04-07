@@ -220,6 +220,7 @@ class QuarkIpam(object):
                                 updated_address = db_api.ip_address_update(
                                     elevated, address, deallocated=False,
                                     deallocated_at=None,
+                                    used_by_tenant_id=context.tenant_id,
                                     allocated_at=timeutils.utcnow())
                                 return [updated_address]
                             else:
@@ -313,6 +314,7 @@ class QuarkIpam(object):
                         return db_api.ip_address_update(
                             context, address, deallocated=False,
                             deallocated_at=None,
+                            used_by_tenant_id=context.tenant_id,
                             allocated_at=timeutils.utcnow())
 
                 with context.session.begin():
