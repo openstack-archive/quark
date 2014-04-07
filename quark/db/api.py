@@ -217,9 +217,9 @@ def ip_address_create(context, **address_dict):
     ip_address = models.IPAddress()
     address = address_dict.pop("address")
     ip_address.update(address_dict)
-    ip_address["address"] = int(address)
+    ip_address["address"] = int(address.ipv6())
     ip_address["address_readable"] = str(address)
-    ip_address["tenant_id"] = context.tenant_id
+    ip_address["used_by_tenant_id"] = context.tenant_id
     ip_address["_deallocated"] = 0
     ip_address["allocated_at"] = timeutils.utcnow()
     context.session.add(ip_address)

@@ -233,7 +233,7 @@ def update_port(context, id, port):
                     msg="subnet_id required for ip_address allocation")
 
             if subnet_id and ip_address:
-                ip_netaddr = netaddr.IPAddress(ip_address)
+                ip_netaddr = netaddr.IPAddress(ip_address).ipv6()
                 ip_addresses[ip_netaddr] = subnet_id
             else:
                 subnet_ids.append(subnet_id)
