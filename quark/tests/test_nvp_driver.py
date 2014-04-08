@@ -409,17 +409,13 @@ class TestNVPDriverCreatePort(TestNVPDriver):
             self.assertTrue(False in status_args)
 
     def test_create_port_with_security_groups(self):
-        allowed_pairs = [{'mac_address': '0:0:0:0:0:0',
-                          'ip_address': '192.168.0.1'}]
         with self._stubs() as connection:
             connection.securityprofile = self._create_security_profile()
             self.driver.create_port(self.context, self.net_id,
                                     self.port_id,
-                                    security_groups=[1],
-                                    allowed_pairs=allowed_pairs)
+                                    security_groups=[1])
             connection.lswitch_port().assert_has_calls([
                 mock.call.security_profiles([self.profile_id]),
-                mock.call.allowed_address_pairs(allowed_pairs),
             ], any_order=True)
 
     def test_create_port_with_security_groups_max_rules(self):
@@ -433,9 +429,7 @@ class TestNVPDriverCreatePort(TestNVPDriver):
             with self.assertRaises(sg_ext.qexception.InvalidInput):
                 self.driver.create_port(
                     self.context, self.net_id, self.port_id,
-                    security_groups=[1],
-                    allowed_pairs=[{'mac_address': '0:0:0:0:0:0',
-                                    'ip_address': '192.168.0.1'}])
+                    security_groups=[1])
 
 
 class TestNVPDriverUpdatePort(TestNVPDriver):
@@ -450,15 +444,12 @@ class TestNVPDriverUpdatePort(TestNVPDriver):
             yield connection
 
     def test_update_port(self):
-        allowed_pairs = [{'mac_address': '0:0:0:0:0:0',
-                          'ip_address': '192.168.0.1'}]
         with self._stubs() as connection:
             self.driver.update_port(
                 self.context, self.port_id,
-                security_groups=[1], allowed_pairs=allowed_pairs)
+                security_groups=[1])
             connection.lswitch_port().assert_has_calls([
                 mock.call.security_profiles([self.profile_id]),
-                mock.call.allowed_address_pairs(allowed_pairs),
             ], any_order=True)
 
     def test_update_port_max_rules(self):
@@ -471,9 +462,7 @@ class TestNVPDriverUpdatePort(TestNVPDriver):
             with self.assertRaises(sg_ext.qexception.InvalidInput):
                 self.driver.update_port(
                     self.context, self.port_id,
-                    security_groups=[1],
-                    allowed_pairs=[{'mac_address': '0:0:0:0:0:0',
-                                    'ip_address': '192.168.0.1'}])
+                    security_groups=[1])
 
 
 class TestNVPDriverLswitchesForNetwork(TestNVPDriver):
