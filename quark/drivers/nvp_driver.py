@@ -172,7 +172,8 @@ class NVPDriver(base.BaseDriver):
                 for s in switches]}
 
     def create_port(self, context, network_id, port_id,
-                    status=True, security_groups=[]):
+                    status=True, security_groups=None):
+        security_groups = security_groups or []
         tenant_id = context.tenant_id
         lswitch = self._create_or_choose_lswitch(context, network_id)
         connection = self.get_connection()
@@ -200,7 +201,8 @@ class NVPDriver(base.BaseDriver):
         return res
 
     def update_port(self, context, port_id, status=True,
-                    security_groups=[]):
+                    security_groups=None):
+        security_groups = security_groups or []
         connection = self.get_connection()
         lswitch_id = self._lswitch_from_port(context, port_id)
         port = connection.lswitch_port(lswitch_id, port_id)
