@@ -40,7 +40,8 @@ class OptimizedNVPDriver(NVPDriver):
             self._lswitch_delete(context, switch.nvp_id)
 
     def create_port(self, context, network_id, port_id,
-                    status=True, security_groups=[]):
+                    status=True, security_groups=None):
+        security_groups = security_groups or []
         nvp_port = super(OptimizedNVPDriver, self).\
             create_port(context, network_id,
                         port_id, status=status,
@@ -61,7 +62,8 @@ class OptimizedNVPDriver(NVPDriver):
         return nvp_port
 
     def update_port(self, context, port_id,
-                    status=True, security_groups=[]):
+                    status=True, security_groups=None):
+        security_groups = security_groups or []
         nvp_port = super(OptimizedNVPDriver, self).\
             update_port(context, port_id, status=status,
                         security_groups=security_groups)
