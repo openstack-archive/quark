@@ -2,9 +2,9 @@
 quark
 =====
 
-Current Build Status
+Build Status
 ====================
-.. image:: https://api.travis-ci.org/rackerlabs/quark.png
+.. image:: https://travis-ci.org/rackerlabs/quark.svg?branch=master
     :target: https://travis-ci.org/rackerlabs/quark
 
 Caution
