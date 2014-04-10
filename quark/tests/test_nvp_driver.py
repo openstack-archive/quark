@@ -335,6 +335,26 @@ class TestNVPDriverCreatePort(TestNVPDriver):
                 admin_status_enabled.call_args
             self.assertTrue(True in status_args)
 
+    def test_create_port_switch_exists_tags(self):
+        with self._stubs(net_details=dict(foo=3)) as (connection):
+            device_id = "foo"
+            port = self.driver.create_port(self.context, self.net_id,
+                                           self.port_id, device_id=device_id)
+            self.assertTrue("uuid" in port)
+            self.assertTrue(connection.lswitch_port().attachment_vif.called)
+            self.assertFalse(connection.lswitch().create.called)
+            self.assertTrue(connection.lswitch_port().create.called)
+            self.assertTrue(connection.lswitch().query.called)
+            status_args, kwargs = connection.lswitch_port().\
+                admin_status_enabled.call_args
+            self.assertTrue(True in status_args)
+            connection.lswitch_port().assert_has_calls([mock.call.tags([
+                dict(scope="neutron_net_id", tag=self.net_id),
+                dict(scope="neutron_port_id", tag=self.port_id),
+                dict(scope="os_tid", tag=self.context.tenant_id),
+                dict(scope="vm_id", tag=device_id)
+            ])], any_order=True)
+
     def test_create_port_switch_not_exists(self):
         with self._stubs(has_lswitch=False,
                          net_details=dict(foo=3)) as (connection):

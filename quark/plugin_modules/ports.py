@@ -51,6 +51,7 @@ def create_port(context, port):
     segment_id = utils.pop_param(port_attrs, "segment_id")
     fixed_ips = utils.pop_param(port_attrs, "fixed_ips")
     net_id = port_attrs["network_id"]
+    device_id = port_attrs["device_id"]
 
     port_id = uuidutils.generate_uuid()
 
@@ -135,7 +136,8 @@ def create_port(context, port):
         def _allocate_backend_port(mac, addresses, net, port_id):
             backend_port = net_driver.create_port(context, net["id"],
                                                   port_id=port_id,
-                                                  security_groups=group_ids)
+                                                  security_groups=group_ids,
+                                                  device_id=device_id)
             return backend_port
 
         @cmd_mgr.undo

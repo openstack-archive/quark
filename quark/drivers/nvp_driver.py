@@ -172,7 +172,8 @@ class NVPDriver(base.BaseDriver):
                 for s in switches]}
 
     def create_port(self, context, network_id, port_id,
-                    status=True, security_groups=None):
+                    status=True, security_groups=None,
+                    device_id=""):
         security_groups = security_groups or []
         tenant_id = context.tenant_id
         lswitch = self._create_or_choose_lswitch(context, network_id)
@@ -184,7 +185,8 @@ class NVPDriver(base.BaseDriver):
         port.security_profiles(nvp_group_ids)
         tags = [dict(tag=network_id, scope="neutron_net_id"),
                 dict(tag=port_id, scope="neutron_port_id"),
-                dict(tag=tenant_id, scope="os_tid")]
+                dict(tag=tenant_id, scope="os_tid"),
+                dict(tag=device_id, scope="vm_id")]
         LOG.debug("Creating port on switch %s" % lswitch)
         port.tags(tags)
         res = port.create()
