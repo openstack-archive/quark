@@ -276,7 +276,7 @@ class TestQuarkCreateSubnetAllocationPools(test_quark_plugin.TestQuarkPlugin):
         s = dict(subnet=dict(
             allocation_pools=pools,
             ip_version=6,
-            cidr="2607:f0d0:1002:51::0/96",
+            cidr="2607:f0d0:1002:51::0/64",
             network_id=1))
         with self._stubs(s["subnet"]) as (subnet_create):
             resp = self.plugin.create_subnet(self.context, s)
@@ -366,6 +366,52 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
             expected_pools = [{'start': '172.16.0.1',
                               'end': '172.16.0.254'}]
             self.assertEqual(res["allocation_pools"], expected_pools)
+
+    def test_create_subnet_v6_too_small(self):
+        routes = [dict(cidr="0.0.0.0/0", gateway="0.0.0.0")]
+        subnet = dict(
+            subnet=dict(network_id=1,
+                        tenant_id=self.context.tenant_id, ip_version=4,
+                        cidr="1234::/80", gateway_ip="0.0.0.0",
+                        dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
+                        host_routes=neutron_attrs.ATTR_NOT_SPECIFIED,
+                        enable_dhcp=None))
+        network = dict(network_id=1)
+        with self._stubs(
+            subnet=subnet["subnet"],
+            network=network,
+            routes=routes
+        ) as (subnet_create, dns_create, route_create):
+            dns_nameservers = subnet["subnet"].pop("dns_nameservers")
+            host_routes = subnet["subnet"].pop("host_routes")
+            subnet_request = copy.deepcopy(subnet)
+            subnet_request["subnet"]["dns_nameservers"] = dns_nameservers
+            subnet_request["subnet"]["host_routes"] = host_routes
+            with self.assertRaises(exceptions.InvalidInput):
+                self.plugin.create_subnet(self.context, subnet_request)
+
+    def test_create_subnet_v4_too_small(self):
+        routes = [dict(cidr="0.0.0.0/0", gateway="0.0.0.0")]
+        subnet = dict(
+            subnet=dict(network_id=1,
+                        tenant_id=self.context.tenant_id, ip_version=4,
+                        cidr="192.168.0.0/31", gateway_ip="0.0.0.0",
+                        dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
+                        host_routes=neutron_attrs.ATTR_NOT_SPECIFIED,
+                        enable_dhcp=None))
+        network = dict(network_id=1)
+        with self._stubs(
+            subnet=subnet["subnet"],
+            network=network,
+            routes=routes
+        ) as (subnet_create, dns_create, route_create):
+            dns_nameservers = subnet["subnet"].pop("dns_nameservers")
+            host_routes = subnet["subnet"].pop("host_routes")
+            subnet_request = copy.deepcopy(subnet)
+            subnet_request["subnet"]["dns_nameservers"] = dns_nameservers
+            subnet_request["subnet"]["host_routes"] = host_routes
+            with self.assertRaises(exceptions.InvalidInput):
+                self.plugin.create_subnet(self.context, subnet_request)
 
     def test_create_subnet_not_admin_segment_id_ignored(self):
         routes = [dict(cidr="0.0.0.0/0", gateway="0.0.0.0")]

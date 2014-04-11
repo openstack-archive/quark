@@ -96,6 +96,21 @@ def create_subnet(context, subnet):
         _validate_subnet_cidr(context, net_id, sub_attrs["cidr"])
 
         cidr = netaddr.IPNetwork(sub_attrs["cidr"])
+
+        err_vals = {'cidr': sub_attrs["cidr"], 'network_id': net_id}
+        err = _("Requested subnet with cidr: %(cidr)s for "
+                "network: %(network_id)s. Prefix is too small, must be a "
+                "larger subnet. A prefix less than /%(prefix)s is required.")
+
+        if cidr.version == 6 and cidr.prefixlen > 64:
+            err_vals["prefix"] = 65
+            err_msg = err % err_vals
+            raise exceptions.InvalidInput(error_message=err_msg)
+        elif cidr.version == 4 and cidr.prefixlen > 30:
+            err_vals["prefix"] = 31
+            err_msg = err % err_vals
+            raise exceptions.InvalidInput(error_message=err_msg)
+
         gateway_ip = utils.pop_param(sub_attrs, "gateway_ip", str(cidr[1]))
         dns_ips = utils.pop_param(sub_attrs, "dns_nameservers", [])
         host_routes = utils.pop_param(sub_attrs, "host_routes", [])
