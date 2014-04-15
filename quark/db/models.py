@@ -379,9 +379,7 @@ class IPPolicy(BASEV2, models.HasId, models.HasTenant):
 
     @staticmethod
     def get_ip_policy_cidrs(subnet):
-        ip_policy = subnet["ip_policy"] or \
-            subnet["network"]["ip_policy"] or \
-            dict()
+        ip_policy = subnet["ip_policy"] or {}
 
         subnet_cidr = netaddr.IPNetwork(subnet["cidr"])
         network_ip = subnet_cidr.network

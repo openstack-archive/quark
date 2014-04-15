@@ -1141,33 +1141,6 @@ class TestQuarkIpPoliciesIpAllocation(QuarkIpamBaseTest):
                                           version=4)
             self.assertEqual(address[0]["address"], 281470681743362)
 
-    def test_ip_policy_on_network(self):
-        net = dict(ip_policy=dict(exclude=[
-            models.IPPolicyCIDR(cidr="0.0.0.0/31")]))
-        subnet = dict(id=1, first_ip=0, last_ip=255,
-                      cidr="0.0.0.0/24", ip_version=4,
-                      next_auto_assign_ip=0, network=net,
-                      ip_policy=None)
-        with self._stubs(subnets=[(subnet, 0)], addresses=[None, None]):
-            address = []
-            self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
-                                          version=4)
-            self.assertEqual(address[0]["address"], 281470681743362)
-
-    def test_ip_policy_on_network_exclusion_intersection(self):
-        net = dict(ip_policy=dict(exclude=[
-            models.IPPolicyCIDR(cidr="0.0.0.0/31"),
-            models.IPPolicyCIDR(cidr="0.0.0.254/32")]))
-        subnet = dict(id=1, first_ip=0, last_ip=255,
-                      cidr="0.0.0.0/24", ip_version=4,
-                      next_auto_assign_ip=0, network=net,
-                      ip_policy=None)
-        with self._stubs(subnets=[(subnet, 0)], addresses=[None, None]):
-            address = []
-            self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
-                                          version=4)
-            self.assertEqual(address[0]["address"], 281470681743362)
-
     def test_ip_policy_on_both_subnet_preferred(self):
         net = dict(ip_policy=dict(exclude=[
             models.IPPolicyCIDR(cidr="0.0.0.0/31")]))
