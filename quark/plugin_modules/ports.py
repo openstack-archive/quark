@@ -272,7 +272,13 @@ def update_port(context, id, port):
     with context.session.begin():
         port = db_api.port_update(context, port_db, **port["port"])
 
-    return v._make_port_dict(port)
+    #NOTE(mdietz): fix for issue 112, we wanted the IPs to be in
+    #              allocated_at order, so get a fresh object every time
+    if port_db in context.session:
+        context.session.expunge(port_db)
+    port_db = db_api.port_find(context, id=id, scope=db_api.ONE)
+
+    return v._make_port_dict(port_db)
 
 
 def post_update_port(context, id, port):

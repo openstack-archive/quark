@@ -401,7 +401,7 @@ class TestQuarkUpdatePort(test_quark_plugin.TestQuarkPlugin):
         ) as (port_find, port_update, alloc_ip, dealloc_ip):
             new_port = dict(port=dict(name="ourport"))
             self.plugin.update_port(self.context, 1, new_port)
-            self.assertEqual(port_find.call_count, 1)
+            self.assertEqual(port_find.call_count, 2)
             port_update.assert_called_once_with(
                 self.context,
                 port_find(),
