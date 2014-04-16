@@ -1047,8 +1047,8 @@ class QuarkIPAddressAllocateDeallocated(QuarkIpamBaseTest):
 
     def test_allocate_finds_deallocated_ip_succeeds(self):
         subnet = dict(id=1, ip_version=4, next_auto_assign_ip=0,
-                      cidr="0.0.0.0/24")
-        address = dict(id=1, address=0, subnet=subnet)
+                      cidr="0.0.0.0/24", ip_policy=None)
+        address = dict(id=1, address=1, subnet=subnet)
         addresses_found = [None, address, None]
         with self._stubs(
             True, subnet, address, addresses_found

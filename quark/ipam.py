@@ -202,6 +202,8 @@ class QuarkIpam(object):
             ip_kwargs["subnet_id"] = sub_ids
 
         for retry in xrange(cfg.CONF.QUARK.ip_address_retry_max):
+            get_policy = models.IPPolicy.get_ip_policy_cidrs
+
             try:
                 with context.session.begin():
                     address = db_api.ip_address_find(elevated, **ip_kwargs)
@@ -209,13 +211,21 @@ class QuarkIpam(object):
                     if address:
                         #NOTE(mdietz): We should always be in the CIDR but we
                         #              also said that before :-/
-                        if address.get("subnet"):
+                        subnet = address.get('subnet')
+                        if subnet:
+                            policy = get_policy(subnet)
+
                             cidr = netaddr.IPNetwork(address["subnet"]["cidr"])
                             addr = netaddr.IPAddress(int(address["address"]))
                             if address["subnet"]["ip_version"] == 4:
                                 addr = addr.ipv4()
                             else:
                                 addr = addr.ipv6()
+                            # NOTE(jkoelker) Should we delete the ip record?
+                            # TODO(mdietz): yes
+                            if policy is not None and addr in policy:
+                                continue
+
                             if addr in cidr:
                                 updated_address = db_api.ip_address_update(
                                     elevated, address, deallocated=False,
