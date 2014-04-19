@@ -93,16 +93,19 @@ def get_unused_ips(session, used_ips_counts):
             models.Subnet.tenant_id,
             models.Subnet,
             func.count(models.IPAddress.id).label("count"))
-        query = query.outerjoin(models.IPAddress)
-        query = query.filter(models.Subnet.id == models.IPAddress.subnet_id)
+        window = text('interval %s second' % cfg.CONF.QUARK.ipam_reuse_after)
+        query = query.outerjoin(
+            models.IPAddress,
+            and_(models.IPAddress.subnet_id == models.Subnet.id,
+                 models.IPAddress._deallocated == 1,
+                 or_(models.IPAddress.deallocated_at == None,
+                     func.date_add(
+                         models.IPAddress.deallocated_at, window) <= func.now()
+                     )
+                 )
+        )
         query = query.filter(or_(models.Subnet.do_not_use == None,
                                  models.Subnet.do_not_use == 0))
-        window = text('interval %s second' % cfg.CONF.QUARK.ipam_reuse_after)
-        query = query.filter(models.IPAddress._deallocated == 1)
-        query = query.filter(or_(
-            models.IPAddress.deallocated_at == None,
-            func.date_add(
-                models.IPAddress.deallocated_at, window) <= func.now()))
         query = _rackspace_filter(query)
         query = query.group_by(models.Subnet.tenant_id, models.Subnet.id)
 
