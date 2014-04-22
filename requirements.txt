@@ -1,6 +1,6 @@
 SQLAlchemy>=0.7.8,<0.7.99
 alembic
-http://tarballs.openstack.org/oslo.config/oslo.config-1.2.0a2.tar.gz#egg=oslo.config-1.2.0a2
+oslo.config>=1.2.0
 zope.sqlalchemy
 mysql-python
 http://tarballs.openstack.org/neutron/neutron-master.tar.gz#egg=neutron
