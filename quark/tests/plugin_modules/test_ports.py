@@ -152,6 +152,49 @@ class TestQuarkGetPorts(test_quark_plugin.TestQuarkPlugin):
                 self.plugin.get_port(self.context, 1)
 
 
+class TestQuarkGetPortsByIPAddress(test_quark_plugin.TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, ports=None, addr=None):
+        addr_models = []
+
+        for port in ports:
+            ip_mod = models.IPAddress()
+            ip_mod.update(addr)
+            port_model = models.Port()
+            port_model.update(port)
+
+            ip_mod.ports = [port_model]
+            addr_models.append(ip_mod)
+
+        db_mod = "quark.db.api"
+        with contextlib.nested(
+            mock.patch("%s.port_find_by_ip_address" % db_mod)
+        ) as (port_find_by_addr,):
+            port_find_by_addr.return_value = addr_models
+            yield
+
+    def test_port_list_by_ip_address(self):
+        ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
+                  subnet_id=1, network_id=2, version=4)
+        port = dict(mac_address="AA:BB:CC:DD:EE:FF", network_id=1,
+                    tenant_id=self.context.tenant_id, device_id=2,
+                    bridge="xenbr0", device_owner='network:dhcp')
+        with self._stubs(ports=[port], addr=ip):
+            admin_ctx = self.context.elevated()
+            filters = {"ip_address": ["192.168.0.1"]}
+            ports = self.plugin.get_ports(admin_ctx, filters=filters,
+                                          fields=None)
+            self.assertEqual(len(ports), 1)
+            self.assertEqual(ports[0]["device_owner"], "network:dhcp")
+
+    def test_port_list_by_ip_not_admin_raises(self):
+        with self._stubs(ports=[]):
+            filters = {"ip_address": ["192.168.0.1"]}
+            with self.assertRaises(exceptions.NotAuthorized):
+                self.plugin.get_ports(self.context, filters=filters,
+                                      fields=None)
+
+
 class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, port=None, network=None, addr=None, mac=None):

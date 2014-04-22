@@ -377,9 +377,20 @@ def get_ports(context, filters=None, fields=None):
             (context.tenant_id, filters, fields))
     if filters is None:
         filters = {}
-    query = db_api.port_find(context, fields=fields, join_security_groups=True,
-                             **filters)
-    return v._make_ports_list(query, fields)
+
+    if "ip_address" in filters:
+        if not context.is_admin:
+            raise exceptions.NotAuthorized()
+        ips = [netaddr.IPAddress(ip).value for ip in filters.pop("ip_address")]
+        query = db_api.port_find_by_ip_address(context, ip_address=ips,
+                                               scope=db_api.ALL, **filters)
+        ports = []
+        for ip in query:
+            ports.extend(ip.ports)
+    else:
+        ports = db_api.port_find(context, fields=fields,
+                                 join_security_groups=True, **filters)
+    return v._make_ports_list(ports, fields)
 
 
 def get_ports_count(context, filters=None):

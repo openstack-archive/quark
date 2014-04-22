@@ -109,7 +109,7 @@ def _model_query(context, model, filters, fields=None):
         model_filters.append(model.ip_version == filters["ip_version"])
 
     if filters.get("ip_address"):
-        model_filters.append(model.address == int(filters["ip_address"]))
+        model_filters.append(model.address.in_(filters["ip_address"]))
 
     if filters.get("mac_address_range_id"):
         model_filters.append(model.mac_address_range_id ==
@@ -177,6 +177,14 @@ def port_find(context, **filters):
         query = query.options(orm.joinedload(models.Port.security_groups))
 
     return query.filter(*model_filters).order_by(asc(models.Port.created_at))
+
+
+@scoped
+def port_find_by_ip_address(context, **filters):
+    query = context.session.query(models.IPAddress).\
+        options(orm.joinedload(models.IPAddress.ports))
+    model_filters = _model_query(context, models.IPAddress, filters)
+    return query.filter(*model_filters)
 
 
 def port_count_all(context, **filters):
