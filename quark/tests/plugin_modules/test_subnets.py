@@ -75,8 +75,6 @@ class TestQuarkGetSubnets(test_quark_plugin.TestQuarkPlugin):
                       cidr="192.168.0.0/24", gateway_ip="192.168.0.1",
                       dns_nameservers=[],
                       enable_dhcp=None)
-        expected_route = dict(destination=route["cidr"],
-                              nexthop=route["gateway"])
 
         with self._stubs(subnets=[subnet], routes=[route]):
             res = self.plugin.get_subnets(self.context, {}, {})
@@ -84,8 +82,7 @@ class TestQuarkGetSubnets(test_quark_plugin.TestQuarkPlugin):
             routes = res[0].pop("host_routes")
             for key in subnet.keys():
                 self.assertEqual(res[0][key], subnet[key])
-            for key in expected_route.keys():
-                self.assertEqual(routes[0][key], expected_route[key])
+            self.assertEqual(len(routes), 0)
 
     def test_subnet_show_fail(self):
         with self._stubs():
@@ -96,9 +93,6 @@ class TestQuarkGetSubnets(test_quark_plugin.TestQuarkPlugin):
         subnet_id = str(uuid.uuid4())
         route = dict(id=1, cidr="0.0.0.0/0", gateway="192.168.0.1",
                      subnet_id=subnet_id)
-
-        expected_route = dict(destination=route["cidr"],
-                              nexthop=route["gateway"])
 
         subnet = dict(id=subnet_id, network_id=1, name=subnet_id,
                       tenant_id=self.context.tenant_id, ip_version=4,
@@ -113,8 +107,7 @@ class TestQuarkGetSubnets(test_quark_plugin.TestQuarkPlugin):
             routes = res.pop("host_routes")
             for key in subnet.keys():
                 self.assertEqual(res[key], subnet[key])
-            for key in expected_route.keys():
-                self.assertEqual(routes[0][key], expected_route[key])
+            self.assertEqual(len(routes), 0)
 
 
 class TestQuarkGetSubnetsHideAllocPools(test_quark_plugin.TestQuarkPlugin):
@@ -482,8 +475,7 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                 if key == "gateway_ip":
                     self.assertEqual(res[key], "172.16.0.1")
                 elif key == "host_routes":
-                    self.assertEqual(res[key][0]["destination"], "0.0.0.0/0")
-                    self.assertEqual(res[key][0]["nexthop"], "172.16.0.1")
+                    self.assertEqual(len(res[key]), 0)
                 else:
                     self.assertEqual(res[key], subnet["subnet"][key])
 
@@ -510,8 +502,7 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(route_create.call_count, 1)
             for key in subnet["subnet"].keys():
                 if key == "host_routes":
-                    self.assertEqual(res[key][0]["destination"], "0.0.0.0/0")
-                    self.assertEqual(res[key][0]["nexthop"], "0.0.0.0")
+                    self.assertEqual(len(res[key]), 0)
                 else:
                     self.assertEqual(res[key], subnet["subnet"][key])
 
@@ -544,8 +535,7 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                     res_tuples = [(r["destination"], r["nexthop"])
                                   for r in res[key]]
                     self.assertIn(("1.1.1.1/8", "172.16.0.4"), res_tuples)
-                    self.assertIn(("0.0.0.0/0", "0.0.0.0"), res_tuples)
-                    self.assertEqual(2, len(res_tuples))
+                    self.assertEqual(1, len(res_tuples))
                 else:
                     self.assertEqual(res[key], subnet["subnet"][key])
 
@@ -576,12 +566,10 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(dns_create.call_count, 0)
             self.assertEqual(route_create.call_count, 1)
             for key in subnet["subnet"].keys():
-                if key == "host_routes":
-                    res_tuples = [(r["destination"], r["nexthop"])
-                                  for r in res[key]]
-                    self.assertEqual([("0.0.0.0/0", "172.16.0.4")], res_tuples)
-                elif key == "gateway_ip":
+                if key == "gateway_ip":
                     self.assertEqual(res[key], "172.16.0.4")
+                elif key == "host_routes":
+                    self.assertEqual(len(res[key]), 0)
                 else:
                     self.assertEqual(res[key], subnet["subnet"][key])
 
@@ -612,13 +600,12 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(subnet_create.call_count, 1)
             self.assertEqual(dns_create.call_count, 0)
             self.assertEqual(route_create.call_count, 1)
+            self.assertEqual(res["gateway_ip"], "172.16.0.4")
             for key in subnet["subnet"].keys():
-                if key == "host_routes":
-                    res_tuples = [(r["destination"], r["nexthop"])
-                                  for r in res[key]]
-                    self.assertEqual([("0.0.0.0/0", "172.16.0.4")], res_tuples)
-                elif key == "gateway_ip":
+                if key == "gateway_ip":
                     self.assertEqual(res[key], "172.16.0.4")
+                elif key == "host_routes":
+                    self.assertEqual(len(res[key]), 0)
                 else:
                     self.assertEqual(res[key], subnet["subnet"][key])
 
@@ -763,11 +750,7 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(dns_create.call_count, 0)
             self.assertEqual(route_create.call_count, 0)
             self.assertEqual(route_update.call_count, 1)
-            self.assertEqual(len(res["host_routes"]), 1)
-            self.assertEqual(res["host_routes"][0]["destination"],
-                             "0.0.0.0/0")
-            self.assertEqual(res["host_routes"][0]["nexthop"],
-                             "1.2.3.4")
+            self.assertEqual(len(res["host_routes"]), 0)
             self.assertEqual(res["gateway_ip"], "1.2.3.4")
 
     def test_update_subnet_gateway_ip_with_non_default_route_in_db(self):
@@ -784,10 +767,9 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
 
             self.assertEqual(res["gateway_ip"], "1.2.3.4")
 
-            self.assertEqual(len(res["host_routes"]), 2)
+            self.assertEqual(len(res["host_routes"]), 1)
             res_tuples = [(r["destination"], r["nexthop"])
                           for r in res["host_routes"]]
-            self.assertIn(("0.0.0.0/0", "1.2.3.4"), res_tuples)
             self.assertIn(("1.1.1.1/8", "9.9.9.9"), res_tuples)
 
     def test_update_subnet_gateway_ip_without_default_route_in_db(self):
@@ -799,11 +781,7 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
             res = self.plugin.update_subnet(self.context, 1, req)
             self.assertEqual(dns_create.call_count, 0)
             self.assertEqual(route_create.call_count, 1)
-            self.assertEqual(len(res["host_routes"]), 1)
-            self.assertEqual(res["host_routes"][0]["destination"],
-                             "0.0.0.0/0")
-            self.assertEqual(res["host_routes"][0]["nexthop"],
-                             "1.2.3.4")
+            self.assertEqual(len(res["host_routes"]), 0)
             self.assertEqual(res["gateway_ip"], "1.2.3.4")
 
     def test_update_subnet_gateway_ip_with_default_route_in_args(self):
@@ -819,11 +797,7 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
             res = self.plugin.update_subnet(self.context, 1, req)
             self.assertEqual(dns_create.call_count, 0)
             self.assertEqual(route_create.call_count, 1)
-            self.assertEqual(len(res["host_routes"]), 1)
-            self.assertEqual(res["host_routes"][0]["destination"],
-                             "0.0.0.0/0")
-            self.assertEqual(res["host_routes"][0]["nexthop"],
-                             "4.3.2.1")
+            self.assertEqual(len(res["host_routes"]), 0)
             self.assertEqual(res["gateway_ip"], "4.3.2.1")
 
 
