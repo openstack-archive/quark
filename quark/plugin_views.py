@@ -110,15 +110,25 @@ def _make_subnet_dict(subnet, default_route=None, fields=None):
         return {"destination": route["cidr"],
                 "nexthop": route["gateway"]}
 
-    res["host_routes"] = [_host_route(r) for r in subnet["routes"]]
-
     #TODO(mdietz): really inefficient, should go away
     res["gateway_ip"] = None
+    found_gateway = False
+    idx = -1
     for route in subnet["routes"]:
         netroute = netaddr.IPNetwork(route["cidr"])
+        idx += 1
         if netroute.value == default_route.value:
             res["gateway_ip"] = route["gateway"]
+            found_gateway = True
             break
+    #NOTE(mdietz): since we have the antiquated idea of a gateway_ip distinct
+    #              from the routes, we need to not also present the route that
+    #              we used to identify the default gateway_ip
+    if found_gateway:
+        subnet["routes"].pop(idx)
+
+    res["host_routes"] = [_host_route(r) for r in subnet["routes"]]
+
     return res
 
 
