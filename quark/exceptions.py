@@ -37,6 +37,10 @@ class RouteConflict(exceptions.NeutronException):
     message = _("Route overlaps existing route %(route_id)s with %(cidr)s")
 
 
+class DuplicateRouteConflict(exceptions.NeutronException):
+    message = _("More than one default route found for subnet %(subnet_id)s")
+
+
 class InvalidPhysicalNetworkType(exceptions.NeutronException):
     message = _("Providernet type %(net_type)s is invalid")
 

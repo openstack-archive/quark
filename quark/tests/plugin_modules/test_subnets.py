@@ -25,6 +25,7 @@ from neutron.openstack.common.notifier import api as notifier_api
 from oslo.config import cfg
 
 from quark.db import models
+from quark import exceptions as q_exc
 from quark.tests import test_quark_plugin
 
 
@@ -83,6 +84,26 @@ class TestQuarkGetSubnets(test_quark_plugin.TestQuarkPlugin):
             for key in subnet.keys():
                 self.assertEqual(res[0][key], subnet[key])
             self.assertEqual(len(routes), 0)
+
+    def test_subnets_list_two_default_routes_shows_last_one(self):
+        subnet_id = str(uuid.uuid4())
+        route = dict(id=1, cidr="0.0.0.0/0", gateway="192.168.0.1")
+        route2 = dict(id=1, cidr="0.0.0.0/0", gateway="192.168.0.2")
+
+        subnet = dict(id=subnet_id, network_id=1, name=subnet_id,
+                      tenant_id=self.context.tenant_id, ip_version=4,
+                      cidr="192.168.0.0/24", gateway_ip="192.168.0.1",
+                      dns_nameservers=[],
+                      enable_dhcp=None)
+
+        with self._stubs(subnets=[subnet], routes=[route, route2]):
+            res = self.plugin.get_subnets(self.context, {}, {})
+
+            # Don't want to test that LOG.info is called but we can
+            # know the case is covered by checking the gateway is the one
+            # we expect it to be
+            self.assertEqual(res[0]["gateway_ip"], "192.168.0.2")
+            self.assertEqual(len(res[0]["host_routes"]), 0)
 
     def test_subnet_show_fail(self):
         with self._stubs():
@@ -572,6 +593,35 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                     self.assertEqual(len(res[key]), 0)
                 else:
                     self.assertEqual(res[key], subnet["subnet"][key])
+
+    def test_create_subnet_two_default_routes_fails(self):
+        routes = [dict(cidr="0.0.0.0/0", gateway="172.16.0.4"),
+                  dict(cidr="0.0.0.0/0", gateway="172.16.0.4")]
+        subnet = dict(
+            subnet=dict(network_id=1,
+                        tenant_id=self.context.tenant_id, ip_version=4,
+                        cidr="172.16.0.0/24",
+                        gateway_ip=neutron_attrs.ATTR_NOT_SPECIFIED,
+                        dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
+                        host_routes=[
+                            {"destination": "0.0.0.0/0",
+                             "nexthop": "172.16.0.4"},
+                            {"destination": "0.0.0.0/0",
+                             "nexthop": "172.16.0.4"}],
+                        enable_dhcp=None))
+        network = dict(network_id=1)
+        with self._stubs(
+            subnet=subnet["subnet"],
+            network=network,
+            routes=routes
+        ) as (subnet_create, dns_create, route_create):
+            dns_nameservers = subnet["subnet"].pop("dns_nameservers")
+            gateway_ip = subnet["subnet"].pop("gateway_ip")
+            subnet_request = copy.deepcopy(subnet)
+            subnet_request["subnet"]["dns_nameservers"] = dns_nameservers
+            subnet_request["subnet"]["gateway_ip"] = gateway_ip
+            with self.assertRaises(q_exc.DuplicateRouteConflict):
+                self.plugin.create_subnet(self.context, subnet_request)
 
     def test_create_subnet_default_route_gateway_ip(self):
         """If default route (host_routes) and gateway_ip are both provided,
