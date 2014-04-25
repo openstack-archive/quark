@@ -26,6 +26,7 @@ from oslo.config import cfg
 
 from quark.db import api as db_api
 from quark.db import models as models
+from quark import exceptions as q_exc
 from quark import network_strategy
 from quark.plugin_modules import routes
 from quark import plugin_views as v
@@ -127,6 +128,10 @@ def create_subnet(context, subnet):
         for route in host_routes:
             netaddr_route = netaddr.IPNetwork(route["destination"])
             if netaddr_route.value == routes.DEFAULT_ROUTE.value:
+                if default_route:
+                    raise q_exc.DuplicateRouteConflict(
+                        subnet_id=new_subnet["id"])
+
                 default_route = route
                 gateway_ip = default_route["nexthop"]
             new_subnet["routes"].append(db_api.route_create(

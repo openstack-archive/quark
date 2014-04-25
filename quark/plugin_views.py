@@ -112,23 +112,23 @@ def _make_subnet_dict(subnet, default_route=None, fields=None):
 
     #TODO(mdietz): really inefficient, should go away
     res["gateway_ip"] = None
-    found_gateway = False
-    idx = -1
+    res["host_routes"] = []
+    default_found = False
     for route in subnet["routes"]:
         netroute = netaddr.IPNetwork(route["cidr"])
-        idx += 1
         if netroute.value == default_route.value:
+            #NOTE(mdietz): This has the potential to find more than one default
+            #              route. Quark normally won't allow you to create
+            #              more than one, but it's plausible one exists
+            #              regardless. As such, we're going to pretend
+            #              it isn't possible, but log it anyway.
+            if default_found:
+                LOG.info(_("Default route %(gateway_ip)s already found for "
+                           "subnet %(id)s") % res)
             res["gateway_ip"] = route["gateway"]
-            found_gateway = True
-            break
-    #NOTE(mdietz): since we have the antiquated idea of a gateway_ip distinct
-    #              from the routes, we need to not also present the route that
-    #              we used to identify the default gateway_ip
-    if found_gateway:
-        subnet["routes"].pop(idx)
-
-    res["host_routes"] = [_host_route(r) for r in subnet["routes"]]
-
+            default_found = True
+        else:
+            res["host_routes"].append(_host_route(route))
     return res
 
 
