@@ -5,6 +5,8 @@ zope.sqlalchemy
 mysql-python
 http://tarballs.openstack.org/neutron/neutron-master.tar.gz#egg=neutron
 aiclib
+gunicorn
+pymysql
 
 # NOTE(jkoelker) not technically required, but something has to commit
 #                the transactions. in the future this should be the
