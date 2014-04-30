@@ -17,7 +17,6 @@ import contextlib
 from neutron.common import exceptions
 from neutron import context
 from neutron.db import api as neutron_db_api
-from neutron.openstack.common.db.sqlalchemy import session as neutron_session
 from oslo.config import cfg
 import unittest2
 
@@ -34,9 +33,10 @@ class QuarkNetworkFunctionalTest(unittest2.TestCase):
 
         cfg.CONF.set_override('connection', 'sqlite://', 'database')
         neutron_db_api.configure_db()
-        models.BASEV2.metadata.create_all(neutron_session._ENGINE)
+        neutron_db_api.register_models(models.BASEV2)
 
     def tearDown(self):
+        neutron_db_api.unregister_models(models.BASEV2)
         neutron_db_api.clear_db()
 
 
