@@ -348,15 +348,15 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
                        ip_policy=None)
         subnet6 = dict(id=1, first_ip=self.v6_fip, last_ip=self.v6_lip,
                        cidr="feed::/104", ip_version=6,
-                       next_auto_assign_ip=1, network=dict(ip_policy=None),
-                       ip_policy=None)
+                       next_auto_assign_ip=self.v6_fip + 1,
+                       network=dict(ip_policy=None), ip_policy=None)
         with self._stubs(subnets=[[(subnet4, 0)], [(subnet6, 0)]],
                          addresses=[None, None, None, None]):
             address = []
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0)
             self.assertEqual(address[0]["address"], 281470681743361)
             self.assertEqual(address[0]["version"], 4)
-            self.assertEqual(address[1]["address"], 281470681743361)
+            self.assertEqual(address[1]["address"], self.v6_fip + 1)
             self.assertEqual(address[1]["version"], 6)
 
     def test_allocate_new_ip_address_one_v4_subnet_open(self):
@@ -374,8 +374,8 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
     def test_allocate_new_ip_address_one_v6_subnet_open(self):
         subnet6 = dict(id=1, first_ip=self.v6_fip, last_ip=self.v6_lip,
                        cidr="feed::/104", ip_version=6,
-                       next_auto_assign_ip=0, network=dict(ip_policy=None),
-                       ip_policy=None)
+                       next_auto_assign_ip=self.v6_fip + 1,
+                       network=dict(ip_policy=None), ip_policy=None)
         with self._stubs(subnets=[[], [(subnet6, 0)]],
                          addresses=[None, None, None, None]):
             address = []
@@ -391,22 +391,32 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
                 self.ipam.allocate_ip_address(self.context, addr, 0, 0, 0)
 
     def test_reallocate_deallocated_v4_ip(self):
-        subnet6 = dict(id=1, first_ip=self.v6_fip, last_ip=self.v6_lip,
+        network = netaddr.IPNetwork("feed::/104")
+        fip = network.first
+        lip = network.last
+        subnet6 = dict(id=1, first_ip=fip, last_ip=lip,
                        cidr="feed::/104", ip_version=6,
-                       next_auto_assign_ip=0, network=dict(ip_policy=None),
+                       next_auto_assign_ip=fip + 1,
+                       network=dict(ip_policy=None),
                        ip_policy=None)
+        network = netaddr.IPNetwork("0.0.0.0/24")
+        first = network.ipv6().first
+        last = network.ipv6().last
+        target_ip = first + 4
         address = models.IPAddress()
-        address["address"] = 281470681743364
+        address["address"] = target_ip
         address["version"] = 4
-        address["subnet"] = models.Subnet(cidr="0.0.0.0/24")
+        address["subnet"] = models.Subnet(cidr="0.0.0.0/24", first_ip=first,
+                                          last_ip=last,
+                                          next_auto_assign_ip=first)
         with self._stubs(subnets=[[(subnet6, 0)]],
                          addresses=[address, None, None]):
             address = []
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0)
             self.assertEqual(len(address), 2)
-            self.assertEqual(address[0]["address"], 281470681743364)
+            self.assertEqual(address[0]["address"], target_ip)
             self.assertEqual(address[0]["version"], 4)
-            self.assertEqual(address[1]["address"], 281470681743360)
+            self.assertEqual(address[1]["address"], fip + 1)
             self.assertEqual(address[1]["version"], 6)
 
     def test_reallocate_deallocated_v4_ip_passed_subnets(self):
@@ -417,8 +427,8 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
 
         subnet6 = dict(id=1, first_ip=self.v6_fip, last_ip=self.v6_lip,
                        cidr="feed::/104", ip_version=6,
-                       next_auto_assign_ip=0, network=dict(ip_policy=None),
-                       ip_policy=None)
+                       next_auto_assign_ip=self.v6_fip + 1,
+                       network=dict(ip_policy=None), ip_policy=None)
         address = models.IPAddress()
 
         address["address"] = 281470681743364
@@ -432,14 +442,14 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
             self.assertEqual(len(address), 2)
             self.assertEqual(address[0]["address"], 281470681743364)
             self.assertEqual(address[0]["version"], 4)
-            self.assertEqual(address[1]["address"], 281470681743360)
+            self.assertEqual(address[1]["address"], self.v6_fip + 1)
             self.assertEqual(address[1]["version"], 6)
 
     def test_reallocate_deallocated_v4_ip_shared_net(self):
         subnet6 = dict(id=1, first_ip=self.v6_fip, last_ip=self.v6_lip,
                        cidr="feed::/104", ip_version=6,
-                       next_auto_assign_ip=0, network=dict(ip_policy=None),
-                       ip_policy=None)
+                       next_auto_assign_ip=self.v6_fip + 1,
+                       network=dict(ip_policy=None), ip_policy=None)
         address = models.IPAddress()
         address["address"] = 281470681743364
         address["version"] = 4
@@ -452,7 +462,7 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
             self.assertEqual(len(address), 2)
             self.assertEqual(address[0]["address"], 281470681743364)
             self.assertEqual(address[0]["version"], 4)
-            self.assertEqual(address[1]["address"], 281470681743360)
+            self.assertEqual(address[1]["address"], self.v6_fip + 1)
             self.assertEqual(address[1]["version"], 6)
 
     def test_reallocate_deallocated_v4_ip_shared_net_no_subs_raises(self):
@@ -613,15 +623,15 @@ class QuarkIpamTestBothRequiredIpAllocation(QuarkIpamBaseTest):
                        ip_policy=None)
         subnet6 = dict(id=1, first_ip=self.v6_fip, last_ip=self.v6_lip,
                        cidr="feed::/104", ip_version=6,
-                       next_auto_assign_ip=1, network=dict(ip_policy=None),
-                       ip_policy=None)
+                       next_auto_assign_ip=self.v6_fip + 1,
+                       network=dict(ip_policy=None), ip_policy=None)
         with self._stubs(subnets=[[(subnet4, 0)], [(subnet6, 0)]],
                          addresses=[None, None, None, None]):
             address = []
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0)
             self.assertEqual(address[0]["address"], 281470681743361)
             self.assertEqual(address[0]["version"], 4)
-            self.assertEqual(address[1]["address"], 281470681743361)
+            self.assertEqual(address[1]["address"], self.v6_fip + 1)
             self.assertEqual(address[1]["version"], 6)
 
     def test_allocate_new_ip_address_one_v4_subnet_open(self):
@@ -652,9 +662,10 @@ class QuarkIpamTestBothRequiredIpAllocation(QuarkIpamBaseTest):
                 self.ipam.allocate_ip_address(self.context, addr, 0, 0, 0)
 
     def test_reallocate_deallocated_v4_ip(self):
-        subnet6 = dict(id=1, first_ip=self.v6_fip, last_ip=self.v6_lip,
+        subnet6 = dict(id=66, first_ip=self.v6_fip, last_ip=self.v6_lip,
                        cidr="feed::/104", ip_version=6,
-                       next_auto_assign_ip=0, network=dict(ip_policy=None),
+                       next_auto_assign_ip=self.v6_fip + 1,
+                       network=dict(ip_policy=None),
                        ip_policy=None)
         address = models.IPAddress()
         address["address"] = 4
@@ -667,7 +678,7 @@ class QuarkIpamTestBothRequiredIpAllocation(QuarkIpamBaseTest):
             self.assertEqual(len(address), 2)
             self.assertEqual(address[0]["address"], 4)
             self.assertEqual(address[0]["version"], 4)
-            self.assertEqual(address[1]["address"], 281470681743360)
+            self.assertEqual(address[1]["address"], self.v6_fip + 1)
             self.assertEqual(address[1]["version"], 6)
 
     def test_reallocate_deallocated_v6_ip(self):
@@ -1107,16 +1118,19 @@ class TestQuarkIpPoliciesIpAllocation(QuarkIpamBaseTest):
             yield
 
     def test_first_ip_is_not_network_ip_by_default(self):
-        subnet = dict(id=1, first_ip=3232235775, last_ip=3232235775,
+        network = netaddr.IPNetwork("192.168.0.0/24")
+        first = network.ipv6().first
+        last = network.ipv6().last
+        subnet = dict(id=1, first_ip=first, last_ip=last,
                       cidr="192.168.0.0/24", ip_version=4,
-                      next_auto_assign_ip=3232235520,
+                      next_auto_assign_ip=first,
                       network=dict(ip_policy=None),
                       ip_policy=None)
         with self._stubs(subnets=[(subnet, 0)], addresses=[None, None]):
             address = []
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
                                           version=4)
-            self.assertEqual(address[0]["address"], 281473913978881)
+            self.assertEqual(address[0]["address"], first + 1)
 
     def test_subnet_full_based_on_ip_policy(self):
         subnet = dict(id=1, first_ip=0, last_ip=255,
