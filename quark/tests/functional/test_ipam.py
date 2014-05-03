@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import contextlib
+import netaddr
 
 from neutron import context
 from neutron.db import api as neutron_db_api
@@ -59,7 +60,9 @@ class QuarkIPAddressAllocate(QuarkIpamBaseFunctionalTest):
 
     def test_allocate_finds_no_deallocated_creates_new_ip(self):
         network = dict(name="public", tenant_id="fake")
-        subnet = dict(id=1, cidr="0.0.0.0/24", next_auto_assign_ip=2,
+        ipnet = netaddr.IPNetwork("0.0.0.0/24")
+        next_ip = ipnet.ipv6().first + 2
+        subnet = dict(id=1, cidr="0.0.0.0/24", next_auto_assign_ip=next_ip,
                       ip_policy=None, tenant_id="fake")
         with self._stubs(network, subnet) as net:
             ipaddress = []

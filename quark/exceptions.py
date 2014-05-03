@@ -74,6 +74,11 @@ class IPAddressRetryableFailure(exceptions.NeutronException):
                 "retrying...")
 
 
+class IPAddressPolicyRetryableFailure(IPAddressRetryableFailure):
+    message = _("Allocation of %(ip_addr)s for net %(net_id)s failed "
+                "due to policy retrying...")
+
+
 class IPAddressNotInSubnet(exceptions.InvalidInput):
     message = _("Requested IP %(ip_addr)s not in subnet %(subnet_id)s")
 

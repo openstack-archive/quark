@@ -260,8 +260,8 @@ class QuarkIpam(object):
 
         if (ip_policy_cidrs is not None and next_ip in ip_policy_cidrs):
             if not ip_address:
-                raise q_exc.IPAddressRetryableFailure(ip_addr=next_ip,
-                                                      net_id=net_id)
+                raise q_exc.IPAddressPolicyRetryableFailure(ip_addr=next_ip,
+                                                            net_id=net_id)
         try:
             with context.session.begin():
                 address = db_api.ip_address_create(
@@ -448,38 +448,45 @@ class QuarkIpam(object):
         db_api.mac_address_update(context, mac, deallocated=True,
                                   deallocated_at=timeutils.utcnow())
 
+    # RM6180(roaet):
+    # - removed session.begin due to deadlocks
+    # - fix off-by-one error and overflow
     def select_subnet(self, context, net_id, ip_address, segment_id,
                       subnet_ids=None, **filters):
-        with context.session.begin():
-            subnets = db_api.subnet_find_allocation_counts(
-                context, net_id, segment_id=segment_id, scope=db_api.ALL,
-                subnet_id=subnet_ids, **filters)
+        subnets = db_api.subnet_find_allocation_counts(
+            context, net_id, segment_id=segment_id, scope=db_api.ALL,
+            subnet_id=subnet_ids, **filters)
 
-            for subnet, ips_in_subnet in subnets:
-                ipnet = netaddr.IPNetwork(subnet["cidr"])
-                if ip_address and ip_address not in ipnet:
-                    if subnet_ids is not None:
-                        raise q_exc.IPAddressNotInSubnet(
-                            ip_addr=ip_address, subnet_id=subnet["id"])
-                    continue
+        for subnet, ips_in_subnet in subnets:
+            ipnet = netaddr.IPNetwork(subnet["cidr"])
+            if ip_address and ip_address not in ipnet:
+                if subnet_ids is not None:
+                    raise q_exc.IPAddressNotInSubnet(
+                        ip_addr=ip_address, subnet_id=subnet["id"])
+                continue
 
-                ip_policy_cidrs = None
+            ip_policy_cidrs = None
+            if not ip_address:
+                # Policies don't prevent explicit assignment, so we only
+                # need to check if we're allocating a new IP
+                ip_policy_cidrs = models.IPPolicy.get_ip_policy_cidrs(
+                    subnet)
+
+            policy_size = ip_policy_cidrs.size if ip_policy_cidrs else 0
+
+            if ipnet.size > (ips_in_subnet + policy_size - 1):
                 if not ip_address:
-                    # Policies don't prevent explicit assignment, so we only
-                    # need to check if we're allocating a new IP
-                    ip_policy_cidrs = models.IPPolicy.get_ip_policy_cidrs(
-                        subnet)
-
-                policy_size = ip_policy_cidrs.size if ip_policy_cidrs else 0
-
-                if ipnet.size > (ips_in_subnet + policy_size):
-                    if not ip_address:
-                        next_ip = subnet["next_auto_assign_ip"] + 1
-                        if next_ip >= subnet["last_ip"]:
-                            next_ip = -1
-                        db_api.subnet_update(context, subnet,
-                                             next_auto_assign_ip=next_ip)
-                    return subnet
+                    ip = subnet["next_auto_assign_ip"]
+                    # If ip is somehow -1 in here don't touch it anymore
+                    if ip != -1:
+                        ip += 1
+                    # and even then if it is outside the valid range set it to
+                    # -1 to be safe
+                    if ip < subnet["first_ip"] or ip > subnet["last_ip"]:
+                        ip = -1
+                    db_api.subnet_update(context, subnet,
+                                         next_auto_assign_ip=ip)
+                return subnet
 
 
 class QuarkIpamANY(QuarkIpam):
