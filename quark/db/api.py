@@ -52,7 +52,7 @@ for _name, klass in inspect.getmembers(models, inspect.isclass):
 def _listify(filters):
     for key in ["name", "network_id", "id", "device_id", "tenant_id",
                 "subnet_id", "mac_address", "shared", "version", "segment_id",
-                "device_owner"]:
+                "device_owner", "ip_address"]:
         if key in filters:
             if not filters[key]:
                 continue
@@ -109,7 +109,8 @@ def _model_query(context, model, filters, fields=None):
         model_filters.append(model.ip_version == filters["ip_version"])
 
     if filters.get("ip_address"):
-        model_filters.append(model.address.in_(filters["ip_address"]))
+        model_filters.append(model.address.in_(
+            [ip.ipv6().value for ip in filters["ip_address"]]))
 
     if filters.get("mac_address_range_id"):
         model_filters.append(model.mac_address_range_id ==

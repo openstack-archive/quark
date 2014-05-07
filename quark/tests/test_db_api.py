@@ -14,6 +14,7 @@
 #  under the License.
 
 import mock
+import netaddr
 from neutron.db import api as neutron_db_api
 from oslo.config import cfg
 
@@ -45,3 +46,19 @@ class TestDBAPI(test_base.TestBase):
         query_obj = self.context.session.query.return_value
         filter_fn = query_obj.filter
         self.assertEqual(filter_fn.call_count, 1)
+
+    def test_ip_address_find_ip_address_object(self):
+        ip_address = netaddr.IPAddress("192.168.10.1")
+        try:
+            db_api.ip_address_find(self.context, ip_address=ip_address,
+                                   scope=db_api.ONE)
+        except Exception:
+            self.fail("Expected no exceptions")
+
+    def test_ip_address_find_ip_address_list(self):
+        ip_address = netaddr.IPAddress("192.168.10.1")
+        try:
+            db_api.ip_address_find(self.context, ip_address=[ip_address],
+                                   scope=db_api.ONE)
+        except Exception:
+            self.fail("Expected no exceptions")
