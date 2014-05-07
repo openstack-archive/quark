@@ -38,3 +38,7 @@ nosetests.xml
 .venv
 
 *.swp
+
+# PBR stuff
+AUTHORS
+ChangeLog
