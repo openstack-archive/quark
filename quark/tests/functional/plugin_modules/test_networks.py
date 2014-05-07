@@ -13,6 +13,8 @@
 # License for# the specific language governing permissions and limitations
 #  under the License.
 
+import netaddr
+
 import contextlib
 from neutron.common import exceptions
 from neutron import context
@@ -48,7 +50,11 @@ class QuarkDeleteNetworKDeallocatedIPs(QuarkNetworkFunctionalTest):
         with self.context.session.begin():
             net_mod = db_api.network_create(self.context, **network)
             subnet["network"] = net_mod
-            db_api.subnet_create(self.context, **subnet)
+            next_auto = subnet.pop("next_auto_assign_ip", 0)
+            sub_mod = db_api.subnet_create(self.context, **subnet)
+            db_api.subnet_update(self.context,
+                                 sub_mod,
+                                 next_auto_assign_ip=next_auto)
 
         ip_addr = []
         self.ipam.allocate_ip_address(self.context, ip_addr,
@@ -58,9 +64,12 @@ class QuarkDeleteNetworKDeallocatedIPs(QuarkNetworkFunctionalTest):
         yield net_mod
 
     def test_delete_network_with_allocated_ips_fails(self):
+        ipnet = netaddr.IPNetwork("0.0.0.0/24")
+        next_ip = ipnet.ipv6().first + 2
+
         network = dict(name="public", tenant_id="fake", network_plugin="BASE")
-        subnet = dict(id=1, ip_version=4, next_auto_assign_ip=2,
-                      cidr="0.0.0.0/24", first_ip=0, last_ip=255,
+        subnet = dict(id=1, ip_version=4, next_auto_assign_ip=next_ip,
+                      cidr="0.0.0.0/24",
                       ip_policy=None, tenant_id="fake")
         with self._stubs(network, subnet, dealloc=False) as net_mod:
             with self.assertRaises(exceptions.SubnetInUse):
@@ -68,8 +77,10 @@ class QuarkDeleteNetworKDeallocatedIPs(QuarkNetworkFunctionalTest):
 
     def test_delete_network_with_deallocated_ips(self):
         network = dict(name="public", tenant_id="fake", network_plugin="BASE")
-        subnet = dict(id=1, ip_version=4, next_auto_assign_ip=2,
-                      cidr="0.0.0.0/24", first_ip=0, last_ip=255,
+        ipnet = netaddr.IPNetwork("0.0.0.0/24")
+        next_ip = ipnet.ipv6().first + 2
+        subnet = dict(id=1, ip_version=4, next_auto_assign_ip=next_ip,
+                      cidr="0.0.0.0/24",
                       ip_policy=None, tenant_id="fake")
         with self._stubs(network, subnet) as net_mod:
             try:
