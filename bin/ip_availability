@@ -20,7 +20,7 @@ from neutron.db import api as neutron_db_api
 
 from quark.db import models
 
-from sqlalchemy import and_, not_, or_, func
+from sqlalchemy import or_, func
 from sqlalchemy.sql.expression import text
 
 from collections import defaultdict
@@ -45,8 +45,9 @@ def main():
 
 def _rackspace_filter(query):
     # NOTE(asadoughi): should be moved to config?
-    query = query.filter(and_(not_(models.Subnet._cidr.like("%:%")),
-                              not_(models.Subnet._cidr.like("10.%"))))
+    public_network_id = "00000000-0000-0000-0000-000000000000"
+    query = query.filter(models.Subnet.network_id == public_network_id)
+    query = query.filter(models.Subnet.ip_version == 4)
     query = query.filter(or_(models.Subnet.tenant_id.like("%-%"),
                              models.Subnet.tenant_id == "rackspace"))
     return query
