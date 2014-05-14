@@ -60,12 +60,11 @@ class QuarkMacAddressAllocateDeallocated(QuarkIpamBaseTest):
         address = dict(id=1, address=0)
         mac_range = dict(id=1, first_address=0, last_address=255,
                          next_auto_assign_mac=0)
-        db_mod = "quark.db.api"
         with contextlib.nested(
-            mock.patch("%s.mac_address_find" % db_mod),
-            mock.patch("%s.mac_address_range_find_allocation_counts" % db_mod),
-            mock.patch("%s.mac_address_update" % db_mod),
-            mock.patch("%s.mac_address_create" % db_mod)
+            mock.patch("quark.db.api.mac_address_find"),
+            mock.patch("quark.db.api.mac_address_range_find_allocation_counts"),
+            mock.patch("quark.db.api.mac_address_update"),
+            mock.patch("quark.db.api.mac_address_create")
         ) as (addr_find, mac_range_count, mac_update, mac_create):
             if mac_find:
                 addr_find.return_value = address
@@ -91,10 +90,9 @@ class QuarkMacAddressAllocateDeallocated(QuarkIpamBaseTest):
 class QuarkNewMacAddressAllocation(QuarkIpamBaseTest):
     @contextlib.contextmanager
     def _stubs(self, addresses=[None], ranges=None):
-        db_mod = "quark.db.api"
         with contextlib.nested(
-            mock.patch("%s.mac_address_find" % db_mod),
-            mock.patch("%s.mac_address_range_find_allocation_counts" % db_mod),
+            mock.patch("quark.db.api.mac_address_find"),
+            mock.patch("quark.db.api.mac_address_range_find_allocation_counts"),
         ) as (mac_find, mac_range_count):
             mac_find.side_effect = addresses
             mac_range_count.return_value = ranges
@@ -157,11 +155,10 @@ class QuarkNewMacAddressAllocationCreateConflict(QuarkIpamBaseTest):
     def _stubs(self, addresses=None, ranges=None):
         if not addresses:
             addresses = [None]
-        db_mod = "quark.db.api"
         with contextlib.nested(
-            mock.patch("%s.mac_address_find" % db_mod),
-            mock.patch("%s.mac_address_create" % db_mod),
-            mock.patch("%s.mac_address_range_find_allocation_counts" % db_mod),
+            mock.patch("quark.db.api.mac_address_find"),
+            mock.patch("quark.db.api.mac_address_create"),
+            mock.patch("quark.db.api.mac_address_range_find_allocation_counts"),
         ) as (mac_find, mac_create, mac_range_count):
             mac_find.side_effect = [None, None]
             mac_create.side_effect = addresses
@@ -183,13 +180,12 @@ class QuarkNewMacAddressReallocationDeadlocks(QuarkIpamBaseTest):
     def _stubs(self, addresses=None, ranges=None):
         if not addresses:
             addresses = [None]
-        db_mod = "quark.db.api"
         old_override = cfg.CONF.QUARK.mac_address_retry_max
         cfg.CONF.set_override('mac_address_retry_max', 1, 'QUARK')
         with contextlib.nested(
-            mock.patch("%s.mac_address_find" % db_mod),
-            mock.patch("%s.mac_address_create" % db_mod),
-            mock.patch("%s.mac_address_range_find_allocation_counts" % db_mod),
+            mock.patch("quark.db.api.mac_address_find"),
+            mock.patch("quark.db.api.mac_address_create"),
+            mock.patch("quark.db.api.mac_address_range_find_allocation_counts"),
         ) as (mac_find, mac_create, mac_range_count):
             mac_find.side_effect = [Exception, None]
             mac_create.side_effect = addresses
