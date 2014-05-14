@@ -90,9 +90,7 @@ class QuarkMacAddressAllocateDeallocated(QuarkIpamBaseTest):
 
 class QuarkNewMacAddressAllocation(QuarkIpamBaseTest):
     @contextlib.contextmanager
-    def _stubs(self, addresses=None, ranges=None):
-        if not addresses:
-            addresses = [None]
+    def _stubs(self, addresses=[None], ranges=None):
         db_mod = "quark.db.api"
         with contextlib.nested(
             mock.patch("%s.mac_address_find" % db_mod),
