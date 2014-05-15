@@ -19,6 +19,7 @@ from neutron.db import api as neutron_db_api
 from oslo.config import cfg
 
 from quark.db import api as db_api
+from quark.db import models
 
 from quark.tests import test_base
 
@@ -29,9 +30,14 @@ class TestDBAPI(test_base.TestBase):
     def setUp(self):
         super(TestDBAPI, self).setUp()
 
+        configure_mappers()
         cfg.CONF.set_override('connection', 'sqlite://', 'database')
         neutron_db_api.configure_db()
-        configure_mappers()
+        neutron_db_api.register_models(models.BASEV2)
+
+    def tearDown(self):
+        neutron_db_api.unregister_models(models.BASEV2)
+        neutron_db_api.clear_db()
 
     def test_port_find_ip_address_id(self):
         self.context.session.query = mock.Mock()
@@ -52,13 +58,13 @@ class TestDBAPI(test_base.TestBase):
         try:
             db_api.ip_address_find(self.context, ip_address=ip_address,
                                    scope=db_api.ONE)
-        except Exception:
-            self.fail("Expected no exceptions")
+        except Exception as e:
+            self.fail("Expected no exceptions: %s" % e)
 
     def test_ip_address_find_ip_address_list(self):
         ip_address = netaddr.IPAddress("192.168.10.1")
         try:
             db_api.ip_address_find(self.context, ip_address=[ip_address],
                                    scope=db_api.ONE)
-        except Exception:
-            self.fail("Expected no exceptions")
+        except Exception as e:
+            self.fail("Expected no exceptions: %s" % e)
