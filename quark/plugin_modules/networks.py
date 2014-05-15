@@ -13,8 +13,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import netaddr
-
 from neutron.common import exceptions
 from neutron.extensions import providernet as pnet
 from neutron.openstack.common import importutils
@@ -33,7 +31,6 @@ from quark import plugin_views as v
 from quark import utils
 
 CONF = cfg.CONF
-DEFAULT_ROUTE = netaddr.IPNetwork("0.0.0.0/0")
 LOG = logging.getLogger(__name__)
 STRATEGY = network_strategy.STRATEGY
 
@@ -159,7 +156,7 @@ def get_network(context, id, fields=None):
                                   scope=db_api.ONE)
     if not network:
         raise exceptions.NetworkNotFound(net_id=id)
-    return v._make_network_dict(network)
+    return v._make_network_dict(network, fields=fields)
 
 
 def get_networks(context, filters=None, fields=None):
@@ -184,7 +181,7 @@ def get_networks(context, filters=None, fields=None):
     LOG.info("get_networks for tenant %s with filters %s, fields %s" %
             (context.tenant_id, filters, fields))
     nets = db_api.network_find(context, join_subnets=True, **filters) or []
-    nets = [v._make_network_dict(net) for net in nets]
+    nets = [v._make_network_dict(net, fields=fields) for net in nets]
     return nets
 
 

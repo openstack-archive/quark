@@ -33,7 +33,6 @@ from quark import plugin_views as v
 from quark import utils
 
 CONF = cfg.CONF
-DEFAULT_ROUTE = netaddr.IPNetwork("0.0.0.0/0")
 LOG = logging.getLogger(__name__)
 STRATEGY = network_strategy.STRATEGY
 
@@ -164,8 +163,7 @@ def create_subnet(context, subnet):
             new_subnet["ip_policy"] = db_api.ip_policy_create(context,
                                                               exclude=cidrs)
 
-    subnet_dict = v._make_subnet_dict(new_subnet,
-                                      default_route=routes.DEFAULT_ROUTE)
+    subnet_dict = v._make_subnet_dict(new_subnet)
     subnet_dict["gateway_ip"] = gateway_ip
 
     notifier_api.notify(context,
@@ -236,7 +234,7 @@ def update_subnet(context, id, subnet):
                 context, cidr=route["destination"], gateway=route["nexthop"]))
 
         subnet = db_api.subnet_update(context, subnet_db, **s)
-    return v._make_subnet_dict(subnet, default_route=routes.DEFAULT_ROUTE)
+    return v._make_subnet_dict(subnet)
 
 
 def get_subnet(context, id, fields=None):
@@ -261,7 +259,7 @@ def get_subnet(context, id, fields=None):
     net_id = STRATEGY.get_parent_network(net_id)
     subnet["network_id"] = net_id
 
-    return v._make_subnet_dict(subnet, default_route=routes.DEFAULT_ROUTE)
+    return v._make_subnet_dict(subnet)
 
 
 def get_subnets(context, filters=None, fields=None):
@@ -287,8 +285,7 @@ def get_subnets(context, filters=None, fields=None):
             (context.tenant_id, filters, fields))
     subnets = db_api.subnet_find(context, join_dns=True, join_routes=True,
                                  **filters)
-    return v._make_subnets_list(subnets, fields=fields,
-                                default_route=routes.DEFAULT_ROUTE)
+    return v._make_subnets_list(subnets, fields=fields)
 
 
 def get_subnets_count(context, filters=None):
