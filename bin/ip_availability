@@ -20,7 +20,7 @@ from neutron.db import api as neutron_db_api
 
 from quark.db import models
 
-from sqlalchemy import or_, func
+from sqlalchemy import and_, or_, func
 from sqlalchemy.sql.expression import text
 
 from collections import defaultdict
@@ -65,15 +65,16 @@ def get_used_ips(session):
         query = session.query(
             models.Subnet.tenant_id,
             func.count(models.IPAddress.id).label("count"))
-        query = query.filter(models.Subnet.id == models.IPAddress.subnet_id)
+        window = text('interval %s second' % cfg.CONF.QUARK.ipam_reuse_after)
+        query = query.outerjoin(
+            models.IPAddress,
+            and_(models.Subnet.id == models.IPAddress.subnet_id,
+                 or_(models.IPAddress._deallocated == None,
+                     models.IPAddress._deallocated == 0,
+                     func.now() < func.date_add(
+                         models.IPAddress.deallocated_at, window))))
         query = query.filter(or_(models.Subnet.do_not_use == None,
                                  models.Subnet.do_not_use == 0))
-        window = text('interval %s second' % cfg.CONF.QUARK.ipam_reuse_after)
-        query = query.filter(or_(
-            models.IPAddress._deallocated == None,
-            models.IPAddress._deallocated == 0,
-            func.date_add(
-                models.IPAddress.deallocated_at, window) > func.now()))
         query = _rackspace_filter(query)
         query = query.group_by(models.Subnet.tenant_id)
         return dict(query.all())
