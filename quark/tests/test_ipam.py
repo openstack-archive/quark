@@ -37,9 +37,6 @@ class QuarkIpamBaseTest(test_base.TestBase):
         self.ipam = quark.ipam.QuarkIpamANY()
 
         class FakeContext(object):
-            def __new__(cls, *args, **kwargs):
-                return super(FakeContext, cls).__new__(cls)
-
             def __enter__(*args, **kwargs):
                 pass
 
