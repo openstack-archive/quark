@@ -381,7 +381,7 @@ def get_ports(context, filters=None, fields=None):
     if "ip_address" in filters:
         if not context.is_admin:
             raise exceptions.NotAuthorized()
-        ips = [netaddr.IPAddress(ip).value for ip in filters.pop("ip_address")]
+        ips = [netaddr.IPAddress(ip) for ip in filters.pop("ip_address")]
         query = db_api.port_find_by_ip_address(context, ip_address=ips,
                                                scope=db_api.ALL, **filters)
         ports = []
