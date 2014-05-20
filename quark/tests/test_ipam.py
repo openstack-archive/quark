@@ -321,7 +321,6 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
         if not addresses:
             addresses = [None, None]
         db_mod = "quark.db.api"
-        self.context.session.add = mock.Mock()
         with contextlib.nested(
             mock.patch("%s.ip_address_find" % db_mod),
             mock.patch("%s.subnet_find_allocation_counts" % db_mod),
