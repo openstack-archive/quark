@@ -31,6 +31,7 @@ from quark import utils
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 STRATEGY = network_strategy.STRATEGY
+DEFAULT_ROUTE = netaddr.IPNetwork("0.0.0.0/0")
 
 quark_view_opts = [
     cfg.BoolOpt('show_allocation_pools',
@@ -184,14 +185,18 @@ def _port_dict(port, fields=None):
     return res
 
 
-def _make_port_address_dict(ip):
-    return {"subnet_id": ip.get("subnet_id"),
-            "ip_address": ip.formatted()}
+def _make_port_address_dict(ip, fields=None):
+    ip_addr = {"subnet_id": ip.get("subnet_id"),
+               "ip_address": ip.formatted()}
+    if fields and "port_subnets" in fields:
+        ip_addr["subnet"] = _make_subnet_dict(ip["subnet"])
+
+    return ip_addr
 
 
 def _make_port_dict(port, fields=None):
     res = _port_dict(port)
-    res["fixed_ips"] = [_make_port_address_dict(ip)
+    res["fixed_ips"] = [_make_port_address_dict(ip, fields)
                         for ip in port.ip_addresses]
     return res
 
@@ -200,7 +205,7 @@ def _make_ports_list(query, fields=None):
     ports = []
     for port in query:
         port_dict = _port_dict(port, fields)
-        port_dict["fixed_ips"] = [_make_port_address_dict(addr)
+        port_dict["fixed_ips"] = [_make_port_address_dict(addr, fields)
                                   for addr in port.ip_addresses]
         ports.append(port_dict)
     return ports

@@ -6,7 +6,7 @@ mysql-python
 http://tarballs.openstack.org/neutron/neutron-master.tar.gz#egg=neutron
 aiclib
 gunicorn
-pymysql<0.6.2
+pymysql>=0.6.2
 
 # NOTE(jkoelker) not technically required, but something has to commit
 #                the transactions. in the future this should be the
