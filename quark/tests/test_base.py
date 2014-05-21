@@ -24,6 +24,8 @@ class TestBase(unittest2.TestCase):
     def setUp(self):
         super(TestBase, self).setUp()
         self.context = context.Context('fake', 'fake', is_admin=False)
+        self.admin_context = context.Context('fake', 'fake', is_admin=True,
+                                             load_admin_roles=False)
 
         class FakeContext(object):
             def __new__(cls, *args, **kwargs):

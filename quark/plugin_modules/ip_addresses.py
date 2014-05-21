@@ -13,6 +13,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import webob
+
 from neutron.common import exceptions
 from neutron.openstack.common import importutils
 from neutron.openstack.common import log as logging
@@ -92,6 +94,11 @@ def create_ip_address(context, ip_address):
     return v._make_ip_dict(address)
 
 
+def _get_deallocated_override():
+    """This function exists to mock and for future requirements if needed."""
+    return '2000-01-01 00:00:00'
+
+
 def update_ip_address(context, id, ip_address):
     LOG.info("update_ip_address %s for tenant %s" %
             (id, context.tenant_id))
@@ -103,6 +110,16 @@ def update_ip_address(context, id, ip_address):
         if not address:
             raise exceptions.NotFound(
                 message="No IP address found with id=%s" % id)
+
+        reset = ip_address['ip_address'].get('reset_allocation_time',
+                                             False)
+        if reset and address['deallocated'] == 1:
+            if context.is_admin:
+                LOG.info("IP's deallocated time being manually reset")
+                address['deallocated_at'] = _get_deallocated_override()
+            else:
+                msg = "Modification of reset_allocation_time requires admin"
+                raise webob.exc.HTTPForbidden(detail=msg)
 
         old_ports = address['ports']
         port_ids = ip_address['ip_address'].get('port_ids')
