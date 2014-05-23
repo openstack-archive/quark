@@ -326,11 +326,10 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
     def _stubs(self, addresses=None, subnets=None):
         if not addresses:
             addresses = [None, None]
-        db_mod = "quark.db.api"
         with contextlib.nested(
-            mock.patch("%s.ip_address_find" % db_mod),
-            mock.patch("%s.subnet_find_allocation_counts" % db_mod),
-            mock.patch("%s.subnet_find" % db_mod)
+            mock.patch("quark.db.api.ip_address_find"),
+            mock.patch("quark.db.api.subnet_find_allocation_counts"),
+            mock.patch("quark.db.api.subnet_find")
         ) as (addr_find, subnet_alloc_find, subnet_find):
             addr_find.side_effect = addresses
             if subnets and len(subnets[0]):
@@ -609,11 +608,10 @@ class QuarkIpamTestBothRequiredIpAllocation(QuarkIpamBaseTest):
     def _stubs(self, addresses=None, subnets=None):
         if not addresses:
             addresses = [None, None]
-        db_mod = "quark.db.api"
         self.context.session.add = mock.Mock()
         with contextlib.nested(
-            mock.patch("%s.ip_address_find" % db_mod),
-            mock.patch("%s.subnet_find_allocation_counts" % db_mod)
+            mock.patch("quark.db.api.ip_address_find"),
+            mock.patch("quark.db.api.subnet_find_allocation_counts")
         ) as (addr_find, subnet_find):
             addr_find.side_effect = addresses
             subnet_find.side_effect = subnets
@@ -865,11 +863,10 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
     def _stubs(self, addresses=None, subnets=None):
         if not addresses:
             addresses = [None]
-        db_mod = "quark.db.api"
         self.context.session.add = mock.Mock()
         with contextlib.nested(
-            mock.patch("%s.ip_address_find" % db_mod),
-            mock.patch("%s.subnet_find_allocation_counts" % db_mod)
+            mock.patch("quark.db.api.ip_address_find"),
+            mock.patch("quark.db.api.subnet_find_allocation_counts")
         ) as (addr_find, subnet_find):
             addr_find.side_effect = addresses
             subnet_find.return_value = subnets
@@ -960,13 +957,12 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
 class QuarkIPAddressAllocationTestRetries(QuarkIpamBaseTest):
     @contextlib.contextmanager
     def _stubs(self, address=None, subnets=None):
-        db_mod = "quark.db.api"
         self.context.session.add = mock.Mock()
         with contextlib.nested(
-            mock.patch("%s.ip_address_find" % db_mod),
-            mock.patch("%s.ip_address_create" % db_mod),
+            mock.patch("quark.db.api.ip_address_find"),
+            mock.patch("quark.db.api.ip_address_create"),
             mock.patch("quark.ipam.QuarkIpam._notify_new_addresses"),
-            mock.patch("%s.subnet_find_allocation_counts" % db_mod)
+            mock.patch("quark.db.api.subnet_find_allocation_counts")
         ) as (addr_find, addr_create, notify, subnet_find):
             addr_find.side_effect = [None, None]
             addr_create.side_effect = address
@@ -1046,10 +1042,9 @@ class QuarkIPAddressAllocateDeallocated(QuarkIpamBaseTest):
     @contextlib.contextmanager
     def _stubs(self, ip_find, subnet, address, addresses_found,
                sub_found=True):
-        db_mod = "quark.db.api"
         with contextlib.nested(
-            mock.patch("%s.ip_address_find" % db_mod),
-            mock.patch("%s.ip_address_update" % db_mod),
+            mock.patch("quark.db.api.ip_address_find"),
+            mock.patch("quark.db.api.ip_address_update"),
             mock.patch("quark.ipam.QuarkIpamANY._choose_available_subnet")
         ) as (addr_find, addr_update, choose_subnet):
             if ip_find:
@@ -1115,11 +1110,10 @@ class TestQuarkIpPoliciesIpAllocation(QuarkIpamBaseTest):
     def _stubs(self, addresses=None, subnets=None):
         if not addresses:
             addresses = [None]
-        db_mod = "quark.db.api"
         self.context.session.add = mock.Mock()
         with contextlib.nested(
-            mock.patch("%s.ip_address_find" % db_mod),
-            mock.patch("%s.subnet_find_allocation_counts" % db_mod)
+            mock.patch("quark.db.api.ip_address_find"),
+            mock.patch("quark.db.api.subnet_find_allocation_counts")
         ) as (addr_find, subnet_find):
             addr_find.side_effect = addresses
             subnet_find.return_value = subnets
@@ -1200,15 +1194,12 @@ class QuarkIPAddressAllocationNotifications(QuarkIpamBaseTest):
         address = models.IPAddress(**address)
         if not addresses:
             addresses = [None]
-        db_mod = "quark.db.api"
-        api_mod = "neutron.openstack.common.notifier.api"
-        time_mod = "neutron.openstack.common.timeutils"
         with contextlib.nested(
-            mock.patch("%s.ip_address_find" % db_mod),
-            mock.patch("%s.ip_address_create" % db_mod),
-            mock.patch("%s.subnet_find_allocation_counts" % db_mod),
-            mock.patch("%s.notify" % api_mod),
-            mock.patch("%s.utcnow" % time_mod),
+            mock.patch("quark.db.api.ip_address_find"),
+            mock.patch("quark.db.api.ip_address_create"),
+            mock.patch("quark.db.api.subnet_find_allocation_counts"),
+            mock.patch("neutron.openstack.common.notifier.api.notify"),
+            mock.patch("neutron.openstack.common.timeutils.utcnow"),
         ) as (addr_find, addr_create, subnet_find, notify, time):
             addr_find.side_effect = addresses
             addr_create.return_value = address
@@ -1296,3 +1287,4 @@ class QuarkIpamTestV6IpGeneration(QuarkIpamBaseTest):
         ip = gen.next()
         self.assertEqual(ip,
                          netaddr.IPAddress('fe80::40c9:a95:d83a:2ffa').value)
+
