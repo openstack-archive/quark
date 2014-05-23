@@ -31,7 +31,6 @@ from quark import utils
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 STRATEGY = network_strategy.STRATEGY
-DEFAULT_ROUTE = netaddr.IPNetwork("0.0.0.0/0")
 
 quark_view_opts = [
     cfg.BoolOpt('show_allocation_pools',

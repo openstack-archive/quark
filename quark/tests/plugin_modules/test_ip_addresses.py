@@ -14,8 +14,10 @@
 #  under the License.
 
 import contextlib
+import webob
 
 import mock
+from mock import patch
 from neutron.common import exceptions
 
 from quark.db import models
@@ -148,6 +150,54 @@ class TestQuarkUpdateIPAddress(test_quark_plugin.TestQuarkPlugin):
                                                      ip['id'],
                                                      ip_address)
             self.assertEqual(response['port_ids'], [port['id']])
+
+    def _create_patch(self, path):
+        patcher = patch(path)
+        mocked = patcher.start()
+        self.addCleanup(patcher.stop)
+        return mocked
+
+    def test_update_ip_address_update_deallocated_at(self):
+        port = dict(id=1, network_id=2, ip_addresses=[])
+        ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
+                  subnet_id=1, network_id=2, version=4, deallocated=1,
+                  deallocated_at='2020-01-01 00:00:00')
+
+        path = 'quark.plugin_modules.ip_addresses'
+        lookup = self._create_patch('%s._get_deallocated_override' % path)
+
+        with self._stubs(ports=[port], addr=ip):
+            ip_address = {'ip_address': {'reset_allocation_time': True}}
+            self.plugin.update_ip_address(self.admin_context, ip['id'],
+                                          ip_address)
+            self.assertTrue(lookup.called)
+
+    def test_update_ip_address_update_deallocated_at_not_deallocated(self):
+        port = dict(id=1, network_id=2, ip_addresses=[])
+        ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
+                  subnet_id=1, network_id=2, version=4, deallocated=0,
+                  deallocated_at='2020-01-01 00:00:00')
+
+        path = 'quark.plugin_modules.ip_addresses'
+        lookup = self._create_patch('%s._get_deallocated_override' % path)
+
+        with self._stubs(ports=[port], addr=ip):
+            ip_address = {'ip_address': {'reset_allocation_time': True}}
+            self.plugin.update_ip_address(self.admin_context, ip['id'],
+                                          ip_address)
+            self.assertFalse(lookup.called)
+
+    def test_update_ip_address_update_deallocated_at_not_admin(self):
+        port = dict(id=1, network_id=2, ip_addresses=[])
+        ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
+                  subnet_id=1, network_id=2, version=4, deallocated=1,
+                  deallocated_at='2020-01-01 00:00:00')
+
+        with self._stubs(ports=[port], addr=ip):
+            ip_address = {'ip_address': {'reset_allocation_time': True}}
+            with self.assertRaises(webob.exc.HTTPForbidden):
+                self.plugin.update_ip_address(self.context, ip['id'],
+                                              ip_address)
 
     def test_update_ip_address_no_ports(self):
         port = dict(id=1, network_id=2, ip_addresses=[])
