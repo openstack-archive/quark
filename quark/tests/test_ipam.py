@@ -1287,4 +1287,3 @@ class QuarkIpamTestV6IpGeneration(QuarkIpamBaseTest):
         ip = gen.next()
         self.assertEqual(ip,
                          netaddr.IPAddress('fe80::40c9:a95:d83a:2ffa').value)
-
