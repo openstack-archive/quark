@@ -72,3 +72,43 @@ class QuarkIPAddressAllocate(QuarkIpamBaseFunctionalTest):
             self.assertEqual(ipaddress[0]['address'], 281470681743362)
             self.assertEqual(ipaddress[0]['version'], 4)
             self.assertEqual(ipaddress[0]['used_by_tenant_id'], "fake")
+
+
+class QuarkIPAddressFindReallocatable(QuarkIpamBaseFunctionalTest):
+    @contextlib.contextmanager
+    def _stubs(self, network, subnet):
+        self.ipam = quark.ipam.QuarkIpamANY()
+        with self.context.session.begin():
+            next_ip = subnet.pop("next_auto_assign_ip", 0)
+            net_mod = db_api.network_create(self.context, **network)
+            subnet["network"] = net_mod
+            sub_mod = db_api.subnet_create(self.context, **subnet)
+            # NOTE(asadoughi): update after cidr constructor has been invoked
+            db_api.subnet_update(self.context,
+                                 sub_mod,
+                                 next_auto_assign_ip=next_ip)
+        yield net_mod
+
+    def test_find_reallocatable_ips_does_not_raise(self):
+        """A patch recently introduced a bug wherein addressses
+        could not be returned to the ip_address_find call in
+        attempt_to_reallocate_ip. Adding this test to prevent
+        a future regression.
+        """
+        network = dict(name="public", tenant_id="fake")
+        ipnet = netaddr.IPNetwork("0.0.0.0/24")
+        next_ip = ipnet.ipv6().first + 2
+        subnet = dict(id=1, cidr="0.0.0.0/24", next_auto_assign_ip=next_ip,
+                      ip_policy=None, tenant_id="fake")
+
+        with self._stubs(network, subnet) as net:
+            ip_kwargs = {
+                "network_id": net["id"], "reuse_after": 14400,
+                "deallocated": True, "scope": db_api.ONE,
+                "lock_mode": True, "version": 4,
+                "order_by": "address"}
+
+            try:
+                db_api.ip_address_find(self.context, **ip_kwargs)
+            except Exception:
+                self.fail("This should not have raised")

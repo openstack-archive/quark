@@ -206,6 +206,9 @@ class QuarkIpam(object):
 
             try:
                 with context.session.begin():
+                    # NOTE(mdietz): Before I removed the lazy=joined, this
+                    #               raised with an unknown column "address"
+                    #               error.
                     address = db_api.ip_address_find(elevated, **ip_kwargs)
 
                     if address:
