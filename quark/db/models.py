@@ -231,8 +231,7 @@ class Subnet(BASEV2, models.HasId, IsHazTags):
                                      primaryjoin='Subnet.id=='
                                      'IPAddress.subnet_id')
     routes = orm.relationship(Route, primaryjoin="Route.subnet_id==Subnet.id",
-                              backref='subnet', cascade='delete',
-                              lazy="joined")
+                              backref='subnet', cascade='delete')
     enable_dhcp = sa.Column(sa.Boolean(), default=False)
     dns_nameservers = orm.relationship(
         DNSNameserver,

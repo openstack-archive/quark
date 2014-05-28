@@ -181,6 +181,8 @@ def port_find(context, fields=None, **filters):
         query = query.options(orm.joinedload("ip_addresses.subnet"))
         query = query.options(
             orm.joinedload("ip_addresses.subnet.dns_nameservers"))
+        query = query.options(
+            orm.joinedload("ip_addresses.subnet.routes"))
 
     return query.filter(*model_filters).order_by(asc(models.Port.created_at))
 
