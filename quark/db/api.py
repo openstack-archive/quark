@@ -267,6 +267,10 @@ def ip_address_find(context, lock_mode=False, **filters):
             query = query.filter(stmt.c.ports_count <= 1)
 
     model_filters = _model_query(context, models.IPAddress, filters)
+    if "do_not_use" in filters:
+        query = query.filter(models.Subnet.do_not_use ==
+                             filters["do_not_use"])
+
     if filters.get("device_id"):
         model_filters.append(models.IPAddress.ports.any(
             models.Port.device_id.in_(filters["device_id"])))
