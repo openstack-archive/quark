@@ -498,7 +498,8 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
             self.assertEqual(len(addresses), 2)
             self.assertEqual(addresses[0]["address"], address["address"])
             self.assertEqual(addresses[0]["version"], 6)
-            self.assertEqual(addresses[1]["address"], 281470681743361)
+            self.assertEqual(addresses[1]["address"],
+                             netaddr.IPAddress('::ffff:0.0.0.1').value)
             self.assertEqual(addresses[1]["version"], 4)
 
     def test_reallocate_v6_with_mac_generates_rfc_address(self):
@@ -941,7 +942,8 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
             address = []
             self.ipam.allocate_ip_address(
                 self.context, address, 0, 0, 0, ip_address="0.0.0.240")
-            self.assertEqual(address[0]["address"], 281470681743600)
+            self.assertEqual(address[0]["address"],
+                             netaddr.IPAddress('::ffff:0.0.0.240').value)
             self.assertEqual(address[0]["subnet_id"], 1)
 
     def test_no_valid_subnet_for_requested_ip_fails(self):
@@ -1184,7 +1186,8 @@ class TestQuarkIpPoliciesIpAllocation(QuarkIpamBaseTest):
             address = []
             self.ipam.allocate_ip_address(
                 self.context, address, 0, 0, 0, ip_address="0.0.0.240")
-            self.assertEqual(address[0]["address"], 281470681743600)
+            self.assertEqual(address[0]["address"],
+                             netaddr.IPAddress('::ffff:0.0.0.240').value)
 
 
 class QuarkIPAddressAllocationNotifications(QuarkIpamBaseTest):
