@@ -1,4 +1,4 @@
-SQLAlchemy>=0.7.8,<0.7.99
+SQLAlchemy>=0.7.8,<=0.9.99
 alembic
 oslo.config>=1.2.0
 zope.sqlalchemy
