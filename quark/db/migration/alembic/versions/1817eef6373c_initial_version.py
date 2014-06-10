@@ -260,6 +260,10 @@ def upgrade():
         sa.ForeignKeyConstraint(['port_id'], ['quark_ports.id'], ),
         mysql_engine='InnoDB'
     )
+    op.create_unique_constraint(
+        'subnet_id_address',
+        'quark_ip_addresses',
+        ['subnet_id', 'address'])
     # end Alembic commands ###
 
 
@@ -299,4 +303,5 @@ def downgrade():
     op.drop_table('quark_ip_policy')
     op.drop_table('quark_tag_associations')
     op.drop_table('quark_mac_address_ranges')
+    op.drop_constraint('subnet_id_address', 'quark_ip_addresses')
     # end Alembic commands ###
