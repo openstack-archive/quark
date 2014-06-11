@@ -15,14 +15,14 @@
 
 import netaddr
 import neutron.db.model_base
-import sqlalchemy as sa
-from sqlalchemy import orm
-from sqlalchemy.ext import associationproxy
-from sqlalchemy.ext import declarative
-from sqlalchemy.ext import hybrid
 from neutron.db import models_v2 as models
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import timeutils
+import sqlalchemy as sa
+from sqlalchemy.ext import associationproxy
+from sqlalchemy.ext import declarative
+from sqlalchemy.ext import hybrid
+from sqlalchemy import orm
 
 from quark.db import custom_types
 # NOTE(mdietz): This is the only way to actually create the quotas table,

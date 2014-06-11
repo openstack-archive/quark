@@ -16,14 +16,14 @@
 import contextlib
 
 import mock
-import neutron.extensions.securitygroup as sg_ext
 from neutron.db import api as db_api
+import neutron.extensions.securitygroup as sg_ext
 from oslo.config import cfg
 
-import quark.drivers.nvp_driver
 from quark.db import models
-from quark.tests import test_base
+import quark.drivers.nvp_driver
 from quark import exceptions as q_exc
+from quark.tests import test_base
 
 
 class TestNVPDriver(test_base.TestBase):
@@ -148,6 +148,7 @@ class TestNVPDriverProviderNetwork(TestNVPDriver):
     """Testing all of the network types is unnecessary, but it's nice for peace
     of mind.
     """
+
     @contextlib.contextmanager
     def _stubs(self, tz):
         with contextlib.nested(
@@ -214,6 +215,7 @@ class TestNVPDriverProviderNetwork(TestNVPDriver):
         and they may pass bridge in as the type as that's how it's known
         to NVP.
         """
+
         tz = dict(result_count=1)
         with self._stubs(tz) as (connection, switch):
             self.driver._config_provider_attrs(

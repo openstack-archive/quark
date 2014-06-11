@@ -24,9 +24,9 @@ from oslo.config import cfg
 
 from quark.db import api as db_api
 from quark.db import models as models
-from quark.plugin_modules import routes
 from quark import exceptions as q_exc
 from quark import network_strategy
+from quark.plugin_modules import routes
 from quark import plugin_views as v
 from quark import utils
 

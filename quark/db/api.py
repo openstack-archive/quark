@@ -514,8 +514,8 @@ def dns_delete(context, dns):
 
 @scoped
 def security_group_find(context, **filters):
-    query = context.session.query(models.SecurityGroup).\
-        options(orm.joinedload(models.SecurityGroup.rules))
+    query = context.session.query(models.SecurityGroup).options(
+        orm.joinedload(models.SecurityGroup.rules))
     model_filters = _model_query(context, models.SecurityGroup, filters)
     return query.filter(*model_filters)
 

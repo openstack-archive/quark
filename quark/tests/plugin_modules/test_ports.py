@@ -23,10 +23,10 @@ from neutron.extensions import securitygroup as sg_ext
 
 from quark.db import api as quark_db_api
 from quark.db import models
-from quark.plugin_modules import ports as quark_ports
-from quark.tests import test_quark_plugin
 from quark import exceptions as q_exc
 from quark import network_strategy
+from quark.plugin_modules import ports as quark_ports
+from quark.tests import test_quark_plugin
 
 
 class TestQuarkGetPorts(test_quark_plugin.TestQuarkPlugin):

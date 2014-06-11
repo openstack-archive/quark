@@ -16,16 +16,16 @@
 import contextlib
 
 import netaddr
-import unittest2
 from neutron.common import exceptions
 from neutron import context
 from neutron.db import api as neutron_db_api
 from oslo.config import cfg
+import unittest2
 
-import quark.ipam
-import quark.plugin
 from quark.db import api as db_api
 from quark.db import models
+import quark.ipam
+import quark.plugin
 
 
 class QuarkNetworkFunctionalTest(unittest2.TestCase):

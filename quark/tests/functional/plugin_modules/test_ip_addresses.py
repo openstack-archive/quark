@@ -16,10 +16,10 @@
 import contextlib
 
 import netaddr
-import unittest2
 from neutron import context
 from neutron.db import api as neutron_db_api
 from oslo.config import cfg
+import unittest2
 
 from quark.db import api as db_api
 from quark.db import models

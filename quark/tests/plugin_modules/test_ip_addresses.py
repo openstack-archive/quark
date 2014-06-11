@@ -16,12 +16,12 @@
 import contextlib
 
 import mock
-import webob
 from mock import patch
 from neutron.common import exceptions
+import webob
 
-from quark import exceptions as quark_exceptions
 from quark.db import models
+from quark import exceptions as quark_exceptions
 from quark.tests import test_quark_plugin
 
 

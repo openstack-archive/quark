@@ -22,8 +22,8 @@ from neutron.db import api as neutron_db_api
 from neutron.openstack.common.notifier import api as notifier_api
 from oslo.config import cfg
 
-import quark.ipam
 from quark.db import models
+import quark.ipam
 from quark import exceptions as q_exc
 from quark.tests import test_base
 

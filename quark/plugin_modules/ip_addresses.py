@@ -13,11 +13,11 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import webob
 from neutron.common import exceptions
 from neutron.openstack.common import importutils
 from neutron.openstack.common import log as logging
 from oslo.config import cfg
+import webob
 
 from quark.db import api as db_api
 from quark import exceptions as quark_exceptions

@@ -15,6 +15,9 @@
 
 
 import contextlib
+import time
+import sys
+
 import cProfile as profiler
 import gc
 try:
@@ -22,8 +25,6 @@ try:
 except Exception:
     # Don't want to force pstats into the venv if it's not always used
     pass
-import sys
-import time
 from neutron.api.v2 import attributes
 from neutron.openstack.common import log as logging
 

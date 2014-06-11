@@ -15,8 +15,8 @@
 
 import json
 
-from quark import network_strategy
 from quark.drivers import unmanaged
+from quark import network_strategy
 from quark.tests import test_base
 
 

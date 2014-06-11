@@ -17,9 +17,9 @@
 Optimized NVP client for Quark
 """
 
+from neutron.openstack.common import log as logging
 import sqlalchemy as sa
 from sqlalchemy import orm
-from neutron.openstack.common import log as logging
 
 from quark.db import models
 from quark.drivers.nvp_driver import NVPDriver

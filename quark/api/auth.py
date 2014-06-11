@@ -13,11 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import webob.dec
-import webob.exc
 from neutron import context
 from neutron.openstack.common import log as logging
 from neutron import wsgi
+import webob.dec
+import webob.exc
 
 LOG = logging.getLogger(__name__)
 

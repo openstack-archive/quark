@@ -18,9 +18,9 @@ NVP client driver for Quark
 """
 
 import aiclib
-from oslo.config import cfg
 from neutron.extensions import securitygroup as sg_ext
 from neutron.openstack.common import log as logging
+from oslo.config import cfg
 
 from quark.drivers import base
 from quark import exceptions
@@ -409,6 +409,7 @@ class NVPDriver(base.BaseDriver):
         """Selects an open lswitch for a network. Note that it does not select
         the most full switch, but merely one with ports available.
         """
+
         if switches is not None:
             for res in switches["results"]:
                 count = res["_relations"]["LogicalSwitchStatus"]["lport_count"]

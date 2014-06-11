@@ -17,12 +17,12 @@ import contextlib
 import datetime
 
 import netaddr
-import unittest2
 from neutron.common import exceptions
+from neutron import context
 from neutron.db import api as neutron_db_api
 from neutron.openstack.common import timeutils
-from neutron import context
 from oslo.config import cfg
+import unittest2
 
 from quark.db import api as db_api
 from quark.db import models
@@ -165,6 +165,7 @@ class QuarkIPAddressFindReallocatable(QuarkIpamBaseFunctionalTest):
         attempt_to_reallocate_ip. Adding this test to prevent
         a future regression.
         """
+
         network = dict(name="public", tenant_id="fake")
         ipnet = netaddr.IPNetwork("0.0.0.0/24")
         next_ip = ipnet.ipv6().first + 2

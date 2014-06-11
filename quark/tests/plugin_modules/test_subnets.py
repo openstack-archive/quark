@@ -627,6 +627,7 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
         """If default route (host_routes) and gateway_ip are both provided,
         then host_route takes precedence.
         """
+
         routes = [dict(cidr="0.0.0.0/0", gateway="172.16.0.4")]
         subnet = dict(
             subnet=dict(network_id=1,
@@ -663,6 +664,7 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
         """Creating a subnet with a NULL gateway IP shouldn't
         create routes.
         """
+
         routes = [dict(cidr="0.0.0.0/0", gateway="172.16.0.4")]
         subnet = dict(
             subnet=dict(network_id=1,
