@@ -17,14 +17,15 @@
 Quark Pluggable IPAM
 """
 
+import netaddr
 import random
 import uuid
-import netaddr
 from neutron.common import exceptions
 from neutron.openstack.common import log as logging
 from neutron.openstack.common.notifier import api as notifier_api
 from neutron.openstack.common import timeutils
 from oslo.config import cfg
+
 from quark.db import api as db_api
 from quark.db import models
 from quark import exceptions as q_exc
@@ -292,7 +293,8 @@ class QuarkIpam(object):
 
         This should provide a performance boost over attempting to check
         each and every subnet in the existing reallocate logic, as we'd
-        have to iterate over each and every subnet returned """
+        have to iterate over each and every subnet returned
+        """
         if not (ip_address is None and "mac_address" in kwargs and
                 kwargs["mac_address"]):
             return self._allocate_from_subnet(context, net_id, subnet,

@@ -22,11 +22,11 @@ from oslo.config import cfg
 
 from quark.db import api as db_api
 from quark.drivers import registry
+from quark.plugin_modules import ports
+from quark.plugin_modules import subnets
 from quark import exceptions as q_exc
 from quark import ipam
 from quark import network_strategy
-from quark.plugin_modules import ports
-from quark.plugin_modules import subnets
 from quark import plugin_views as v
 from quark import utils
 

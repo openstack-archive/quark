@@ -17,9 +17,8 @@
 NVP client driver for Quark
 """
 
-from oslo.config import cfg
-
 import aiclib
+from oslo.config import cfg
 from neutron.extensions import securitygroup as sg_ext
 from neutron.openstack.common import log as logging
 
@@ -413,8 +412,8 @@ class NVPDriver(base.BaseDriver):
         if switches is not None:
             for res in switches["results"]:
                 count = res["_relations"]["LogicalSwitchStatus"]["lport_count"]
-                if self.limits['max_ports_per_switch'] == 0 or \
-                        count < self.limits['max_ports_per_switch']:
+                if (self.limits['max_ports_per_switch'] == 0 or
+                        count < self.limits['max_ports_per_switch']):
                     return res["uuid"]
         return None
 

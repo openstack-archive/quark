@@ -14,7 +14,6 @@
 #    under the License.
 
 import netaddr
-
 from neutron.common import exceptions
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import uuidutils

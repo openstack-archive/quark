@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import contextlib
+
 import mock
 import netaddr
 from neutron.common import exceptions
@@ -21,9 +22,9 @@ from neutron.db import api as neutron_db_api
 from neutron.openstack.common.notifier import api as notifier_api
 from oslo.config import cfg
 
+import quark.ipam
 from quark.db import models
 from quark import exceptions as q_exc
-import quark.ipam
 from quark.tests import test_base
 
 

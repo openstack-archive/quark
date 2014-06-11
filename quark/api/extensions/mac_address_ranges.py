@@ -14,10 +14,9 @@
 # limitations under the License.
 
 import webob
-
 from neutron.api import extensions
-from neutron import manager
 from neutron.openstack.common import log as logging
+from neutron import manager
 from neutron import wsgi
 
 RESOURCE_NAME = 'mac_address_range'

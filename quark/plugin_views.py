@@ -21,6 +21,7 @@ import netaddr
 from neutron.extensions import securitygroup as sg_ext
 from neutron.openstack.common import log as logging
 from oslo.config import cfg
+
 from quark.db import api as db_api
 from quark.db import models
 from quark import network_strategy

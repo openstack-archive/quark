@@ -23,10 +23,10 @@ from neutron.extensions import securitygroup as sg_ext
 
 from quark.db import api as quark_db_api
 from quark.db import models
-from quark import exceptions as q_exc
-from quark import network_strategy
 from quark.plugin_modules import ports as quark_ports
 from quark.tests import test_quark_plugin
+from quark import exceptions as q_exc
+from quark import network_strategy
 
 
 class TestQuarkGetPorts(test_quark_plugin.TestQuarkPlugin):
@@ -653,8 +653,9 @@ class TestQuarkPostUpdatePort(test_quark_plugin.TestQuarkPlugin):
                               device_id=2))
         ip = dict(id=1, address=3232235876, address_readable="192.168.1.101",
                   subnet_id=1, network_id=2, version=4, deallocated=True)
-        with self._stubs(port=port, addr=None, addr2=ip) as \
-                (port_find, alloc_ip, ip_find):
+        with self._stubs(port=port, addr=None, addr2=ip) as (port_find,
+                                                             alloc_ip,
+                                                             ip_find):
             response = self.plugin.post_update_port(self.context, 1,
                                                     new_port_ip)
             self.assertEqual(port_find.call_count, 1)

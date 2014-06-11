@@ -14,15 +14,12 @@
 #    under the License.
 
 import netaddr
-
+import neutron.db.model_base
 import sqlalchemy as sa
 from sqlalchemy import orm
-
 from sqlalchemy.ext import associationproxy
 from sqlalchemy.ext import declarative
 from sqlalchemy.ext import hybrid
-
-import neutron.db.model_base
 from neutron.db import models_v2 as models
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import timeutils
@@ -32,7 +29,7 @@ from quark.db import custom_types
 #              regardless if we need it. This is how it's done upstream.
 # NOTE(jhammond): If it isn't obvious quota_driver is unused and that's ok.
 #                 DO NOT DELETE IT!!!
-from quark import quota_driver  # noqa
+from quark import quota_driver
 
 HasId = models.HasId
 

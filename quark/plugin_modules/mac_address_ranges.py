@@ -15,6 +15,7 @@
 
 import netaddr
 from neutron.openstack.common import log as logging
+
 from quark.db import api as db_api
 from quark import exceptions as quark_exceptions
 from quark import plugin_views as v

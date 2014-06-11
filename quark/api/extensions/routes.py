@@ -14,11 +14,10 @@
 # limitations under the License.
 
 import webob
-
 from neutron.api import extensions
 from neutron.common import exceptions
-from neutron import manager
 from neutron.openstack.common import log as logging
+from neutron import manager
 from neutron import wsgi
 
 RESOURCE_NAME = 'route'

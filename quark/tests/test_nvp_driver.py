@@ -14,16 +14,16 @@
 #  under the License.
 
 import contextlib
-import mock
 
-from neutron.db import api as db_api
+import mock
 import neutron.extensions.securitygroup as sg_ext
+from neutron.db import api as db_api
 from oslo.config import cfg
 
-from quark.db import models
 import quark.drivers.nvp_driver
-from quark import exceptions as q_exc
+from quark.db import models
 from quark.tests import test_base
+from quark import exceptions as q_exc
 
 
 class TestNVPDriver(test_base.TestBase):
@@ -331,8 +331,8 @@ class TestNVPDriverCreatePort(TestNVPDriver):
             self.assertFalse(connection.lswitch().create.called)
             self.assertTrue(connection.lswitch_port().create.called)
             self.assertTrue(connection.lswitch().query.called)
-            status_args, kwargs = connection.lswitch_port().\
-                admin_status_enabled.call_args
+            status_args, kwargs = (
+                connection.lswitch_port().admin_status_enabled.call_args)
             self.assertTrue(True in status_args)
 
     def test_create_port_switch_exists_tags(self):
@@ -345,8 +345,8 @@ class TestNVPDriverCreatePort(TestNVPDriver):
             self.assertFalse(connection.lswitch().create.called)
             self.assertTrue(connection.lswitch_port().create.called)
             self.assertTrue(connection.lswitch().query.called)
-            status_args, kwargs = connection.lswitch_port().\
-                admin_status_enabled.call_args
+            status_args, kwargs = (
+                connection.lswitch_port().admin_status_enabled.call_args)
             self.assertTrue(True in status_args)
             connection.lswitch_port().assert_has_calls([mock.call.tags([
                 dict(scope="neutron_net_id", tag=self.net_id),
@@ -364,8 +364,8 @@ class TestNVPDriverCreatePort(TestNVPDriver):
             self.assertTrue(connection.lswitch().create.called)
             self.assertTrue(connection.lswitch_port().create.called)
             self.assertTrue(connection.lswitch().query.called)
-            status_args, kwargs = connection.lswitch_port().\
-                admin_status_enabled.call_args
+            status_args, kwargs = (
+                connection.lswitch_port().admin_status_enabled.call_args)
             self.assertTrue(True in status_args)
 
     def test_create_port_no_existing_switches_fails(self):
@@ -382,8 +382,8 @@ class TestNVPDriverCreatePort(TestNVPDriver):
             self.assertTrue(connection.lswitch().create.called)
             self.assertTrue(connection.lswitch_port().create.called)
             self.assertTrue(connection.lswitch().query.called)
-            status_args, kwargs = connection.lswitch_port().\
-                admin_status_enabled.call_args
+            status_args, kwargs = (
+                connection.lswitch_port().admin_status_enabled.call_args)
             self.assertTrue(False in status_args)
 
     def test_create_port_switch_exists_spanning(self):
@@ -396,8 +396,8 @@ class TestNVPDriverCreatePort(TestNVPDriver):
             self.assertTrue(connection.lswitch().create.called)
             self.assertTrue(connection.lswitch_port().create.called)
             self.assertTrue(connection.lswitch().query.called)
-            status_args, kwargs = connection.lswitch_port().\
-                admin_status_enabled.call_args
+            status_args, kwargs = (
+                connection.lswitch_port().admin_status_enabled.call_args)
             self.assertTrue(True in status_args)
 
     def test_create_port_switch_not_exists_spanning(self):
@@ -410,8 +410,8 @@ class TestNVPDriverCreatePort(TestNVPDriver):
             self.assertTrue(connection.lswitch().create.called)
             self.assertTrue(connection.lswitch_port().create.called)
             self.assertTrue(connection.lswitch().query.called)
-            status_args, kwargs = connection.lswitch_port().\
-                admin_status_enabled.call_args
+            status_args, kwargs = (
+                connection.lswitch_port().admin_status_enabled.call_args)
             self.assertTrue(True in status_args)
 
     def test_create_disabled_port_switch_not_exists_spanning(self):
@@ -424,8 +424,8 @@ class TestNVPDriverCreatePort(TestNVPDriver):
             self.assertTrue(connection.lswitch().create.called)
             self.assertTrue(connection.lswitch_port().create.called)
             self.assertTrue(connection.lswitch().query.called)
-            status_args, kwargs = connection.lswitch_port().\
-                admin_status_enabled.call_args
+            status_args, kwargs = (
+                connection.lswitch_port().admin_status_enabled.call_args)
             self.assertTrue(False in status_args)
 
     def test_create_port_with_security_groups(self):
@@ -651,8 +651,8 @@ class TestNVPDriverDeleteSecurityGroup(TestNVPDriver):
 
     def test_security_group_delete_not_found(self):
         with self._stubs() as connection:
-            connection.securityprofile().query().results.return_value = \
-                {'result_count': 0, 'results': []}
+            connection.securityprofile().query().results.return_value = {
+                'result_count': 0, 'results': []}
             with self.assertRaises(sg_ext.SecurityGroupNotFound):
                 self.driver.delete_security_group(self.context, 1)
 
@@ -679,8 +679,8 @@ class TestNVPDriverUpdateSecurityGroup(TestNVPDriver):
 
     def test_security_group_update_not_found(self):
         with self._stubs() as connection:
-            connection.securityprofile().query().results.return_value = \
-                {'result_count': 0, 'results': []}
+            connection.securityprofile().query().results.return_value = {
+                'result_count': 0, 'results': []}
             with self.assertRaises(sg_ext.SecurityGroupNotFound):
                 self.driver.update_security_group(self.context, 1)
 
@@ -726,8 +726,8 @@ class TestNVPDriverCreateSecurityGroupRule(TestNVPDriver):
             connection = self._create_connection()
             connection.securityprofile = self._create_security_profile()
             connection.securityrule = self._create_security_rule()
-            connection.lswitch_port().query.return_value = \
-                self._create_lport_query(1, [self.profile_id])
+            connection.lswitch_port().query.return_value = (
+                self._create_lport_query(1, [self.profile_id]))
             get_connection.return_value = connection
             yield connection
 

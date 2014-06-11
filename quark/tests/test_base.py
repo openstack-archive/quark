@@ -14,7 +14,6 @@
 # limitations under the License.
 
 import unittest2
-
 from neutron import context
 
 

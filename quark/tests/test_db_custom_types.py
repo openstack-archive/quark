@@ -13,11 +13,10 @@
 # License for the specific language governing permissions and limitations
 #  under the License.
 
-from quark.db import custom_types
-
-from quark.tests import test_base
-
 from sqlalchemy.dialects import mysql, sqlite
+
+from quark.db import custom_types
+from quark.tests import test_base
 
 
 class TestDBCustomTypesINET(test_base.TestBase):

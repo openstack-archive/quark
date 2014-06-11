@@ -14,8 +14,9 @@
 #  under the License.
 
 import json
-from quark.drivers import unmanaged
+
 from quark import network_strategy
+from quark.drivers import unmanaged
 from quark.tests import test_base
 
 

@@ -14,6 +14,7 @@
 #    under the License.
 
 import json
+
 from neutron.common import exceptions
 from oslo.config import cfg
 

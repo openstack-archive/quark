@@ -15,7 +15,6 @@
 
 import webob.dec
 import webob.exc
-
 from neutron import context
 from neutron.openstack.common import log as logging
 from neutron import wsgi

@@ -14,6 +14,7 @@
 #  under the License.
 
 import contextlib
+
 import mock
 
 import quark.db.models
@@ -24,8 +25,8 @@ import quark.tests.test_nvp_driver as test_nvp_driver
 class TestOptimizedNVPDriver(test_nvp_driver.TestNVPDriver):
     def setUp(self):
         if not hasattr(self, 'driver'):
-            self.driver = quark.drivers.optimized_nvp_driver.\
-                OptimizedNVPDriver()
+            self.driver = (
+                quark.drivers.optimized_nvp_driver.OptimizedNVPDriver())
         super(TestOptimizedNVPDriver, self).setUp()
         self.d_pkg = "quark.drivers.optimized_nvp_driver.OptimizedNVPDriver"
         self.context.session.add = mock.Mock(return_value=None)
@@ -97,8 +98,7 @@ class TestOptimizedNVPDriverDeleteNetwork(TestOptimizedNVPDriver):
 
 class TestOptimizedNVPDriverDeletePortMultiSwitch(TestOptimizedNVPDriver):
     '''Need to test if ports on switch = 0 delete switch if it is not the last
-       switch on the network.
-    '''
+       switch on the network.'''
     @contextlib.contextmanager
     def _stubs(self, port_count=2):
         with contextlib.nested(
@@ -136,8 +136,7 @@ class TestOptimizedNVPDriverDeletePortMultiSwitch(TestOptimizedNVPDriver):
 
 class TestOptimizedNVPDriverDeletePortSingleSwitch(TestOptimizedNVPDriver):
     '''Need to test if ports on switch = 0 delete switch unless it is the last
-       switch on the network.
-    '''
+       switch on the network.'''
     @contextlib.contextmanager
     def _stubs(self, port_count=2):
         with contextlib.nested(
@@ -434,7 +433,6 @@ class TestQueryMethods(TestOptimizedNVPDriver):
     assertions are made, as there's no sense in testing that sqlalchemy
     does in fact do what it's supposed to do.
     """
-
     @contextlib.contextmanager
     def _stubs(self):
         old_query = self.context.session.query

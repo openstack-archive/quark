@@ -15,14 +15,14 @@
 
 import contextlib
 import datetime
-import netaddr
 
+import netaddr
+import unittest2
 from neutron.common import exceptions
-from neutron import context
 from neutron.db import api as neutron_db_api
 from neutron.openstack.common import timeutils
+from neutron import context
 from oslo.config import cfg
-import unittest2
 
 from quark.db import api as db_api
 from quark.db import models

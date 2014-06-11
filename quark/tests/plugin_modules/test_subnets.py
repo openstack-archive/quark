@@ -742,8 +742,9 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
               dns_create,
               route_find, route_update, route_create):
             subnet_find.return_value = subnet_mod
-            route_find.return_value = subnet_mod["routes"][0] \
-                if subnet_mod["routes"] and find_routes else None
+            route_find.return_value = (subnet_mod["routes"][0] if
+                                       subnet_mod["routes"] and
+                                       find_routes else None)
             new_subnet_mod = models.Subnet(network=models.Network())
             new_subnet_mod.update(subnet_mod)
             if new_routes:
