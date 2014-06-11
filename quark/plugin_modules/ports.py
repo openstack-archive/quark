@@ -203,7 +203,7 @@ def update_port(context, id, port):
     fixed_ips = port["port"].pop("fixed_ips", None)
     if fixed_ips is not None:
 
-        #NOTE(mdietz): we want full control over IPAM since
+        # NOTE(mdietz): we want full control over IPAM since
         #              we're allocating by subnet instead of
         #              network.
         ipam_driver = ipam.IPAM_REGISTRY.get_strategy(
@@ -272,7 +272,7 @@ def update_port(context, id, port):
     with context.session.begin():
         port = db_api.port_update(context, port_db, **port["port"])
 
-    #NOTE(mdietz): fix for issue 112, we wanted the IPs to be in
+    # NOTE(mdietz): fix for issue 112, we wanted the IPs to be in
     #              allocated_at order, so get a fresh object every time
     if port_db in context.session:
         context.session.expunge(port_db)
@@ -344,7 +344,7 @@ def get_port(context, id, fields=None):
         will be returned.
     """
     LOG.info("get_port %s for tenant %s fields %s" %
-            (id, context.tenant_id, fields))
+             (id, context.tenant_id, fields))
     results = db_api.port_find(context, id=id, fields=fields,
                                scope=db_api.ONE)
 
@@ -374,7 +374,7 @@ def get_ports(context, filters=None, fields=None):
         will be returned.
     """
     LOG.info("get_ports for tenant %s filters %s fields %s" %
-            (context.tenant_id, filters, fields))
+             (context.tenant_id, filters, fields))
     if filters is None:
         filters = {}
 
@@ -411,7 +411,7 @@ def get_ports_count(context, filters=None):
           defined plugin API.
     """
     LOG.info("get_ports_count for tenant %s filters %s" %
-            (context.tenant_id, filters))
+             (context.tenant_id, filters))
     return db_api.port_count_all(context, join_security_groups=True, **filters)
 
 
@@ -422,7 +422,7 @@ def delete_port(context, id):
     : param id: UUID representing the port to delete.
     """
     LOG.info("delete_port %s for tenant %s" %
-            (id, context.tenant_id))
+             (id, context.tenant_id))
 
     port = db_api.port_find(context, id=id, scope=db_api.ONE)
     if not port:
@@ -453,7 +453,7 @@ def disassociate_port(context, id, ip_address_id):
     disassociate.
     """
     LOG.info("disassociate_port %s for tenant %s ip_address_id %s" %
-            (id, context.tenant_id, ip_address_id))
+             (id, context.tenant_id, ip_address_id))
     with context.session.begin():
         port = db_api.port_find(context, id=id, ip_address_id=[ip_address_id],
                                 scope=db_api.ONE)

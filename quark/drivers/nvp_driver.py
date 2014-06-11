@@ -88,7 +88,7 @@ class NVPDriver(base.BaseDriver):
         return "NVP"
 
     def load_config(self):
-        #NOTE(mdietz): What does default_tz actually mean?
+        # NOTE(mdietz): What does default_tz actually mean?
         #              We don't have one default.
         # NOTE(jkoelker): Transport Zone
         default_tz = CONF.NVP.default_tz
@@ -248,7 +248,7 @@ class NVPDriver(base.BaseDriver):
                         'packets': stats['rx_packets'],
                         'bytes': stats['rx_bytes'],
                         'errors': stats['rx_errors']
-                        },
+                    },
                     'transmitted': {
                         'packets': stats['tx_packets'],
                         'bytes': stats['tx_bytes'],
@@ -433,7 +433,7 @@ class NVPDriver(base.BaseDriver):
         if phys_net and not net_type:
             raise exceptions.ProvidernetParamError(
                 msg="provider:network_type parameter required")
-        if not net_type in ("bridge", "vlan") and segment_id:
+        if net_type not in ("bridge", "vlan") and segment_id:
             raise exceptions.SegmentIdUnsupported(net_type=net_type)
         if net_type == "vlan" and not segment_id:
             raise exceptions.SegmentIdRequired(net_type=net_type)
@@ -460,7 +460,7 @@ class NVPDriver(base.BaseDriver):
         # if type maps to 'bridge', then segment_id, which maps
         # to vlan_id, is conditionally provided
         LOG.debug("Creating new lswitch for %s network %s" %
-                 (context.tenant_id, network_name))
+                  (context.tenant_id, network_name))
 
         tenant_id = context.tenant_id
         connection = self.get_connection()

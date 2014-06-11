@@ -73,9 +73,9 @@ class TestNVPDriver(test_base.TestBase):
     def _create_lport_query(self, switch_count, profiles=[]):
         query = mock.Mock()
         port_list = {"_relations":
-                    {"LogicalSwitchConfig":
-                        {"uuid": self.lswitch_uuid,
-                         "security_profiles": profiles}}}
+                     {"LogicalSwitchConfig":
+                      {"uuid": self.lswitch_uuid,
+                       "security_profiles": profiles}}}
         port_query = {"results": [port_list], "result_count": switch_count}
         query.results = mock.Mock(return_value=port_query)
         query.security_profile_uuid().results.return_value = {

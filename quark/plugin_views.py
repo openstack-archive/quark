@@ -18,11 +18,9 @@ View Helpers for Quark Plugin
 """
 
 import netaddr
-
 from neutron.extensions import securitygroup as sg_ext
 from neutron.openstack.common import log as logging
 from oslo.config import cfg
-
 from quark.db import api as db_api
 from quark.db import models
 from quark import network_strategy
@@ -115,18 +113,18 @@ def _make_subnet_dict(subnet, fields=None):
         return {"destination": route["cidr"],
                 "nexthop": route["gateway"]}
 
-    #TODO(mdietz): really inefficient, should go away
+    # TODO(mdietz): really inefficient, should go away
     res["gateway_ip"] = None
     res["host_routes"] = []
     default_found = False
     for route in subnet["routes"]:
         netroute = netaddr.IPNetwork(route["cidr"])
         if _is_default_route(netroute):
-            #NOTE(mdietz): This has the potential to find more than one default
-            #              route. Quark normally won't allow you to create
-            #              more than one, but it's plausible one exists
-            #              regardless. As such, we're going to pretend
-            #              it isn't possible, but log it anyway.
+            # NOTE(mdietz): This has the potential to find more than one
+            #       default route. Quark normally won't allow you to create
+            #       more than one, but it's plausible one exists regardless.
+            #       As such, we're going to pretend it isn't possible, but
+            #       log it anyway.
             if default_found:
                 LOG.info(_("Default route %(gateway_ip)s already found for "
                            "subnet %(id)s") % res)
@@ -178,7 +176,7 @@ def _port_dict(port, fields=None):
         mac = str(netaddr.EUI(res["mac_address"])).replace('-', ':')
         res["mac_address"] = mac
 
-    #NOTE(mdietz): more pythonic key in dict check fails here. Leave as get
+    # NOTE(mdietz): more pythonic key in dict check fails here. Leave as get
     if port.get("bridge"):
         res["bridge"] = port["bridge"]
     return res

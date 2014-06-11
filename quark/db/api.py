@@ -259,7 +259,7 @@ def ip_address_find(context, lock_mode=False, **filters):
 
         query = query.outerjoin(stmt, stmt.c.id == models.IPAddress.id)
 
-        #!@# HACK(amir): replace once attributes are configured in ip address
+        # !@# HACK(amir): replace once attributes are configured in ip address
         #                extension correctly
         if "True" in ip_shared:
             query = query.filter(stmt.c.ports_count > 1)

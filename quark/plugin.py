@@ -17,13 +17,11 @@
 v2 Neutron Plug-in API Quark Implementation
 """
 from oslo.config import cfg
-
 from neutron.db import api as neutron_db_api
 from neutron.extensions import securitygroup as sg_ext
 from neutron import neutron_plugin_base_v2
 from neutron.openstack.common import log as logging
 from neutron import quota
-
 from quark.api import extensions
 from quark.db import models
 from quark.plugin_modules import ip_addresses
@@ -75,7 +73,7 @@ def sessioned(func):
         res = func(self, context, *args, **kwargs)
         context.session.close()
 
-        #NOTE(mdietz): Forces neutron to get a fresh session
+        # NOTE(mdietz): Forces neutron to get a fresh session
         #              if it needs it after our call
         context._session = None
         return res
@@ -122,16 +120,16 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
     def delete_mac_address_range(self, context, id):
         mac_address_ranges.delete_mac_address_range(context, id)
 
-    #TODO(dietz/perkins): passing in net_driver as a stopgap,
-    #XXX DO NOT DEPLOY!! XXX see redmine #2487
+    # TODO(dietz/perkins): passing in net_driver as a stopgap,
+    # XXX DO NOT DEPLOY!! XXX see redmine #2487
     @sessioned
     def create_security_group(self, context, security_group, net_driver):
         self._fix_missing_tenant_id(context, security_group["security_group"])
         return security_groups.create_security_group(context, security_group,
                                                      net_driver)
 
-    #TODO(dietz/perkins): passing in net_driver as a stopgap,
-    #XXX DO NOT DEPLOY!! XXX see redmine #2487
+    # TODO(dietz/perkins): passing in net_driver as a stopgap,
+    # XXX DO NOT DEPLOY!! XXX see redmine #2487
     @sessioned
     def create_security_group_rule(self, context, security_group,
                                    security_group_rule, net_driver):
@@ -140,14 +138,14 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
                                                           security_group_rule,
                                                           net_driver)
 
-    #TODO(dietz/perkins): passing in net_driver as a stopgap,
-    #XXX DO NOT DEPLOY!! XXX see redmine #2487
+    # TODO(dietz/perkins): passing in net_driver as a stopgap,
+    # XXX DO NOT DEPLOY!! XXX see redmine #2487
     @sessioned
     def delete_security_group(self, context, id, net_driver):
         security_groups.delete_security_group(context, id, net_driver)
 
-    #TODO(dietz/perkins): passing in net_driver as a stopgap,
-    #XXX DO NOT DEPLOY!! XXX see redmine #2487
+    # TODO(dietz/perkins): passing in net_driver as a stopgap,
+    # XXX DO NOT DEPLOY!! XXX see redmine #2487
     @sessioned
     def delete_security_group_rule(self, context, id, net_driver):
         security_groups.delete_security_group_rule(context, id, net_driver)
@@ -176,8 +174,8 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
                                                         fields, sorts, limit,
                                                         marker, page_reverse)
 
-    #TODO(dietz/perkins): passing in net_driver as a stopgap,
-    #XXX DO NOT DEPLOY!! XXX see redmine #2487
+    # TODO(dietz/perkins): passing in net_driver as a stopgap,
+    # XXX DO NOT DEPLOY!! XXX see redmine #2487
     @sessioned
     def update_security_group(self, context, id, security_group, net_driver):
         return security_groups.update_security_group(context, id,

@@ -14,12 +14,10 @@
 #    under the License.
 
 import webob
-
 from neutron.common import exceptions
 from neutron.openstack.common import importutils
 from neutron.openstack.common import log as logging
 from oslo.config import cfg
-
 from quark.db import api as db_api
 from quark import exceptions as quark_exceptions
 from quark import plugin_views as v
@@ -39,7 +37,7 @@ def get_ip_addresses(context, **filters):
 
 def get_ip_address(context, id):
     LOG.info("get_ip_address %s for tenant %s" %
-            (id, context.tenant_id))
+             (id, context.tenant_id))
     addr = db_api.ip_address_find(context, id=id, scope=db_api.ONE)
     if not addr:
         raise quark_exceptions.IpAddressNotFound(addr_id=id)
@@ -101,7 +99,7 @@ def _get_deallocated_override():
 
 def update_ip_address(context, id, ip_address):
     LOG.info("update_ip_address %s for tenant %s" %
-            (id, context.tenant_id))
+             (id, context.tenant_id))
 
     with context.session.begin():
         address = db_api.ip_address_find(

@@ -38,7 +38,7 @@ ipam_driver = (importutils.import_class(CONF.QUARK.ipam_driver))()
 
 
 def _adapt_provider_nets(context, network):
-    #TODO(mdietz) going to ignore all the boundary and network
+    # TODO(mdietz) going to ignore all the boundary and network
     #             type checking for now.
     attrs = network["network"]
     net_type = utils.pop_param(attrs, pnet.NETWORK_TYPE)
@@ -72,7 +72,7 @@ def create_network(context, network):
         else:
             net_uuid = uuidutils.generate_uuid()
 
-        #TODO(mdietz) this will be the first component registry hook, but
+        # TODO(mdietz) this will be the first component registry hook, but
         #             lets make it work first
         pnet_type, phys_net, seg_id = _adapt_provider_nets(context, network)
 
@@ -111,7 +111,7 @@ def create_network(context, network):
             new_subnets.append(s)
         new_net["subnets"] = new_subnets
 
-        #if not security_groups.get_security_groups(
+        # if not security_groups.get_security_groups(
         #        context,
         #        filters={"id": security_groups.DEFAULT_SG_UUID}):
         #    security_groups._create_default_security_group(context)
@@ -129,7 +129,7 @@ def update_network(context, id, network):
         neutron/api/v2/attributes.py.
     """
     LOG.info("update_network %s for tenant %s" %
-            (id, context.tenant_id))
+             (id, context.tenant_id))
     with context.session.begin():
         net = db_api.network_find(context, id=id, scope=db_api.ONE)
         if not net:
@@ -150,7 +150,7 @@ def get_network(context, id, fields=None):
         will be returned.
     """
     LOG.info("get_network %s for tenant %s fields %s" %
-            (id, context.tenant_id, fields))
+             (id, context.tenant_id, fields))
 
     network = db_api.network_find(context, id=id, join_subnets=True,
                                   scope=db_api.ONE)
@@ -179,7 +179,7 @@ def get_networks(context, filters=None, fields=None):
         will be returned.
     """
     LOG.info("get_networks for tenant %s with filters %s, fields %s" %
-            (context.tenant_id, filters, fields))
+             (context.tenant_id, filters, fields))
     nets = db_api.network_find(context, join_subnets=True, **filters) or []
     nets = [v._make_network_dict(net, fields=fields) for net in nets]
     return nets
@@ -203,7 +203,7 @@ def get_networks_count(context, filters=None):
           defined plugin API.
     """
     LOG.info("get_networks_count for tenant %s filters %s" %
-            (context.tenant_id, filters))
+             (context.tenant_id, filters))
     return db_api.network_count_all(context)
 
 

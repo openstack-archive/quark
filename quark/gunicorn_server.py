@@ -4,7 +4,6 @@ import sys
 from gunicorn.app import base
 from gunicorn import config as gconfig
 from oslo.config import cfg
-
 from neutron.common import config
 from neutron.common import legacy
 from neutron.common import utils

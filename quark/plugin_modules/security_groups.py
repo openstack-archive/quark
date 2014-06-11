@@ -67,9 +67,9 @@ def _validate_security_group_rule(context, rule):
 
 def create_security_group(context, security_group, net_driver):
     # TODO(dietz/perkins): passing in net_driver as a stopgap,
-    # XXX DO NOT DEPLOY!! XXX see redmine #2487
+    # XXX DO NOT DEPLOY!! XXX see redmine # 2487
     LOG.info("create_security_group for tenant %s" %
-            (context.tenant_id))
+             (context.tenant_id))
     group = security_group["security_group"]
     group_name = group.get('name', '')
     if group_name == "default":
@@ -121,7 +121,7 @@ def _create_default_security_group(context, net_driver):
 
 def create_security_group_rule(context, security_group_rule, net_driver):
     LOG.info("create_security_group for tenant %s" %
-            (context.tenant_id))
+             (context.tenant_id))
 
     with context.session.begin():
         rule = _validate_security_group_rule(
@@ -146,12 +146,12 @@ def create_security_group_rule(context, security_group_rule, net_driver):
 
 def delete_security_group(context, id, net_driver):
     LOG.info("delete_security_group %s for tenant %s" %
-            (id, context.tenant_id))
+             (id, context.tenant_id))
 
     with context.session.begin():
         group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
 
-        #TODO(anyone): name and ports are lazy-loaded. Could be good op later
+        # TODO(anyone): name and ports are lazy-loaded. Could be good op later
         if not group:
             raise sg_ext.SecurityGroupNotFound(group_id=id)
         if id == DEFAULT_SG_UUID or group.name == "default":
@@ -164,7 +164,7 @@ def delete_security_group(context, id, net_driver):
 
 def delete_security_group_rule(context, id, net_driver):
     LOG.info("delete_security_group %s for tenant %s" %
-            (id, context.tenant_id))
+             (id, context.tenant_id))
     with context.session.begin():
         rule = db_api.security_group_rule_find(context, id=id,
                                                scope=db_api.ONE)
@@ -185,7 +185,7 @@ def delete_security_group_rule(context, id, net_driver):
 
 def get_security_group(context, id, fields=None):
     LOG.info("get_security_group %s for tenant %s" %
-            (id, context.tenant_id))
+             (id, context.tenant_id))
     group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
     if not group:
         raise sg_ext.SecurityGroupNotFound(group_id=id)
@@ -194,7 +194,7 @@ def get_security_group(context, id, fields=None):
 
 def get_security_group_rule(context, id, fields=None):
     LOG.info("get_security_group_rule %s for tenant %s" %
-            (id, context.tenant_id))
+             (id, context.tenant_id))
     rule = db_api.security_group_rule_find(context, id=id,
                                            scope=db_api.ONE)
     if not rule:
@@ -206,7 +206,7 @@ def get_security_groups(context, filters=None, fields=None,
                         sorts=None, limit=None, marker=None,
                         page_reverse=False):
     LOG.info("get_security_groups for tenant %s" %
-            (context.tenant_id))
+             (context.tenant_id))
     groups = db_api.security_group_find(context, **filters)
     return [v._make_security_group_dict(group) for group in groups]
 
@@ -215,7 +215,7 @@ def get_security_group_rules(context, filters=None, fields=None,
                              sorts=None, limit=None, marker=None,
                              page_reverse=False):
     LOG.info("get_security_group_rules for tenant %s" %
-            (context.tenant_id))
+             (context.tenant_id))
     rules = db_api.security_group_rule_find(context, **filters)
     return [v._make_security_group_rule_dict(rule) for rule in rules]
 

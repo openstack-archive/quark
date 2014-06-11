@@ -14,6 +14,7 @@
 #  under the License.
 
 
+import contextlib
 import cProfile as profiler
 import gc
 try:
@@ -23,9 +24,6 @@ except Exception:
     pass
 import sys
 import time
-
-import contextlib
-
 from neutron.api.v2 import attributes
 from neutron.openstack.common import log as logging
 

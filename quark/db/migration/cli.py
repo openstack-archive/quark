@@ -28,5 +28,5 @@ def main():
     config.neutron_config = cli.CONF
 
     cli.CONF()
-    #TODO(gongysh) enable logging
+    # TODO(gongysh) enable logging
     cli.CONF.command.func(config, cli.CONF.command.name)
