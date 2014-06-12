@@ -961,5 +961,5 @@ class TestPortBadNetworkPlugin(test_quark_plugin.TestQuarkPlugin):
             alloc_ip.return_value = {}
             alloc_mac.return_value = mac
 
-            with self.assertRaises(Exception):
+            with self.assertRaises(Exception):  # noqa
                 self.plugin.create_port(self.context, port)

@@ -346,12 +346,12 @@ class TestQuarkCreateSecurityGroupRule(test_quark_plugin.TestQuarkPlugin):
     def test_create_security_group_no_proto_with_ranges_fails(self):
         with self.assertRaises(sg_ext.SecurityGroupProtocolRequiredWithPorts):
             self._test_create_security_rule(protocol=None, port_range_min=0)
-        with self.assertRaises(Exception):
+        with self.assertRaises(Exception):  # noqa
             self._test_create_security_rule(
                 protocol=6, port_range_min=1, port_range_max=0)
 
     def test_create_security_rule_remote_conflicts(self):
-        with self.assertRaises(Exception):
+        with self.assertRaises(Exception):  # noqa
             self._test_create_security_rule(remote_ip_prefix='192.168.0.1',
                                             remote_group_id='0')
 

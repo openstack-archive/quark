@@ -567,12 +567,12 @@ class TestNVPDriverDeletePort(TestNVPDriver):
 
     def test_delete_port_many_switches(self):
         with self._stubs(switch_count=2):
-            with self.assertRaises(Exception):
+            with self.assertRaises(Exception):  # noqa
                 self.driver.delete_port(self.context, self.port_id)
 
     def test_delete_port_no_switch_bad_data(self):
         with self._stubs(switch_count=0):
-            with self.assertRaises(Exception):
+            with self.assertRaises(Exception):  # noqa
                 self.driver.delete_port(self.context, self.port_id)
 
 
