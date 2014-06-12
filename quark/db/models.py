@@ -29,7 +29,7 @@ from quark.db import custom_types
 #              regardless if we need it. This is how it's done upstream.
 # NOTE(jhammond): If it isn't obvious quota_driver is unused and that's ok.
 #                 DO NOT DELETE IT!!!
-from quark import quota_driver
+from quark import quota_driver  # noqa
 
 HasId = models.HasId
 
