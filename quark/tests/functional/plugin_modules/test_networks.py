@@ -13,9 +13,9 @@
 # License for# the specific language governing permissions and limitations
 #  under the License.
 
-import netaddr
-
 import contextlib
+
+import netaddr
 from neutron.common import exceptions
 from neutron import context
 from neutron.db import api as neutron_db_api

@@ -13,8 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import webob
-
 from neutron.api import extensions
 from neutron.api.v2 import attributes
 from neutron.api.v2 import base
@@ -22,6 +20,7 @@ from neutron.api.v2 import resource
 from neutron.common import exceptions
 from neutron import manager
 from neutron import wsgi
+import webob
 
 RESOURCE_NAME = "port"
 RESOURCE_COLLECTION = RESOURCE_NAME + "s"

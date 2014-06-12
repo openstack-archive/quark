@@ -3,14 +3,13 @@ import sys
 
 from gunicorn.app import base
 from gunicorn import config as gconfig
-from oslo.config import cfg
-
 from neutron.common import config
 from neutron.common import legacy
 from neutron.common import utils
 from neutron.openstack.common import gettextutils
 from neutron.openstack.common import log as logging
 from neutron import service  # noqa  For api_workers config value
+from oslo.config import cfg
 
 
 options = [

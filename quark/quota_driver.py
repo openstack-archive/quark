@@ -19,8 +19,7 @@ from neutron.db import quota_db
 
 
 class QuarkQuotaDriver(quota_db.DbQuotaDriver):
-    """Driver to perform necessary checks to enforce quotas and obtain quota
-    information.
+    """Driver to perform necessary checks to enforce and obtain quotas.
 
     The default driver utilizes the local database.
     """
@@ -31,6 +30,7 @@ class QuarkQuotaDriver(quota_db.DbQuotaDriver):
 
         Atfer deletion, this tenant will use default quota values in conf.
         """
+
         tenant_quotas = context.session.query(quota_db.Quota)
         tenant_quotas = tenant_quotas.filter_by(tenant_id=tenant_id)
         tenant_quotas.delete()

@@ -164,8 +164,8 @@ def scoped(f):
 
 @scoped
 def port_find(context, fields=None, **filters):
-    query = context.session.query(models.Port).\
-        options(orm.joinedload(models.Port.ip_addresses))
+    query = context.session.query(models.Port).options(
+        orm.joinedload(models.Port.ip_addresses))
     model_filters = _model_query(context, models.Port, filters)
     if filters.get("ip_address_id"):
         model_filters.append(models.Port.ip_addresses.any(
@@ -189,8 +189,8 @@ def port_find(context, fields=None, **filters):
 
 @scoped
 def port_find_by_ip_address(context, **filters):
-    query = context.session.query(models.IPAddress).\
-        options(orm.joinedload(models.IPAddress.ports))
+    query = context.session.query(models.IPAddress).options(
+        orm.joinedload(models.IPAddress.ports))
     model_filters = _model_query(context, models.IPAddress, filters)
     return query.filter(*model_filters)
 
@@ -259,7 +259,7 @@ def ip_address_find(context, lock_mode=False, **filters):
 
         query = query.outerjoin(stmt, stmt.c.id == models.IPAddress.id)
 
-        #!@# HACK(amir): replace once attributes are configured in ip address
+        # !@# HACK(amir): replace once attributes are configured in ip address
         #                extension correctly
         if "True" in ip_shared:
             query = query.filter(stmt.c.ports_count > 1)
@@ -402,8 +402,8 @@ def network_update(context, network, **kwargs):
 
 def network_count_all(context):
     query = context.session.query(sql_func.count(models.Network.id))
-    return query.filter(models.Network.tenant_id == context.tenant_id).\
-        scalar()
+    return query.filter(models.Network.tenant_id ==
+                        context.tenant_id).scalar()
 
 
 def network_delete(context, network):
@@ -514,8 +514,8 @@ def dns_delete(context, dns):
 
 @scoped
 def security_group_find(context, **filters):
-    query = context.session.query(models.SecurityGroup).\
-        options(orm.joinedload(models.SecurityGroup.rules))
+    query = context.session.query(models.SecurityGroup).options(
+        orm.joinedload(models.SecurityGroup.rules))
     model_filters = _model_query(context, models.SecurityGroup, filters)
     return query.filter(*model_filters)
 

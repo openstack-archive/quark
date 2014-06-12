@@ -14,6 +14,7 @@
 #  under the License.
 
 import contextlib
+
 import netaddr
 from neutron import context
 from neutron.db import api as neutron_db_api

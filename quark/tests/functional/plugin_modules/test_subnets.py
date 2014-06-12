@@ -14,6 +14,7 @@
 #  under the License.
 
 import contextlib
+
 from neutron import context
 from neutron.db import api as neutron_db_api
 from oslo.config import cfg

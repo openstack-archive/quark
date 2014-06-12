@@ -14,14 +14,12 @@
 #    under the License.
 
 import netaddr
-
 from neutron.common import config as neutron_cfg
 from neutron.common import exceptions
 from neutron.openstack.common import importutils
 from neutron.openstack.common import log as logging
 from neutron.openstack.common.notifier import api as notifier_api
 from neutron.openstack.common import timeutils
-
 from oslo.config import cfg
 
 from quark.db import api as db_api
@@ -146,17 +144,16 @@ def create_subnet(context, subnet):
 
         if isinstance(allocation_pools, list) and allocation_pools:
             subnet_net = netaddr.IPNetwork(new_subnet["cidr"])
-            cidrset = \
-                netaddr.IPSet(netaddr.IPRange(
+            cidrset = netaddr.IPSet(
+                netaddr.IPRange(
                     netaddr.IPAddress(subnet_net.first),
                     netaddr.IPAddress(subnet_net.last)).cidrs())
             for p in allocation_pools:
                 start = netaddr.IPAddress(p["start"])
                 end = netaddr.IPAddress(p["end"])
-                cidrset -= \
-                    netaddr.IPSet(netaddr.IPRange(
-                        netaddr.IPAddress(start),
-                        netaddr.IPAddress(end)).cidrs())
+                cidrset -= netaddr.IPSet(netaddr.IPRange(
+                    netaddr.IPAddress(start),
+                    netaddr.IPAddress(end)).cidrs())
             default_cidrset = models.IPPolicy.get_ip_policy_cidrs(new_subnet)
             cidrset.update(default_cidrset)
             cidrs = [str(x.cidr) for x in cidrset.iter_cidrs()]
@@ -248,7 +245,7 @@ def get_subnet(context, id, fields=None):
         will be returned.
     """
     LOG.info("get_subnet %s for tenant %s with fields %s" %
-            (id, context.tenant_id, fields))
+             (id, context.tenant_id, fields))
     subnet = db_api.subnet_find(context, id=id, join_dns=True,
                                 join_routes=True, scope=db_api.ONE)
     if not subnet:
@@ -282,7 +279,7 @@ def get_subnets(context, filters=None, fields=None):
         will be returned.
     """
     LOG.info("get_subnets for tenant %s with filters %s fields %s" %
-            (context.tenant_id, filters, fields))
+             (context.tenant_id, filters, fields))
     subnets = db_api.subnet_find(context, join_dns=True, join_routes=True,
                                  **filters)
     return v._make_subnets_list(subnets, fields=fields)
@@ -306,7 +303,7 @@ def get_subnets_count(context, filters=None):
           defined plugin API.
     """
     LOG.info("get_subnets_count for tenant %s with filters %s" %
-            (context.tenant_id, filters))
+             (context.tenant_id, filters))
     return db_api.subnet_count_all(context, **filters)
 
 

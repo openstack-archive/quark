@@ -25,7 +25,6 @@ from neutron.common import exceptions
 from neutron.openstack.common import log as logging
 from neutron.openstack.common.notifier import api as notifier_api
 from neutron.openstack.common import timeutils
-
 from oslo.config import cfg
 
 from quark.db import api as db_api
@@ -61,7 +60,7 @@ MAGIC_INT = 144115188075855872
 
 
 def rfc2462_ip(mac, cidr):
-    #NOTE(mdietz): see RFC2462
+    # NOTE(mdietz): see RFC2462
     int_val = netaddr.IPNetwork(cidr).value
     mac = netaddr.EUI(mac)
     int_val += mac.eui64().value
@@ -213,7 +212,7 @@ class QuarkIpam(object):
                     address = db_api.ip_address_find(elevated, **ip_kwargs)
 
                     if address:
-                        #NOTE(mdietz): We should always be in the CIDR but we
+                        # NOTE(mdietz): We should always be in the CIDR but we
                         #              also said that before :-/
                         subnet = address.get('subnet')
                         if subnet:
@@ -287,6 +286,7 @@ class QuarkIpam(object):
     def _allocate_from_v6_subnet(self, context, net_id, subnet,
                                  port_id, ip_address=None, **kwargs):
         """This attempts to allocate v6 addresses as per RFC2462 and RFC3041.
+
         To accomodate this, we effectively treat all v6 assignment as a
         first time allocation utilizing the MAC address of the VIF. Because
         we recycle MACs, we will eventually attempt to recreate a previously
@@ -297,6 +297,7 @@ class QuarkIpam(object):
         each and every subnet in the existing reallocate logic, as we'd
         have to iterate over each and every subnet returned
         """
+
         if not (ip_address is None and "mac_address" in kwargs and
                 kwargs["mac_address"]):
             return self._allocate_from_subnet(context, net_id, subnet,
@@ -312,7 +313,7 @@ class QuarkIpam(object):
 
                 ip_address = netaddr.IPAddress(ip_address)
 
-                #NOTE(mdietz): treating the IPSet as a boolean caused netaddr
+                # NOTE(mdietz): treating the IPSet as a boolean caused netaddr
                 #              to attempt to enumerate the entire set!
                 if (ip_policy_cidrs is not None and
                         ip_address in ip_policy_cidrs):

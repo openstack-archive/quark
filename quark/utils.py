@@ -14,17 +14,16 @@
 #  under the License.
 
 
+import contextlib
 import cProfile as profiler
 import gc
+import sys
+import time
 try:
     import pstats
 except Exception:
     # Don't want to force pstats into the venv if it's not always used
     pass
-import sys
-import time
-
-import contextlib
 
 from neutron.api.v2 import attributes
 from neutron.openstack.common import log as logging

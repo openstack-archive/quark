@@ -18,10 +18,11 @@ Optimized NVP client for Quark
 """
 
 from neutron.openstack.common import log as logging
-from quark.db import models
-from quark.drivers.nvp_driver import NVPDriver
 import sqlalchemy as sa
 from sqlalchemy import orm
+
+from quark.db import models
+from quark.drivers.nvp_driver import NVPDriver
 
 LOG = logging.getLogger(__name__)
 
@@ -43,11 +44,9 @@ class OptimizedNVPDriver(NVPDriver):
                     status=True, security_groups=None,
                     device_id=""):
         security_groups = security_groups or []
-        nvp_port = super(OptimizedNVPDriver, self).\
-            create_port(context, network_id,
-                        port_id, status=status,
-                        security_groups=security_groups,
-                        device_id=device_id)
+        nvp_port = super(OptimizedNVPDriver, self).create_port(
+            context, network_id, port_id, status=status,
+            security_groups=security_groups, device_id=device_id)
         switch_nvp_id = nvp_port["lswitch"]
 
         # slightly inefficient for the sake of brevity. Lets the
@@ -66,17 +65,17 @@ class OptimizedNVPDriver(NVPDriver):
     def update_port(self, context, port_id,
                     status=True, security_groups=None):
         security_groups = security_groups or []
-        nvp_port = super(OptimizedNVPDriver, self).\
-            update_port(context, port_id, status=status,
-                        security_groups=security_groups)
+        nvp_port = super(OptimizedNVPDriver, self).update_port(
+            context, port_id, status=status,
+            security_groups=security_groups)
         port = self._lport_select_by_id(context, port_id)
         port.update(nvp_port)
 
     def delete_port(self, context, port_id, lswitch_uuid=None):
         port = self._lport_select_by_id(context, port_id)
         switch = port.switch
-        super(OptimizedNVPDriver, self).\
-            delete_port(context, port_id, lswitch_uuid=switch.nvp_id)
+        super(OptimizedNVPDriver, self).delete_port(
+            context, port_id, lswitch_uuid=switch.nvp_id)
         context.session.delete(port)
         switch.port_count = switch.port_count - 1
         if switch.port_count == 0:
@@ -92,8 +91,8 @@ class OptimizedNVPDriver(NVPDriver):
         context.session.add(profile)
 
     def delete_security_group(self, context, group_id):
-        super(OptimizedNVPDriver, self).\
-            delete_security_group(context, group_id)
+        super(OptimizedNVPDriver, self).delete_security_group(
+            context, group_id)
         group = self._query_security_group(context, group_id)
         context.session.delete(group)
 
@@ -104,14 +103,13 @@ class OptimizedNVPDriver(NVPDriver):
 
     def _lswitch_delete(self, context, lswitch_uuid):
         switch = self._lswitch_select_by_nvp_id(context, lswitch_uuid)
-        super(OptimizedNVPDriver, self).\
-            _lswitch_delete(context, lswitch_uuid)
+        super(OptimizedNVPDriver, self)._lswitch_delete(
+            context, lswitch_uuid)
         context.session.delete(switch)
 
     def _lswitch_select_by_nvp_id(self, context, nvp_id):
-        switch = context.session.query(LSwitch).\
-            filter(LSwitch.nvp_id == nvp_id).\
-            first()
+        switch = context.session.query(LSwitch).filter(
+            LSwitch.nvp_id == nvp_id).first()
         return switch
 
     def _lswitch_select_first(self, context, network_id):
@@ -157,9 +155,8 @@ class OptimizedNVPDriver(NVPDriver):
 
     def _lswitch_create(self, context, network_name=None, tags=None,
                         network_id=None, **kwargs):
-        nvp_id = super(OptimizedNVPDriver, self).\
-            _lswitch_create(context, network_name, tags,
-                            network_id, **kwargs)
+        nvp_id = super(OptimizedNVPDriver, self)._lswitch_create(
+            context, network_name, tags, network_id, **kwargs)
         return self._lswitch_create_optimized(context, network_name, nvp_id,
                                               network_id, **kwargs).nvp_id
 
@@ -175,9 +172,8 @@ class OptimizedNVPDriver(NVPDriver):
         return new_switch
 
     def _lswitches_for_network(self, context, network_id):
-        switches = context.session.query(LSwitch).\
-            filter(LSwitch.network_id == network_id).\
-            all()
+        switches = context.session.query(LSwitch).filter(
+            LSwitch.network_id == network_id).all()
         return switches
 
     def _lswitch_from_port(self, context, port_id):
@@ -185,8 +181,8 @@ class OptimizedNVPDriver(NVPDriver):
         return port.switch.nvp_id
 
     def _query_security_group(self, context, group_id):
-        return context.session.query(SecurityProfile).\
-            filter(SecurityProfile.id == group_id).first()
+        return context.session.query(SecurityProfile).filter(
+            SecurityProfile.id == group_id).first()
 
     def _make_security_rule_dict(self, rule):
         res = {"port_range_min": rule.get("port_range_min"),
@@ -201,8 +197,8 @@ class OptimizedNVPDriver(NVPDriver):
         return res
 
     def _get_security_group(self, context, group_id):
-        group = context.session.query(models.SecurityGroup).\
-            filter(models.SecurityGroup.id == group_id).first()
+        group = context.session.query(models.SecurityGroup).filter(
+            models.SecurityGroup.id == group_id).first()
         rulelist = {'ingress': [], 'egress': []}
         for rule in group.rules:
             rulelist[rule.direction].append(

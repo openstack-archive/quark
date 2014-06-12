@@ -653,8 +653,9 @@ class TestQuarkPostUpdatePort(test_quark_plugin.TestQuarkPlugin):
                               device_id=2))
         ip = dict(id=1, address=3232235876, address_readable="192.168.1.101",
                   subnet_id=1, network_id=2, version=4, deallocated=True)
-        with self._stubs(port=port, addr=None, addr2=ip) as \
-                (port_find, alloc_ip, ip_find):
+        with self._stubs(port=port, addr=None, addr2=ip) as (port_find,
+                                                             alloc_ip,
+                                                             ip_find):
             response = self.plugin.post_update_port(self.context, 1,
                                                     new_port_ip)
             self.assertEqual(port_find.call_count, 1)
@@ -960,5 +961,5 @@ class TestPortBadNetworkPlugin(test_quark_plugin.TestQuarkPlugin):
             alloc_ip.return_value = {}
             alloc_mac.return_value = mac
 
-            with self.assertRaises(Exception):
+            with self.assertRaises(Exception):  # noqa
                 self.plugin.create_port(self.context, port)

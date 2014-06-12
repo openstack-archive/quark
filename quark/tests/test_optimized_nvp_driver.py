@@ -14,6 +14,7 @@
 #  under the License.
 
 import contextlib
+
 import mock
 
 import quark.db.models
@@ -24,8 +25,8 @@ import quark.tests.test_nvp_driver as test_nvp_driver
 class TestOptimizedNVPDriver(test_nvp_driver.TestNVPDriver):
     def setUp(self):
         if not hasattr(self, 'driver'):
-            self.driver = quark.drivers.optimized_nvp_driver.\
-                OptimizedNVPDriver()
+            self.driver = (
+                quark.drivers.optimized_nvp_driver.OptimizedNVPDriver())
         super(TestOptimizedNVPDriver, self).setUp()
         self.d_pkg = "quark.drivers.optimized_nvp_driver.OptimizedNVPDriver"
         self.context.session.add = mock.Mock(return_value=None)
@@ -96,9 +97,12 @@ class TestOptimizedNVPDriverDeleteNetwork(TestOptimizedNVPDriver):
 
 
 class TestOptimizedNVPDriverDeletePortMultiSwitch(TestOptimizedNVPDriver):
-    '''Need to test if ports on switch = 0 delete switch if it is not the last
-       switch on the network.
+    '''Test for 0 ports on the switch, and the switch not last in network.
+
+    Need to test if ports on switch = 0 and delete the switch if it is not
+    the last switch on the network.
     '''
+
     @contextlib.contextmanager
     def _stubs(self, port_count=2):
         with contextlib.nested(
@@ -135,9 +139,8 @@ class TestOptimizedNVPDriverDeletePortMultiSwitch(TestOptimizedNVPDriver):
 
 
 class TestOptimizedNVPDriverDeletePortSingleSwitch(TestOptimizedNVPDriver):
-    '''Need to test if ports on switch = 0 delete switch unless it is the last
-       switch on the network.
-    '''
+    '''If ports on switch = 0, delete switch unless last on the network.'''
+
     @contextlib.contextmanager
     def _stubs(self, port_count=2):
         with contextlib.nested(
@@ -167,6 +170,7 @@ class TestOptimizedNVPDriverDeletePortSingleSwitch(TestOptimizedNVPDriver):
 
 class TestOptimizedNVPDriverCreatePort(TestOptimizedNVPDriver):
     '''In no case should the optimized driver query for an lswitch.'''
+
     @contextlib.contextmanager
     def _stubs(self, has_lswitch=True, maxed_ports=False):
         with contextlib.nested(
@@ -207,8 +211,8 @@ class TestOptimizedNVPDriverCreatePort(TestOptimizedNVPDriver):
             self.assertTrue(create_opt.called)
             self.assertFalse(connection.lswitch().query.called)
             status_args, kwargs = self.context.session.add.call_args
-            status_args, kwargs = connection.lswitch_port().\
-                admin_status_enabled.call_args
+            status_args, kwargs = (
+                connection.lswitch_port().admin_status_enabled.call_args)
             self.assertTrue(True in status_args)
 
     def test_create_port_and_create_switch_spanning(self):
@@ -223,8 +227,8 @@ class TestOptimizedNVPDriverCreatePort(TestOptimizedNVPDriver):
             self.assertTrue(create_opt.called)
             self.assertFalse(connection.lswitch().query.called)
             status_args, kwargs = self.context.session.add.call_args
-            status_args, kwargs = connection.lswitch_port().\
-                admin_status_enabled.call_args
+            status_args, kwargs = (
+                connection.lswitch_port().admin_status_enabled.call_args)
             self.assertTrue(True in status_args)
 
     def test_create_port_and_no_create_switch_spanning(self):
@@ -239,8 +243,8 @@ class TestOptimizedNVPDriverCreatePort(TestOptimizedNVPDriver):
             self.assertFalse(create_opt.called)
             self.assertFalse(connection.lswitch().query.called)
             status_args, kwargs = self.context.session.add.call_args
-            status_args, kwargs = connection.lswitch_port().\
-                admin_status_enabled.call_args
+            status_args, kwargs = (
+                connection.lswitch_port().admin_status_enabled.call_args)
             self.assertTrue(True in status_args)
 
     def test_create_disabled_port_and_no_create_switch_spanning(self):
@@ -255,8 +259,8 @@ class TestOptimizedNVPDriverCreatePort(TestOptimizedNVPDriver):
             self.assertFalse(create_opt.called)
             self.assertFalse(connection.lswitch().query.called)
             status_args, kwargs = self.context.session.add.call_args
-            status_args, kwargs = connection.lswitch_port().\
-                admin_status_enabled.call_args
+            status_args, kwargs = (
+                connection.lswitch_port().admin_status_enabled.call_args)
             self.assertTrue(False in status_args)
 
     def test_create_port_and_create_switch(self):
@@ -270,8 +274,8 @@ class TestOptimizedNVPDriverCreatePort(TestOptimizedNVPDriver):
             self.assertTrue(create_opt.called)
             self.assertFalse(connection.lswitch().query.called)
             status_args, kwargs = self.context.session.add.call_args
-            status_args, kwargs = connection.lswitch_port().\
-                admin_status_enabled.call_args
+            status_args, kwargs = (
+                connection.lswitch_port().admin_status_enabled.call_args)
             self.assertTrue(True in status_args)
 
     def test_create_port_and_no_create_switch(self):
@@ -285,8 +289,8 @@ class TestOptimizedNVPDriverCreatePort(TestOptimizedNVPDriver):
             self.assertFalse(create_opt.called)
             self.assertFalse(connection.lswitch().query.called)
             status_args, kwargs = self.context.session.add.call_args
-            status_args, kwargs = connection.lswitch_port().\
-                admin_status_enabled.call_args
+            status_args, kwargs = (
+                connection.lswitch_port().admin_status_enabled.call_args)
             self.assertTrue(True in status_args)
 
     def test_create_disabled_port_and_no_create_switch(self):
@@ -300,8 +304,8 @@ class TestOptimizedNVPDriverCreatePort(TestOptimizedNVPDriver):
             self.assertFalse(create_opt.called)
             self.assertFalse(connection.lswitch().query.called)
             status_args, kwargs = self.context.session.add.call_args
-            status_args, kwargs = connection.lswitch_port().\
-                admin_status_enabled.call_args
+            status_args, kwargs = (
+                connection.lswitch_port().admin_status_enabled.call_args)
             self.assertTrue(False in status_args)
 
 
@@ -358,8 +362,8 @@ class TestSecurityGroupRules(TestOptimizedNVPDriver):
             rule_count.return_value = 1
             connection.securityprofile = self._create_security_profile()
             connection.securityrule = self._create_security_rule()
-            connection.lswitch_port().query.return_value = \
-                self._create_lport_query(1, [self.profile_id])
+            connection.lswitch_port().query.return_value = (
+                self._create_lport_query(1, [self.profile_id]))
             get_connection.return_value = connection
 
             old_query = self.context.session.query
@@ -430,9 +434,10 @@ class TestGetNetworkDetails(TestOptimizedNVPDriver):
 
 
 class TestQueryMethods(TestOptimizedNVPDriver):
-    """These tests provide coverage on the query helpers. No serious
-    assertions are made, as there's no sense in testing that sqlalchemy
-    does in fact do what it's supposed to do.
+    """These tests provide coverage on the query helpers.
+
+    No serious assertions are made, as there's no sense in testing that
+    sqlalchemy does in fact do what it's supposed to do.
     """
 
     @contextlib.contextmanager

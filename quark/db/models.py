@@ -14,23 +14,20 @@
 #    under the License.
 
 import netaddr
-
-import sqlalchemy as sa
-from sqlalchemy import orm
-
-from sqlalchemy.ext import associationproxy
-from sqlalchemy.ext import declarative
-from sqlalchemy.ext import hybrid
-
 import neutron.db.model_base
 from neutron.db import models_v2 as models
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import timeutils
+import sqlalchemy as sa
+from sqlalchemy.ext import associationproxy
+from sqlalchemy.ext import declarative
+from sqlalchemy.ext import hybrid
+from sqlalchemy import orm
 
 from quark.db import custom_types
-#NOTE(mdietz): This is the only way to actually create the quotas table,
+# NOTE(mdietz): This is the only way to actually create the quotas table,
 #              regardless if we need it. This is how it's done upstream.
-#NOTE(jhammond): If it isn't obvious quota_driver is unused and that's ok.
+# NOTE(jhammond): If it isn't obvious quota_driver is unused and that's ok.
 #                 DO NOT DELETE IT!!!
 from quark import quota_driver  # noqa
 

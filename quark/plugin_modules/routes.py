@@ -14,7 +14,6 @@
 #    under the License.
 
 import netaddr
-
 from neutron.common import exceptions
 from neutron.openstack.common import importutils
 from neutron.openstack.common import log as logging
@@ -71,7 +70,7 @@ def create_route(context, route):
 
 
 def delete_route(context, id):
-    #TODO(mdietz): This is probably where we check to see that someone is
+    # TODO(mdietz): This is probably where we check to see that someone is
     #              admin and only filter on tenant if they aren't. Correct
     #              for all the above later
     LOG.info("delete_route %s for tenant %s" % (id, context.tenant_id))

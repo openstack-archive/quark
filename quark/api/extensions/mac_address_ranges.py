@@ -13,12 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import webob
-
 from neutron.api import extensions
 from neutron import manager
 from neutron.openstack.common import log as logging
 from neutron import wsgi
+import webob
 
 RESOURCE_NAME = 'mac_address_range'
 RESOURCE_COLLECTION = RESOURCE_NAME + "s"

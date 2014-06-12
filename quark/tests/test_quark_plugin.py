@@ -19,7 +19,6 @@ from neutron.db import api as db_api
 from oslo.config import cfg
 
 import quark.plugin
-
 from quark.tests import test_base
 
 

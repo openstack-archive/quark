@@ -17,11 +17,10 @@
 NVP client driver for Quark
 """
 
-from oslo.config import cfg
-
 import aiclib
 from neutron.extensions import securitygroup as sg_ext
 from neutron.openstack.common import log as logging
+from oslo.config import cfg
 
 from quark.drivers import base
 from quark import exceptions
@@ -88,7 +87,7 @@ class NVPDriver(base.BaseDriver):
         return "NVP"
 
     def load_config(self):
-        #NOTE(mdietz): What does default_tz actually mean?
+        # NOTE(mdietz): What does default_tz actually mean?
         #              We don't have one default.
         # NOTE(jkoelker): Transport Zone
         default_tz = CONF.NVP.default_tz
@@ -248,7 +247,7 @@ class NVPDriver(base.BaseDriver):
                         'packets': stats['rx_packets'],
                         'bytes': stats['rx_bytes'],
                         'errors': stats['rx_errors']
-                        },
+                    },
                     'transmitted': {
                         'packets': stats['tx_packets'],
                         'bytes': stats['tx_bytes'],
@@ -407,14 +406,17 @@ class NVPDriver(base.BaseDriver):
         return results
 
     def _lswitch_select_open(self, context, switches=None, **kwargs):
-        """Selects an open lswitch for a network. Note that it does not select
-        the most full switch, but merely one with ports available.
+        """Selects an open lswitch for a network.
+
+        Note that it does not select the most full switch, but merely one with
+        ports available.
         """
+
         if switches is not None:
             for res in switches["results"]:
                 count = res["_relations"]["LogicalSwitchStatus"]["lport_count"]
-                if self.limits['max_ports_per_switch'] == 0 or \
-                        count < self.limits['max_ports_per_switch']:
+                if (self.limits['max_ports_per_switch'] == 0 or
+                        count < self.limits['max_ports_per_switch']):
                     return res["uuid"]
         return None
 
@@ -433,7 +435,7 @@ class NVPDriver(base.BaseDriver):
         if phys_net and not net_type:
             raise exceptions.ProvidernetParamError(
                 msg="provider:network_type parameter required")
-        if not net_type in ("bridge", "vlan") and segment_id:
+        if net_type not in ("bridge", "vlan") and segment_id:
             raise exceptions.SegmentIdUnsupported(net_type=net_type)
         if net_type == "vlan" and not segment_id:
             raise exceptions.SegmentIdRequired(net_type=net_type)
@@ -460,7 +462,7 @@ class NVPDriver(base.BaseDriver):
         # if type maps to 'bridge', then segment_id, which maps
         # to vlan_id, is conditionally provided
         LOG.debug("Creating new lswitch for %s network %s" %
-                 (context.tenant_id, network_name))
+                  (context.tenant_id, network_name))
 
         tenant_id = context.tenant_id
         connection = self.get_connection()

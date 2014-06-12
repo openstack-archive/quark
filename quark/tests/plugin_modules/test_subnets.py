@@ -624,9 +624,12 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                 self.plugin.create_subnet(self.context, subnet_request)
 
     def test_create_subnet_default_route_gateway_ip(self):
-        """If default route (host_routes) and gateway_ip are both provided,
+        """Host_routes precedence
+
+        If default route (host_routes) and gateway_ip are both provided,
         then host_route takes precedence.
         """
+
         routes = [dict(cidr="0.0.0.0/0", gateway="172.16.0.4")]
         subnet = dict(
             subnet=dict(network_id=1,
@@ -660,9 +663,8 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                     self.assertEqual(res[key], subnet["subnet"][key])
 
     def test_create_subnet_null_gateway_no_routes(self):
-        """Creating a subnet with a NULL gateway IP shouldn't
-        create routes.
-        """
+        """A subnet with a NULL gateway IP shouldn't create routes."""
+
         routes = [dict(cidr="0.0.0.0/0", gateway="172.16.0.4")]
         subnet = dict(
             subnet=dict(network_id=1,
@@ -742,8 +744,9 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
               dns_create,
               route_find, route_update, route_create):
             subnet_find.return_value = subnet_mod
-            route_find.return_value = subnet_mod["routes"][0] \
-                if subnet_mod["routes"] and find_routes else None
+            route_find.return_value = (subnet_mod["routes"][0] if
+                                       subnet_mod["routes"] and
+                                       find_routes else None)
             new_subnet_mod = models.Subnet(network=models.Network())
             new_subnet_mod.update(subnet_mod)
             if new_routes:

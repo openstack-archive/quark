@@ -15,8 +15,8 @@
 
 import contextlib
 import datetime
-import netaddr
 
+import netaddr
 from neutron.common import exceptions
 from neutron import context
 from neutron.db import api as neutron_db_api
@@ -160,11 +160,14 @@ class QuarkIPAddressFindReallocatable(QuarkIpamBaseFunctionalTest):
         yield net_mod
 
     def test_find_reallocatable_ips_does_not_raise(self):
-        """A patch recently introduced a bug wherein addressses
+        """Regression testing
+
+        A patch recently introduced a bug wherein addressses
         could not be returned to the ip_address_find call in
         attempt_to_reallocate_ip. Adding this test to prevent
         a future regression.
         """
+
         network = dict(name="public", tenant_id="fake")
         ipnet = netaddr.IPNetwork("0.0.0.0/24")
         next_ip = ipnet.ipv6().first + 2

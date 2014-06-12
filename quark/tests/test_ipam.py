@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import contextlib
+
 import mock
 import netaddr
 from neutron.common import exceptions

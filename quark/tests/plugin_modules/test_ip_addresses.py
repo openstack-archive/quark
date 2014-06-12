@@ -14,11 +14,11 @@
 #  under the License.
 
 import contextlib
-import webob
 
 import mock
 from mock import patch
 from neutron.common import exceptions
+import webob
 
 from quark.db import models
 from quark import exceptions as quark_exceptions

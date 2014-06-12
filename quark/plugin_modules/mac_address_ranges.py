@@ -27,7 +27,7 @@ def _to_mac_range(val):
     cidr_parts = val.split("/")
     prefix = cidr_parts[0]
 
-    #FIXME(anyone): replace is slow, but this doesn't really
+    # FIXME(anyone): replace is slow, but this doesn't really
     #               get called ever. Fix maybe?
     prefix = prefix.replace(':', '')
     prefix = prefix.replace('-', '')
@@ -61,7 +61,7 @@ def get_mac_address_range(context, id, fields=None):
         will be returned.
     """
     LOG.info("get_mac_address_range %s for tenant %s fields %s" %
-            (id, context.tenant_id, fields))
+             (id, context.tenant_id, fields))
 
     mac_address_range = db_api.mac_address_range_find(
         context, id=id, scope=db_api.ONE)
