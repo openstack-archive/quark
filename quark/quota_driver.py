@@ -19,8 +19,7 @@ from neutron.db import quota_db
 
 
 class QuarkQuotaDriver(quota_db.DbQuotaDriver):
-    """Driver to perform necessary checks to enforce quotas and obtain quota
-    information.
+    """Driver to perform necessary checks to enforce and obtain quotas.
 
     The default driver utilizes the local database.
     """

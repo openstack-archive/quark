@@ -23,8 +23,8 @@ import uuid
 import netaddr
 from neutron.common import exceptions
 from neutron.openstack.common import log as logging
-from neutron.openstack.common import timeutils
 from neutron.openstack.common.notifier import api as notifier_api
+from neutron.openstack.common import timeutils
 from oslo.config import cfg
 
 from quark.db import api as db_api
@@ -286,6 +286,7 @@ class QuarkIpam(object):
     def _allocate_from_v6_subnet(self, context, net_id, subnet,
                                  port_id, ip_address=None, **kwargs):
         """This attempts to allocate v6 addresses as per RFC2462 and RFC3041.
+
         To accomodate this, we effectively treat all v6 assignment as a
         first time allocation utilizing the MAC address of the VIF. Because
         we recycle MACs, we will eventually attempt to recreate a previously

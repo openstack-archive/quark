@@ -15,10 +15,10 @@
 
 
 import contextlib
-import time
-import sys
-
 import cProfile as profiler
+import sys
+import time
+
 import gc
 try:
     import pstats

@@ -406,8 +406,10 @@ class NVPDriver(base.BaseDriver):
         return results
 
     def _lswitch_select_open(self, context, switches=None, **kwargs):
-        """Selects an open lswitch for a network. Note that it does not select
-        the most full switch, but merely one with ports available.
+        """Selects an open lswitch for a network.
+
+        Note that it does not select the most full switch, but merely one with
+        ports available.
         """
 
         if switches is not None:

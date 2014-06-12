@@ -97,8 +97,10 @@ class TestOptimizedNVPDriverDeleteNetwork(TestOptimizedNVPDriver):
 
 
 class TestOptimizedNVPDriverDeletePortMultiSwitch(TestOptimizedNVPDriver):
-    '''Need to test if ports on switch = 0 delete switch if it is not the last
-       switch on the network.
+    '''Test for 0 ports on the switch, and the switch not last in network.
+
+    Need to test if ports on switch = 0 and delete the switch if it is not
+    the last switch on the network.
     '''
 
     @contextlib.contextmanager
@@ -137,9 +139,7 @@ class TestOptimizedNVPDriverDeletePortMultiSwitch(TestOptimizedNVPDriver):
 
 
 class TestOptimizedNVPDriverDeletePortSingleSwitch(TestOptimizedNVPDriver):
-    '''Need to test if ports on switch = 0 delete switch unless it is the last
-       switch on the network.
-    '''
+    '''If ports on switch = 0, delete switch unless last on the network'''
 
     @contextlib.contextmanager
     def _stubs(self, port_count=2):
@@ -170,6 +170,7 @@ class TestOptimizedNVPDriverDeletePortSingleSwitch(TestOptimizedNVPDriver):
 
 class TestOptimizedNVPDriverCreatePort(TestOptimizedNVPDriver):
     '''In no case should the optimized driver query for an lswitch.'''
+
     @contextlib.contextmanager
     def _stubs(self, has_lswitch=True, maxed_ports=False):
         with contextlib.nested(
@@ -433,9 +434,10 @@ class TestGetNetworkDetails(TestOptimizedNVPDriver):
 
 
 class TestQueryMethods(TestOptimizedNVPDriver):
-    """These tests provide coverage on the query helpers. No serious
-    assertions are made, as there's no sense in testing that sqlalchemy
-    does in fact do what it's supposed to do.
+    """These tests provide coverage on the query helpers.
+
+    No serious assertions are made, as there's no sense in testing that
+    sqlalchemy does in fact do what it's supposed to do.
     """
 
     @contextlib.contextmanager

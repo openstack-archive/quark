@@ -23,8 +23,8 @@ from neutron.openstack.common.notifier import api as notifier_api
 from oslo.config import cfg
 
 from quark.db import models
-import quark.ipam
 from quark import exceptions as q_exc
+import quark.ipam
 from quark.tests import test_base
 
 

@@ -145,9 +145,7 @@ class TestNVPDriverCreateNetwork(TestNVPDriver):
 
 
 class TestNVPDriverProviderNetwork(TestNVPDriver):
-    """Testing all of the network types is unnecessary, but it's nice for peace
-    of mind.
-    """
+    """Testing all of the network types is unnecessary, but a nice have"""
 
     @contextlib.contextmanager
     def _stubs(self, tz):
@@ -211,7 +209,9 @@ class TestNVPDriverProviderNetwork(TestNVPDriver):
                 zone_uuid="net_uuid", transport_type="local", vlan_id=None)
 
     def test_config_provider_attrs_bridge_net(self):
-        """Exists because internal driver calls can also call this method,
+        """A specialized case for NVP
+
+        This exists because internal driver calls can also call this method,
         and they may pass bridge in as the type as that's how it's known
         to NVP.
         """
