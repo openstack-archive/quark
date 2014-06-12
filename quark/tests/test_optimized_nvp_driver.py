@@ -139,7 +139,7 @@ class TestOptimizedNVPDriverDeletePortMultiSwitch(TestOptimizedNVPDriver):
 
 
 class TestOptimizedNVPDriverDeletePortSingleSwitch(TestOptimizedNVPDriver):
-    '''If ports on switch = 0, delete switch unless last on the network'''
+    '''If ports on switch = 0, delete switch unless last on the network.'''
 
     @contextlib.contextmanager
     def _stubs(self, port_count=2):

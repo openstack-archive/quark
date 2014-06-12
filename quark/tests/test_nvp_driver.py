@@ -145,7 +145,7 @@ class TestNVPDriverCreateNetwork(TestNVPDriver):
 
 
 class TestNVPDriverProviderNetwork(TestNVPDriver):
-    """Testing all of the network types is unnecessary, but a nice have"""
+    """Testing all of the network types is unnecessary, but a nice have."""
 
     @contextlib.contextmanager
     def _stubs(self, tz):
