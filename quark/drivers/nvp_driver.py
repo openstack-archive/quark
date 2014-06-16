@@ -246,8 +246,7 @@ class NVPDriver(base.BaseDriver):
                     'recieved': {
                         'packets': stats['rx_packets'],
                         'bytes': stats['rx_bytes'],
-                        'errors': stats['rx_errors']
-                    },
+                        'errors': stats['rx_errors']},
                     'transmitted': {
                         'packets': stats['tx_packets'],
                         'bytes': stats['tx_bytes'],

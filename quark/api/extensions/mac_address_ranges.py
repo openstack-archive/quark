@@ -53,8 +53,6 @@ class MacAddressRangesController(wsgi.Controller):
 
     def index(self, request):
         context = request.context
-        if not context.is_admin:
-            raise webob.exc.HTTPForbidden()
         return {"mac_address_ranges":
                 self._plugin.get_mac_address_ranges(context)}
 

@@ -17,6 +17,7 @@ import contextlib
 
 import mock
 import netaddr
+from neutron.common import exceptions
 
 from quark import exceptions as quark_exceptions
 from quark.plugin_modules import mac_address_ranges
@@ -27,9 +28,12 @@ class TestQuarkGetMacAddressRanges(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, mac_range):
         db_mod = "quark.db.api"
+        old_context = self.context
+        self.context = self.context.elevated()
         with mock.patch("%s.mac_address_range_find" % db_mod) as mar_find:
             mar_find.return_value = mac_range
             yield
+        self.context = old_context
 
     def test_find_mac_ranges(self):
         mar = dict(id=1, cidr="AA:BB:CC/24")
@@ -55,9 +59,12 @@ class TestQuarkCreateMacAddressRanges(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, mac_range):
         db_mod = "quark.db.api"
+        old_context = self.context
+        self.context = self.context.elevated()
         with mock.patch("%s.mac_address_range_create" % db_mod) as mar_create:
             mar_create.return_value = mac_range
             yield
+        self.context = old_context
 
     def test_create_range(self):
         mar = dict(mac_address_range=dict(id=1, cidr="AA:BB:CC/24"))
@@ -124,12 +131,15 @@ class TestQuarkDeleteMacAddressRanges(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, mac_range):
         db_mod = "quark.db.api"
+        old_context = self.context
+        self.context = self.context.elevated()
         with contextlib.nested(
             mock.patch("%s.mac_address_range_find" % db_mod),
             mock.patch("%s.mac_address_range_delete" % db_mod),
         ) as (mar_find, mar_delete):
             mar_find.return_value = mac_range
             yield mar_delete
+        self.context = old_context
 
     def test_mac_address_range_delete_not_found(self):
         with self._stubs(None):
@@ -152,3 +162,22 @@ class TestQuarkDeleteMacAddressRanges(test_quark_plugin.TestQuarkPlugin):
             resp = self.plugin.delete_mac_address_range(self.context, 1)
             self.assertIsNone(resp)
             mar_delete.assert_called_once_with(self.context, mar)
+
+
+class TestQuarkMacAddressCRUDNotAdminRaises(test_quark_plugin.TestQuarkPlugin):
+    def test_mac_ranges_index_fails(self):
+        with self.assertRaises(exceptions.NotAuthorized):
+            self.plugin.get_mac_address_ranges(self.context)
+
+    def test_show_mac_range_fails(self):
+        with self.assertRaises(exceptions.NotAuthorized):
+            self.plugin.get_mac_address_range(self.context, 1)
+
+    def test_create_mac_range_fails(self):
+        with self.assertRaises(exceptions.NotAuthorized):
+            self.plugin.create_mac_address_range(
+                self.context, {"mac_address_range": 1})
+
+    def test_delete_mac_range_fails(self):
+        with self.assertRaises(exceptions.NotAuthorized):
+            self.plugin.delete_mac_address_range(self.context, 1)

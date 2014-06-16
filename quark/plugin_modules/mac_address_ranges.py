@@ -14,6 +14,7 @@
 #    under the License.
 
 import netaddr
+from neutron.common import exceptions
 from neutron.openstack.common import log as logging
 
 from quark.db import api as db_api
@@ -63,6 +64,9 @@ def get_mac_address_range(context, id, fields=None):
     LOG.info("get_mac_address_range %s for tenant %s fields %s" %
              (id, context.tenant_id, fields))
 
+    if not context.is_admin:
+        raise exceptions.NotAuthorized()
+
     mac_address_range = db_api.mac_address_range_find(
         context, id=id, scope=db_api.ONE)
 
@@ -74,12 +78,18 @@ def get_mac_address_range(context, id, fields=None):
 
 def get_mac_address_ranges(context):
     LOG.info("get_mac_address_ranges for tenant %s" % context.tenant_id)
+    if not context.is_admin:
+        raise exceptions.NotAuthorized()
+
     ranges = db_api.mac_address_range_find(context)
     return [v._make_mac_range_dict(m) for m in ranges]
 
 
 def create_mac_address_range(context, mac_range):
     LOG.info("create_mac_address_range for tenant %s" % context.tenant_id)
+    if not context.is_admin:
+        raise exceptions.NotAuthorized()
+
     cidr = mac_range["mac_address_range"]["cidr"]
     cidr, first_address, last_address = _to_mac_range(cidr)
     with context.session.begin():
@@ -104,6 +114,9 @@ def delete_mac_address_range(context, id):
     """
     LOG.info("delete_mac_address_range %s for tenant %s" %
              (id, context.tenant_id))
+    if not context.is_admin:
+        raise exceptions.NotAuthorized()
+
     with context.session.begin():
         mar = db_api.mac_address_range_find(context, id=id, scope=db_api.ONE)
         if not mar:
