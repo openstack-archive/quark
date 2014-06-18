@@ -16,8 +16,10 @@
 import contextlib
 import datetime
 
+import mock
 import netaddr
 from neutron.common import exceptions
+from neutron.common import rpc
 from neutron import context
 from neutron.db import api as neutron_db_api
 from neutron.openstack.common import timeutils
@@ -33,6 +35,11 @@ class QuarkIpamBaseFunctionalTest(unittest2.TestCase):
     def setUp(self):
         self.context = context.Context('fake', 'fake', is_admin=False)
         super(QuarkIpamBaseFunctionalTest, self).setUp()
+
+        patcher = mock.patch("neutron.common.rpc.messaging")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        rpc.init(mock.MagicMock())
 
         cfg.CONF.set_override('connection', 'sqlite://', 'database')
         neutron_db_api.configure_db()
