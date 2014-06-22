@@ -21,7 +21,6 @@ import uuid
 import mock
 from neutron.api.v2 import attributes as neutron_attrs
 from neutron.common import exceptions
-from neutron.openstack.common.notifier import api as notifier_api
 from oslo.config import cfg
 
 from quark.db import models
@@ -911,7 +910,7 @@ class TestSubnetsNotification(test_quark_plugin.TestQuarkPlugin):
         s["network"]["created_at"] = s["created_at"]
         subnet = models.Subnet(**s)
         db_mod = "quark.db.api"
-        api_mod = "neutron.openstack.common.notifier.api"
+        rpc_mod = "neutron.common.rpc"
         time_mod = "neutron.openstack.common.timeutils"
         sub_plugin_mod = "quark.plugin_modules.subnets"
         with contextlib.nested(
@@ -919,7 +918,7 @@ class TestSubnetsNotification(test_quark_plugin.TestQuarkPlugin):
             mock.patch("%s.network_find" % db_mod),
             mock.patch("%s.subnet_create" % db_mod),
             mock.patch("%s.subnet_delete" % db_mod),
-            mock.patch("%s.notify" % api_mod),
+            mock.patch("%s.get_notifier" % rpc_mod),
             mock.patch("%s.utcnow" % time_mod),
             mock.patch("%s._validate_subnet_cidr" % sub_plugin_mod)
         ) as (sub_find, net_find, sub_create, sub_del, notify,
@@ -934,11 +933,10 @@ class TestSubnetsNotification(test_quark_plugin.TestQuarkPlugin):
                  tenant_id=1, id=1, created_at="123")
         with self._stubs(s) as notify:
             self.plugin.create_subnet(self.context, dict(subnet=s))
-            notify.assert_called_once_with(
+            notify.assert_called_once_with("network")
+            notify.return_value.info.assert_called_once_with(
                 self.context,
-                notifier_api.publisher_id("network"),
                 "ip_block.create",
-                notifier_api.CONF.default_notification_level,
                 dict(tenant_id=s["tenant_id"],
                      ip_block_id=s["id"],
                      created_at=s["created_at"]))
@@ -949,11 +947,10 @@ class TestSubnetsNotification(test_quark_plugin.TestQuarkPlugin):
         s = dict(tenant_id=1, id=1, created_at=now)
         with self._stubs(s, deleted_at=later) as notify:
             self.plugin.delete_subnet(self.context, 1)
-            notify.assert_called_once_with(
+            notify.assert_called_once_with("network")
+            notify.return_value.info.assert_called_once_with(
                 self.context,
-                notifier_api.publisher_id("network"),
                 "ip_block.delete",
-                notifier_api.CONF.default_notification_level,
                 dict(tenant_id=s["tenant_id"],
                      created_at=s["created_at"],
                      ip_block_id=s["id"],

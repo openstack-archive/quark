@@ -16,9 +16,9 @@
 import netaddr
 from neutron.common import config as neutron_cfg
 from neutron.common import exceptions
+from neutron.common import rpc as n_rpc
 from neutron.openstack.common import importutils
 from neutron.openstack.common import log as logging
-from neutron.openstack.common.notifier import api as notifier_api
 from neutron.openstack.common import timeutils
 from oslo.config import cfg
 
@@ -163,13 +163,12 @@ def create_subnet(context, subnet):
     subnet_dict = v._make_subnet_dict(new_subnet)
     subnet_dict["gateway_ip"] = gateway_ip
 
-    notifier_api.notify(context,
-                        notifier_api.publisher_id("network"),
-                        "ip_block.create",
-                        notifier_api.CONF.default_notification_level,
-                        dict(tenant_id=subnet_dict["tenant_id"],
-                             ip_block_id=subnet_dict["id"],
-                             created_at=new_subnet["created_at"]))
+    n_rpc.get_notifier("network").info(
+        context,
+        "ip_block.create",
+        dict(tenant_id=subnet_dict["tenant_id"],
+             ip_block_id=subnet_dict["id"],
+             created_at=new_subnet["created_at"]))
 
     return subnet_dict
 
@@ -332,11 +331,7 @@ def delete_subnet(context, id):
 
         _delete_subnet(context, subnet)
 
-        notifier_api.notify(context,
-                            notifier_api.publisher_id("network"),
-                            "ip_block.delete",
-                            notifier_api.CONF.default_notification_level,
-                            payload)
+        n_rpc.get_notifier("network").info(context, "ip_block.delete", payload)
 
 
 def diagnose_subnet(context, id, fields):

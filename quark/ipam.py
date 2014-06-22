@@ -22,8 +22,8 @@ import uuid
 
 import netaddr
 from neutron.common import exceptions
+from neutron.common import rpc as n_rpc
 from neutron.openstack.common import log as logging
-from neutron.openstack.common.notifier import api as notifier_api
 from neutron.openstack.common import timeutils
 from oslo.config import cfg
 
@@ -367,11 +367,9 @@ class QuarkIpam(object):
                            ip_address=addr["address_readable"],
                            device_ids=[p["device_id"] for p in addr["ports"]],
                            created_at=addr["created_at"])
-            notifier_api.notify(context,
-                                notifier_api.publisher_id("network"),
-                                "ip_block.address.create",
-                                notifier_api.CONF.default_notification_level,
-                                payload)
+            n_rpc.get_notifier("network").info(context,
+                                               "ip_block.address.create",
+                                               payload)
 
     def allocate_ip_address(self, context, new_addresses, net_id, port_id,
                             reuse_after, segment_id=None, version=None,
@@ -421,11 +419,9 @@ class QuarkIpam(object):
                        device_ids=[p["device_id"] for p in address["ports"]],
                        created_at=address["created_at"],
                        deleted_at=timeutils.utcnow())
-        notifier_api.notify(context,
-                            notifier_api.publisher_id("network"),
-                            "ip_block.address.delete",
-                            notifier_api.CONF.default_notification_level,
-                            payload)
+        n_rpc.get_notifier("network").info(context,
+                                           "ip_block.address.delete",
+                                           payload)
 
     def deallocate_ips_by_port(self, context, port=None, **kwargs):
         ips_removed = []

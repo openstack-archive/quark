@@ -18,8 +18,8 @@ import contextlib
 import mock
 import netaddr
 from neutron.common import exceptions
+from neutron.common import rpc
 from neutron.db import api as neutron_db_api
-from neutron.openstack.common.notifier import api as notifier_api
 from oslo.config import cfg
 
 from quark.db import models
@@ -31,6 +31,11 @@ from quark.tests import test_base
 class QuarkIpamBaseTest(test_base.TestBase):
     def setUp(self):
         super(QuarkIpamBaseTest, self).setUp()
+
+        patcher = mock.patch("neutron.common.rpc.messaging")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        rpc.init(mock.MagicMock())
 
         cfg.CONF.set_override('connection', 'sqlite://', 'database')
         neutron_db_api.configure_db()
@@ -1202,7 +1207,7 @@ class QuarkIPAddressAllocationNotifications(QuarkIpamBaseTest):
             mock.patch("quark.db.api.ip_address_find"),
             mock.patch("quark.db.api.ip_address_create"),
             mock.patch("quark.db.api.subnet_find_allocation_counts"),
-            mock.patch("neutron.openstack.common.notifier.api.notify"),
+            mock.patch("neutron.common.rpc.get_notifier"),
             mock.patch("neutron.openstack.common.timeutils.utcnow"),
         ) as (addr_find, addr_create, subnet_find, notify, time):
             addr_find.side_effect = addresses
@@ -1226,11 +1231,10 @@ class QuarkIPAddressAllocationNotifications(QuarkIpamBaseTest):
             addr = []
             self.ipam.allocate_ip_address(self.context, addr, 0, 0, 0,
                                           version=4)
-            notify.assert_called_once_with(
+            notify.assert_called_once_with("network")
+            notify.return_value.info.assert_called_once_with(
                 self.context,
-                notifier_api.publisher_id("network"),
                 "ip_block.address.create",
-                notifier_api.CONF.default_notification_level,
                 dict(ip_block_id=address["subnet_id"],
                      ip_address="0.0.0.0",
                      device_ids=[],
@@ -1250,11 +1254,10 @@ class QuarkIPAddressAllocationNotifications(QuarkIpamBaseTest):
 
         with self._stubs(dict(), deleted_at="456") as notify:
             self.ipam.deallocate_ips_by_port(self.context, port)
-            notify.assert_called_once_with(
+            notify.assert_called_once_with("network")
+            notify.return_value.info.assert_called_once_with(
                 self.context,
-                notifier_api.publisher_id("network"),
                 "ip_block.address.delete",
-                notifier_api.CONF.default_notification_level,
                 dict(ip_block_id=address["subnet_id"],
                      ip_address="0.0.0.0",
                      device_ids=["foo"],
