@@ -17,12 +17,14 @@
 Optimized NVP client for Quark
 """
 
+import aiclib
 from neutron.openstack.common import log as logging
-import sqlalchemy as sa
-from sqlalchemy import orm
 
 from quark.db import models
 from quark.drivers.nvp_driver import NVPDriver
+
+import sqlalchemy as sa
+from sqlalchemy import orm
 
 LOG = logging.getLogger(__name__)
 
@@ -38,7 +40,30 @@ class OptimizedNVPDriver(NVPDriver):
     def delete_network(self, context, network_id):
         lswitches = self._lswitches_for_network(context, network_id)
         for switch in lswitches:
-            self._lswitch_delete(context, switch.nvp_id)
+            try:
+                self._lswitch_delete(context, switch.nvp_id)
+            except aiclib.core.AICException as ae:
+                LOG.info("LSwitch/Network %s found in database."
+                         " Adding to orphaned database table."
+                         % network_id)
+                if ae.code != 404:
+                    LOG.info("LSwitch/Network %s was found in NVP."
+                             " Adding to orpaned table for later cleanup."
+                             " Code: %s, Message: %s"
+                             % (network_id, ae.code, ae.message))
+                    orphaned_lswitch = OrphanedLSwitch(
+                        nvp_id=switch.nvp_id,
+                        network_id=switch.network_id,
+                        display_name=switch.display_name
+                    )
+                    context.session.add(orphaned_lswitch)
+                LOG.info("Deleting LSwitch/Network %s from original"
+                         " table." % network_id)
+                context.session.delete(switch)
+            except Exception as e:
+                LOG.info("Failed to delete LSwitch/Network %s from "
+                         " NVP (optimized). Message: %s"
+                         % (network_id, e.args[0]))
 
     def create_port(self, context, network_id, port_id,
                     status=True, security_groups=None,
@@ -71,17 +96,44 @@ class OptimizedNVPDriver(NVPDriver):
         port = self._lport_select_by_id(context, port_id)
         port.update(nvp_port)
 
-    def delete_port(self, context, port_id, lswitch_uuid=None):
+    def delete_port(self, context, port_id):
         port = self._lport_select_by_id(context, port_id)
         switch = port.switch
-        super(OptimizedNVPDriver, self).delete_port(
-            context, port_id, lswitch_uuid=switch.nvp_id)
+        try:
+            self._lport_delete(context, port_id, switch)
+        except aiclib.core.AICException as ae:
+            LOG.info("LSwitchPort/Port %s found in database."
+                     " Adding to orphaned database table."
+                     % port_id)
+            if ae.code != 404:
+                LOG.info("LSwitchPort/Port %s was found in NVP."
+                         " Adding to orpaned table for later cleanup."
+                         " Code: %s, Message: %s"
+                         % (port_id, ae.code, ae.args[0]))
+                orphaned_lswitch_port = OrphanedLSwitchPort(
+                    port_id=port_id,
+                )
+                context.session.add(orphaned_lswitch_port)
+        except Exception as e:
+            LOG.info("Failed to delete LSwitchPort/Port %s from "
+                     " NVP (optimized). Message: %s"
+                     % (port_id, e.args[0]))
+        LOG.info("Deleting LSwitchPort/Port %s from original"
+                 " table." % port_id)
         context.session.delete(port)
         switch.port_count = switch.port_count - 1
         if switch.port_count == 0:
-            switches = self._lswitches_for_network(context, switch.network_id)
+            switches = self._lswitches_for_network(
+                context, switch.network_id)
             if len(switches) > 1:
                 self._lswitch_delete(context, switch.nvp_id)
+
+    def _lport_delete(self, context, port_id, switch=None):
+        if switch is None:
+            port = self._lport_select_by_id(context, port_id)
+            switch = port.switch
+        super(OptimizedNVPDriver, self).delete_port(
+            context, port_id, lswitch_uuid=switch.nvp_id)
 
     def create_security_group(self, context, group_name, **group):
         nvp_group = super(OptimizedNVPDriver, self).create_security_group(
@@ -247,3 +299,15 @@ class QOS(models.BASEV2, models.HasId):
 class SecurityProfile(models.BASEV2, models.HasId):
     __tablename__ = "quark_nvp_driver_security_profile"
     nvp_id = sa.Column(sa.String(36), nullable=False, index=True)
+
+
+class OrphanedLSwitch(models.BASEV2, models.HasId):
+    __tablename__ = "quark_nvp_orphaned_lswitches"
+    nvp_id = sa.Column(sa.String(36))
+    network_id = sa.Column(sa.String(36), index=True)
+    display_name = sa.Column(sa.String(36), index=True)
+
+
+class OrphanedLSwitchPort(models.BASEV2, models.HasId):
+    __tablename__ = "quark_nvp_orphaned_lswitchport"
+    port_id = sa.Column(sa.String(36), index=True)

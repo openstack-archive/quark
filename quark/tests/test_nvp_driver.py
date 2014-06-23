@@ -13,6 +13,8 @@
 # License for the specific language governing permissions and limitations
 #  under the License.
 
+import aiclib
+
 import contextlib
 
 import mock
@@ -307,6 +309,64 @@ class TestNVPDriverDeleteNetwork(TestNVPDriver):
             self.driver.delete_network(self.context, "test")
             self.assertFalse(connection.lswitch().delete.called)
 
+    def test_delete_network_not_exists_404_exception(self):
+        with self._stubs(network_exists=True) as (connection):
+            self.driver.delete_network(self.context, "test")
+            self.assertTrue(connection.lswitch().delete.called)
+
+
+class TestNVPDriverDeleteNetworkWithExceptions(TestNVPDriver):
+    @contextlib.contextmanager
+    def _stubs(self, network_exists=True, exception=None):
+        with contextlib.nested(
+            mock.patch("%s.get_connection" % self.d_pkg),
+            mock.patch("%s._lswitches_for_network" % self.d_pkg),
+            mock.patch("%s._lswitch_delete" % self.d_pkg),
+        ) as (get_connection, switch_list, switch_delete):
+            connection = self._create_connection()
+            get_connection.return_value = connection
+            if network_exists:
+                ret = {"results": [{"uuid": self.lswitch_uuid}]}
+            else:
+                ret = {"results": []}
+            switch_list().results = mock.Mock(return_value=ret)
+            if exception:
+                switch_delete.side_effect = exception
+            yield connection
+
+    def test_delete_network_with_404_aicexception(self):
+        e = aiclib.core.AICException(404, 'foo')
+        with self._stubs(exception=e) as connection:
+            try:
+                with self.assertRaises(type(e)):
+                    self.driver.delete_network(self.context, "test")
+                self.fail("AssertionError should have been raised.")
+            except AssertionError as ae:
+                self.assertEqual(ae.args[0], "AICException not raised")
+                self.assertFalse(connection.lswitch().delete.called)
+
+    def test_delete_network_with_500_aicexception(self):
+        e = aiclib.core.AICException(500, 'foo')
+        with self._stubs(exception=e) as connection:
+            try:
+                with self.assertRaises(type(e)):
+                    self.driver.delete_network(self.context, "test")
+                self.fail("AssertionError should have been raised.")
+            except AssertionError as ae:
+                self.assertEqual(ae.args[0], "AICException not raised")
+                self.assertFalse(connection.lswitch().delete.called)
+
+    def test_delete_network_with_normal_exception(self):
+        e = StandardError('foo')
+        with self._stubs(exception=e) as connection:
+            try:
+                with self.assertRaises(type(e)):
+                    self.driver.delete_network(self.context, "test")
+                self.fail("AssertionError should have been raised.")
+            except AssertionError as ae:
+                self.assertEqual(ae.args[0], "StandardError not raised")
+                self.assertFalse(connection.lswitch().delete.called)
+
 
 class TestNVPDriverCreatePort(TestNVPDriver):
     '''In all cases an lswitch should be queried.'''
@@ -567,13 +627,103 @@ class TestNVPDriverDeletePort(TestNVPDriver):
 
     def test_delete_port_many_switches(self):
         with self._stubs(switch_count=2):
-            with self.assertRaises(Exception):  # noqa
-                self.driver.delete_port(self.context, self.port_id)
+            try:
+                with self.assertRaises(Exception):  # noqa
+                    self.driver.delete_port(self.context, self.port_id)
+            except AssertionError as ae:
+                self.assertEqual(ae.args[0], "Exception not raised")
 
     def test_delete_port_no_switch_bad_data(self):
         with self._stubs(switch_count=0):
-            with self.assertRaises(Exception):  # noqa
-                self.driver.delete_port(self.context, self.port_id)
+            try:
+                with self.assertRaises(Exception):  # noqa
+                    self.driver.delete_port(self.context, self.port_id)
+            except AssertionError as ae:
+                self.assertEqual(ae.args[0], "Exception not raised")
+
+
+class TestNVPDriverDeletePortWithExceptions(TestNVPDriver):
+    @contextlib.contextmanager
+    def _stubs(self, switch_exception=None, delete_exception=None):
+        with contextlib.nested(
+            mock.patch("%s.get_connection" % self.d_pkg),
+            mock.patch("%s._lswitch_from_port" % self.d_pkg),
+        ) as (get_connection, switch):
+            connection = self._create_connection()
+            get_connection.return_value = connection
+            if switch_exception:
+                switch.side_effect = switch_exception
+            else:
+                switch = mock.Mock(return_value=1)
+            if delete_exception:
+                connection.lswitch_port.delete.side_effect = delete_exception
+            yield connection
+
+    def test_delete_port_with_switch_query_general_exception(self):
+        e = Exception('foo')
+        with self._stubs(switch_exception=e) as (connection):
+            try:
+                with self.assertRaises(type(e)):
+                    self.driver.delete_port(self.context, 'test')
+                self.fail("AssertionError should have been raised.")
+            except AssertionError as ae:
+                self.assertEqual(ae.args[0], "Exception not raised")
+                self.assertFalse(connection.lswitch_port().delete.called)
+
+    def test_delete_port_with_switch_query_404_aic_exception(self):
+        e = aiclib.core.AICException(404, 'foo')
+        with self._stubs(switch_exception=e) as (connection):
+            try:
+                with self.assertRaises(type(e)):
+                    self.driver.delete_port(self.context, 'test')
+                self.fail("AssertionError should have been raised.")
+            except AssertionError as ae:
+                self.assertEqual(ae.args[0], "AICException not raised")
+                self.assertFalse(connection.lswitch_port().delete.called)
+
+    def test_delete_port_with_switch_query_500_aic_exception(self):
+        e = aiclib.core.AICException(500, 'foo')
+        with self._stubs(switch_exception=e) as (connection):
+            try:
+                with self.assertRaises(type(e)):
+                    self.driver.delete_port(self.context, 'test')
+                self.fail("AssertionError should have been raised.")
+            except AssertionError as ae:
+                self.assertEqual(ae.args[0], "AICException not raised")
+                self.assertFalse(connection.lswitch_port().delete.called)
+
+    def test_delete_port_with_delete_general_exception(self):
+        e = Exception('foo')
+        with self._stubs(delete_exception=e) as (connection):
+            try:
+                with self.assertRaises(type(e)):
+                    self.driver.delete_port(self.context, 'test')
+                self.fail("AssertionError should have been raised.")
+            except AssertionError as ae:
+                self.assertEqual(ae.args[0], "Exception not raised")
+                self.assertTrue(connection.lswitch_port().delete.called)
+
+    def test_delete_port_with_delete_404_aic_exception(self):
+        e = aiclib.core.AICException(404, 'foo')
+        with self._stubs(delete_exception=e) as (connection):
+            try:
+                with self.assertRaises(type(e)):
+                    self.driver.delete_port(self.context, 'test')
+                self.fail("AssertionError should have been raised.")
+            except AssertionError as ae:
+                self.assertEqual(ae.args[0], "AICException not raised")
+                self.assertTrue(connection.lswitch_port().delete.called)
+
+    def test_delete_port_with_delete_500_aic_exception(self):
+        e = aiclib.core.AICException(500, 'foo')
+        with self._stubs(delete_exception=e) as (connection):
+            try:
+                with self.assertRaises(type(e)):
+                    self.driver.delete_port(self.context, 'test')
+                self.fail("AssertionError should have been raised.")
+            except AssertionError as ae:
+                self.assertEqual(ae.args[0], "AICException not raised")
+                self.assertTrue(connection.lswitch_port().delete.called)
 
 
 class TestNVPDriverCreateSecurityGroup(TestNVPDriver):

@@ -25,7 +25,6 @@ from oslo.config import cfg
 from quark.drivers import base
 from quark import exceptions
 
-
 LOG = logging.getLogger(__name__)
 
 CONF = cfg.CONF
@@ -88,7 +87,7 @@ class NVPDriver(base.BaseDriver):
 
     def load_config(self):
         # NOTE(mdietz): What does default_tz actually mean?
-        #              We don't have one default.
+        #               We don't have one default.
         # NOTE(jkoelker): Transport Zone
         default_tz = CONF.NVP.default_tz
         LOG.info("Loading NVP settings " + str(default_tz))
@@ -140,10 +139,22 @@ class NVPDriver(base.BaseDriver):
 
     def delete_network(self, context, network_id):
         lswitches = self._lswitches_for_network(context, network_id).results()
-        connection = self.get_connection()
         for switch in lswitches["results"]:
-            LOG.debug("Deleting lswitch %s" % switch["uuid"])
-            connection.lswitch(switch["uuid"]).delete()
+            try:
+                self._lswitch_delete(context, switch["uuid"])
+            except aiclib.core.AICException as ae:
+                if ae.code == 404:
+                    LOG.info("LSwitch/Network %s not found in NVP."
+                             " Ignoring explicitly. Code: %s, Message: %s"
+                             % (network_id, ae.code, ae.message))
+                else:
+                    LOG.info("AICException deleting LSwitch/Network %s in NVP."
+                             " Ignoring explicitly. Code: %s, Message: %s"
+                             % (network_id, ae.code, ae.message))
+            except Exception as e:
+                LOG.info("Failed to delete LSwitch/Network %s in NVP."
+                         " Ignoring explicitly. Message: %s"
+                         % (network_id, e.args[0]))
 
     def _collect_lswitch_info(self, lswitch, get_status):
         info = {
@@ -217,10 +228,26 @@ class NVPDriver(base.BaseDriver):
     def delete_port(self, context, port_id, **kwargs):
         connection = self.get_connection()
         lswitch_uuid = kwargs.get('lswitch_uuid', None)
-        if not lswitch_uuid:
-            lswitch_uuid = self._lswitch_from_port(context, port_id)
-        LOG.debug("Deleting port %s from lswitch %s" % (port_id, lswitch_uuid))
-        connection.lswitch_port(lswitch_uuid, port_id).delete()
+        try:
+            if not lswitch_uuid:
+                lswitch_uuid = self._lswitch_from_port(context, port_id)
+            LOG.debug("Deleting port %s from lswitch %s"
+                      % (port_id, lswitch_uuid))
+            connection.lswitch_port(lswitch_uuid, port_id).delete()
+        except aiclib.core.AICException as ae:
+            if ae.code == 404:
+                LOG.info("LSwitchPort/Port %s not found in NVP."
+                         " Ignoring explicitly. Code: %s, Message: %s"
+                         % (port_id, ae.code, ae.message))
+            else:
+                LOG.info("AICException deleting LSwitchPort/Port %s in NVP."
+                         " Ignoring explicitly. Code: %s, Message: %s"
+                         % (port_id, ae.code, ae.message))
+
+        except Exception as e:
+            LOG.info("Failed to delete LSwitchPort/Port %s in NVP."
+                     " Ignoring explicitly. Message: %s"
+                     % (port_id, e.args[0]))
 
     def _collect_lport_info(self, lport, get_status):
         info = {
