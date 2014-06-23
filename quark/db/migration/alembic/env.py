@@ -4,6 +4,8 @@ from sqlalchemy import create_engine, pool
 from logging import config as logging_config
 
 from quark.db import models
+from quark.drivers import optimized_nvp_driver  # noqa
+from quark import quota_driver
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -17,6 +19,10 @@ logging_config.fileConfig(config.config_file_name)
 # add your model's MetaData object here
 # for 'autogenerate' support
 target_metadata = models.BASEV2.metadata
+# FIXME: https://bitbucket.org/zzzeek/alembic/issue/38
+for t in quota_driver.quota_db.Quota.metadata.tables.values():
+    if t.name == "quotas":
+        t.tometadata(target_metadata)
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
