@@ -56,15 +56,20 @@ def _rackspace_filter(query):
 def get_used_ips(session):
     """Returns dictionary with keys tenant_id and value used IPs count.
 
-    Used IP address count is determined by the sum of:
+    Used IP address count is determined by:
     - allocated IPs
     - deallocated IPs whose `deallocated_at` is within the `reuse_after`
-    window compared to the present time.
+    window compared to the present time, excluding IPs that are accounted for
+    in the current IP policy (because IP policy is mutable and deallocated IPs
+    are not checked nor deleted on IP policy creation, thus deallocated IPs
+    that don't fit the current IP policy can exist in the neutron database).
     """
     with session.begin():
         query = session.query(
             models.Subnet.tenant_id,
-            func.count(models.IPAddress.id).label("count"))
+            models.Subnet,
+            models.IPAddress._deallocated,
+            models.IPAddress.address)
         window = text('interval %s second' % cfg.CONF.QUARK.ipam_reuse_after)
         query = query.outerjoin(
             models.IPAddress,
@@ -76,8 +81,23 @@ def get_used_ips(session):
         query = query.filter(or_(models.Subnet.do_not_use == None,
                                  models.Subnet.do_not_use == 0))
         query = _rackspace_filter(query)
-        query = query.group_by(models.Subnet.tenant_id)
-        return dict(query.all())
+
+        ret = defaultdict(int)
+        for tenant_id, subnet, ip_deallocated, ip_address in query.all():
+            if ip_address is None:
+                if ret.get(tenant_id) is None:
+                    ret[tenant_id] = 0
+                continue
+            if ip_deallocated is not None and ip_deallocated != 0:
+                ret[tenant_id] += 1
+                continue
+            address = netaddr.IPAddress(ip_address, version=6)
+            if subnet.ip_version == 4:
+                address = address.ipv4()
+            ip_policy = models.IPPolicy.get_ip_policy_cidrs(subnet)
+            if address not in ip_policy:
+                ret[tenant_id] += 1
+        return ret
 
 
 def get_unused_ips(session, used_ips_counts):
