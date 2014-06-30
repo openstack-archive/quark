@@ -70,6 +70,24 @@ def _validate_subnet_cidr(context, network_id, new_subnet_cidr):
             raise exceptions.InvalidInput(error_message=err_msg)
 
 
+def _get_exclude_cidrs_from_allocation_pools(subnet_db, allocation_pools):
+    subnet_net = netaddr.IPNetwork(subnet_db["cidr"])
+    cidrset = netaddr.IPSet(
+        netaddr.IPRange(
+            netaddr.IPAddress(subnet_net.first),
+            netaddr.IPAddress(subnet_net.last)).cidrs())
+    for p in allocation_pools:
+        start = netaddr.IPAddress(p["start"])
+        end = netaddr.IPAddress(p["end"])
+        cidrset -= netaddr.IPSet(netaddr.IPRange(
+            netaddr.IPAddress(start),
+            netaddr.IPAddress(end)).cidrs())
+    default_cidrset = models.IPPolicy.get_ip_policy_cidrs(subnet_db)
+    cidrset.update(default_cidrset)
+    cidrs = [str(x.cidr) for x in cidrset.iter_cidrs()]
+    return cidrs
+
+
 def create_subnet(context, subnet):
     """Create a subnet.
 
@@ -143,20 +161,8 @@ def create_subnet(context, subnet):
                 context, ip=netaddr.IPAddress(dns_ip)))
 
         if isinstance(allocation_pools, list) and allocation_pools:
-            subnet_net = netaddr.IPNetwork(new_subnet["cidr"])
-            cidrset = netaddr.IPSet(
-                netaddr.IPRange(
-                    netaddr.IPAddress(subnet_net.first),
-                    netaddr.IPAddress(subnet_net.last)).cidrs())
-            for p in allocation_pools:
-                start = netaddr.IPAddress(p["start"])
-                end = netaddr.IPAddress(p["end"])
-                cidrset -= netaddr.IPSet(netaddr.IPRange(
-                    netaddr.IPAddress(start),
-                    netaddr.IPAddress(end)).cidrs())
-            default_cidrset = models.IPPolicy.get_ip_policy_cidrs(new_subnet)
-            cidrset.update(default_cidrset)
-            cidrs = [str(x.cidr) for x in cidrset.iter_cidrs()]
+            cidrs = _get_exclude_cidrs_from_allocation_pools(
+                new_subnet, allocation_pools)
             new_subnet["ip_policy"] = db_api.ip_policy_create(context,
                                                               exclude=cidrs)
 
@@ -193,9 +199,10 @@ def update_subnet(context, id, subnet):
 
         s = subnet["subnet"]
 
-        dns_ips = s.pop("dns_nameservers", [])
-        host_routes = s.pop("host_routes", [])
-        gateway_ip = s.pop("gateway_ip", None)
+        dns_ips = utils.pop_param(s, "dns_nameservers", [])
+        host_routes = utils.pop_param(s, "host_routes", [])
+        gateway_ip = utils.pop_param(s, "gateway_ip", None)
+        allocation_pools = utils.pop_param(s, "allocation_pools", None)
 
         if gateway_ip:
             default_route = None
@@ -228,6 +235,16 @@ def update_subnet(context, id, subnet):
         for route in host_routes:
             subnet_db["routes"].append(db_api.route_create(
                 context, cidr=route["destination"], gateway=route["nexthop"]))
+
+        if isinstance(allocation_pools, list) and allocation_pools:
+            cidrs = _get_exclude_cidrs_from_allocation_pools(
+                subnet_db, allocation_pools)
+            if subnet_db["ip_policy"]:
+                subnet_db["ip_policy"] = db_api.ip_policy_update(
+                    context, subnet_db["ip_policy"], exclude=cidrs)
+            else:
+                subnet_db["ip_policy"] = db_api.ip_policy_create(
+                    context, exclude=cidrs)
 
         subnet = db_api.subnet_update(context, subnet_db, **s)
     return v._make_subnet_dict(subnet)

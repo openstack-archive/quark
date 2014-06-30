@@ -698,7 +698,7 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
 
     @contextlib.contextmanager
     def _stubs(self, host_routes=None, new_routes=None, find_routes=True,
-               new_dns_servers=None):
+               new_dns_servers=None, new_ip_policy=None, ip_version=4):
         if host_routes is None:
             host_routes = []
         if new_routes:
@@ -710,12 +710,21 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
             new_dns_servers = [models.DNSNameserver(
                 ip=ip,
                 subnet_id=1) for ip in new_dns_servers]
+        if new_ip_policy:
+            exc = [models.IPPolicyCIDR(cidr=excluded_cidr)
+                   for excluded_cidr in new_ip_policy]
+            new_ip_policy = models.IPPolicy(exclude=exc)
 
+        if ip_version == 4:
+            cidr = "172.16.0.0/24"
+        else:
+            cidr = "2607:f0d0:1002:51::0/64"
         subnet = dict(
             id=1,
             network_id=1,
-            tenant_id=self.context.tenant_id, ip_version=4,
-            cidr="172.16.0.0/24",
+            tenant_id=self.context.tenant_id,
+            ip_version=ip_version,
+            cidr=cidr,
             host_routes=host_routes,
             dns_nameservers=["4.2.2.1", "4.2.2.2"],
             enable_dhcp=None)
@@ -752,6 +761,8 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
                 new_subnet_mod["routes"] = new_routes
             if new_dns_servers:
                 new_subnet_mod["dns_nameservers"] = new_dns_servers
+            if new_ip_policy:
+                new_subnet_mod["ip_policy"] = new_ip_policy
             subnet_update.return_value = new_subnet_mod
             yield dns_create, route_update, route_create
 
@@ -851,6 +862,72 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(route_create.call_count, 1)
             self.assertEqual(len(res["host_routes"]), 0)
             self.assertEqual(res["gateway_ip"], "4.3.2.1")
+
+    def test_update_subnet_allocation_pools_zero(self):
+        with self._stubs() as (dns_create, route_update, route_create):
+            resp = self.plugin.update_subnet(self.context, 1,
+                                             dict(subnet=dict()))
+            self.assertEqual(resp["allocation_pools"],
+                             [dict(start="172.16.0.1", end="172.16.0.254")])
+
+    def test_update_subnet_allocation_pools_one(self):
+        pools = [dict(start="172.16.0.10", end="172.16.0.20")]
+        s = dict(subnet=dict(allocation_pools=pools))
+        with self._stubs(
+            new_ip_policy=[
+                '172.16.0.0/29', '172.16.0.8/31', '172.16.0.21/32',
+                '172.16.0.22/31', '172.16.0.24/29', '172.16.0.32/27',
+                '172.16.0.64/26', '172.16.0.128/25']
+        ) as (dns_create, route_update, route_create):
+            resp = self.plugin.update_subnet(self.context, 1, s)
+            self.assertEqual(resp["allocation_pools"], pools)
+
+    def test_update_subnet_allocation_pools_two(self):
+        pools = [dict(start="172.16.0.10", end="172.16.0.20"),
+                 dict(start="172.16.0.40", end="172.16.0.50")]
+        s = dict(subnet=dict(allocation_pools=pools))
+        with self._stubs(
+            new_ip_policy=[
+                '172.16.0.0/29', '172.16.0.8/31', '172.16.0.21/32',
+                '172.16.0.22/31', '172.16.0.24/29', '172.16.0.32/29',
+                '172.16.0.51/32', '172.16.0.52/30', '172.16.0.56/29',
+                '172.16.0.64/26', '172.16.0.128/25']
+        ) as (dns_create, route_update, route_create):
+            resp = self.plugin.update_subnet(self.context, 1, s)
+            self.assertEqual(resp["allocation_pools"], pools)
+
+    def test_update_subnet_allocation_pools_three(self):
+        pools = [dict(start="172.16.0.5", end="172.16.0.254")]
+        s = dict(subnet=dict(allocation_pools=pools))
+        with self._stubs(
+            new_ip_policy=['172.16.0.0/30', '172.16.0.4/32', '172.16.0.255/32']
+        ) as (dns_create, route_update, route_create):
+            resp = self.plugin.update_subnet(self.context, 1, s)
+            self.assertEqual(resp["allocation_pools"], pools)
+
+    def test_create_subnet_allocation_pools_four(self):
+        pools = [dict(start="2607:f0d0:1002:51::a",
+                      end="2607:f0d0:1002:51:ffff:ffff:ffff:fffe")]
+        s = dict(subnet=dict(allocation_pools=pools))
+        with self._stubs(
+            ip_version=6,
+            new_ip_policy=[
+                '2607:f0d0:1002:51::/125', '2607:f0d0:1002:51::8/127',
+                '2607:f0d0:1002:51:ffff:ffff:ffff:ffff/128']
+        ) as (dns_create, route_update, route_create):
+            resp = self.plugin.update_subnet(self.context, 1, s)
+            self.assertEqual(resp["allocation_pools"], pools)
+
+    def test_update_subnet_allocation_pools_empty_list(self):
+        pools = []
+        s = dict(subnet=dict(allocation_pools=pools))
+        with self._stubs(
+            new_ip_policy=[]
+        ) as (dns_create, route_update, route_create):
+            resp = self.plugin.update_subnet(self.context, 1, s)
+            expected_pools = [{'start': '172.16.0.1',
+                              'end': '172.16.0.254'}]
+            self.assertEqual(resp["allocation_pools"], expected_pools)
 
 
 class TestQuarkDeleteSubnet(test_quark_plugin.TestQuarkPlugin):
