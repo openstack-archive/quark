@@ -261,6 +261,26 @@ class TestQuarkCreateSubnetAllocationPools(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(subnet_create.call_count, 1)
             self.assertEqual(resp["allocation_pools"], pools)
 
+    def test_create_subnet_allocation_pools_invalid_outside(self):
+        pools = [dict(start="192.168.0.10", end="192.168.0.20")]
+        s = dict(subnet=dict(
+            allocation_pools=pools,
+            cidr="192.168.1.1/24",
+            network_id=1))
+        with self._stubs(s["subnet"]):
+            with self.assertRaises(exceptions.OutOfBoundsAllocationPool):
+                self.plugin.create_subnet(self.context, s)
+
+    def test_create_subnet_allocation_pools_invalid_overlaps(self):
+        pools = [dict(start="192.168.0.255", end="192.168.1.20")]
+        s = dict(subnet=dict(
+            allocation_pools=pools,
+            cidr="192.168.1.1/24",
+            network_id=1))
+        with self._stubs(s["subnet"]):
+            with self.assertRaises(exceptions.OutOfBoundsAllocationPool):
+                self.plugin.create_subnet(self.context, s)
+
     def test_create_subnet_allocation_pools_two(self):
         pools = [dict(start="192.168.1.10", end="192.168.1.20"),
                  dict(start="192.168.1.40", end="192.168.1.50")]
@@ -879,6 +899,20 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
                                              dict(subnet=dict()))
             self.assertEqual(resp["allocation_pools"],
                              [dict(start="172.16.0.1", end="172.16.0.254")])
+
+    def test_update_subnet_allocation_pools_invalid_outside(self):
+        pools = [dict(start="172.16.1.10", end="172.16.1.20")]
+        s = dict(subnet=dict(allocation_pools=pools))
+        with self._stubs() as (dns_create, route_update, route_create):
+            with self.assertRaises(exceptions.OutOfBoundsAllocationPool):
+                self.plugin.update_subnet(self.context, 1, s)
+
+    def test_create_subnet_allocation_pools_invalid_overlaps(self):
+        pools = [dict(start="172.15.255.255", end="172.16.0.20")]
+        s = dict(subnet=dict(allocation_pools=pools))
+        with self._stubs() as (dns_create, route_update, route_create):
+            with self.assertRaises(exceptions.OutOfBoundsAllocationPool):
+                self.plugin.update_subnet(self.context, 1, s)
 
     def test_update_subnet_allocation_pools_one(self):
         pools = [dict(start="172.16.0.10", end="172.16.0.20")]
