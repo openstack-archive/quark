@@ -52,7 +52,7 @@ for _name, klass in inspect.getmembers(models, inspect.isclass):
 def _listify(filters):
     for key in ["name", "network_id", "id", "device_id", "tenant_id",
                 "subnet_id", "mac_address", "shared", "version", "segment_id",
-                "device_owner", "ip_address"]:
+                "device_owner", "ip_address", "used_by_tenant_id"]:
         if key in filters:
             if not filters[key]:
                 continue
@@ -125,10 +125,17 @@ def _model_query(context, model, filters, fields=None):
     # out of the result set.
     if not filters and not context.is_admin:
         filters["tenant_id"] = [context.tenant_id]
-
+    # Begin:Added for RM6299
+    if filters.get("used_by_tenant_id"):
+        model_filters.append(model.used_by_tenant_id.in_(
+                             filters["used_by_tenant_id"]))
     if filters.get("tenant_id"):
-        model_filters.append(model.tenant_id.in_(filters["tenant_id"]))
-
+        if model == models.IPAddress:
+            model_filters.append(model.used_by_tenant_id.in_(
+                                 filters["tenant_id"]))
+        else:
+            model_filters.append(model.tenant_id.in_(filters["tenant_id"]))
+    # End: Added for RM6299
     if filters.get("device_owner"):
         model_filters.append(model.device_owner.in_(filters["device_owner"]))
 
@@ -402,8 +409,8 @@ def network_update(context, network, **kwargs):
 
 def network_count_all(context):
     query = context.session.query(sql_func.count(models.Network.id))
-    return query.filter(models.Network.tenant_id ==
-                        context.tenant_id).scalar()
+    return query.filter(
+        models.Network.tenant_id == context.tenant_id).scalar()
 
 
 def network_delete(context, network):
