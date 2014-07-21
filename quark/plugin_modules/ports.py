@@ -443,33 +443,6 @@ def delete_port(context, id):
         db_api.port_delete(context, port)
 
 
-def disassociate_port(context, id, ip_address_id):
-    """Disassociates a port from an IP address.
-
-    : param context: neutron api request context
-    : param id: UUID representing the port to disassociate.
-    : param ip_address_id: UUID representing the IP address to
-    disassociate.
-    """
-    LOG.info("disassociate_port %s for tenant %s ip_address_id %s" %
-             (id, context.tenant_id, ip_address_id))
-    with context.session.begin():
-        port = db_api.port_find(context, id=id, ip_address_id=[ip_address_id],
-                                scope=db_api.ONE)
-
-        if not port:
-            raise exceptions.PortNotFound(port_id=id, net_id='')
-
-        the_address = [address for address in port["ip_addresses"]
-                       if address["id"] == ip_address_id][0]
-        port["ip_addresses"] = [address for address in port["ip_addresses"]
-                                if address.id != ip_address_id]
-
-        if len(the_address["ports"]) == 0:
-            the_address["deallocated"] = 1
-    return v._make_port_dict(port)
-
-
 def _diag_port(context, port, fields):
     p = v._make_port_dict(port)
     net_driver = registry.DRIVER_REGISTRY.get_driver(

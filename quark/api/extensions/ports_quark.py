@@ -15,12 +15,8 @@
 
 from neutron.api import extensions
 from neutron.api.v2 import attributes
-from neutron.api.v2 import base
-from neutron.api.v2 import resource
-from neutron.common import exceptions
 from neutron import manager
 from neutron import wsgi
-import webob
 
 RESOURCE_NAME = "port"
 RESOURCE_COLLECTION = RESOURCE_NAME + "s"
@@ -33,18 +29,6 @@ EXTENDED_ATTRIBUTES_2_0 = {
         "segment_id": {"allow_post": True, "default": False},
         "bridge": {'allow_post': False, 'allow_put': False,
                    'default': False, 'is_visible': True}}}
-
-
-class QuarkPortsIPAddressController(wsgi.Controller):
-    def __init__(self, plugin):
-        self._plugin = plugin
-
-    def delete(self, request, id, **kwargs):
-        try:
-            self._plugin.disassociate_port(request.context, kwargs["port_id"],
-                                           id)
-        except exceptions.NotFound:
-            raise webob.exc.HTTPNotFound()
 
 
 class QuarkPortsUpdateHandler(object):
@@ -112,24 +96,6 @@ class Ports_quark(object):
             return EXTENDED_ATTRIBUTES_2_0
         else:
             return {}
-
-    @classmethod
-    def get_resources(cls):
-        """Returns Ext Resources."""
-        exts = []
-
-        parent = dict(member_name=RESOURCE_NAME,
-                      collection_name=RESOURCE_COLLECTION)
-        quark_ports_ip_address_controller = resource.Resource(
-            QuarkPortsIPAddressController(
-                manager.NeutronManager.get_plugin()),
-            base.FAULT_MAP)
-        extension = extensions.ResourceExtension(
-            "ip_address",
-            quark_ports_ip_address_controller,
-            parent)
-        exts.append(extension)
-        return exts
 
     @classmethod
     def get_request_extensions(cls):
