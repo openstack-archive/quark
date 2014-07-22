@@ -21,7 +21,6 @@ from neutron.api.v2 import attributes as neutron_attrs
 from neutron.common import exceptions
 from neutron.extensions import securitygroup as sg_ext
 
-from quark.db import api as quark_db_api
 from quark.db import models
 from quark import exceptions as q_exc
 from quark import network_strategy
@@ -792,47 +791,6 @@ class TestQuarkDeletePort(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(port=None) as (db_port_del, driver_port_del):
             with self.assertRaises(exceptions.PortNotFound):
                 self.plugin.delete_port(self.context, 1)
-
-
-class TestQuarkDisassociatePort(test_quark_plugin.TestQuarkPlugin):
-    @contextlib.contextmanager
-    def _stubs(self, port=None):
-        port_models = None
-        if port:
-            port_model = models.Port()
-            port_model.update(port)
-            for ip in port["fixed_ips"]:
-                port_model.ip_addresses.append(models.IPAddress(
-                    id=1,
-                    address=ip["ip_address"],
-                    subnet_id=ip["subnet_id"]))
-            port_models = port_model
-
-        db_mod = "quark.db.api"
-        with mock.patch("%s.port_find" % db_mod) as port_find:
-            port_find.return_value = port_models
-            yield port_find
-
-    def test_port_disassociate_port(self):
-        ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
-                  subnet_id=1, network_id=2, version=4)
-        fixed_ips = [{"subnet_id": ip["subnet_id"],
-                      "ip_address": ip["address_readable"]}]
-        port = dict(port=dict(network_id=1, tenant_id=self.context.tenant_id,
-                              device_id=2, mac_address="AA:BB:CC:DD:EE:FF",
-                              backend_key="foo", fixed_ips=fixed_ips))
-        with self._stubs(port=port["port"]) as (port_find):
-            new_port = self.plugin.disassociate_port(self.context, 1, 1)
-            port_find.assert_called_with(self.context,
-                                         id=1,
-                                         ip_address_id=[1],
-                                         scope=quark_db_api.ONE)
-            self.assertEqual(new_port["fixed_ips"], [])
-
-    def test_port_disassociate_port_not_found_fails(self):
-        with self._stubs(port=None):
-            with self.assertRaises(exceptions.PortNotFound):
-                self.plugin.disassociate_port(self.context, 1, 1)
 
 
 class TestPortDiagnose(test_quark_plugin.TestQuarkPlugin):
