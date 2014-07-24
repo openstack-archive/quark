@@ -202,9 +202,11 @@ def _port_dict(port, fields=None):
     return res
 
 
-def _make_port_address_dict(ip, fields=None):
+def _make_port_address_dict(ip, port, fields=None):
+    enabled = ip.enabled_for_port(port)
     ip_addr = {"subnet_id": ip.get("subnet_id"),
-               "ip_address": ip.formatted()}
+               "ip_address": ip.formatted(),
+               "enabled": enabled}
     if fields and "port_subnets" in fields:
         ip_addr["subnet"] = _make_subnet_dict(ip["subnet"])
 
@@ -213,7 +215,7 @@ def _make_port_address_dict(ip, fields=None):
 
 def _make_port_dict(port, fields=None):
     res = _port_dict(port)
-    res["fixed_ips"] = [_make_port_address_dict(ip, fields)
+    res["fixed_ips"] = [_make_port_address_dict(ip, port, fields)
                         for ip in port.ip_addresses]
     return res
 
@@ -222,7 +224,7 @@ def _make_ports_list(query, fields=None):
     ports = []
     for port in query:
         port_dict = _port_dict(port, fields)
-        port_dict["fixed_ips"] = [_make_port_address_dict(addr, fields)
+        port_dict["fixed_ips"] = [_make_port_address_dict(addr, port, fields)
                                   for addr in port.ip_addresses]
         ports.append(port_dict)
     return ports
@@ -253,13 +255,12 @@ def _make_ip_dict(address):
     return {"id": address["id"],
             "network_id": net_id,
             "address": address.formatted(),
-            "port_ids": [port["id"] for port in address["ports"]],
-            "device_ids": [port["device_id"] or ""
-                           for port in address["ports"]],
+            "port_ids": [assoc.port_id
+                         for assoc in address["associations"]],
             "subnet_id": address["subnet_id"],
             "used_by_tenant_id": address["used_by_tenant_id"],
             "version": address["version"],
-            "shared": len(address["ports"]) > 1}
+            "address_type": address['address_type']}
 
 
 def _make_ip_policy_dict(ipp):

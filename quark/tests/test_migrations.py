@@ -16,7 +16,6 @@ from sqlalchemy.sql import table
 
 from quark.db.custom_types import INET
 import quark.db.migration
-from quark.db import models
 from quark.tests import test_base
 
 
@@ -800,7 +799,7 @@ class Test4fc07b41d45c(BaseMigrationTest):
             'quark_ip_addresses', self.metadata,
             sa.Column('id', sa.String(length=36), primary_key=True),
             sa.Column('_deallocated', sa.Boolean()),
-            sa.Column('address_type', sa.Enum(*models.IPAddress.address_types))
+            sa.Column('address_type', sa.Enum('fixed', 'shared', 'floating'))
         )
         self.metadata.create_all()
         alembic_command.stamp(self.config, self.previous_revision)

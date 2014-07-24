@@ -25,6 +25,9 @@ from sqlalchemy.ext import hybrid
 from sqlalchemy import orm
 
 from quark.db import custom_types
+from quark.db import FIXED_IP
+from quark.db import FLOATING_IP
+from quark.db import SHARED_IP
 # NOTE(mdietz): This is the only way to actually create the quotas table,
 #              regardless if we need it. This is how it's done upstream.
 # NOTE(jhammond): If it isn't obvious quota_driver is unused and that's ok.
@@ -108,6 +111,10 @@ class IsHazTags(object):
         return orm.relationship("TagAssociation", backref=backref)
 
 
+class PortIpAssociation(object):
+    pass
+
+
 port_ip_association_table = sa.Table(
     "quark_port_ip_address_associations",
     BASEV2.metadata,
@@ -123,6 +130,9 @@ port_ip_association_table = sa.Table(
     **TABLE_KWARGS)
 
 
+orm.mapper(PortIpAssociation, port_ip_association_table)
+
+
 class IPAddress(BASEV2, models.HasId):
     """More closely emulate the melange version of the IP table.
 
@@ -133,7 +143,6 @@ class IPAddress(BASEV2, models.HasId):
     __table_args__ = (sa.UniqueConstraint("subnet_id", "address",
                                           name="subnet_id_address"),
                       TABLE_KWARGS)
-    address_types = set(['fixed', 'shared', 'floating'])
     address_readable = sa.Column(sa.String(128), nullable=False)
     address = sa.Column(custom_types.INET(), nullable=False, index=True)
     subnet_id = sa.Column(sa.String(36),
@@ -149,8 +158,15 @@ class IPAddress(BASEV2, models.HasId):
     _deallocated = sa.Column(sa.Boolean())
     # Legacy data
     used_by_tenant_id = sa.Column(sa.String(255))
-    address_type = sa.Column(sa.Enum(*address_types,
-                                     name="quark_ip_address_types"))
+
+    address_type = sa.Column(sa.Enum(FIXED_IP, FLOATING_IP, SHARED_IP,
+                             name="quark_ip_address_types"))
+    associations = orm.relationship(PortIpAssociation, backref="ip_address")
+
+    def enabled_for_port(self, port):
+        for assoc in self["associations"]:
+            if assoc.port_id == port["id"]:
+                return assoc.enabled
 
     @hybrid.hybrid_property
     def deallocated(self):
@@ -311,6 +327,7 @@ class Port(BASEV2, models.HasTenant, models.HasId):
     device_id = sa.Column(sa.String(255), nullable=False, index=True)
     device_owner = sa.Column(sa.String(255))
     bridge = sa.Column(sa.String(255))
+    associations = orm.relationship(PortIpAssociation, backref="port")
 
     @declarative.declared_attr
     def ip_addresses(cls):

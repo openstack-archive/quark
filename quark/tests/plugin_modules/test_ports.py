@@ -197,6 +197,7 @@ class TestQuarkGetPortsByIPAddress(test_quark_plugin.TestQuarkPlugin):
 class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, port=None, ip_addresses=None):
+        self.maxDiff = None
         ip_models = [models.IPAddress(**ip) for ip in ip_addresses]
         mac = {"address": "AA:BB:CC:DD:EE:FF"}
         network = {"network_plugin": "BASE",
@@ -217,7 +218,10 @@ class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
         ) as (network_find, port_count, port_create, port_find, allocate_ip,
               allocate_mac):
             def allocate_ip_effect(context, addresses, *args, **kwargs):
-                addresses.extend(ip_models)
+
+                for ip_model in ip_models:
+                    ip_model.enabled_for_port = lambda x: True
+                    addresses.append(ip_models)
             network_find.return_value = network
             port_count.return_value = 0
             port_create.return_value = port_model
@@ -238,9 +242,11 @@ class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
                "subnet_id": "subnet2",
                "version": 4}
         fixed_ips = [{"ip_address": ip1['address_readable'],
-                      "subnet_id": ip1['subnet_id']},
+                      "subnet_id": ip1['subnet_id'],
+                      "enabled": True},
                      {"ip_address": ip2['address_readable'],
-                      "subnet_id": ip2['subnet_id']}]
+                      "subnet_id": ip2['subnet_id'],
+                      "enabled": True}]
         port = {"port":
                 {'fixed_ips': fixed_ips,
                  'id': "11111111-2222-3333-4444-555555555555",
@@ -277,9 +283,11 @@ class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
                "subnet_id": "subnet2",
                "version": 6}
         fixed_ips = [{"ip_address": ip1['address_readable'],
-                      "subnet_id": ip1['subnet_id']},
+                      "subnet_id": ip1['subnet_id'],
+                      "enabled": True},
                      {"ip_address": ip2['address_readable'],
-                      "subnet_id": ip2['subnet_id']}]
+                      "subnet_id": ip2['subnet_id'],
+                      "enabled": True}]
         port = {"port":
                 {'fixed_ips': fixed_ips,
                  'id': "11111111-2222-3333-4444-555555555555",
@@ -316,9 +324,11 @@ class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
                "subnet_id": "subnet2",
                "version": 6}
         fixed_ips = [{"ip_address": ip1['address_readable'],
-                      "subnet_id": ip1['subnet_id']},
+                      "subnet_id": ip1['subnet_id'],
+                      "enabled": True},
                      {"ip_address": ip2['address_readable'],
-                      "subnet_id": ip2['subnet_id']}]
+                      "subnet_id": ip2['subnet_id'],
+                      "enabled": True}]
         port = {"port":
                 {'fixed_ips': fixed_ips,
                  'id': "11111111-2222-3333-4444-555555555555",
@@ -395,9 +405,18 @@ class TestQuarkCreatePortsSameDevBadRequest(test_quark_plugin.TestQuarkPlugin):
         if network:
             network["network_plugin"] = "BASE"
             network["ipam_strategy"] = "ANY"
-        port_model = models.Port()
-        port_model.update(port)
-        port_models = port_model
+
+        def _create_db_port(context, **kwargs):
+            port_model = models.Port()
+            port_model.update(kwargs)
+            return port_model
+
+        def _alloc_ip(context, new_ips, *args, **kwargs):
+            ip_mod = models.IPAddress()
+            ip_mod.update(addr)
+            ip_mod.enabled_for_port = lambda x: True
+            new_ips.extend([ip_mod])
+            return mock.DEFAULT
 
         with contextlib.nested(
             mock.patch("quark.db.api.port_create"),
@@ -408,9 +427,9 @@ class TestQuarkCreatePortsSameDevBadRequest(test_quark_plugin.TestQuarkPlugin):
             mock.patch("neutron.quota.QuotaEngine.limit_check")
         ) as (port_create, net_find, alloc_ip, alloc_mac, port_count,
               limit_check):
-            port_create.return_value = port_models
+            port_create.side_effect = _create_db_port
             net_find.return_value = network
-            alloc_ip.return_value = addr
+            alloc_ip.side_effect = _alloc_ip
             alloc_mac.return_value = mac
             port_count.return_value = 0
             if limit_checks:
@@ -425,6 +444,7 @@ class TestQuarkCreatePortsSameDevBadRequest(test_quark_plugin.TestQuarkPlugin):
         port = dict(port=dict(mac_address=mac["address"], network_id=1,
                               tenant_id=self.context.tenant_id, device_id=2,
                               name=port_name))
+
         expected = {'status': "ACTIVE",
                     'name': port_name,
                     'device_owner': None,
@@ -493,10 +513,13 @@ class TestQuarkCreatePortsSameDevBadRequest(test_quark_plugin.TestQuarkPlugin):
         ip = mock.MagicMock()
         ip.get = lambda x, *y: 1 if x == "subnet_id" else None
         ip.formatted = lambda: "192.168.10.45"
-        fixed_ips = [dict(subnet_id=1, ip_address="192.168.10.45")]
+        ip.enabled_for_port = lambda x: True
+        fixed_ips = [dict(subnet_id=1, enabled=True,
+                     ip_address="192.168.10.45")]
         port = dict(port=dict(mac_address=mac["address"], network_id=1,
                               tenant_id=self.context.tenant_id, device_id=2,
                               fixed_ips=fixed_ips, ip_addresses=[ip]))
+
         expected = {'status': "ACTIVE",
                     'device_owner': None,
                     'mac_address': mac["address"],
