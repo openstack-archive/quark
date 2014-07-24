@@ -13,6 +13,8 @@
 # License for the specific language governing permissions and limitations
 #  under the License.
 
+import aiclib
+
 import contextlib
 
 import mock
@@ -96,6 +98,49 @@ class TestOptimizedNVPDriverDeleteNetwork(TestOptimizedNVPDriver):
             self.assertEqual(switch_count, context_delete.call_count)
 
 
+class TestOptimizedNVPDriverDeleteNetworkWithExceptions(
+        TestOptimizedNVPDriver):
+    '''Test for storage of orphaned nets from NVP or our quark db tables.'''
+
+    @contextlib.contextmanager
+    def _stubs(self, switch_count=1, error_code=500):
+        with contextlib.nested(
+            mock.patch("%s.get_connection" % self.d_pkg),
+            mock.patch("%s._lswitch_select_by_nvp_id" % self.d_pkg),
+            mock.patch("%s._lswitches_for_network" % self.d_pkg),
+            mock.patch("%s._lswitch_delete" % self.d_pkg)
+        ) as (get_connection, select_switch, get_switches, delete_switch):
+            connection = self._create_connection()
+            switch = self._create_lswitch_mock()
+            get_connection.return_value = connection
+            select_switch.return_value = switch
+            get_switches.return_value = [switch] * switch_count
+            delete_switch.side_effect = aiclib.core.AICException(
+                error_code, 'foo')
+            self.context.session.delete = mock.Mock(return_value=None)
+            self.context.session.add = mock.Mock(return_value=None)
+            yield (connection, self.context.session.delete,
+                   self.context.session.add, delete_switch)
+
+    def test_delete_network_with_404_aicexception(self):
+        with self._stubs(error_code=404) as (
+                connection, session_delete_network_from_db,
+                session_add_orphaned_network_to_db, nvp_delete_switch):
+            self.driver.delete_network(self.context, self.net_id)
+            self.assertEqual(1, nvp_delete_switch.call_count)
+            self.assertEqual(1, session_delete_network_from_db.call_count)
+            self.assertEqual(0, session_add_orphaned_network_to_db.call_count)
+
+    def test_delete_network_with_non_404_aicexception(self):
+        with self._stubs() as (
+                connection, session_delete_network_from_db,
+                session_add_orphaned_network_to_db, nvp_delete_switch):
+            self.driver.delete_network(self.context, self.net_id)
+            self.assertEqual(1, nvp_delete_switch.call_count)
+            self.assertEqual(1, session_delete_network_from_db.call_count)
+            self.assertEqual(1, session_add_orphaned_network_to_db.call_count)
+
+
 class TestOptimizedNVPDriverDeletePortMultiSwitch(TestOptimizedNVPDriver):
     '''Test for 0 ports on the switch, and the switch not last in network.
 
@@ -104,13 +149,15 @@ class TestOptimizedNVPDriverDeletePortMultiSwitch(TestOptimizedNVPDriver):
     '''
 
     @contextlib.contextmanager
-    def _stubs(self, port_count=2):
+    def _stubs(self, port_count=2, exception=None):
         with contextlib.nested(
             mock.patch("%s.get_connection" % self.d_pkg),
             mock.patch("%s._lport_select_by_id" % self.d_pkg),
             mock.patch("%s._lswitch_select_by_nvp_id" % self.d_pkg),
             mock.patch("%s._lswitches_for_network" % self.d_pkg),
-        ) as (get_connection, select_port, select_switch, two_switch):
+            mock.patch("%s._lport_delete" % self.d_pkg),
+        ) as (get_connection, select_port, select_switch,
+              two_switch, port_delete):
             connection = self._create_connection()
             port = self._create_lport_mock(port_count)
             switch = self._create_lswitch_mock()
@@ -119,23 +166,76 @@ class TestOptimizedNVPDriverDeletePortMultiSwitch(TestOptimizedNVPDriver):
             select_switch.return_value = switch
             two_switch.return_value = [switch, switch]
             self.context.session.delete = mock.Mock(return_value=None)
-            yield connection, self.context.session.delete
+            if exception:
+                port_delete.side_effect = exception
+            yield (connection, self.context.session.delete,
+                   self.context.session.add, port_delete)
 
     def test_delete_ports_not_empty(self):
         '''Ensure that the switch is not deleted if ports exist.'''
-        with self._stubs() as (connection, context_delete):
+        with self._stubs() as (
+                connection, context_delete, context_add, port_delete):
             self.driver.delete_port(self.context, self.port_id)
             self.assertEqual(1, context_delete.call_count)
-            self.assertTrue(connection.lswitch_port().delete.called)
+            self.assertTrue(port_delete.called)
             self.assertFalse(connection.lswitch().delete.called)
 
     def test_delete_ports_is_empty(self):
         '''Ensure that the switch is deleted if empty and not last switch.'''
-        with self._stubs(port_count=1) as (connection, context_delete):
+        with self._stubs(port_count=1) as (
+                connection, context_delete, context_add, port_delete):
             self.driver.delete_port(self.context, self.port_id)
             self.assertEqual(2, context_delete.call_count)
-            self.assertTrue(connection.lswitch_port().delete.called)
+            self.assertTrue(port_delete.called)
             self.assertTrue(connection.lswitch().delete.called)
+
+    def test_delete_ports_with_exception(self):
+        '''Ensure that exception is handled/logged.'''
+        e = Exception('foo')
+        with self._stubs(exception=e) as (
+                connection, context_delete, context_add, port_delete):
+            try:
+                with self.assertRaises(type(e)):
+                    self.driver.delete_port(self.context, self.port_id)
+                self.fail("AssertionError should have been raised.")
+            except AssertionError as ae:
+                self.assertEqual(ae.args[0], "Exception not raised")
+                self.assertEqual(1, context_delete.call_count)
+                self.assertEqual(0, context_add.call_count)
+                self.assertFalse(connection.lswitch_port().delete.called)
+                self.assertFalse(connection.lswitch().delete.called)
+
+    def test_delete_ports_with_404_aicexception(self):
+        '''Ensure that exception is handled/logged.'''
+        e = aiclib.core.AICException(404, 'foo')
+        with self._stubs(exception=e) as (
+                connection, context_delete, context_add, port_delete):
+            try:
+                with self.assertRaises(type(e)):
+                    self.driver.delete_port(self.context, self.port_id)
+                self.fail("AssertionError should have been raised.")
+            except AssertionError as ae:
+                self.assertEqual(ae.args[0], "AICException not raised")
+                self.assertEqual(1, context_delete.call_count)
+                self.assertEqual(0, context_add.call_count)
+                self.assertFalse(connection.lswitch_port().delete.called)
+                self.assertFalse(connection.lswitch().delete.called)
+
+    def test_delete_ports_with_500_aicexception(self):
+        '''Ensure that exception is handled/logged.'''
+        e = aiclib.core.AICException(500, 'foo')
+        with self._stubs(exception=e) as (
+                connection, context_delete, context_add, port_delete):
+            try:
+                with self.assertRaises(type(e)):
+                    self.driver.delete_port(self.context, self.port_id)
+                self.fail("AssertionError should have been raised.")
+            except AssertionError as ae:
+                self.assertEqual(ae.args[0], "AICException not raised")
+                self.assertEqual(1, context_delete.call_count)
+                self.assertEqual(1, context_add.call_count)
+                self.assertFalse(connection.lswitch_port().delete.called)
+                self.assertFalse(connection.lswitch().delete.called)
 
 
 class TestOptimizedNVPDriverDeletePortSingleSwitch(TestOptimizedNVPDriver):
