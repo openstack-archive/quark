@@ -166,14 +166,29 @@ class TestQuarkUpdateNetwork(test_quark_plugin.TestQuarkPlugin):
 
     def test_update_network(self):
         net = dict(id=1)
+        new_net = net.copy()
+        new_net["ipam_strategy"] = "BOTH_REQUIRED"
         with self._stubs(net=net) as net_update:
-            self.plugin.update_network(self.context, 1, dict(network=net))
-            self.assertTrue(net_update.called)
+            self.plugin.update_network(self.context, 1, dict(network=new_net))
+            net_update.assert_called_once_with(
+                self.context, net, id=net["id"])
 
     def test_update_network_not_found_fails(self):
         with self._stubs(net=None):
             with self.assertRaises(exceptions.NetworkNotFound):
                 self.plugin.update_network(self.context, 1, None)
+
+    def test_update_network_admin_set_ipam_strategy(self):
+        net = dict(id=1)
+        new_net = net.copy()
+        new_net["ipam_strategy"] = "BOTH_REQUIRED"
+
+        admin_ctx = self.context.elevated()
+        with self._stubs(net=net) as net_update:
+            self.plugin.update_network(admin_ctx, 1, dict(network=new_net))
+            net_update.assert_called_once_with(
+                admin_ctx, net, ipam_strategy=new_net["ipam_strategy"],
+                id=net["id"])
 
 
 class TestQuarkDeleteNetwork(test_quark_plugin.TestQuarkPlugin):
@@ -328,16 +343,18 @@ class TestQuarkCreateNetwork(test_quark_plugin.TestQuarkPlugin):
     def test_create_network_with_ipam_strategy(self):
         net = dict(id="abcdef", name="public", admin_state_up=True,
                    tenant_id=0, ipam_strategy="BOTH")
+        admin_context = self.context.elevated()
         with self._stubs(net=net):
-            res = self.plugin.create_network(self.context, dict(network=net))
+            res = self.plugin.create_network(admin_context, dict(network=net))
             self.assertEqual(res["ipam_strategy"], net["ipam_strategy"])
 
     def test_create_network_with_bad_ipam_strategy_raises(self):
         net = dict(id="abcdef", name="public", admin_state_up=True,
                    tenant_id=0, ipam_strategy="BUSTED")
+        admin_context = self.context.elevated()
         with self._stubs(net=net):
             with self.assertRaises(q_exc.InvalidIpamStrategy):
-                self.plugin.create_network(self.context, dict(network=net))
+                self.plugin.create_network(admin_context, dict(network=net))
 
 
 class TestQuarkDiagnoseNetworks(test_quark_plugin.TestQuarkPlugin):
