@@ -13,7 +13,11 @@ Quark is not currently designed to work with `DevStack <http://devstack.org>`_ (
 
 Dependencies
 ===================
-aiclib
+`aiclib <https://github.com/rackerlabs/aiclib>`_
+
+Database Migrations
+===================
+`Here <https://github.com/rackerlabs/quark/blob/master/quark/db/migration/alembic/README.rst>`_
 
 Install with DevStack and Neutron
 =================================
