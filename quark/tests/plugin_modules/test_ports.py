@@ -20,6 +20,7 @@ import mock
 from neutron.api.v2 import attributes as neutron_attrs
 from neutron.common import exceptions
 from neutron.extensions import securitygroup as sg_ext
+from oslo.config import cfg
 
 from quark.db import models
 from quark import exceptions as q_exc
@@ -921,3 +922,145 @@ class TestPortBadNetworkPlugin(test_quark_plugin.TestQuarkPlugin):
 
             with self.assertRaises(Exception):  # noqa
                 self.plugin.create_port(self.context, port)
+
+
+class TestQuarkPortCreateFiltering(test_quark_plugin.TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, network=None, addr=None, mac=None):
+        network["network_plugin"] = "BASE"
+        network["ipam_strategy"] = "ANY"
+
+        db_mod = "quark.db.api"
+        ipam = "quark.ipam.QuarkIpam"
+
+        with contextlib.nested(
+            mock.patch("%s.port_create" % db_mod),
+            mock.patch("%s.network_find" % db_mod),
+            mock.patch("%s.allocate_ip_address" % ipam),
+            mock.patch("%s.allocate_mac_address" % ipam),
+            mock.patch("neutron.openstack.common.uuidutils.generate_uuid"),
+            mock.patch("quark.plugin_views._make_port_dict"),
+        ) as (port_create, net_find, alloc_ip, alloc_mac, gen_uuid, make_port):
+            net_find.return_value = network
+            alloc_ip.return_value = addr
+            alloc_mac.return_value = mac
+            gen_uuid.return_value = 1
+            yield port_create, alloc_mac, net_find
+
+    def test_create_port_attribute_filtering(self):
+        network = dict(id=1)
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
+        port_name = "foobar"
+        ip = dict()
+        port = dict(port=dict(mac_address=mac["address"], network_id=1,
+                              tenant_id=self.context.tenant_id, device_id=2,
+                              name=port_name, device_owner="quark_tests",
+                              bridge="quark_bridge", admin_state_up=False))
+
+        port_create_dict = {}
+        port_create_dict["port"] = port["port"].copy()
+        port_create_dict["port"]["mac_address"] = "DE:AD:BE:EF:00:00"
+        port_create_dict["port"]["device_owner"] = "ignored"
+        port_create_dict["port"]["bridge"] = "ignored"
+        port_create_dict["port"]["admin_state_up"] = "ignored"
+
+        with self._stubs(network=network, addr=ip,
+                         mac=mac) as (port_create, alloc_mac, net_find):
+            self.plugin.create_port(self.context, port_create_dict)
+            alloc_mac.assert_called_once_with(
+                self.context, network["id"], 1,
+                cfg.CONF.QUARK.ipam_reuse_after,
+                mac_address=None)
+            port_create.assert_called_once_with(
+                self.context, addresses=[], network_id=network["id"],
+                tenant_id="fake", uuid=1, name="foobar",
+                mac_address=alloc_mac()["address"], backend_key=1, id=1,
+                security_groups=[], device_id=2)
+
+    def test_create_port_attribute_filtering_admin(self):
+        network = dict(id=1)
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
+        port_name = "foobar"
+        ip = dict()
+
+        port = dict(port=dict(mac_address=mac["address"], network_id=1,
+                              tenant_id=self.context.tenant_id, device_id=2,
+                              name=port_name, device_owner="quark_tests",
+                              bridge="quark_bridge", admin_state_up=False))
+
+        expected_mac = "DE:AD:BE:EF:00:00"
+        expected_bridge = "new_bridge"
+        expected_device_owner = "new_device_owner"
+        expected_admin_state = "new_state"
+
+        port_create_dict = {}
+        port_create_dict["port"] = port["port"].copy()
+        port_create_dict["port"]["mac_address"] = expected_mac
+        port_create_dict["port"]["device_owner"] = expected_device_owner
+        port_create_dict["port"]["bridge"] = expected_bridge
+        port_create_dict["port"]["admin_state_up"] = expected_admin_state
+
+        admin_ctx = self.context.elevated()
+        with self._stubs(network=network, addr=ip,
+                         mac=mac) as (port_create, alloc_mac, net_find):
+            self.plugin.create_port(admin_ctx, port_create_dict)
+
+            alloc_mac.assert_called_once_with(
+                admin_ctx, network["id"], 1,
+                cfg.CONF.QUARK.ipam_reuse_after,
+                mac_address=expected_mac)
+
+            port_create.assert_called_once_with(
+                admin_ctx, bridge=expected_bridge, uuid=1, name="foobar",
+                admin_state_up=expected_admin_state, network_id=1,
+                tenant_id="fake", id=1, device_owner=expected_device_owner,
+                mac_address=mac["address"], device_id=2, backend_key=1,
+                security_groups=[], addresses=[])
+
+
+class TestQuarkPortUpdateFiltering(test_quark_plugin.TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self):
+        with contextlib.nested(
+            mock.patch("quark.db.api.port_find"),
+            mock.patch("quark.db.api.port_update"),
+            mock.patch("quark.drivers.registry.DriverRegistry.get_driver"),
+            mock.patch("quark.plugin_views._make_port_dict"),
+        ) as (port_find, port_update, get_driver, make_port):
+            yield port_find, port_update
+
+    def test_update_port_attribute_filtering(self):
+        new_port = {}
+        new_port["port"] = {
+            "mac_address": "DD:EE:FF:00:00:00", "device_owner": "new_owner",
+            "bridge": "new_bridge", "admin_state_up": False, "device_id": 3,
+            "network_id": 10, "backend_key": 1234, "name": "new_name"}
+
+        with self._stubs() as (port_find, port_update):
+            self.plugin.update_port(self.context, 1, new_port)
+            port_update.assert_called_once_with(
+                self.context,
+                port_find(),
+                name="new_name",
+                security_groups=[])
+
+    def test_update_port_attribute_filtering_admin(self):
+        new_port = {}
+        new_port["port"] = {
+            "mac_address": "DD:EE:FF:00:00:00", "device_owner": "new_owner",
+            "bridge": "new_bridge", "admin_state_up": False, "device_id": 3,
+            "network_id": 10, "backend_key": 1234, "name": "new_name"}
+
+        admin_ctx = self.context.elevated()
+        with self._stubs() as (port_find, port_update):
+            self.plugin.update_port(admin_ctx, 1, new_port)
+            port_update.assert_called_once_with(
+                admin_ctx,
+                port_find(),
+                name="new_name",
+                bridge=new_port["port"]["bridge"],
+                admin_state_up=new_port["port"]["admin_state_up"],
+                device_owner=new_port["port"]["device_owner"],
+                mac_address=new_port["port"]["mac_address"],
+                device_id=new_port["port"]["device_id"],
+                security_groups=[])

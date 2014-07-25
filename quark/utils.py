@@ -31,6 +31,15 @@ from neutron.openstack.common import log as logging
 LOG = logging.getLogger(__name__)
 
 
+def filter_body(context, body, admin_only=None, always_filter=None):
+    if not context.is_admin and admin_only:
+        for attr in admin_only:
+            pop_param(body, attr)
+    if always_filter:
+        for attr in always_filter:
+            pop_param(body, attr)
+
+
 def attr_specified(param):
     return param is not attributes.ATTR_NOT_SPECIFIED
 

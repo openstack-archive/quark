@@ -1009,10 +1009,11 @@ class TestSubnetsNotification(test_quark_plugin.TestQuarkPlugin):
         s = dict(network_id=1, cidr="192.168.10.0/24",
                  tenant_id=1, id=1, created_at="123")
         with self._stubs(s) as notify:
-            self.plugin.create_subnet(self.context, dict(subnet=s))
+            admin_ctx = self.context.elevated()
+            self.plugin.create_subnet(admin_ctx, dict(subnet=s))
             notify.assert_called_once_with("network")
             notify.return_value.info.assert_called_once_with(
-                self.context,
+                admin_ctx,
                 "ip_block.create",
                 dict(tenant_id=s["tenant_id"],
                      ip_block_id=s["id"],
@@ -1099,3 +1100,111 @@ class TestQuarkDiagnoseSubnets(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(subnets=subnet, routes=[route]):
             actual = self.plugin.diagnose_subnet(self.context, subnet_id, None)
             self.assertEqual(subnet["id"], actual["subnets"]["id"])
+
+
+class TestQuarkCreateSubnetAttrFilters(test_quark_plugin.TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self):
+        with contextlib.nested(
+            mock.patch("quark.db.api.subnet_create"),
+            mock.patch("quark.db.api.network_find"),
+            mock.patch("quark.db.api.dns_create"),
+            mock.patch("quark.db.api.route_create"),
+            mock.patch("quark.plugin_views._make_subnet_dict")
+        ) as (subnet_create, net_find, dns_create, route_create, sub_dict):
+            yield subnet_create, net_find
+
+    def test_create_subnet(self):
+        subnet = {"subnet": {
+            "network_id": 1, "tenant_id": self.context.tenant_id,
+            "ip_version": 4, "cidr": "172.16.0.0/24",
+            "gateway_ip": "0.0.0.0",
+            "dns_nameservers": neutron_attrs.ATTR_NOT_SPECIFIED,
+            "host_routes": neutron_attrs.ATTR_NOT_SPECIFIED,
+            "enable_dhcp": None, "first_ip": 0, "last_ip": 1,
+            "next_auto_assign_ip": 10}}
+
+        with self._stubs() as (subnet_create, net_find):
+            self.plugin.create_subnet(self.context, subnet)
+            self.assertEqual(subnet_create.call_count, 1)
+            subnet_create.assert_called_once_with(
+                self.context, network_id=subnet["subnet"]["network_id"],
+                tenant_id=subnet["subnet"]["tenant_id"],
+                cidr=subnet["subnet"]["cidr"], network=net_find())
+
+    def test_create_subnet_admin(self):
+        subnet = {"subnet": {
+            "network_id": 1, "tenant_id": self.context.tenant_id,
+            "ip_version": 4, "cidr": "172.16.0.0/24",
+            "gateway_ip": "0.0.0.0",
+            "dns_nameservers": neutron_attrs.ATTR_NOT_SPECIFIED,
+            "host_routes": neutron_attrs.ATTR_NOT_SPECIFIED,
+            "enable_dhcp": None, "first_ip": 0, "last_ip": 1,
+            "next_auto_assign_ip": 10}}
+
+        admin_ctx = self.context.elevated()
+        with self._stubs() as (subnet_create, net_find):
+            self.plugin.create_subnet(admin_ctx, subnet)
+            self.assertEqual(subnet_create.call_count, 1)
+            subnet_create.assert_called_once_with(
+                admin_ctx, network_id=subnet["subnet"]["network_id"],
+                tenant_id=subnet["subnet"]["tenant_id"],
+                cidr=subnet["subnet"]["cidr"], network=net_find(),
+                next_auto_assign_ip=subnet["subnet"]["next_auto_assign_ip"])
+
+
+class TestQuarkUpdateSubnetAttrFilters(test_quark_plugin.TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self):
+        with contextlib.nested(
+            mock.patch("quark.db.api.subnet_find"),
+            mock.patch("quark.db.api.subnet_update"),
+            mock.patch("quark.db.api.dns_create"),
+            mock.patch("quark.db.api.route_find"),
+            mock.patch("quark.db.api.route_update"),
+            mock.patch("quark.db.api.route_create"),
+            mock.patch("quark.plugin_views._make_subnet_dict")
+        ) as (subnet_find, subnet_update, dns_create, route_find,
+              route_update, route_create, make_subnet):
+            yield subnet_update, subnet_find
+
+    def test_update_subnet_attr_filters(self):
+        subnet = {"subnet": {
+            "network_id": 1, "tenant_id": self.context.tenant_id,
+            "ip_version": 4, "cidr": "172.16.0.0/24",
+            "gateway_ip": "0.0.0.0",
+            "dns_nameservers": neutron_attrs.ATTR_NOT_SPECIFIED,
+            "host_routes": neutron_attrs.ATTR_NOT_SPECIFIED,
+            "enable_dhcp": None, "first_ip": 0, "last_ip": 1,
+            "next_auto_assign_ip": 10, "do_not_use": False}}
+
+        with self._stubs() as (subnet_update, subnet_find):
+            self.plugin.update_subnet(self.context, 1, subnet)
+
+            # NOTE(mdietz): the assertion here shows that, without admin,
+            #               all of the attributes passed above are stripped
+            #               from the request body. Otherwise, the attributes
+            #               above would be passed as keyword arguments to the
+            #               subnet_update db api call.
+            subnet_update.assert_called_once_with(
+                self.context, subnet_find())
+
+    def test_update_subnet_attr_filters_admin(self):
+        subnet = {"subnet": {
+            "network_id": 1, "tenant_id": self.context.tenant_id,
+            "ip_version": 4, "cidr": "172.16.0.0/24",
+            "gateway_ip": "0.0.0.0",
+            "dns_nameservers": neutron_attrs.ATTR_NOT_SPECIFIED,
+            "host_routes": neutron_attrs.ATTR_NOT_SPECIFIED,
+            "enable_dhcp": False, "first_ip": 0, "last_ip": 1,
+            "next_auto_assign_ip": 10, "do_not_use": True}}
+
+        admin_ctx = self.context.elevated()
+        with self._stubs() as (subnet_update, subnet_find):
+            self.plugin.update_subnet(admin_ctx, 1, subnet)
+            subnet_update.assert_called_once_with(
+                admin_ctx, subnet_find(),
+                next_auto_assign_ip=subnet["subnet"]["next_auto_assign_ip"],
+                tenant_id=subnet["subnet"]["tenant_id"],
+                enable_dhcp=subnet["subnet"]["enable_dhcp"],
+                do_not_use=subnet["subnet"]["do_not_use"])

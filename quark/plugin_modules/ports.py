@@ -44,6 +44,10 @@ def create_port(context, port):
         neutron/api/v2/attributes.py.  All keys will be populated.
     """
     LOG.info("create_port for tenant %s" % context.tenant_id)
+    port_attrs = port["port"]
+
+    admin_only = ["mac_address", "device_owner", "bridge", "admin_state_up"]
+    utils.filter_body(context, port_attrs, admin_only=admin_only)
 
     port_attrs = port["port"]
     mac_address = utils.pop_param(port_attrs, "mac_address", None)
@@ -199,9 +203,16 @@ def update_port(context, id, port):
     if not port_db:
         raise exceptions.PortNotFound(port_id=id)
 
-    fixed_ips = port["port"].pop("fixed_ips", None)
-    if fixed_ips is not None:
+    port_dict = port["port"]
+    fixed_ips = port_dict.pop("fixed_ips", None)
 
+    admin_only = ["mac_address", "device_owner", "bridge", "admin_state_up",
+                  "device_id"]
+    always_filter = ["network_id", "backend_key"]
+    utils.filter_body(context, port_dict, admin_only=admin_only,
+                      always_filter=always_filter)
+
+    if fixed_ips is not None:
         # NOTE(mdietz): we want full control over IPAM since
         #              we're allocating by subnet instead of
         #              network.
@@ -256,20 +267,20 @@ def update_port(context, id, port):
 
         # Need to return all existing addresses and the new ones
         if addresses:
-            port["port"]["addresses"] = port_db["ip_addresses"]
-            port["port"]["addresses"].extend(addresses)
+            port_dict["addresses"] = port_db["ip_addresses"]
+            port_dict["addresses"].extend(addresses)
 
     group_ids, security_groups = v.make_security_group_list(
-        context, port["port"].pop("security_groups", None))
+        context, port_dict.pop("security_groups", None))
     net_driver = registry.DRIVER_REGISTRY.get_driver(
         port_db.network["network_plugin"])
     net_driver.update_port(context, port_id=port_db.backend_key,
                            security_groups=group_ids)
 
-    port["port"]["security_groups"] = security_groups
+    port_dict["security_groups"] = security_groups
 
     with context.session.begin():
-        port = db_api.port_update(context, port_db, **port["port"])
+        port = db_api.port_update(context, port_db, **port_dict)
 
     # NOTE(mdietz): fix for issue 112, we wanted the IPs to be in
     #              allocated_at order, so get a fresh object every time

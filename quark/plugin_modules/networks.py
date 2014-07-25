@@ -77,7 +77,7 @@ def create_network(context, network):
         pnet_type, phys_net, seg_id = _adapt_provider_nets(context, network)
 
         ipam_strategy = utils.pop_param(net_attrs, "ipam_strategy", None)
-        if not ipam_strategy:
+        if not ipam_strategy or not context.is_admin:
             ipam_strategy = CONF.QUARK.default_ipam_strategy
 
         if not ipam.IPAM_REGISTRY.is_valid_strategy(ipam_strategy):
@@ -134,7 +134,11 @@ def update_network(context, id, network):
         net = db_api.network_find(context, id=id, scope=db_api.ONE)
         if not net:
             raise exceptions.NetworkNotFound(net_id=id)
-        net = db_api.network_update(context, net, **network["network"])
+        net_dict = network["network"]
+        utils.pop_param(net_dict, "network_plugin")
+        if not context.is_admin and "ipam_strategy" in net_dict:
+            utils.pop_param(net_dict, "ipam_strategy")
+        net = db_api.network_update(context, net, **net_dict)
 
     return v._make_network_dict(net)
 
