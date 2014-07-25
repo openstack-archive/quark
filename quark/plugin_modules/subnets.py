@@ -113,13 +113,8 @@ def create_subnet(context, subnet):
                       "_cidr"]
         admin_only = ["segment_id", "do_not_use", "created_at",
                       "next_auto_assign_ip"]
-        for attr in always_pop:
-            if attr in sub_attrs:
-                sub_attrs.pop(attr)
-        if not context.is_admin:
-            for attr in admin_only:
-                if attr in sub_attrs:
-                    sub_attrs.pop(attr)
+        utils.filter_body(context, sub_attrs, admin_only, always_pop)
+
         _validate_subnet_cidr(context, net_id, sub_attrs["cidr"])
 
         cidr = netaddr.IPNetwork(sub_attrs["cidr"])
