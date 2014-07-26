@@ -376,20 +376,9 @@ class IPPolicy(BASEV2, models.HasId, models.HasTenant):
     @staticmethod
     def get_ip_policy_cidrs(subnet):
         ip_policy = subnet["ip_policy"] or {}
-
-        subnet_cidr = netaddr.IPNetwork(subnet["cidr"])
-        network_ip = subnet_cidr.network
-        broadcast_ip = subnet_cidr.broadcast
-        prefix_len = '32' if subnet_cidr.version == 4 else '128'
-        default_policy_cidrs = ["%s/%s" % (network_ip, prefix_len),
-                                "%s/%s" % (broadcast_ip, prefix_len)]
-        ip_policy_cidrs = []
         ip_policies = ip_policy.get("exclude", [])
-        if ip_policies:
-            ip_policy_cidrs = [ip_policy_cidr.cidr
-                               for ip_policy_cidr in ip_policies]
-
-        ip_policy_cidrs = ip_policy_cidrs + default_policy_cidrs
+        ip_policy_cidrs = [ip_policy_cidr.cidr
+                           for ip_policy_cidr in ip_policies]
         return netaddr.IPSet(ip_policy_cidrs)
 
 
