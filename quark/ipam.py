@@ -26,6 +26,7 @@ from neutron.common import rpc as n_rpc
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import timeutils
 from oslo.config import cfg
+from oslo.db import exception as db_exception
 
 from quark.db import api as db_api
 from quark.db import models
@@ -332,11 +333,15 @@ class QuarkIpam(object):
                             used_by_tenant_id=context.tenant_id,
                             allocated_at=timeutils.utcnow())
 
-                with context.session.begin():
-                    return db_api.ip_address_create(
-                        context, address=ip_address,
-                        subnet_id=subnet["id"],
-                        version=subnet["ip_version"], network_id=net_id)
+                try:
+                    with context.session.begin():
+                        return db_api.ip_address_create(
+                            context, address=ip_address,
+                            subnet_id=subnet["id"],
+                            version=subnet["ip_version"], network_id=net_id)
+                except db_exception.DBDuplicateEntry:
+                    LOG.debug("Duplicate entry found when inserting subnet_id"
+                              " %s ip_address %s", subnet["id"], ip_address)
 
     def _allocate_ips_from_subnets(self, context, new_addresses, net_id,
                                    subnets, port_id, ip_address=None,
