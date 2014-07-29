@@ -129,7 +129,7 @@ class IPAddress(BASEV2, models.HasId):
                                          ondelete="CASCADE"))
     version = sa.Column(sa.Integer(), index=True)
     allocated_at = sa.Column(sa.DateTime())
-    subnet = orm.relationship("Subnet", lazy="joined")
+    subnet = orm.relationship("Subnet")
     # Need a constant to facilitate the indexed search for new IPs
     _deallocated = sa.Column(sa.Boolean())
     # Legacy data

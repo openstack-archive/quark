@@ -45,11 +45,16 @@ class TestDBAPI(test_base.TestBase):
         self.assertEqual(filter_fn.call_count, 1)
 
     def test_ip_address_find_device_id(self):
-        self.context.session.query = mock.Mock()
+        query_mock = mock.Mock()
+        second_query_mock = mock.Mock()
+        filter_mock = mock.Mock()
+
+        self.context.session.query = query_mock
+        query_mock.return_value = second_query_mock
+        second_query_mock.join.return_value = filter_mock
+
         db_api.ip_address_find(self.context, device_id="foo")
-        query_obj = self.context.session.query.return_value
-        filter_fn = query_obj.filter
-        self.assertEqual(filter_fn.call_count, 1)
+        self.assertEqual(filter_mock.filter.call_count, 1)
 
     def test_ip_address_find_ip_address_object(self):
         ip_address = netaddr.IPAddress("192.168.10.1")
