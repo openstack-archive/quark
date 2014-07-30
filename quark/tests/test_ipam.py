@@ -21,6 +21,7 @@ from neutron.common import exceptions
 from neutron.common import rpc
 from neutron.db import api as neutron_db_api
 from oslo.config import cfg
+from oslo.db import exception as db_exc
 
 from quark.db import models
 from quark import exceptions as q_exc
@@ -972,7 +973,7 @@ class QuarkIPAddressAllocationTestRetries(QuarkIpamBaseTest):
             mock.patch("quark.ipam.QuarkIpam._notify_new_addresses"),
             mock.patch("quark.db.api.subnet_find_allocation_counts")
         ) as (addr_find, addr_create, notify, subnet_find):
-            addr_find.side_effect = [None, None]
+            addr_find.side_effect = [None, None, None]
             addr_create.side_effect = address
             subnet_find.return_value = subnets
             yield
@@ -1003,6 +1004,23 @@ class QuarkIPAddressAllocationTestRetries(QuarkIpamBaseTest):
             with self.assertRaises(exceptions.IpAddressInUse):
                 self.ipam.allocate_ip_address(
                     self.context, [], 0, 0, 0, ip_address="0.0.0.1")
+
+    def test_allocate_implicit_already_allocated_fails_and_retries(self):
+        subnet1 = dict(id=1, first_ip=0, last_ip=255, next_auto_assign_ip=1,
+                       cidr="::/64", ip_version=6,
+                       network=dict(ip_policy=None), ip_policy=None)
+        subnets = [(subnet1, 1), (subnet1, 1)]
+        addr_found = dict(id=1, address=1)
+
+        with self._stubs(subnets=subnets,
+                         address=[db_exc.DBDuplicateEntry, addr_found]):
+            with mock.patch("quark.ipam.generate_v6") as gv6:
+                gv6.return_value = (1, 2)
+                ret_addrs = []
+                self.ipam.allocate_ip_address(
+                    self.context, ret_addrs, 0, 0, 0,
+                    mac_address=dict(address=mock.MagicMock())),
+                self.assertEqual(ret_addrs, [addr_found])
 
     def test_allocate_specific_subnet_ip_not_in_subnet_fails(self):
         subnet1 = dict(id=1, first_ip=0, last_ip=255, next_auto_assign_ip=1,
