@@ -212,11 +212,13 @@ class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
             mock.patch("%s.network_find" % db_mod),
             mock.patch("%s.allocate_ip_address" % ipam),
             mock.patch("%s.allocate_mac_address" % ipam),
-        ) as (port_create, net_find, alloc_ip, alloc_mac):
+            mock.patch("%s.port_count_all" % db_mod),
+        ) as (port_create, net_find, alloc_ip, alloc_mac, port_count):
             port_create.return_value = port_models
             net_find.return_value = network
             alloc_ip.return_value = addr
             alloc_mac.return_value = mac
+            port_count.return_value = 0
             yield port_create
 
     def test_create_port(self):
@@ -521,7 +523,7 @@ class TestQuarkUpdatePortSetsIps(test_quark_plugin.TestQuarkPlugin):
             net_model = models.Network()
             net_model["network_plugin"] = "BASE"
             port_model = models.Port()
-            port_model.network = net_model
+            port_model['network'] = net_model
             port_model.update(port)
         with contextlib.nested(
             mock.patch("quark.db.api.port_find"),
@@ -579,7 +581,7 @@ class TestQuarkPostUpdatePort(test_quark_plugin.TestQuarkPlugin):
         with contextlib.nested(
             mock.patch("quark.db.api.port_find"),
             mock.patch("quark.ipam.QuarkIpam.allocate_ip_address"),
-            mock.patch("quark.db.api.ip_address_find")
+            mock.patch("quark.db.api.ip_address_find"),
         ) as (port_find, alloc_ip, ip_find):
             port_find.return_value = port_model
             alloc_ip.return_value = addr_model2 if addr_model2 else addr_model
@@ -587,9 +589,10 @@ class TestQuarkPostUpdatePort(test_quark_plugin.TestQuarkPlugin):
             yield port_find, alloc_ip, ip_find
 
     def test_post_update_port_no_ports(self):
-        with self.assertRaises(exceptions.PortNotFound):
-            self.plugin.post_update_port(self.context, 1,
-                                         {"port": {"network_id": 1}})
+        with self._stubs(port=None, addr=None):
+            with self.assertRaises(exceptions.PortNotFound):
+                self.plugin.post_update_port(self.context, 1,
+                                             {"port": {"network_id": 1}})
 
     def test_post_update_port_fixed_ips_empty_body(self):
         port = dict(port=dict(network_id=1, tenant_id=self.context.tenant_id,
@@ -940,11 +943,14 @@ class TestQuarkPortCreateFiltering(test_quark_plugin.TestQuarkPlugin):
             mock.patch("%s.allocate_mac_address" % ipam),
             mock.patch("neutron.openstack.common.uuidutils.generate_uuid"),
             mock.patch("quark.plugin_views._make_port_dict"),
-        ) as (port_create, net_find, alloc_ip, alloc_mac, gen_uuid, make_port):
+            mock.patch("%s.port_count_all" % db_mod),
+        ) as (port_create, net_find, alloc_ip, alloc_mac, gen_uuid, make_port,
+              port_count):
             net_find.return_value = network
             alloc_ip.return_value = addr
             alloc_mac.return_value = mac
             gen_uuid.return_value = 1
+            port_count.return_value = 0
             yield port_create, alloc_mac, net_find
 
     def test_create_port_attribute_filtering(self):

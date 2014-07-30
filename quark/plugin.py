@@ -16,7 +16,6 @@
 """
 v2 Neutron Plug-in API Quark Implementation
 """
-from neutron.db import api as neutron_db_api
 from neutron.extensions import securitygroup as sg_ext
 from neutron import neutron_plugin_base_v2
 from neutron.openstack.common import log as logging
@@ -24,7 +23,6 @@ from neutron import quota
 from oslo.config import cfg
 
 from quark.api import extensions
-from quark.db import models
 from quark.plugin_modules import ip_addresses
 from quark.plugin_modules import ip_policies
 from quark.plugin_modules import mac_address_ranges
@@ -92,8 +90,6 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
     def __init__(self):
         LOG.info("Starting quark plugin")
-        neutron_db_api.configure_db()
-        neutron_db_api.register_models(base=models.BASEV2)
 
     def _fix_missing_tenant_id(self, context, resource):
         """Will add the tenant_id to the context from body.
