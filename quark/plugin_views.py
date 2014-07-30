@@ -249,7 +249,7 @@ def _make_ip_policy_dict(ipp):
             "name": ipp["name"],
             "subnet_ids": [s["id"] for s in ipp["subnets"]],
             "network_ids": [n["id"] for n in ipp["networks"]],
-            "exclude": ipp["exclude"]}
+            "exclude": [ippc["cidr"] for ippc in ipp["exclude"]]}
 
 
 def make_security_group_list(context, group_ids):

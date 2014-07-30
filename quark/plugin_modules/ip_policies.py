@@ -78,7 +78,6 @@ def create_ip_policy(context, ip_policy):
                 raise quark_exceptions.IPPolicyAlreadyExists(
                     id=model["ip_policy"]["id"], n_id=model["id"])
             model["ip_policy"] = db_api.ip_policy_create(context, **ipp)
-
     return v._make_ip_policy_dict(model["ip_policy"])
 
 
