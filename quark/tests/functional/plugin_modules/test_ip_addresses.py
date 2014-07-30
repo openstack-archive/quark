@@ -47,8 +47,11 @@ class QuarkGetIPAddresses(QuarkIPAddressFunctionalTest):
     @contextlib.contextmanager
     def _stubs(self):
         with self.context.session.begin():
+            subnet = db_api.subnet_create(self.context,
+                                          cidr="192.168.0.0/24")
             db_api.ip_address_create(self.context,
-                                     address=self.addr)
+                                     address=self.addr,
+                                     subnet_id=subnet["id"])
         yield
 
     def test_ip_address_find_ip_address_object_filter(self):
