@@ -104,11 +104,11 @@ class QuarkTestIPFiltering(QuarkIpamBaseFunctionalTest):
         with self._stubs(self.network, self.subnet,
                          self.ip_address1,
                          self.ip_address2, self.ip_address3):
-            res = self.plugin.get_ip_addresses(self.context, tenant_id=123)
+            res = self.plugin.get_ip_addresses(self.context, tenant_id="123")
             self.assertEqual(2, len(res))
             id = int(res[0].get("id"))
             self.assertEqual(self.ip_address1["id"], id)
-            res = self.plugin.get_ip_addresses(self.context, tenant_id=456)
+            res = self.plugin.get_ip_addresses(self.context, tenant_id="456")
             self.assertEqual(1, len(res))
             id = int(res[0].get("id"))
             self.assertEqual(self.ip_address2["id"], id)
@@ -117,7 +117,7 @@ class QuarkTestIPFiltering(QuarkIpamBaseFunctionalTest):
         with self._stubs(self.network, self.subnet,
                          self.ip_address1, self.ip_address2,
                          self.ip_address3):
-            res = self.plugin.get_ip_addresses(self.context, tenant_id=123)
+            res = self.plugin.get_ip_addresses(self.context, tenant_id="123")
             self.assertEqual(2, len(res))
             id1 = int(res[0].get("id"))
             id3 = int(res[1].get("id"))
@@ -135,19 +135,19 @@ class QuarkTestIPFiltering(QuarkIpamBaseFunctionalTest):
                          self.ip_address1,
                          self.ip_address2,
                          self.ip_address3):
-            res = self.plugin.get_ip_addresses(self.context, tenant_id=1234)
+            res = self.plugin.get_ip_addresses(self.context, tenant_id="1234")
             self.assertEqual(0, len(res))
 
     def test_basic_ip_filtering_with_used_by_tenant_id(self):
         with self._stubs(self.network, self.subnet, self.ip_address1,
                          self.ip_address2, self.ip_address3):
             res = self.plugin.get_ip_addresses(self.context,
-                                               used_by_tenant_id=123)
+                                               used_by_tenant_id="123")
             self.assertEqual(2, len(res))
             id = int(res[0].get("id"))
             self.assertEqual(self.ip_address1["id"], id)
             res = self.plugin.get_ip_addresses(self.context,
-                                               used_by_tenant_id=456)
+                                               used_by_tenant_id="456")
             self.assertEqual(1, len(res))
             id = int(res[0].get("id"))
             self.assertEqual(self.ip_address2["id"], id)
@@ -157,7 +157,7 @@ class QuarkTestIPFiltering(QuarkIpamBaseFunctionalTest):
                          self.ip_address1, self.ip_address2,
                          self.ip_address3):
             res = self.plugin.get_ip_addresses(self.context,
-                                               used_by_tenant_id=123)
+                                               used_by_tenant_id="123")
             self.assertEqual(2, len(res))
             id1 = int(res[0].get("id"))
             id3 = int(res[1].get("id"))
@@ -170,5 +170,5 @@ class QuarkTestIPFiltering(QuarkIpamBaseFunctionalTest):
                          self.ip_address2,
                          self.ip_address3):
             res = self.plugin.get_ip_addresses(self.context,
-                                               used_by_tenant_id=1234)
+                                               used_by_tenant_id="1234")
             self.assertEqual(0, len(res))
