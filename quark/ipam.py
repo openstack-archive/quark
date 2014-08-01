@@ -173,11 +173,17 @@ class QuarkIpam(object):
             # up subnets here to correctly generate the v6. If we split them
             # up into reallocate and create, we'd be looking up the same
             # subnets twice, which is a waste of time.
-            return []
 
-        # We never want to take the chance of an infinite loop here. Instead,
-        # we'll clean up multiple bad IPs if we find them (assuming something
-        # is really wrong)
+            # TODO(mdietz): after reviewing this code, this block annoyingly
+            #               doesn't trigger in the ANY case, since we end up
+            #               using a list of [4, 6]. It works as expected most
+            #               of the time, but we can anticipate that isolated
+            #               networks will end up using sequential assignment.
+            #               Probably want to rework this logic to compensate
+            #               at some point. Considering they all come from the
+            #               same MAC address pool, nothing bad will happen,
+            #               just worth noticing and fixing.
+            return []
 
         sub_ids = []
         if subnets:
@@ -202,6 +208,9 @@ class QuarkIpam(object):
         if sub_ids:
             ip_kwargs["subnet_id"] = sub_ids
 
+        # We never want to take the chance of an infinite loop here. Instead,
+        # we'll clean up multiple bad IPs if we find them (assuming something
+        # is really wrong)
         for retry in xrange(cfg.CONF.QUARK.ip_address_retry_max):
             get_policy = models.IPPolicy.get_ip_policy_cidrs
 
@@ -250,7 +259,7 @@ class QuarkIpam(object):
         return ip_addresses
 
     def _allocate_from_subnet(self, context, net_id, subnet,
-                              port_id, ip_address=None, **kwargs):
+                              port_id, reuse_after, ip_address=None, **kwargs):
         ip_policy_cidrs = models.IPPolicy.get_ip_policy_cidrs(subnet)
         next_ip = ip_address
         if not next_ip:
@@ -285,7 +294,8 @@ class QuarkIpam(object):
         return address
 
     def _allocate_from_v6_subnet(self, context, net_id, subnet,
-                                 port_id, ip_address=None, **kwargs):
+                                 port_id, reuse_after, ip_address=None,
+                                 **kwargs):
         """This attempts to allocate v6 addresses as per RFC2462 and RFC3041.
 
         To accomodate this, we effectively treat all v6 assignment as a
@@ -302,12 +312,14 @@ class QuarkIpam(object):
         if not (ip_address is None and "mac_address" in kwargs and
                 kwargs["mac_address"]):
             return self._allocate_from_subnet(context, net_id, subnet,
-                                              ip_address, **kwargs)
+                                              reuse_after, ip_address,
+                                              **kwargs)
         else:
             ip_policy_cidrs = models.IPPolicy.get_ip_policy_cidrs(subnet)
             for tries, ip_address in enumerate(
                 generate_v6(kwargs["mac_address"]["address"], port_id,
                             subnet["cidr"])):
+
                 if tries > CONF.QUARK.v6_allocation_attempts - 1:
                     raise exceptions.IpAddressGenerationFailure(
                         net_id=net_id)
@@ -315,15 +327,17 @@ class QuarkIpam(object):
                 ip_address = netaddr.IPAddress(ip_address)
 
                 # NOTE(mdietz): treating the IPSet as a boolean caused netaddr
-                #              to attempt to enumerate the entire set!
+                #               to attempt to enumerate the entire set!
                 if (ip_policy_cidrs is not None and
                         ip_address in ip_policy_cidrs):
                     continue
 
+                # TODO(mdietz): replace this with a compare-and-swap loop
                 with context.session.begin():
                     address = db_api.ip_address_find(
                         context, network_id=net_id, ip_address=ip_address,
-                        used_by_tenant_id=context.tenant_id, scope=db_api.ONE,
+                        scope=db_api.ONE, reuse_after=reuse_after,
+                        deallocated=True, subnet_id=subnet["id"],
                         lock_mode=True)
 
                     if address:
@@ -333,6 +347,9 @@ class QuarkIpam(object):
                             used_by_tenant_id=context.tenant_id,
                             allocated_at=timeutils.utcnow())
 
+                # This triggers when the IP is allocated to another tenant,
+                # either because we missed it due to our filters above, or
+                # in an extremely unlikely race between the find and here.
                 try:
                     with context.session.begin():
                         return db_api.ip_address_create(
@@ -344,8 +361,8 @@ class QuarkIpam(object):
                               " %s ip_address %s", subnet["id"], ip_address)
 
     def _allocate_ips_from_subnets(self, context, new_addresses, net_id,
-                                   subnets, port_id, ip_address=None,
-                                   **kwargs):
+                                   subnets, port_id, reuse_after,
+                                   ip_address=None, **kwargs):
         subnets = subnets or []
         for subnet in subnets:
             if not subnet:
@@ -355,10 +372,12 @@ class QuarkIpam(object):
             if int(subnet["ip_version"]) == 4:
                 address = self._allocate_from_subnet(context, net_id,
                                                      subnet, port_id,
+                                                     reuse_after,
                                                      ip_address, **kwargs)
             else:
                 address = self._allocate_from_v6_subnet(context, net_id,
                                                         subnet, port_id,
+                                                        reuse_after,
                                                         ip_address, **kwargs)
             if address:
                 new_addresses.append(address)
@@ -402,7 +421,7 @@ class QuarkIpam(object):
 
             try:
                 self._allocate_ips_from_subnets(context, new_addresses, net_id,
-                                                subs, port_id,
+                                                subs, port_id, reuse_after,
                                                 ip_address, **kwargs)
             except q_exc.IPAddressRetryableFailure:
                 LOG.exception("Error in allocating IP")
