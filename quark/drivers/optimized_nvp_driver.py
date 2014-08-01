@@ -61,9 +61,10 @@ class OptimizedNVPDriver(NVPDriver):
                          " table." % network_id)
                 context.session.delete(switch)
             except Exception as e:
+                message = e.args[0] if e.args else ''
                 LOG.info("Failed to delete LSwitch/Network %s from "
                          " NVP (optimized). Message: %s"
-                         % (network_id, e.args[0]))
+                         % (network_id, message))
 
     def create_port(self, context, network_id, port_id,
                     status=True, security_groups=None,
