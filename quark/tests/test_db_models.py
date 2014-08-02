@@ -13,7 +13,6 @@
 # License for the specific language governing permissions and limitations
 #  under the License.
 
-import mock
 from netaddr import IPSet
 
 from quark.db import models
@@ -43,14 +42,3 @@ class TestDBModels(test_base.TestBase):
             ip_policy_rules,
             IPSet(["fc00::/128",
                    "fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128"]))
-
-    def test_get_ip_policy_cidrs_intersection(self):
-        ip_policy_cidr = mock.MagicMock()
-        ip_policy_cidr.cidr = "10.10.10.1/24"
-        subnet = dict(id=1, ip_version=4, next_auto_assign_ip=0,
-                      cidr="0.0.0.0/24", first_ip=0, last_ip=255,
-                      network=dict(ip_policy=None),
-                      ip_policy=dict(exclude=[ip_policy_cidr]))
-        ip_policy_rules = models.IPPolicy.get_ip_policy_cidrs(subnet)
-        self.assertEqual(ip_policy_rules,
-                         IPSet(['0.0.0.0/32', '0.0.0.255/32']))
