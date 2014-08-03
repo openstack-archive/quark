@@ -59,8 +59,21 @@ def create_port(context, port):
     port_id = uuidutils.generate_uuid()
 
     net = db_api.network_find(context, id=net_id, scope=db_api.ONE)
+
     if not net:
         raise exceptions.NetworkNotFound(net_id=net_id)
+
+    # NOTE (Perkins): If a device_id is given, try to prevent multiple ports
+    # from being created for a device already attached to the network
+    if device_id:
+        existing_ports = db_api.port_find(context,
+                                          network_id=net_id,
+                                          device_id=device_id,
+                                          scope=db_api.ONE)
+        if existing_ports:
+            raise exceptions.BadRequest(
+                resource="port", msg="This device is already connected to the "
+                "requested network via another port")
 
     if not STRATEGY.is_parent_network(net_id):
         # We don't honor segmented networks when they aren't "shared"
