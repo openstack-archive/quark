@@ -16,6 +16,7 @@
 import datetime
 import inspect
 
+import netaddr
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import timeutils
 from neutron.openstack.common import uuidutils
@@ -568,10 +569,12 @@ def security_group_rule_delete(context, rule):
 def ip_policy_create(context, **ip_policy_dict):
     new_policy = models.IPPolicy()
     exclude = ip_policy_dict.pop("exclude")
+    ip_set = netaddr.IPSet()
     for excluded_cidr in exclude:
         new_policy["exclude"].append(
             models.IPPolicyCIDR(cidr=excluded_cidr))
-
+        ip_set.add(excluded_cidr)
+    ip_policy_dict["size"] = ip_set.size
     new_policy.update(ip_policy_dict)
     new_policy["tenant_id"] = context.tenant_id
     context.session.add(new_policy)
@@ -589,9 +592,12 @@ def ip_policy_update(context, ip_policy, **ip_policy_dict):
     exclude = ip_policy_dict.pop("exclude", [])
     if exclude:
         ip_policy["exclude"] = []
-    for excluded_cidr in exclude:
-        ip_policy["exclude"].append(
-            models.IPPolicyCIDR(cidr=excluded_cidr))
+        ip_set = netaddr.IPSet()
+        for excluded_cidr in exclude:
+            ip_policy["exclude"].append(
+                models.IPPolicyCIDR(cidr=excluded_cidr))
+            ip_set.add(excluded_cidr)
+        ip_policy_dict["size"] = ip_set.size
 
     ip_policy.update(ip_policy_dict)
     context.session.add(ip_policy)

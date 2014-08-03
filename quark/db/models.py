@@ -374,6 +374,7 @@ class IPPolicy(BASEV2, models.HasId, models.HasTenant):
         backref="ip_policy")
     name = sa.Column(sa.String(255), nullable=True)
     description = sa.Column(sa.String(255), nullable=True)
+    size = sa.Column(custom_types.INET())
 
     @staticmethod
     def get_ip_policy_cidrs(subnet):
