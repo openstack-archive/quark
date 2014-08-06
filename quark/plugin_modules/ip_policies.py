@@ -57,6 +57,7 @@ def create_ip_policy(context, ip_policy):
             if not subnets:
                 raise exceptions.SubnetNotFound(id=subnet_ids)
             if ip_policy_cidrs:
+                ensure_default_policy(ip_policy_cidrs, subnets)
                 _validate_cidrs_fit_into_subnets(ip_policy_cidrs, subnets)
             models.extend(subnets)
 
@@ -68,6 +69,7 @@ def create_ip_policy(context, ip_policy):
             subnets = [subnet for net in nets
                        for subnet in net.get("subnets", [])]
             if ip_policy_cidrs and subnets:
+                ensure_default_policy(ip_policy_cidrs, subnets)
                 _validate_cidrs_fit_into_subnets(ip_policy_cidrs, subnets)
             models.extend(nets)
 
@@ -121,7 +123,9 @@ def update_ip_policy(context, id, ip_policy):
                 context, id=subnet_ids, scope=db_api.ALL)
             if len(subnets) != len(subnet_ids):
                 raise exceptions.SubnetNotFound(id=subnet_ids)
+            # FIXME(asadoughi): cannot update exclude w/o updating subnet_ids
             if ip_policy_cidrs:
+                ensure_default_policy(ip_policy_cidrs, subnets)
                 _validate_cidrs_fit_into_subnets(ip_policy_cidrs, subnets)
             models.extend(subnets)
 
@@ -135,6 +139,7 @@ def update_ip_policy(context, id, ip_policy):
             subnets = [subnet for net in nets
                        for subnet in net.get("subnets", [])]
             if ip_policy_cidrs and subnets:
+                ensure_default_policy(ip_policy_cidrs, subnets)
                 _validate_cidrs_fit_into_subnets(ip_policy_cidrs, subnets)
             models.extend(nets)
 
@@ -171,3 +176,17 @@ def _validate_cidrs_fit_into_subnets(cidrs, subnets):
                     resource="ip_policy",
                     msg="CIDR %s not in subnet CIDR %s"
                     % (cidr, subnet_cidr))
+
+
+def ensure_default_policy(cidrs, subnets):
+    policy_cidrs = netaddr.IPSet(cidrs)
+    for subnet in subnets:
+        subnet_cidr = netaddr.IPNetwork(subnet["cidr"])
+        network_ip = subnet_cidr.network
+        broadcast_ip = subnet_cidr.broadcast
+        prefix_len = '32' if subnet_cidr.version == 4 else '128'
+        default_policy_cidrs = ["%s/%s" % (network_ip, prefix_len),
+                                "%s/%s" % (broadcast_ip, prefix_len)]
+        for cidr in default_policy_cidrs:
+            if netaddr.IPNetwork(cidr) not in policy_cidrs:
+                cidrs.append(cidr)

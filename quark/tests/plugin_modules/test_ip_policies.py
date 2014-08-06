@@ -20,6 +20,7 @@ from neutron.common import exceptions
 
 from quark import exceptions as quark_exceptions
 from quark.plugin_modules import ip_policies as ippol
+from quark.tests import test_base
 from quark.tests import test_quark_plugin
 
 
@@ -190,7 +191,8 @@ class TestQuarkCreateIpPolicies(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(len(resp.keys()), 6)
             self.assertEqual(resp["subnet_ids"], [1])
             self.assertEqual(resp["network_ids"], [])
-            self.assertEqual(resp["exclude"], ["::/128"])
+            self.assertEqual(resp["exclude"],
+                             ["::/128", "::ffff:ffff:ffff:ffff/128"])
             self.assertEqual(resp["name"], "foo")
             self.assertEqual(resp["tenant_id"], 1)
 
@@ -210,7 +212,7 @@ class TestQuarkCreateIpPolicies(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(len(resp.keys()), 6)
             self.assertEqual(resp["subnet_ids"], [1])
             self.assertEqual(resp["network_ids"], [])
-            self.assertEqual(resp["exclude"], ["0.0.0.0/24"])
+            self.assertEqual(resp["exclude"], ["0.0.0.0/24", "0.0.255.255/32"])
             self.assertEqual(resp["name"], "foo")
             self.assertEqual(resp["tenant_id"], 1)
 
@@ -282,14 +284,12 @@ class TestQuarkUpdateIpPolicies(test_quark_plugin.TestQuarkPlugin):
 
     def test_update_ip_policy_networks_not_found(self):
         ipp = dict(id=1, networks=[])
-        with self._stubs(ipp) as (ip_policy_update):
+        with self._stubs(ipp):
             with self.assertRaises(exceptions.NetworkNotFound):
                 self.plugin.update_ip_policy(
                     self.context,
                     1,
                     dict(ip_policy=dict(network_ids=[100])))
-                self.fai("HI")
-                self.assertEqual(ip_policy_update.called, 0)
 
     def test_update_ip_policy_networks(self):
         ipp = dict(id=1, networks=[dict()],
@@ -303,6 +303,38 @@ class TestQuarkUpdateIpPolicies(test_quark_plugin.TestQuarkPlugin):
                 1,
                 dict(ip_policy=dict(network_ids=[100])))
             self.assertEqual(ip_policy_update.called, 1)
+
+    def test_update_ip_policy_exclude_v4(self):
+        subnets = [dict(id=100, cidr="0.0.0.0/16")]
+        ipp = dict(id=1, subnets=subnets,
+                   exclude=["0.0.0.0/24"],
+                   name="foo", tenant_id=1)
+        with self._stubs(ipp, subnets=subnets) as (ip_policy_update):
+            self.plugin.update_ip_policy(
+                self.context,
+                1,
+                dict(ip_policy=dict(subnet_ids=[100], exclude=["0.0.0.1/32"])))
+            ip_policy_update.assert_called_once_with(
+                self.context,
+                ipp,
+                subnet_ids=[100],
+                exclude=["0.0.0.1/32", "0.0.0.0/32", "0.0.255.255/32"])
+
+    def test_update_ip_policy_exclude_v6(self):
+        subnets = [dict(id=100, cidr="::/64")]
+        ipp = dict(id=1, subnets=subnets,
+                   exclude=["::/128"],
+                   name="foo", tenant_id=1)
+        with self._stubs(ipp, subnets=subnets) as (ip_policy_update):
+            self.plugin.update_ip_policy(
+                self.context,
+                1,
+                dict(ip_policy=dict(subnet_ids=[100], exclude=["::1/128"])))
+            ip_policy_update.assert_called_once_with(
+                self.context,
+                ipp,
+                subnet_ids=[100],
+                exclude=["::1/128", "::/128", "::ffff:ffff:ffff:ffff/128"])
 
 
 class TestQuarkDeleteIpPolicies(test_quark_plugin.TestQuarkPlugin):
@@ -407,3 +439,70 @@ class TestQuarkValidateCIDRsFitsIntoSubnets(test_quark_plugin.TestQuarkPlugin):
                 ["::/127"],
                 [dict(id=1, cidr="::/96"),
                     dict(id=1, cidr="::/128")])
+
+
+class TestQuarkEnsureDefaultPolicy(test_base.TestBase):
+    def test_no_cidrs_no_subnets(self):
+        cidrs = []
+        subnets = []
+        self.assertIsNone(ippol.ensure_default_policy(cidrs, subnets))
+        self.assertEqual(cidrs, [])
+        self.assertEqual(subnets, [])
+
+    def test_no_cidrs_v4(self):
+        cidrs = []
+        subnets = [dict(cidr="192.168.10.1/24")]
+        self.assertIsNone(ippol.ensure_default_policy(cidrs, subnets))
+        self.assertEqual(cidrs, ["192.168.10.0/32", "192.168.10.255/32"])
+        self.assertEqual(subnets, [dict(cidr="192.168.10.1/24")])
+
+    def test_no_subnets_v4(self):
+        cidrs = ["192.168.10.0/32", "192.168.10.255/32"]
+        subnets = []
+        self.assertIsNone(ippol.ensure_default_policy(cidrs, subnets))
+        self.assertEqual(cidrs, ["192.168.10.0/32", "192.168.10.255/32"])
+        self.assertEqual(subnets, [])
+
+    def test_cidrs_without_default_cidrs_v4(self):
+        cidrs = ["192.168.10.20/32", "192.168.10.40/32"]
+        subnets = [dict(cidr="192.168.10.1/24")]
+        self.assertIsNone(ippol.ensure_default_policy(cidrs, subnets))
+        self.assertEqual(cidrs, ["192.168.10.20/32", "192.168.10.40/32",
+                                 "192.168.10.0/32", "192.168.10.255/32"])
+        self.assertEqual(subnets, [dict(cidr="192.168.10.1/24")])
+
+    def test_cidrs_with_default_cidrs_v4(self):
+        cidrs = ["192.168.10.0/32", "192.168.10.255/32"]
+        subnets = [dict(cidr="192.168.10.1/24")]
+        self.assertIsNone(ippol.ensure_default_policy(cidrs, subnets))
+        self.assertEqual(cidrs, ["192.168.10.0/32", "192.168.10.255/32"])
+        self.assertEqual(subnets, [dict(cidr="192.168.10.1/24")])
+
+    def test_no_cidrs_v6(self):
+        cidrs = []
+        subnets = [dict(cidr="::/64")]
+        self.assertIsNone(ippol.ensure_default_policy(cidrs, subnets))
+        self.assertEqual(cidrs, ["::/128", "::ffff:ffff:ffff:ffff/128"])
+        self.assertEqual(subnets, [dict(cidr="::/64")])
+
+    def test_no_subnets_v6(self):
+        cidrs = ["::/128", "::ffff:ffff:ffff:ffff/128"]
+        subnets = []
+        self.assertIsNone(ippol.ensure_default_policy(cidrs, subnets))
+        self.assertEqual(cidrs, ["::/128", "::ffff:ffff:ffff:ffff/128"])
+        self.assertEqual(subnets, [])
+
+    def test_cidrs_without_default_cidrs_v6(self):
+        cidrs = ["::10/128", "::20/128"]
+        subnets = [dict(cidr="::/64")]
+        self.assertIsNone(ippol.ensure_default_policy(cidrs, subnets))
+        self.assertEqual(cidrs, ["::10/128", "::20/128",
+                                 "::/128", "::ffff:ffff:ffff:ffff/128"])
+        self.assertEqual(subnets, [dict(cidr="::/64")])
+
+    def test_cidrs_with_default_cidrs_v6(self):
+        cidrs = ["::/128", "::ffff:ffff:ffff:ffff/128"]
+        subnets = [dict(cidr="::/64")]
+        self.assertIsNone(ippol.ensure_default_policy(cidrs, subnets))
+        self.assertEqual(cidrs, ["::/128", "::ffff:ffff:ffff:ffff/128"])
+        self.assertEqual(subnets, [dict(cidr="::/64")])

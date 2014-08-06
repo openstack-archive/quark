@@ -23,9 +23,9 @@ from neutron.openstack.common import timeutils
 from oslo.config import cfg
 
 from quark.db import api as db_api
-from quark.db import models as models
 from quark import exceptions as q_exc
 from quark import network_strategy
+from quark.plugin_modules import ip_policies
 from quark.plugin_modules import routes
 from quark import plugin_views as v
 from quark import utils
@@ -151,8 +151,6 @@ def _get_exclude_cidrs_from_allocation_pools(subnet_db, allocation_pools):
         cidrset -= netaddr.IPSet(netaddr.IPRange(
             netaddr.IPAddress(start),
             netaddr.IPAddress(end)).cidrs())
-    default_cidrset = models.IPPolicy.get_ip_policy_cidrs(subnet_db)
-    cidrset.update(default_cidrset)
     cidrs = [str(x.cidr) for x in cidrset.iter_cidrs()]
     return cidrs
 
@@ -232,12 +230,14 @@ def create_subnet(context, subnet):
             new_subnet["dns_nameservers"].append(db_api.dns_create(
                 context, ip=netaddr.IPAddress(dns_ip)))
 
-        if isinstance(allocation_pools, list) and allocation_pools:
+        cidrs = []
+        if isinstance(allocation_pools, list):
             _validate_allocation_pools(allocation_pools, sub_attrs["cidr"])
             cidrs = _get_exclude_cidrs_from_allocation_pools(
                 new_subnet, allocation_pools)
-            new_subnet["ip_policy"] = db_api.ip_policy_create(context,
-                                                              exclude=cidrs)
+        ip_policies.ensure_default_policy(cidrs, [new_subnet])
+        new_subnet["ip_policy"] = db_api.ip_policy_create(context,
+                                                          exclude=cidrs)
 
     subnet_dict = v._make_subnet_dict(new_subnet)
     subnet_dict["gateway_ip"] = gateway_ip
@@ -314,16 +314,13 @@ def update_subnet(context, id, subnet):
             subnet_db["routes"].append(db_api.route_create(
                 context, cidr=route["destination"], gateway=route["nexthop"]))
 
-        if isinstance(allocation_pools, list) and allocation_pools:
+        if isinstance(allocation_pools, list):
             _validate_allocation_pools(allocation_pools, subnet_db["cidr"])
             cidrs = _get_exclude_cidrs_from_allocation_pools(
                 subnet_db, allocation_pools)
-            if subnet_db["ip_policy"]:
-                subnet_db["ip_policy"] = db_api.ip_policy_update(
-                    context, subnet_db["ip_policy"], exclude=cidrs)
-            else:
-                subnet_db["ip_policy"] = db_api.ip_policy_create(
-                    context, exclude=cidrs)
+            ip_policies.ensure_default_policy(cidrs, [subnet_db])
+            subnet_db["ip_policy"] = db_api.ip_policy_update(
+                context, subnet_db["ip_policy"], exclude=cidrs)
 
         subnet = db_api.subnet_update(context, subnet_db, **s)
     return v._make_subnet_dict(subnet)
