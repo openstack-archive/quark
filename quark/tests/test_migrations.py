@@ -6,6 +6,7 @@ import tempfile
 from alembic import command as alembic_command
 from alembic import config as alembic_config
 import mock
+from oslo.db.sqlalchemy import test_migrations
 import sqlalchemy as sa
 from sqlalchemy import create_engine
 from sqlalchemy import pool
@@ -15,6 +16,7 @@ from sqlalchemy.sql import table
 
 from quark.db.custom_types import INET
 import quark.db.migration
+from quark.db.migration.alembic import target_metadata
 from quark.tests import test_base
 
 
@@ -29,10 +31,10 @@ class BaseMigrationTest(test_base.TestBase):
         secret_cfg.database.connection = "sqlite:///" + self.filepath
         self.config.neutron_config = secret_cfg
 
-        engine = create_engine(
+        self.engine = create_engine(
             self.config.neutron_config.database.connection,
             poolclass=pool.NullPool)
-        self.connection = engine.connect()
+        self.connection = self.engine.connect()
 
     def tearDown(self):
         self.connection.close()
@@ -698,3 +700,15 @@ class Test28e55acaf366(BaseMigrationTest):
         alembic_command.upgrade(self.config, '28e55acaf366')
         with self.assertRaises(NotImplementedError):
             alembic_command.downgrade(self.config, '3d22de205729')
+
+
+class ModelsMigrationsSync(BaseMigrationTest,
+                           test_migrations.ModelsMigrationsSync):
+    def get_engine(self):
+        return self.engine
+
+    def db_sync(self, engine):
+        alembic_command.upgrade(self.config, 'head')
+
+    def get_metadata(self):
+        return target_metadata

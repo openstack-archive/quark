@@ -249,7 +249,8 @@ port_ip_association_table = sa.Table(
               sa.ForeignKey("quark_ports.id")),
     sa.Column("ip_address_id", sa.String(36),
               sa.ForeignKey("quark_ip_addresses.id")),
-    sa.Column("enabled", sa.Boolean(), default=True, nullable=False),
+    sa.Column("enabled", sa.Boolean(), default=True, nullable=False,
+              server_default='1'),
     **TABLE_KWARGS)
 
 
@@ -355,7 +356,8 @@ class MacAddressRange(BASEV2, models.HasId):
                                       'MacAddress.mac_address_range_id, '
                                       'MacAddress.deallocated!=1)',
                                       backref="mac_address_range")
-    do_not_use = sa.Column(sa.Boolean(), default=False, nullable=False)
+    do_not_use = sa.Column(sa.Boolean(), default=False, nullable=False,
+                           server_default='0')
 
 
 class IPPolicy(BASEV2, models.HasId, models.HasTenant):

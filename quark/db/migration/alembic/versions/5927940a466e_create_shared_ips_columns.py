@@ -19,12 +19,12 @@ def upgrade():
                   sa.Column('enabled',
                             sa.Boolean(),
                             nullable=False,
-                            server_default=sa.sql.expression.true()))
+                            server_default='1'))
     op.add_column('quark_mac_address_ranges',
                   sa.Column('do_not_use',
                             sa.Boolean(),
                             nullable=False,
-                            server_default=sa.sql.expression.false()))
+                            server_default='0'))
 
 
 def downgrade():
