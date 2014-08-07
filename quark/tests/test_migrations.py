@@ -13,6 +13,7 @@ from sqlalchemy.sql import column
 from sqlalchemy.sql import select
 from sqlalchemy.sql import table
 
+from quark.db.custom_types import INET
 import quark.db.migration
 from quark.tests import test_base
 
@@ -621,3 +622,79 @@ class Test552b213c2b8c(BaseMigrationTest):
         alembic_command.upgrade(self.config, '552b213c2b8c')
         with self.assertRaises(NotImplementedError):
             alembic_command.downgrade(self.config, '45a07fac3d38')
+
+
+class Test28e55acaf366(BaseMigrationTest):
+    def setUp(self):
+        super(Test28e55acaf366, self).setUp()
+        alembic_command.upgrade(self.config, '3d22de205729')
+        self.ip_policy = table('quark_ip_policy',
+                               column('id', sa.String(length=36)),
+                               column('size', INET()))
+        self.ip_policy_cidrs = table(
+            'quark_ip_policy_cidrs',
+            column('id', sa.String(length=36)),
+            column('ip_policy_id', sa.String(length=36)),
+            column('cidr', sa.String(length=64)))
+
+    def test_upgrade_none(self):
+        alembic_command.upgrade(self.config, '28e55acaf366')
+        results = self.connection.execute(select([
+            self.ip_policy])).fetchall()
+        self.assertEqual(len(results), 0)
+        results = self.connection.execute(select([
+            self.ip_policy_cidrs])).fetchall()
+        self.assertEqual(len(results), 0)
+
+    def test_upgrade_v4(self):
+        self.connection.execute(
+            self.ip_policy.insert(), dict(id="1", size=None))
+        self.connection.execute(
+            self.ip_policy_cidrs.insert(),
+            dict(id="2", ip_policy_id="1", cidr="192.168.10.13/32"),
+            dict(id="3", ip_policy_id="1", cidr="192.168.10.16/31"))
+        alembic_command.upgrade(self.config, '28e55acaf366')
+        results = self.connection.execute(select([
+            self.ip_policy])).fetchall()
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["id"], "1")
+        self.assertEqual(results[0]["size"], 3)
+
+    def test_upgrade_v6(self):
+        self.connection.execute(
+            self.ip_policy.insert(), dict(id="1", size=None))
+        self.connection.execute(
+            self.ip_policy_cidrs.insert(),
+            dict(id="2", ip_policy_id="1", cidr="fd00::/64"))
+        alembic_command.upgrade(self.config, '28e55acaf366')
+        results = self.connection.execute(select([
+            self.ip_policy])).fetchall()
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["id"], "1")
+        self.assertEqual(results[0]["size"], 2 ** 64)
+
+    def test_upgrade_bulk(self):
+        self.connection.execute(
+            self.ip_policy.insert(),
+            dict(id="1", size=None),
+            dict(id="2", size=None))
+        self.connection.execute(
+            self.ip_policy_cidrs.insert(),
+            dict(id="2", ip_policy_id="1", cidr="192.168.10.13/32"),
+            dict(id="3", ip_policy_id="1", cidr="192.168.10.16/31"),
+            dict(id="4", ip_policy_id="2", cidr="fd00::/64"))
+        alembic_command.upgrade(self.config, '28e55acaf366')
+        results = self.connection.execute(select([
+            self.ip_policy])).fetchall()
+        self.assertEqual(len(results), 2)
+        for result in results:
+            self.assertIn(result["id"], ("1", "2"))
+            if result["id"] == "1":
+                self.assertEqual(result["size"], 3)
+            elif result["id"] == "2":
+                self.assertEqual(result["size"], 2 ** 64)
+
+    def test_downgrade(self):
+        alembic_command.upgrade(self.config, '28e55acaf366')
+        with self.assertRaises(NotImplementedError):
+            alembic_command.downgrade(self.config, '3d22de205729')

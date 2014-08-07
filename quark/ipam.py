@@ -490,14 +490,13 @@ class QuarkIpam(object):
                         ip_addr=ip_address, subnet_id=subnet["id"])
                 continue
 
-            ip_policy_cidrs = None
+            ip_policy = None
             if not ip_address:
                 # Policies don't prevent explicit assignment, so we only
                 # need to check if we're allocating a new IP
-                ip_policy_cidrs = models.IPPolicy.get_ip_policy_cidrs(
-                    subnet)
+                ip_policy = subnet.get("ip_policy")
 
-            policy_size = ip_policy_cidrs.size if ip_policy_cidrs else 0
+            policy_size = ip_policy["size"] if ip_policy else 0
 
             if ipnet.size > (ips_in_subnet + policy_size - 1):
                 if not ip_address:
