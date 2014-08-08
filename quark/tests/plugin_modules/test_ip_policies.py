@@ -44,7 +44,7 @@ class TestQuarkGetIpPolicies(test_quark_plugin.TestQuarkPlugin):
             name="foo",
             subnets=[dict(id=1)],
             networks=[dict(id=2)],
-            exclude=["0.0.0.0/32"])
+            exclude=[dict(cidr="0.0.0.0/32")])
         with self._stubs(ip_policy):
             resp = self.plugin.get_ip_policy(self.context, 1)
             self.assertEqual(len(resp.keys()), 6)
@@ -52,7 +52,7 @@ class TestQuarkGetIpPolicies(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(resp["name"], "foo")
             self.assertEqual(resp["subnet_ids"], [1])
             self.assertEqual(resp["network_ids"], [2])
-            self.assertEqual(resp["exclude"], ip_policy["exclude"])
+            self.assertEqual(resp["exclude"], ["0.0.0.0/32"])
             self.assertEqual(resp["tenant_id"], 1)
 
     def test_get_ip_policies(self):
@@ -62,7 +62,7 @@ class TestQuarkGetIpPolicies(test_quark_plugin.TestQuarkPlugin):
             name="foo",
             subnets=[dict(id=1)],
             networks=[dict(id=2)],
-            exclude=["0.0.0.0/32"])
+            exclude=[dict(cidr="0.0.0.0/32")])
         with self._stubs([ip_policy]):
             resp = self.plugin.get_ip_policies(self.context)
             self.assertEqual(len(resp), 1)
@@ -71,7 +71,7 @@ class TestQuarkGetIpPolicies(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(resp["id"], 1)
             self.assertEqual(resp["subnet_ids"], [1])
             self.assertEqual(resp["network_ids"], [2])
-            self.assertEqual(resp["exclude"], ip_policy["exclude"])
+            self.assertEqual(resp["exclude"], ["0.0.0.0/32"])
             self.assertEqual(resp["name"], "foo")
             self.assertEqual(resp["tenant_id"], 1)
 
@@ -140,7 +140,8 @@ class TestQuarkCreateIpPolicies(test_quark_plugin.TestQuarkPlugin):
                                    exclude=["1.1.1.1/24"])))
 
     def test_create_ip_policy_network(self):
-        ipp = dict(subnet_id=None, network_id=1, exclude=["1.1.1.1/24"])
+        ipp = dict(subnet_id=None, network_id=1,
+                   exclude=["1.1.1.1/24"])
         with self._stubs(ipp, net=dict(id=1, ip_policy=dict(id=2),
                                        subnets=[dict(id=1,
                                                      cidr="1.1.1.1/16")])):
@@ -150,7 +151,8 @@ class TestQuarkCreateIpPolicies(test_quark_plugin.TestQuarkPlugin):
                                    exclude=ipp["exclude"])))
 
     def test_create_ip_policy_subnet(self):
-        ipp = dict(subnet_id=1, network_id=None, exclude=["1.1.1.1/24"])
+        ipp = dict(subnet_id=1, network_id=None,
+                   exclude=["1.1.1.1/24"])
         with self._stubs(ipp, subnet=dict(id=1, ip_policy=dict(id=2),
                                           cidr="1.1.1.1/16")):
             with self.assertRaises(quark_exceptions.IPPolicyAlreadyExists):
@@ -180,19 +182,21 @@ class TestQuarkCreateIpPolicies(test_quark_plugin.TestQuarkPlugin):
             networks=[],
             id=1,
             tenant_id=1,
-            exclude=["::/128"],
+            exclude=[dict(cidr="::/128")],
             name="foo")
         with self._stubs(ipp, subnet=dict(id=1, ip_policy=None,
                                           version=ipp["subnets"][0]["version"],
                                           cidr=ipp["subnets"][0]["cidr"])):
+            exclude = [ippc["cidr"] for ippc in ipp["exclude"]]
             resp = self.plugin.create_ip_policy(self.context, dict(
-                ip_policy=dict(subnet_ids=[1],
-                               exclude=ipp["exclude"])))
+                ip_policy=dict(subnet_ids=[1], exclude=exclude)))
             self.assertEqual(len(resp.keys()), 6)
             self.assertEqual(resp["subnet_ids"], [1])
             self.assertEqual(resp["network_ids"], [])
-            self.assertEqual(resp["exclude"],
-                             ["::/128", "::ffff:ffff:ffff:ffff/128"])
+            # NOTE(jmeridth): below is mocked that way, so it won't get
+            # additional default policies in exclude
+            # ippol.ensure_default_policy is tested below in this file
+            self.assertEqual(resp["exclude"], ["::/128"])
             self.assertEqual(resp["name"], "foo")
             self.assertEqual(resp["tenant_id"], 1)
 
@@ -202,17 +206,20 @@ class TestQuarkCreateIpPolicies(test_quark_plugin.TestQuarkPlugin):
             networks=[],
             id=1,
             tenant_id=1,
-            exclude=["0.0.0.0/24"],
+            exclude=[dict(cidr="0.0.0.0/24")],
             name="foo")
-        with self._stubs(ipp, subnet=dict(id=1, ip_policy=None,
-                                          cidr=ipp["subnets"][0]["cidr"])):
+        with self._stubs(ipp, subnet=dict(
+                id=1, ip_policy=None, cidr=ipp["subnets"][0]["cidr"])):
+            exclude = [ippc["cidr"] for ippc in ipp["exclude"]]
             resp = self.plugin.create_ip_policy(self.context, dict(
-                ip_policy=dict(subnet_ids=[1],
-                               exclude=ipp["exclude"])))
+                ip_policy=dict(subnet_ids=[1], exclude=exclude)))
             self.assertEqual(len(resp.keys()), 6)
             self.assertEqual(resp["subnet_ids"], [1])
             self.assertEqual(resp["network_ids"], [])
-            self.assertEqual(resp["exclude"], ["0.0.0.0/24", "0.0.255.255/32"])
+            # NOTE(jmeridth): below is mocked that way, so it won't get
+            # additional default policies in exclude
+            # ippol.ensure_default_policy is tested below in this file
+            self.assertEqual(resp["exclude"], ["0.0.0.0/24"])
             self.assertEqual(resp["name"], "foo")
             self.assertEqual(resp["tenant_id"], 1)
 
@@ -373,7 +380,8 @@ class TestQuarkValidateCIDRsFitsIntoSubnets(test_quark_plugin.TestQuarkPlugin):
     def test_normal_cidr_and_valid_subnet(self):
         try:
             ippol._validate_cidrs_fit_into_subnets(
-                ["192.168.0.100/32"], [dict(id=1, cidr="192.168.0.0/24")])
+                ["192.168.0.100/32"],
+                [dict(id=1, cidr="192.168.0.0/24")])
         except Exception:
             self.fail("Should not have failed")
 
@@ -403,7 +411,7 @@ class TestQuarkValidateCIDRsFitsIntoSubnets(test_quark_plugin.TestQuarkPlugin):
             ippol._validate_cidrs_fit_into_subnets(
                 ["192.168.0.100/32"],
                 [dict(id=1, cidr="192.168.0.0/24"),
-                    dict(id=2, cidr="192.168.0.0/16")])
+                 dict(id=2, cidr="192.168.0.0/16")])
         except Exception:
             self.fail("Should not have failed")
 
@@ -412,14 +420,15 @@ class TestQuarkValidateCIDRsFitsIntoSubnets(test_quark_plugin.TestQuarkPlugin):
             ippol._validate_cidrs_fit_into_subnets(
                 ["::/128"],
                 [dict(id=1, cidr="::/96"),
-                    dict(id=2, cidr="::/64")])
+                 dict(id=2, cidr="::/64")])
         except Exception:
             self.fail("Should not have failed")
 
     def test_normal_cidr_and_invalid_subnet(self):
         with self.assertRaises(exceptions.BadRequest):
             ippol._validate_cidrs_fit_into_subnets(
-                ["192.168.0.100/32"], [dict(id=1, cidr="10.10.10.0/24")])
+                ["192.168.0.100/32"],
+                [dict(id=1, cidr="10.10.10.0/24")])
 
     def test_normal_ipv6_cidr_and_invalid_ipv6_subnet(self):
         with self.assertRaises(exceptions.BadRequest):
@@ -431,14 +440,14 @@ class TestQuarkValidateCIDRsFitsIntoSubnets(test_quark_plugin.TestQuarkPlugin):
             ippol._validate_cidrs_fit_into_subnets(
                 ["192.168.0.100/32"],
                 [dict(id=1, cidr="10.10.10.0/24"),
-                    dict(id=1, cidr="192.168.0.0/24")])
+                 dict(id=1, cidr="192.168.0.0/24")])
 
     def test_normal_ipv6_cidr_and_one_invalid_and_one_valid_ipv6_subnet(self):
         with self.assertRaises(exceptions.BadRequest):
             ippol._validate_cidrs_fit_into_subnets(
                 ["::/127"],
                 [dict(id=1, cidr="::/96"),
-                    dict(id=1, cidr="::/128")])
+                 dict(id=1, cidr="::/128")])
 
 
 class TestQuarkEnsureDefaultPolicy(test_base.TestBase):
