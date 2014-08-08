@@ -304,11 +304,11 @@ class SecurityProfile(models.BASEV2, models.HasId):
 
 class OrphanedLSwitch(models.BASEV2, models.HasId):
     __tablename__ = "quark_nvp_orphaned_lswitches"
-    nvp_id = sa.Column(sa.String(36))
-    network_id = sa.Column(sa.String(36), index=True)
-    display_name = sa.Column(sa.String(36), index=True)
+    nvp_id = sa.Column(sa.String(36), nullable=False, index=True)
+    network_id = sa.Column(sa.String(36), nullable=False, index=True)
+    display_name = sa.Column(sa.String(255), index=True)
 
 
 class OrphanedLSwitchPort(models.BASEV2, models.HasId):
-    __tablename__ = "quark_nvp_orphaned_lswitchport"
-    port_id = sa.Column(sa.String(36), index=True)
+    __tablename__ = "quark_nvp_orphaned_lswitch_ports"
+    port_id = sa.Column(sa.String(36), nullable=False, index=True)

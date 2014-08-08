@@ -18,8 +18,9 @@ def upgrade():
     op.create_table(
         'quark_nvp_orphaned_lswitches',
         sa.Column('id', sa.String(length=36), nullable=False),
-        sa.Column('nvp_id', sa.String(length=36), nullable=True),
-        sa.Column('network_id', sa.String(length=36), nullable=True),
+        sa.Column('created_at', sa.DateTime(), nullable=True),
+        sa.Column('nvp_id', sa.String(length=36), nullable=False),
+        sa.Column('network_id', sa.String(length=36), nullable=False),
         sa.Column('display_name', sa.String(length=255), nullable=True),
         sa.PrimaryKeyConstraint('id'),
         mysql_engine='InnoDB')
@@ -41,7 +42,8 @@ def upgrade():
     op.create_table(
         'quark_nvp_orphaned_lswitch_ports',
         sa.Column('id', sa.String(length=36), nullable=False),
-        sa.Column('port_id', sa.String(length=36), nullable=True),
+        sa.Column('created_at', sa.DateTime(), nullable=True),
+        sa.Column('port_id', sa.String(length=36), nullable=False),
         sa.PrimaryKeyConstraint('id'),
         mysql_engine='InnoDB')
     op.create_index(

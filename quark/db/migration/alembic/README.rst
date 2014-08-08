@@ -54,3 +54,11 @@ and you would use it like so
     INFO  [alembic.migration] Will assume non-transactional DDL.                          
     INFO  [alembic.migration] Running upgrade 4358d1b8cc75 -> 1284c81cf727, 
     create lswitch and lswitch port orphaned tables
+
+
+Workflow for creating a revision
+================================
+
+1. Modify quark/db/models.py with your added table/columns.
+2. Run ``quark-db-manage ... upgrade head``.
+3. Run ``quark-db-manage ... revision --autogenerate``.
