@@ -1129,8 +1129,14 @@ class TestQuarkDiagnoseSubnets(test_quark_plugin.TestQuarkPlugin):
     def test_diagnose_subnet_with_wildcard_id_no_existing_subnets(self):
         with self._stubs(subnets=[], routes=[]):
             expected = {'subnets': []}
-            actual = self.plugin.diagnose_subnet(self.context, "*", None)
+            actual = self.plugin.diagnose_subnet(self.context.elevated(), "*",
+                                                 None)
             self.assertEqual(expected, actual)
+
+    def test_diagnose_subnet_not_authorized(self):
+        with self._stubs(subnets=[], routes=[]):
+            with self.assertRaises(exceptions.NotAuthorized):
+                self.plugin.diagnose_subnet(self.context, "*", None)
 
     def test_diagnose_subnet_with_wildcard_with_existing_subnets(self):
         subnet_id = str(uuid.uuid4())
@@ -1143,7 +1149,8 @@ class TestQuarkDiagnoseSubnets(test_quark_plugin.TestQuarkPlugin):
                       enable_dhcp=None)
 
         with self._stubs(subnets=[subnet], routes=[route]):
-            actual = self.plugin.diagnose_subnet(self.context, "*", None)
+            actual = self.plugin.diagnose_subnet(self.context.elevated(), "*",
+                                                 None)
             self.maxDiff = None
             self.assertEqual(subnet["id"], actual["subnets"][0]["id"])
 
@@ -1158,7 +1165,8 @@ class TestQuarkDiagnoseSubnets(test_quark_plugin.TestQuarkPlugin):
                       enable_dhcp=None)
 
         with self._stubs(subnets=subnet, routes=[route]):
-            actual = self.plugin.diagnose_subnet(self.context, subnet_id, None)
+            actual = self.plugin.diagnose_subnet(self.context.elevated(),
+                                                 subnet_id, None)
             self.assertEqual(subnet["id"], actual["subnets"]["id"])
 
 

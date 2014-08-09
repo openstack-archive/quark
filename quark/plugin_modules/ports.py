@@ -465,6 +465,9 @@ def _diag_port(context, port, fields):
 
 
 def diagnose_port(context, id, fields):
+    if not context.is_admin:
+        raise exceptions.NotAuthorized()
+
     if id == "*":
         return {'ports': [_diag_port(context, port, fields) for
                 port in db_api.port_find(context).all()]}

@@ -827,7 +827,7 @@ class TestPortDiagnose(test_quark_plugin.TestQuarkPlugin):
                               backend_key="foo", fixed_ips=fixed_ips,
                               network_plugin="UNMANAGED"))
         with self._stubs(port=port):
-            diag = self.plugin.diagnose_port(self.context, 1, [])
+            diag = self.plugin.diagnose_port(self.context.elevated(), 1, [])
             ports = diag["ports"]
             # All none because we're using the unmanaged driver, which
             # doesn't do anything with these
@@ -851,7 +851,7 @@ class TestPortDiagnose(test_quark_plugin.TestQuarkPlugin):
                               backend_key="foo", fixed_ips=fixed_ips,
                               network_plugin="UNMANAGED"))
         with self._stubs(port=port, list_format=True):
-            diag = self.plugin.diagnose_port(self.context, '*', [])
+            diag = self.plugin.diagnose_port(self.context.elevated(), '*', [])
             ports = diag["ports"]
             # All none because we're using the unmanaged driver, which
             # doesn't do anything with these
@@ -875,7 +875,8 @@ class TestPortDiagnose(test_quark_plugin.TestQuarkPlugin):
                               backend_key="foo", fixed_ips=fixed_ips,
                               network_plugin="UNMANAGED"))
         with self._stubs(port=port, list_format=True):
-            diag = self.plugin.diagnose_port(self.context, '*', ["config"])
+            diag = self.plugin.diagnose_port(self.context.elevated(), '*',
+                                             ["config"])
             ports = diag["ports"]
             # All none because we're using the unmanaged driver, which
             # doesn't do anything with these
@@ -892,6 +893,11 @@ class TestPortDiagnose(test_quark_plugin.TestQuarkPlugin):
     def test_port_diagnose_no_port_raises(self):
         with self._stubs(port=None):
             with self.assertRaises(exceptions.PortNotFound):
+                self.plugin.diagnose_port(self.context.elevated(), 1, [])
+
+    def test_port_diagnose_not_authorized(self):
+        with self._stubs(port=None):
+            with self.assertRaises(exceptions.NotAuthorized):
                 self.plugin.diagnose_port(self.context, 1, [])
 
 
