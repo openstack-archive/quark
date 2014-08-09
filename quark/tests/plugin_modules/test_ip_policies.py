@@ -289,6 +289,33 @@ class TestQuarkUpdateIpPolicies(test_quark_plugin.TestQuarkPlugin):
                 dict(ip_policy=dict(subnet_ids=[100])))
             self.assertEqual(ip_policy_update.called, 1)
 
+    def test_update_ip_policy_subnets_empty_exclude(self):
+        ipp = dict(id=1, subnets=[dict()],
+                   exclude=["0.0.0.40/32"],
+                   name="foo", tenant_id=1)
+        with self._stubs(
+            ipp, subnets=[dict(id=1, cidr="0.0.0.0/16", ip_policy=None)]
+        ) as (ip_policy_update):
+            self.plugin.update_ip_policy(
+                self.context,
+                1,
+                dict(ip_policy=dict(subnet_ids=[100], exclude=[])))
+            ip_policy_update.assert_called_once_with(
+                self.context, ipp, subnet_ids=[100], exclude=[
+                    "0.0.0.0/32", "0.0.255.255/32"])
+
+    def test_update_ip_policy_subnets_empty_exclude_without_subnet_ids(self):
+        ipp = dict(id=1, subnets=[dict(cidr="0.0.0.0/16")],
+                   exclude=["0.0.0.40/32"],
+                   name="foo", tenant_id=1)
+        with self._stubs(ipp) as (ip_policy_update):
+            self.plugin.update_ip_policy(
+                self.context,
+                1,
+                dict(ip_policy=dict(exclude=[])))
+            ip_policy_update.assert_called_once_with(
+                self.context, ipp, exclude=["0.0.0.0/32", "0.0.255.255/32"])
+
     def test_update_ip_policy_networks_not_found(self):
         ipp = dict(id=1, networks=[])
         with self._stubs(ipp):

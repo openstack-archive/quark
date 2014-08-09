@@ -35,7 +35,6 @@ def create_ip_policy(context, ip_policy):
         raise exceptions.BadRequest(resource="ip_policy",
                                     msg="Empty ip_policy.exclude")
 
-    ip_policy_cidrs = ipp.get("exclude", [])
     network_ids = ipp.get("network_ids")
     subnet_ids = ipp.get("subnet_ids")
 
@@ -56,9 +55,8 @@ def create_ip_policy(context, ip_policy):
                 context, id=subnet_ids, scope=db_api.ALL)
             if not subnets:
                 raise exceptions.SubnetNotFound(id=subnet_ids)
-            if ip_policy_cidrs:
-                ensure_default_policy(ip_policy_cidrs, subnets)
-                _validate_cidrs_fit_into_subnets(ip_policy_cidrs, subnets)
+            ensure_default_policy(ipp["exclude"], subnets)
+            _validate_cidrs_fit_into_subnets(ipp["exclude"], subnets)
             models.extend(subnets)
 
         if network_ids:
@@ -68,9 +66,8 @@ def create_ip_policy(context, ip_policy):
                 raise exceptions.NetworkNotFound(net_id=network_ids)
             subnets = [subnet for net in nets
                        for subnet in net.get("subnets", [])]
-            if ip_policy_cidrs and subnets:
-                ensure_default_policy(ip_policy_cidrs, subnets)
-                _validate_cidrs_fit_into_subnets(ip_policy_cidrs, subnets)
+            ensure_default_policy(ipp["exclude"], subnets)
+            _validate_cidrs_fit_into_subnets(ipp["exclude"], subnets)
             models.extend(nets)
 
         for model in models:
@@ -105,7 +102,7 @@ def update_ip_policy(context, id, ip_policy):
         if not ipp_db:
             raise quark_exceptions.IPPolicyNotFound(id=id)
 
-        ip_policy_cidrs = ipp.get("exclude", [])
+        ip_policy_cidrs = ipp.get("exclude")
         network_ids = ipp.get("network_ids")
         subnet_ids = ipp.get("subnet_ids")
 
@@ -122,8 +119,7 @@ def update_ip_policy(context, id, ip_policy):
                 context, id=subnet_ids, scope=db_api.ALL)
             if len(subnets) != len(subnet_ids):
                 raise exceptions.SubnetNotFound(id=subnet_ids)
-            # FIXME(asadoughi): cannot update exclude w/o updating subnet_ids
-            if ip_policy_cidrs:
+            if ip_policy_cidrs is not None:
                 ensure_default_policy(ip_policy_cidrs, subnets)
                 _validate_cidrs_fit_into_subnets(ip_policy_cidrs, subnets)
             models.extend(subnets)
@@ -137,17 +133,21 @@ def update_ip_policy(context, id, ip_policy):
                 raise exceptions.NetworkNotFound(net_id=network_ids)
             subnets = [subnet for net in nets
                        for subnet in net.get("subnets", [])]
-            if ip_policy_cidrs and subnets:
+            if ip_policy_cidrs is not None:
                 ensure_default_policy(ip_policy_cidrs, subnets)
                 _validate_cidrs_fit_into_subnets(ip_policy_cidrs, subnets)
             models.extend(nets)
+
+        if not subnet_ids and not network_ids and ip_policy_cidrs is not None:
+            ensure_default_policy(ip_policy_cidrs, ipp_db["subnets"])
+            _validate_cidrs_fit_into_subnets(
+                ip_policy_cidrs, ipp_db["subnets"])
 
         for model in models:
             if model["ip_policy"]:
                 raise quark_exceptions.IPPolicyAlreadyExists(
                     id=model["ip_policy"]["id"], n_id=model["id"])
             model["ip_policy"] = ipp_db
-
         ipp_db = db_api.ip_policy_update(context, ipp_db, **ipp)
     return v._make_ip_policy_dict(ipp_db)
 
