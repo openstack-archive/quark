@@ -45,6 +45,8 @@ def main():
 
 def _rackspace_filter(query):
     # NOTE(asadoughi): should be moved to config?
+    query = query.filter(or_(models.Subnet.do_not_use == None,
+                             models.Subnet.do_not_use == 0))
     public_network_id = "00000000-0000-0000-0000-000000000000"
     query = query.filter(models.Subnet.network_id == public_network_id)
     query = query.filter(models.Subnet.ip_version == 4)
@@ -67,10 +69,13 @@ def get_used_ips(session):
     with session.begin():
         query = session.query(
             models.Subnet.tenant_id,
-            models.Subnet,
-            models.IPAddress._deallocated,
-            models.IPAddress.address)
+            func.count(models.IPAddress.address))
+        query = query.group_by(models.Subnet.tenant_id)
+        query = _rackspace_filter(query)
+
         window = text('interval %s second' % cfg.CONF.QUARK.ipam_reuse_after)
+        # NOTE(asadoughi): This is an outer join instead of a regular join
+        # to include subnets with zero IP addresses in the database.
         query = query.outerjoin(
             models.IPAddress,
             and_(models.Subnet.id == models.IPAddress.subnet_id,
@@ -78,29 +83,22 @@ def get_used_ips(session):
                      models.IPAddress._deallocated == 0,
                      func.now() < func.date_add(
                          models.IPAddress.deallocated_at, window))))
-        query = query.filter(or_(models.Subnet.do_not_use == None,
-                                 models.Subnet.do_not_use == 0))
-        query = _rackspace_filter(query)
 
-        ret = defaultdict(int)
-        for tenant_id, subnet, ip_deallocated, ip_address in query.all():
-            # 1. Account for subnets with 0 IP addresses in database.
-            if ip_address is None:
-                if ret.get(tenant_id) is None:
-                    ret[tenant_id] = 0
-                continue
-            # 2. Add allocated IPs.
-            if ip_deallocated is None or ip_deallocated == 0:
-                ret[tenant_id] += 1
-                continue
-            # 3. Add deallocated IPs, not in IP policy.
-            address = netaddr.IPAddress(ip_address, version=6)
-            if subnet.ip_version == 4:
-                address = address.ipv4()
-            ip_policy = models.IPPolicy.get_ip_policy_cidrs(subnet)
-            if address not in ip_policy:
-                ret[tenant_id] += 1
-        return ret
+        query = query.outerjoin(
+            models.IPPolicyCIDR,
+            and_(
+                models.Subnet.ip_policy_id == models.IPPolicyCIDR.ip_policy_id,
+                models.IPAddress.address >= models.IPPolicyCIDR.first_ip,
+                models.IPAddress.address <= models.IPPolicyCIDR.last_ip))
+        # NOTE(asadoughi): (address is allocated) OR
+        # (address is deallocated and not inside subnet's IP policy)
+        query = query.filter(or_(
+            models.IPAddress._deallocated == None,
+            models.IPAddress._deallocated == 0,
+            models.IPPolicyCIDR.id == None))
+
+        return {tenant_id: address_count
+                for tenant_id, address_count in query.all()}
 
 
 def get_unused_ips(session, used_ips_counts):
@@ -115,8 +113,6 @@ def get_unused_ips(session, used_ips_counts):
         query = session.query(
             models.Subnet.tenant_id,
             models.Subnet)
-        query = query.filter(or_(models.Subnet.do_not_use == None,
-                                 models.Subnet.do_not_use == 0))
         query = _rackspace_filter(query)
         query = query.group_by(models.Subnet.tenant_id, models.Subnet.id)
 

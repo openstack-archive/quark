@@ -584,8 +584,11 @@ def ip_policy_create(context, **ip_policy_dict):
     exclude = ip_policy_dict.pop("exclude")
     ip_set = netaddr.IPSet()
     for excluded_cidr in exclude:
+        cidr_net = netaddr.IPNetwork(excluded_cidr).ipv6()
         new_policy["exclude"].append(
-            models.IPPolicyCIDR(cidr=excluded_cidr))
+            models.IPPolicyCIDR(cidr=excluded_cidr,
+                                first_ip=cidr_net.first,
+                                last_ip=cidr_net.last))
         ip_set.add(excluded_cidr)
     ip_policy_dict["size"] = ip_set.size
     new_policy.update(ip_policy_dict)
@@ -607,8 +610,11 @@ def ip_policy_update(context, ip_policy, **ip_policy_dict):
         ip_policy["exclude"] = []
         ip_set = netaddr.IPSet()
         for excluded_cidr in exclude:
+            cidr_net = netaddr.IPNetwork(excluded_cidr).ipv6()
             ip_policy["exclude"].append(
-                models.IPPolicyCIDR(cidr=excluded_cidr))
+                models.IPPolicyCIDR(cidr=excluded_cidr,
+                                    first_ip=cidr_net.first,
+                                    last_ip=cidr_net.last))
             ip_set.add(excluded_cidr)
         ip_policy_dict["size"] = ip_set.size
 
