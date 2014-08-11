@@ -22,7 +22,7 @@ from neutron.openstack.common import timeutils
 from neutron.openstack.common import uuidutils
 from sqlalchemy import event
 from sqlalchemy import func as sql_func
-from sqlalchemy import and_, asc, orm, or_
+from sqlalchemy import and_, asc, orm, or_, not_
 
 from quark.db import models
 from quark import network_strategy
@@ -349,6 +349,9 @@ def mac_address_create(context, **mac_dict):
     return mac_address
 
 
+INVERT_DEFAULTS = 'invert_defaults'
+
+
 @scoped
 def network_find(context, fields=None, **filters):
     ids = []
@@ -361,13 +364,15 @@ def network_find(context, fields=None, **filters):
             filters.pop("id")
 
     if "shared" in filters:
+        defaults = STRATEGY.get_assignable_networks(context)
         if True in filters["shared"]:
-            defaults = STRATEGY.get_assignable_networks(context)
             if ids:
                 defaults = [net for net in ids if net in defaults]
                 filters.pop("id")
             if not defaults:
                 return []
+        else:
+            defaults.insert(0, INVERT_DEFAULTS)
         filters.pop("shared")
     return _network_find(context, fields, defaults=defaults, **filters)
 
@@ -377,10 +382,18 @@ def _network_find(context, fields, defaults=None, **filters):
     model_filters = _model_query(context, models.Network, filters, query)
 
     if defaults:
-        if filters:
+        invert_defaults = False
+        if INVERT_DEFAULTS in defaults:
+            invert_defaults = True
+            defaults.pop(0)
+        if filters and invert_defaults:
+            query = query.filter(and_(not_(models.Network.id.in_(defaults)),
+                                      and_(*model_filters)))
+        elif filters and not invert_defaults:
             query = query.filter(or_(models.Network.id.in_(defaults),
                                      and_(*model_filters)))
-        else:
+
+        elif not invert_defaults:
             query = query.filter(models.Network.id.in_(defaults))
     else:
         query = query.filter(*model_filters)

@@ -116,26 +116,27 @@ class TestQuarkGetNetworksShared(test_quark_plugin.TestQuarkPlugin):
             yield net_find
 
     def test_get_networks_shared(self):
-        net = dict(id=1, tenant_id=self.context.tenant_id, name="mynet",
-                   status="ACTIVE")
-        with self._stubs(nets=[net]) as net_find:
+        net1 = dict(id=1, tenant_id=self.context.tenant_id, name="mynet",
+                    status="ACTIVE")
+        with self._stubs(nets=[net1]) as net_find:
             self.plugin.get_networks(self.context, {"shared": [True]})
             net_find.assert_called_with(self.context, None,
                                         join_subnets=True,
                                         defaults=["public_network"])
 
     def test_get_networks_shared_false(self):
-        net = dict(id=1, tenant_id=self.context.tenant_id, name="mynet",
-                   status="ACTIVE")
-        with self._stubs(nets=[net]) as net_find:
+        net1 = dict(id=1, tenant_id=self.context.tenant_id, name="mynet",
+                    status="ACTIVE")
+        with self._stubs(nets=[net1]) as net_find:
+            invert = db_api.INVERT_DEFAULTS
             self.plugin.get_networks(self.context, {"shared": [False]})
             net_find.assert_called_with(self.context, None, join_subnets=True,
-                                        defaults=[])
+                                        defaults=[invert, "public_network"])
 
     def test_get_networks_no_shared(self):
-        net = dict(id=1, tenant_id=self.context.tenant_id, name="mynet",
-                   status="ACTIVE")
-        with self._stubs(nets=[net]) as net_find:
+        net1 = dict(id=1, tenant_id=self.context.tenant_id, name="mynet",
+                    status="ACTIVE")
+        with self._stubs(nets=[net1]) as net_find:
             self.plugin.get_networks(self.context, {})
             net_find.assert_called_with(self.context, None, join_subnets=True,
                                         defaults=[])
