@@ -250,6 +250,9 @@ def _diag_network(context, network, fields):
 
 
 def diagnose_network(context, id, fields):
+    if not context.is_admin:
+        raise exceptions.NotAuthorized()
+
     if id == "*":
         return {'networks': [_diag_network(context, net, fields) for
                 net in db_api.network_find(context, scope=db_api.ALL)]}

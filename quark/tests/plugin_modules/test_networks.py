@@ -392,13 +392,21 @@ class TestQuarkDiagnoseNetworks(test_quark_plugin.TestQuarkPlugin):
     def test_diagnose_network_no_network_found(self):
         with self._stubs():
             with self.assertRaises(exceptions.NetworkNotFound):
-                self.plugin.diagnose_network(self.context, "12345", None)
+                self.plugin.diagnose_network(self.context.elevated(), "12345",
+                                             None)
+
+    def test_diagnose_network_not_authorized(self):
+        with self._stubs():
+            with self.assertRaises(exceptions.NotAuthorized):
+                self.plugin.diagnose_network(self.context, "12345",
+                                             None)
 
     def test_diagnose_network_with_wildcard_and_no_networks(self):
         db_mod = "quark.db.api"
         with mock.patch("%s.network_find" % db_mod) as net_find:
             net_find.return_value = []
-            actual = self.plugin.diagnose_network(self.context, "*", {})
+            actual = self.plugin.diagnose_network(self.context.elevated(),
+                                                  "*", {})
             expected = {'networks': []}
             self.assertEqual(expected, actual)
 
@@ -410,7 +418,8 @@ class TestQuarkDiagnoseNetworks(test_quark_plugin.TestQuarkPlugin):
             db_mod = "quark.db.api"
             with mock.patch("%s.network_find" % db_mod) as net_find:
                 net_find.return_value = [net]
-                nets = self.plugin.diagnose_network(self.context, "*", {})
+                nets = self.plugin.diagnose_network(self.context.elevated(),
+                                                    "*", {})
                 net.pop("network_plugin")
                 for key in net.keys():
                     self.assertEqual(nets['networks'][0][key], net[key])

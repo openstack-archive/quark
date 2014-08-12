@@ -428,6 +428,9 @@ def delete_subnet(context, id):
 
 
 def diagnose_subnet(context, id, fields):
+    if not context.is_admin:
+        raise exceptions.NotAuthorized()
+
     if id == "*":
         return {'subnets': get_subnets(context, filters={})}
     return {'subnets': get_subnet(context, id)}
