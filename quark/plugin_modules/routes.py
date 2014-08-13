@@ -17,6 +17,7 @@ import netaddr
 from neutron.common import exceptions
 from neutron.openstack.common import importutils
 from neutron.openstack.common import log as logging
+from neutron import quota
 from oslo.config import cfg
 
 from quark.db import api as db_api
@@ -58,6 +59,10 @@ def create_route(context, route):
         route_cidr = netaddr.IPNetwork(route["cidr"])
         subnet_routes = db_api.route_find(context, subnet_id=subnet_id,
                                           scope=db_api.ALL)
+
+        quota.QUOTAS.limit_check(context, context.tenant_id,
+                                 routes_per_subnet=len(subnet_routes) + 1)
+
         for sub_route in subnet_routes:
             sub_route_cidr = netaddr.IPNetwork(sub_route["cidr"])
             if sub_route_cidr.value == DEFAULT_ROUTE.value:
