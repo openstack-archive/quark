@@ -84,13 +84,16 @@ def get_used_ips(session):
 
         ret = defaultdict(int)
         for tenant_id, subnet, ip_deallocated, ip_address in query.all():
+            # 1. Account for subnets with 0 IP addresses in database.
             if ip_address is None:
                 if ret.get(tenant_id) is None:
                     ret[tenant_id] = 0
                 continue
-            if ip_deallocated is not None and ip_deallocated != 0:
+            # 2. Add allocated IPs.
+            if ip_deallocated is None or ip_deallocated == 0:
                 ret[tenant_id] += 1
                 continue
+            # 3. Add deallocated IPs, not in IP policy.
             address = netaddr.IPAddress(ip_address, version=6)
             if subnet.ip_version == 4:
                 address = address.ipv4()
