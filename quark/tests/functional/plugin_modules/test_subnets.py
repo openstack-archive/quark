@@ -15,31 +15,12 @@
 
 import contextlib
 
-from neutron import context
-from neutron.db import api as neutron_db_api
-from oslo.config import cfg
-import unittest2
-
 from quark.db import api as db_api
-from quark.db import models
 import quark.ipam
+from quark.tests.functional.base import BaseFunctionalTest
 
 
-class QuarkSubnetFunctionalTest(unittest2.TestCase):
-    def setUp(self):
-        self.context = context.Context('fake', 'fake', is_admin=False)
-        super(QuarkSubnetFunctionalTest, self).setUp()
-
-        cfg.CONF.set_override('connection', 'sqlite://', 'database')
-        neutron_db_api.configure_db()
-        neutron_db_api.register_models(models.BASEV2)
-
-    def tearDown(self):
-        neutron_db_api.unregister_models(models.BASEV2)
-        neutron_db_api.clear_db()
-
-
-class QuarkGetSubnets(QuarkSubnetFunctionalTest):
+class QuarkGetSubnets(BaseFunctionalTest):
     @contextlib.contextmanager
     def _stubs(self, network, subnet):
         self.ipam = quark.ipam.QuarkIpamANY()

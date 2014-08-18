@@ -13,34 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import netaddr
-import unittest2
-
 import contextlib
 
-from neutron import context
-from neutron.db import api as neutron_db_api
-from oslo.config import cfg
+import netaddr
 
 from quark.db import api as db_api
-from quark.db import models
 import quark.ipam
 import quark.plugin
+from quark.tests.functional.base import BaseFunctionalTest
 
 
-class QuarkIpamBaseFunctionalTest(unittest2.TestCase):
+class QuarkIpamBaseFunctionalTest(BaseFunctionalTest):
     def setUp(self):
-        self.context = context.Context('fake', 'fake', is_admin=False)
-        self.plugin = quark.plugin.Plugin()
         super(QuarkIpamBaseFunctionalTest, self).setUp()
-
-        cfg.CONF.set_override('connection', 'sqlite://', 'database')
-        neutron_db_api.configure_db()
-        neutron_db_api.register_models(models.BASEV2)
-
-    def tearDown(self):
-        neutron_db_api.unregister_models(models.BASEV2)
-        neutron_db_api.clear_db()
+        self.plugin = quark.plugin.Plugin()
 
 
 class QuarkTestIPFiltering(QuarkIpamBaseFunctionalTest):

@@ -18,11 +18,9 @@ import aiclib
 import contextlib
 
 import mock
-from neutron.db import api as db_api
 import neutron.extensions.securitygroup as sg_ext
 from oslo.config import cfg
 
-from quark.db import models
 import quark.drivers.nvp_driver
 from quark import exceptions as q_exc
 from quark.tests import test_base
@@ -35,12 +33,9 @@ class TestNVPDriver(test_base.TestBase):
         if not hasattr(self, 'driver'):
             self.driver = quark.drivers.nvp_driver.NVPDriver()
 
-        cfg.CONF.set_override('connection', 'sqlite://', 'database')
         cfg.CONF.set_override('max_rules_per_group', 3, 'NVP')
         cfg.CONF.set_override('max_rules_per_port', 1, 'NVP')
         self.driver.max_ports_per_switch = 0
-        db_api.configure_db()
-        db_api.register_models(models.BASEV2)
 
         self.lswitch_uuid = "12345678-1234-1234-1234-123456781234"
         self.context.tenant_id = "tid"
@@ -123,10 +118,6 @@ class TestNVPDriver(test_base.TestBase):
 
     def _create_security_rule(self, rule={}):
         return lambda *x, **y: dict(y, ethertype=x[0])
-
-    def tearDown(self):
-        db_api.unregister_models(models.BASEV2)
-        db_api.clear_db()
 
 
 class TestNVPDriverCreateNetwork(TestNVPDriver):

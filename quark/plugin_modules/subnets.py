@@ -206,7 +206,6 @@ def create_subnet(context, subnet):
         allocation_pools = utils.pop_param(sub_attrs, "allocation_pools", None)
 
         sub_attrs["network"] = net
-
         new_subnet = db_api.subnet_create(context, **sub_attrs)
 
         default_route = None

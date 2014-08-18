@@ -16,30 +16,12 @@
 import contextlib
 
 import netaddr
-from neutron import context
-from neutron.db import api as neutron_db_api
-from oslo.config import cfg
-import unittest2
 
 from quark.db import api as db_api
-from quark.db import models
+from quark.tests.functional.base import BaseFunctionalTest
 
 
-class QuarkIPAddressFunctionalTest(unittest2.TestCase):
-    def setUp(self):
-        self.context = context.Context('fake', 'fake', is_admin=False)
-        super(QuarkIPAddressFunctionalTest, self).setUp()
-
-        cfg.CONF.set_override('connection', 'sqlite://', 'database')
-        neutron_db_api.configure_db()
-        neutron_db_api.register_models(models.BASEV2)
-
-    def tearDown(self):
-        neutron_db_api.unregister_models(models.BASEV2)
-        neutron_db_api.clear_db()
-
-
-class QuarkGetIPAddresses(QuarkIPAddressFunctionalTest):
+class QuarkGetIPAddresses(BaseFunctionalTest):
     def setUp(self):
         super(QuarkGetIPAddresses, self).setUp()
         self.addr = netaddr.IPAddress("192.168.10.1")

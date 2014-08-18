@@ -15,24 +15,18 @@
 
 
 import mock
-from neutron.db import api as db_api
 from oslo.config import cfg
 
 import quark.plugin
-from quark.tests import test_base
+from quark.tests.functional.base import BaseFunctionalTest
 
 
-class TestQuarkPlugin(test_base.TestBase):
+class TestQuarkPlugin(BaseFunctionalTest):
     def setUp(self):
         super(TestQuarkPlugin, self).setUp()
 
         cfg.CONF.set_override('quota_ports_per_network', 1, 'QUOTAS')
-        cfg.CONF.set_override('connection', 'sqlite://', 'database')
-        db_api.configure_db()
         self.plugin = quark.plugin.Plugin()
-
-    def tearDown(self):
-        db_api.clear_db()
 
 
 class TestQuarkAPIExtensions(TestQuarkPlugin):
