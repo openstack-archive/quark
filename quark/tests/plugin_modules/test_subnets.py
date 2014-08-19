@@ -349,13 +349,10 @@ class TestQuarkCreateSubnetAllocationPools(test_quark_plugin.TestQuarkPlugin):
 # * workaround is also in place for lame ATTR_NOT_SPECIFIED object()
 class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
-    def _stubs(self, subnet=None, network=None, routes=None, dns=None):
+    def _stubs(self, subnet=None, network=True, routes=None, dns=None):
 
-        if network:
-            net = models.Network()
-            net.update(network)
-            network = net
-        subnet_mod = models.Subnet(network=models.Network())
+        subnet_mod = models.Subnet(
+            network=models.Network(id=1) if network else None)
         dns_ips = subnet.pop("dns_nameservers", [])
         host_routes = subnet.pop("host_routes", [])
         subnet_mod.update(subnet)
@@ -391,10 +388,8 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                         dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
                         host_routes=neutron_attrs.ATTR_NOT_SPECIFIED,
                         enable_dhcp=None))
-        network = dict(network_id=1)
         with self._stubs(
             subnet=subnet["subnet"],
-            network=network,
             routes=routes
         ) as (subnet_create, dns_create, route_create):
             dns_nameservers = subnet["subnet"].pop("dns_nameservers")
@@ -426,10 +421,8 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                         dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
                         host_routes=neutron_attrs.ATTR_NOT_SPECIFIED,
                         enable_dhcp=None))
-        network = dict(network_id=1)
         with self._stubs(
             subnet=subnet["subnet"],
-            network=network,
             routes=routes
         ) as (subnet_create, dns_create, route_create):
             dns_nameservers = subnet["subnet"].pop("dns_nameservers")
@@ -449,10 +442,8 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                         dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
                         host_routes=neutron_attrs.ATTR_NOT_SPECIFIED,
                         enable_dhcp=None))
-        network = dict(network_id=1)
         with self._stubs(
             subnet=subnet["subnet"],
-            network=network,
             routes=routes
         ) as (subnet_create, dns_create, route_create):
             dns_nameservers = subnet["subnet"].pop("dns_nameservers")
@@ -472,10 +463,8 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                         dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
                         host_routes=neutron_attrs.ATTR_NOT_SPECIFIED,
                         enable_dhcp=None))
-        network = dict(network_id=1)
         with self._stubs(
             subnet=subnet["subnet"],
-            network=network,
             routes=routes
         ) as (subnet_create, dns_create, route_create):
             dns_nameservers = subnet["subnet"].pop("dns_nameservers")
@@ -500,7 +489,7 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
 
     def test_create_subnet_no_network_fails(self):
         subnet = dict(subnet=dict(network_id=1))
-        with self._stubs(subnet=dict(), network=None):
+        with self._stubs(subnet=dict(), network=False):
             with self.assertRaises(exceptions.NetworkNotFound):
                 self.plugin.create_subnet(self.context, subnet)
 
@@ -513,10 +502,8 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                         gateway_ip=neutron_attrs.ATTR_NOT_SPECIFIED,
                         dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
                         enable_dhcp=None))
-        network = dict(network_id=1)
         with self._stubs(
             subnet=subnet["subnet"],
-            network=network,
             routes=routes
         ) as (subnet_create, dns_create, route_create):
             dns_nameservers = subnet["subnet"].pop("dns_nameservers")
@@ -545,10 +532,8 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                         cidr="172.16.0.0/24", gateway_ip="0.0.0.0",
                         dns_nameservers=["4.2.2.1", "4.2.2.2"],
                         enable_dhcp=None))
-        network = dict(network_id=1)
         with self._stubs(
             subnet=subnet["subnet"],
-            network=network,
             routes=routes,
             dns=dns_ns
         ) as (subnet_create, dns_create, route_create):
@@ -574,10 +559,8 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                         host_routes=[{"destination": "1.1.1.1/8",
                                       "nexthop": "172.16.0.4"}],
                         enable_dhcp=None))
-        network = dict(network_id=1)
         with self._stubs(
             subnet=subnet["subnet"],
-            network=network,
             routes=routes
         ) as (subnet_create, dns_create, route_create):
             dns_nameservers = subnet["subnet"].pop("dns_nameservers")
@@ -607,10 +590,8 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                         host_routes=[{"destination": "0.0.0.0/0",
                                       "nexthop": "172.16.0.4"}],
                         enable_dhcp=None))
-        network = dict(network_id=1)
         with self._stubs(
             subnet=subnet["subnet"],
-            network=network,
             routes=routes
         ) as (subnet_create, dns_create, route_create):
             dns_nameservers = subnet["subnet"].pop("dns_nameservers")
@@ -645,10 +626,8 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                             {"destination": "0.0.0.0/0",
                              "nexthop": "172.16.0.4"}],
                         enable_dhcp=None))
-        network = dict(network_id=1)
         with self._stubs(
             subnet=subnet["subnet"],
-            network=network,
             routes=routes
         ) as (subnet_create, dns_create, route_create):
             dns_nameservers = subnet["subnet"].pop("dns_nameservers")
@@ -676,10 +655,8 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                         host_routes=[{"destination": "0.0.0.0/0",
                                       "nexthop": "172.16.0.4"}],
                         enable_dhcp=None))
-        network = dict(network_id=1)
         with self._stubs(
             subnet=subnet["subnet"],
-            network=network,
             routes=routes
         ) as (subnet_create, dns_create, route_create):
             dns_nameservers = subnet["subnet"].pop("dns_nameservers")
@@ -709,10 +686,8 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                         gateway_ip=None,
                         dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
                         enable_dhcp=None))
-        network = dict(network_id=1)
         with self._stubs(
             subnet=subnet["subnet"],
-            network=network,
             routes=routes
         ) as (subnet_create, dns_create, route_create):
             dns_nameservers = subnet["subnet"].pop("dns_nameservers")
@@ -761,7 +736,7 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
         subnet_mod = None
         if has_subnet:
             subnet = dict(
-                id=1,
+                id=0,
                 network_id=1,
                 tenant_id=self.context.tenant_id,
                 ip_version=ip_version,
@@ -775,7 +750,9 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
             subnet_mod = models.Subnet(
                 ip_policy=models.IPPolicy(
                     exclude=[models.IPPolicyCIDR(cidr="172.16.0.0/32"),
-                             models.IPPolicyCIDR(cidr="172.16.0.255/32")]))
+                             models.IPPolicyCIDR(cidr="172.16.0.255/32")]),
+                network=models.Network(id=1)
+            )
             subnet_mod.update(subnet)
 
             subnet_mod["dns_nameservers"] = [models.DNSNameserver(ip=ip)
@@ -799,8 +776,9 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
                 route_find.return_value = (subnet_mod["routes"][0] if
                                            subnet_mod["routes"] and
                                            find_routes else None)
-                new_subnet_mod = models.Subnet(network=models.Network())
+                new_subnet_mod = models.Subnet()
                 new_subnet_mod.update(subnet_mod)
+                new_subnet_mod.update(dict(id=1))
                 if new_routes:
                     new_subnet_mod["routes"] = new_routes
                 if new_dns_servers:
@@ -1183,6 +1161,7 @@ class TestQuarkCreateSubnetAttrFilters(test_quark_plugin.TestQuarkPlugin):
             mock.patch("neutron.common.rpc.get_notifier")
         ) as (subnet_create, net_find, dns_create, route_create, sub_dict,
               subnet_find, get_notifier):
+            route_create.return_value = models.Route()
             yield subnet_create, net_find
 
     def test_create_subnet(self):

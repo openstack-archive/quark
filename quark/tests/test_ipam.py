@@ -19,7 +19,6 @@ import mock
 import netaddr
 from neutron.common import exceptions
 from neutron.common import rpc
-from neutron.db import api as neutron_db_api
 from oslo.config import cfg
 from oslo.db import exception as db_exc
 
@@ -38,9 +37,6 @@ class QuarkIpamBaseTest(test_base.TestBase):
         self.addCleanup(patcher.stop)
         rpc.init(mock.MagicMock())
 
-        cfg.CONF.set_override('connection', 'sqlite://', 'database')
-        neutron_db_api.configure_db()
-        neutron_db_api.register_models(models.BASEV2)
         self.ipam = quark.ipam.QuarkIpamANY()
         self.reuse_after = cfg.CONF.QUARK.ipam_reuse_after
 
@@ -53,10 +49,6 @@ class QuarkIpamBaseTest(test_base.TestBase):
 
         self.context.session.begin = FakeContext
         self.context.session.add = mock.Mock()
-
-    def tearDown(self):
-        neutron_db_api.unregister_models(models.BASEV2)
-        neutron_db_api.clear_db()
 
 
 class QuarkMacAddressAllocateDeallocated(QuarkIpamBaseTest):

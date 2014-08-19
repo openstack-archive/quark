@@ -13,30 +13,11 @@
 # License for# the specific language governing permissions and limitations
 #  under the License.
 
-from neutron import context
-from neutron.db import api as neutron_db_api
-from oslo.config import cfg
-import unittest2
-
 from quark.db import api as db_api
-from quark.db import models
+from quark.tests.functional.base import BaseFunctionalTest
 
 
-class QuarkNetworkFunctionalTest(unittest2.TestCase):
-    def setUp(self):
-        self.context = context.Context('fake', 'fake', is_admin=False)
-        super(QuarkNetworkFunctionalTest, self).setUp()
-
-        cfg.CONF.set_override('connection', 'sqlite://', 'database')
-        neutron_db_api.configure_db()
-        neutron_db_api.register_models(models.BASEV2)
-
-    def tearDown(self):
-        neutron_db_api.unregister_models(models.BASEV2)
-        neutron_db_api.clear_db()
-
-
-class QuarkFindPortsSorted(QuarkNetworkFunctionalTest):
+class QuarkFindPortsSorted(BaseFunctionalTest):
     def test_ports_sorted_by_created_at(self):
         # create a network
         network = dict(name="public", tenant_id="fake", network_plugin="BASE")
@@ -57,7 +38,7 @@ class QuarkFindPortsSorted(QuarkNetworkFunctionalTest):
         db_api.port_delete(self.context, port_mod3)
 
 
-class QuarkFindPortsFilterByDeviceOwner(QuarkNetworkFunctionalTest):
+class QuarkFindPortsFilterByDeviceOwner(BaseFunctionalTest):
     def test_port_list_device_owner_found_returns_only_those(self):
         # create a network
         network = dict(name="public", tenant_id="fake", network_plugin="BASE")
