@@ -6,6 +6,7 @@ import tempfile
 from alembic import command as alembic_command
 from alembic import config as alembic_config
 import mock
+import netaddr
 from oslo.db.sqlalchemy import test_migrations
 import sqlalchemy as sa
 from sqlalchemy import create_engine
@@ -700,6 +701,80 @@ class Test28e55acaf366(BaseMigrationTest):
         alembic_command.upgrade(self.config, '28e55acaf366')
         with self.assertRaises(NotImplementedError):
             alembic_command.downgrade(self.config, '3d22de205729')
+
+
+class Test1664300cb03a(BaseMigrationTest):
+    def setUp(self):
+        super(Test1664300cb03a, self).setUp()
+        alembic_command.upgrade(self.config, '1acd075bd7e1')
+        self.ip_policy_cidrs = table(
+            'quark_ip_policy_cidrs',
+            column('id', sa.String(length=36)),
+            column('ip_policy_id', sa.String(length=36)),
+            column('cidr', sa.String(length=64)),
+            column('first_ip', INET()),
+            column('last_ip', INET()))
+
+    def test_upgrade_empty(self):
+        alembic_command.upgrade(self.config, '1664300cb03a')
+        results = self.connection.execute(select([
+            self.ip_policy_cidrs])).fetchall()
+        self.assertEqual(len(results), 0)
+
+    def test_upgrade_ipv4(self):
+        net = netaddr.IPNetwork("192.168.10.13/31")
+        self.connection.execute(
+            self.ip_policy_cidrs.insert(),
+            dict(id="1", ip_policy_id="1", cidr=str(net)))
+        alembic_command.upgrade(self.config, '1664300cb03a')
+        results = self.connection.execute(select([
+            self.ip_policy_cidrs])).fetchall()
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["id"], "1")
+        self.assertEqual(results[0]["ip_policy_id"], "1")
+        self.assertEqual(results[0]["cidr"], str(net))
+        self.assertEqual(results[0]["first_ip"], net.ipv6().first)
+        self.assertEqual(results[0]["last_ip"], net.ipv6().last)
+
+    def test_upgrade_ipv6(self):
+        net = netaddr.IPNetwork("fd00::/64")
+        self.connection.execute(
+            self.ip_policy_cidrs.insert(),
+            dict(id="1", ip_policy_id="1", cidr=str(net)))
+        alembic_command.upgrade(self.config, '1664300cb03a')
+        results = self.connection.execute(select([
+            self.ip_policy_cidrs])).fetchall()
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["id"], "1")
+        self.assertEqual(results[0]["ip_policy_id"], "1")
+        self.assertEqual(results[0]["cidr"], "fd00::/64")
+        self.assertEqual(results[0]["first_ip"], net.first)
+        self.assertEqual(results[0]["last_ip"], net.last)
+
+    def test_upgrade_bulk(self):
+        netv4 = netaddr.IPNetwork("192.168.10.13/31")
+        netv6 = netaddr.IPNetwork("fd00::/64")
+        self.connection.execute(
+            self.ip_policy_cidrs.insert(),
+            dict(id="1", ip_policy_id="1", cidr=str(netv4)),
+            dict(id="2", ip_policy_id="2", cidr=str(netv6)))
+        alembic_command.upgrade(self.config, '1664300cb03a')
+        results = self.connection.execute(select([
+            self.ip_policy_cidrs])).fetchall()
+        self.assertEqual(len(results), 2)
+        for result in results:
+            self.assertIn(result["cidr"], (str(netv4), str(netv6)))
+            if result["cidr"] == "192.168.10.13/31":
+                self.assertEqual(result["first_ip"], netv4.ipv6().first)
+                self.assertEqual(result["last_ip"], netv4.ipv6().last)
+            else:
+                self.assertEqual(result["first_ip"], netv6.first)
+                self.assertEqual(result["last_ip"], netv6.last)
+
+    def test_downgrade(self):
+        alembic_command.upgrade(self.config, '1664300cb03a')
+        with self.assertRaises(NotImplementedError):
+            alembic_command.downgrade(self.config, '1acd075bd7e1')
 
 
 class ModelsMigrationsSync(BaseMigrationTest,

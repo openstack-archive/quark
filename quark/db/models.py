@@ -392,6 +392,8 @@ class IPPolicyCIDR(BASEV2, models.HasId):
     ip_policy_id = sa.Column(sa.String(36), sa.ForeignKey(
         "quark_ip_policy.id", ondelete="CASCADE"))
     cidr = sa.Column(sa.String(64))
+    first_ip = sa.Column(custom_types.INET())
+    last_ip = sa.Column(custom_types.INET())
 
 
 class Network(BASEV2, models.HasId):
