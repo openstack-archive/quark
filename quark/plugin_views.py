@@ -103,7 +103,8 @@ def _make_subnet_dict(subnet, fields=None):
            "dns_nameservers": dns_nameservers or [],
            "cidr": subnet.get("cidr"),
            "shared": STRATEGY.is_parent_network(net_id),
-           "enable_dhcp": None}
+           "enable_dhcp": None,
+           "ip_policy_id": subnet.get("ip_policy_id")}
 
     if CONF.QUARK.show_allocation_pools:
         res["allocation_pools"] = _allocation_pools(subnet)
