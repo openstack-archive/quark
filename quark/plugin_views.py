@@ -54,11 +54,14 @@ def _make_network_dict(network, fields=None):
            "ipam_strategy": network.get("ipam_strategy"),
            "status": "ACTIVE",
            "shared": shared_net}
-    if fields and "all_subnets" in fields:
-        res["subnets"] = [_make_subnet_dict(s)
-                          for s in network.get("subnets", [])]
+    if not shared_net:
+        if fields and "all_subnets" in fields:
+            res["subnets"] = [_make_subnet_dict(s)
+                              for s in network.get("subnets", [])]
+        else:
+            res["subnets"] = [s["id"] for s in network.get("subnets", [])]
     else:
-        res["subnets"] = [s["id"] for s in network.get("subnets", [])]
+        res["subnets"] = []
     return res
 
 
