@@ -66,33 +66,42 @@ def create_ip_policy(context, ip_policy):
             msg="network_ids or subnet_ids not specified")
 
     with context.session.begin():
-        models = []
         if subnet_ids:
             subnets = db_api.subnet_find(
                 context, id=subnet_ids, scope=db_api.ALL)
             if not subnets:
                 raise exceptions.SubnetNotFound(id=subnet_ids)
+            _check_for_pre_existing_policies_in(subnets)
             ensure_default_policy(ipp["exclude"], subnets)
             _validate_cidrs_fit_into_subnets(ipp["exclude"], subnets)
-            models.extend(subnets)
+            ipp.pop("subnet_ids")
+            ipp["subnets"] = subnets
 
         if network_ids:
             nets = db_api.network_find(
                 context, id=network_ids, scope=db_api.ALL)
             if not nets:
                 raise exceptions.NetworkNotFound(net_id=network_ids)
+            _check_for_pre_existing_policies_in(nets)
             subnets = [subnet for net in nets
                        for subnet in net.get("subnets", [])]
             ensure_default_policy(ipp["exclude"], subnets)
             _validate_cidrs_fit_into_subnets(ipp["exclude"], subnets)
-            models.extend(nets)
+            ipp.pop("network_ids")
+            ipp["networks"] = nets
 
-        for model in models:
-            if model["ip_policy"]:
-                raise quark_exceptions.IPPolicyAlreadyExists(
-                    id=model["ip_policy"]["id"], n_id=model["id"])
-            model["ip_policy"] = db_api.ip_policy_create(context, **ipp)
-    return v._make_ip_policy_dict(model["ip_policy"])
+        ip_policy = db_api.ip_policy_create(context, **ipp)
+    return v._make_ip_policy_dict(ip_policy)
+
+
+def _check_for_pre_existing_policies_in(models):
+    models_with_existing_policies = [model for model in models
+                                     if model.get('ip_policy', None)]
+    if models_with_existing_policies:
+        first_model = models_with_existing_policies[0]
+        raise quark_exceptions.IPPolicyAlreadyExists(
+            id=first_model['ip_policy']['id'],
+            n_id=first_model['id'])
 
 
 def get_ip_policy(context, id):
@@ -210,5 +219,6 @@ def ensure_default_policy(cidrs, subnets):
         default_policy_cidrs = ["%s/%s" % (network_ip, prefix_len),
                                 "%s/%s" % (broadcast_ip, prefix_len)]
         for cidr in default_policy_cidrs:
-            if netaddr.IPNetwork(cidr) not in policy_cidrs:
+            if (netaddr.IPNetwork(cidr) not in policy_cidrs
+                    and cidr not in cidrs):
                 cidrs.append(cidr)
