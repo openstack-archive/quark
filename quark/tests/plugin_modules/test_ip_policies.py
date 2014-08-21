@@ -84,10 +84,12 @@ class TestQuarkCreateIpPolicies(test_quark_plugin.TestQuarkPlugin):
             mock.patch("%s.subnet_find" % db_mod),
             mock.patch("%s.network_find" % db_mod),
             mock.patch("%s.ip_policy_create" % db_mod),
-        ) as (subnet_find, net_find, ip_policy_create):
+            mock.patch("%s.route_find" % db_mod)
+        ) as (subnet_find, net_find, ip_policy_create, route_find):
             subnet_find.return_value = [subnet] if subnet else None
             net_find.return_value = [net] if net else None
             ip_policy_create.return_value = ip_policy
+            route_find.return_value = [{"nexthop": "1.2.3.4"}]
             yield ip_policy_create
 
     def test_create_ip_policy_invalid_body_missing_exclude(self):
@@ -401,6 +403,49 @@ class TestQuarkDeleteIpPolicies(test_quark_plugin.TestQuarkPlugin):
             self.plugin.delete_ip_policy(self.context, 1)
             self.assertEqual(ip_policy_find.call_count, 1)
             self.assertEqual(ip_policy_delete.call_count, 1)
+
+
+class TestQuarkUpdatePolicySubnetWithRoutes(test_quark_plugin.TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, ip_policy, subnets=None, routes=None):
+        subnets = subnets or []
+        db_mod = "quark.db.api"
+        with contextlib.nested(
+            mock.patch("%s.ip_policy_find" % db_mod),
+            mock.patch("%s.subnet_find" % db_mod),
+            mock.patch("%s.route_find" % db_mod),
+            mock.patch("%s.ip_policy_update" % db_mod),
+        ) as (ip_policy_find, subnet_find, route_find, ip_policy_update):
+            ip_policy_find.return_value = ip_policy
+            subnet_find.return_value = subnets
+            route_find.return_value = routes
+            yield ip_policy_update
+
+    def test_update_ip_policy_has_route_conflict_raises(self):
+        subnet = dict(id=1, cidr="192.168.0.0/24")
+        ipp = dict(id=1, subnets=[subnet], exclude=["192.168.0.1/32"],
+                   name="foo", tenant_id=1)
+        route = {"gateway": "192.168.0.1", "subnet_id": subnet["id"]}
+        with self._stubs(ipp, subnets=[subnet], routes=[route]):
+            with self.assertRaises(
+                    exceptions.GatewayConflictWithAllocationPools):
+                self.plugin.update_ip_policy(
+                    self.context, 1,
+                    dict(ip_policy=dict(subnet_ids=[1], exclude=[])))
+
+    def test_update_ip_policy_no_route_conflict(self):
+        subnet = dict(id=1, cidr="192.168.0.0/24")
+        ipp = dict(id=1, subnets=[subnet], exclude=["192.168.0.1/32"],
+                   name="foo", tenant_id=1)
+        route = {"gateway": "192.168.0.1", "subnet_id": subnet["id"]}
+        with self._stubs(ipp, subnets=[subnet], routes=[route]):
+            try:
+                self.plugin.update_ip_policy(
+                    self.context, 1,
+                    dict(ip_policy=dict(subnet_ids=[1],
+                                        exclude=["192.168.0.0/24"])))
+            except Exception as e:
+                self.fail("This shouldn't have raised: %s" % e)
 
 
 class TestQuarkValidateCIDRsFitsIntoSubnets(test_quark_plugin.TestQuarkPlugin):

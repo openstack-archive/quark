@@ -273,6 +273,17 @@ class TestQuarkCreateSubnetAllocationPools(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(subnet_create.call_count, 1)
             self.assertEqual(resp["allocation_pools"], pools)
 
+    def test_create_subnet_allocation_pools_gateway_conflict(self):
+        pools = [dict(start="192.168.1.1", end="192.168.1.20")]
+        s = dict(subnet=dict(allocation_pools=pools,
+                             cidr="192.168.1.1/24",
+                             gateway_ip="192.168.1.1",
+                             network_id=1))
+        with self._stubs(s["subnet"]):
+            with self.assertRaises(
+                    exceptions.GatewayConflictWithAllocationPools):
+                self.plugin.create_subnet(self.context, s)
+
     def test_create_subnet_allocation_pools_invalid_outside(self):
         pools = [dict(start="192.168.0.10", end="192.168.0.20")]
         s = dict(subnet=dict(
@@ -494,7 +505,6 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                 self.plugin.create_subnet(self.context, subnet)
 
     def test_create_subnet_no_gateway_ip_defaults(self):
-        routes = [dict(cidr="0.0.0.0/0", gateway="172.16.0.1")]
         subnet = dict(
             subnet=dict(network_id=1,
                         tenant_id=self.context.tenant_id, ip_version=4,
@@ -504,7 +514,7 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                         enable_dhcp=None))
         with self._stubs(
             subnet=subnet["subnet"],
-            routes=routes
+            routes=[]
         ) as (subnet_create, dns_create, route_create):
             dns_nameservers = subnet["subnet"].pop("dns_nameservers")
             gateway_ip = subnet["subnet"].pop("gateway_ip")
@@ -514,7 +524,7 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
             res = self.plugin.create_subnet(self.context, subnet_request)
             self.assertEqual(subnet_create.call_count, 1)
             self.assertEqual(dns_create.call_count, 0)
-            self.assertEqual(route_create.call_count, 1)
+            self.assertEqual(route_create.call_count, 0)
             for key in subnet["subnet"].keys():
                 if key == "gateway_ip":
                     self.assertEqual(res[key], "172.16.0.1")
@@ -558,6 +568,8 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                         dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
                         host_routes=[{"destination": "1.1.1.1/8",
                                       "nexthop": "172.16.0.4"}],
+                        allocation_pools=[{"start": "172.16.0.5",
+                                           "end": "172.16.0.254"}],
                         enable_dhcp=None))
         with self._stubs(
             subnet=subnet["subnet"],
@@ -589,6 +601,8 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                         dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
                         host_routes=[{"destination": "0.0.0.0/0",
                                       "nexthop": "172.16.0.4"}],
+                        allocation_pools=[{"start": "172.16.0.5",
+                                           "end": "172.16.0.254"}],
                         enable_dhcp=None))
         with self._stubs(
             subnet=subnet["subnet"],
@@ -625,6 +639,8 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                              "nexthop": "172.16.0.4"},
                             {"destination": "0.0.0.0/0",
                              "nexthop": "172.16.0.4"}],
+                        allocation_pools=[{"start": "172.16.0.5",
+                                           "end": "172.16.0.254"}],
                         enable_dhcp=None))
         with self._stubs(
             subnet=subnet["subnet"],
@@ -654,6 +670,8 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                         dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
                         host_routes=[{"destination": "0.0.0.0/0",
                                       "nexthop": "172.16.0.4"}],
+                        allocation_pools=[{"start": "172.16.0.5",
+                                           "end": "172.16.0.254"}],
                         enable_dhcp=None))
         with self._stubs(
             subnet=subnet["subnet"],
@@ -966,6 +984,16 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
             expected_pools = []
             self.assertEqual(resp["allocation_pools"], expected_pools)
 
+    def test_update_subnet_conflicting_gateway(self):
+        pools = [dict(start="172.16.0.1", end="172.16.0.254")]
+        s = dict(subnet=dict(allocation_pools=pools, gateway_ip="172.16.0.1"))
+        with self._stubs(
+            new_ip_policy=['172.16.0.0/30', '172.16.0.4/32', '172.16.0.255/32']
+        ) as (dns_create, route_update, route_create):
+            with self.assertRaises(
+                    exceptions.GatewayConflictWithAllocationPools):
+                self.plugin.update_subnet(self.context, 1, s)
+
 
 class TestQuarkDeleteSubnet(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
@@ -1210,6 +1238,7 @@ class TestQuarkCreateSubnetAttrFilters(test_quark_plugin.TestQuarkPlugin):
 class TestQuarkUpdateSubnetAttrFilters(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self):
+        pool_mod = "quark.allocation_pool.AllocationPools"
         with contextlib.nested(
             mock.patch("quark.db.api.subnet_find"),
             mock.patch("quark.db.api.subnet_update"),
@@ -1217,9 +1246,10 @@ class TestQuarkUpdateSubnetAttrFilters(test_quark_plugin.TestQuarkPlugin):
             mock.patch("quark.db.api.route_find"),
             mock.patch("quark.db.api.route_update"),
             mock.patch("quark.db.api.route_create"),
+            mock.patch(pool_mod),
             mock.patch("quark.plugin_views._make_subnet_dict")
         ) as (subnet_find, subnet_update, dns_create, route_find,
-              route_update, route_create, make_subnet):
+              route_update, route_create, make_subnet, gateway_exclude):
             yield subnet_update, subnet_find
 
     def test_update_subnet_attr_filters(self):

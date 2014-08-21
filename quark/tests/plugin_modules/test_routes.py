@@ -16,6 +16,7 @@
 import contextlib
 
 import mock
+import netaddr
 from neutron.common import exceptions
 
 from quark.db import api as db_api
@@ -59,15 +60,23 @@ class TestQuarkCreateRoutes(test_quark_plugin.TestQuarkPlugin):
         with contextlib.nested(
             mock.patch("%s.route_create" % db_mod),
             mock.patch("%s.route_find" % db_mod),
-            mock.patch("%s.subnet_find" % db_mod)
-        ) as (route_create, route_find, subnet_find):
+            mock.patch("%s.subnet_find" % db_mod),
+            # This module can't run independently otherwise, as the Quota
+            # model isn't defined in this test unit, and no clean way to
+            # use a model such that it would be defined. In other words,
+            # running the other tests still has side-effects, which should
+            # be investigated and cleaned up later.
+            mock.patch("neutron.quota.QuotaEngine.limit_check")
+        ) as (route_create, route_find, subnet_find, quota):
             route_create.return_value = create_route
             route_find.return_value = find_routes
             subnet_find.return_value = subnet
             yield
 
     def test_create_route(self):
-        subnet = dict(id=2)
+        excluded_net = netaddr.IPNetwork("192.168.0.1/32")
+        ip_policy = {"exclude": [excluded_net]}
+        subnet = dict(id=2, ip_policy=ip_policy, cidr="192.168.0.0/24")
         create_route = dict(id=1, cidr="172.16.0.0/24", gateway="172.16.0.1",
                             subnet_id=subnet["id"])
         route = dict(id=1, cidr="0.0.0.0/0", gateway="192.168.0.1",
@@ -80,7 +89,9 @@ class TestQuarkCreateRoutes(test_quark_plugin.TestQuarkPlugin):
                 self.assertEqual(res[key], create_route[key])
 
     def test_create_route_no_subnet_fails(self):
-        subnet = dict(id=2)
+        excluded_net = netaddr.IPNetwork("192.168.0.1/32")
+        ip_policy = {"exclude": [excluded_net]}
+        subnet = dict(id=2, ip_policy=ip_policy, cidr="192.168.0.0/24")
         route = dict(id=1, cidr="192.168.0.0/24", gateway="192.168.0.1",
                      subnet_id=subnet["id"])
         with self._stubs(create_route=route, find_routes=[], subnet=None):
@@ -88,7 +99,9 @@ class TestQuarkCreateRoutes(test_quark_plugin.TestQuarkPlugin):
                 self.plugin.create_route(self.context, dict(route=route))
 
     def test_create_no_other_routes(self):
-        subnet = dict(id=2)
+        excluded_net = netaddr.IPNetwork("192.168.0.1/32")
+        ip_policy = {"exclude": [excluded_net]}
+        subnet = dict(id=2, ip_policy=ip_policy, cidr="192.168.0.0/24")
         create_route = dict(id=1, cidr="192.168.0.0/24", gateway="192.168.0.1",
                             subnet_id=subnet["id"])
         with self._stubs(create_route=create_route, find_routes=[],
@@ -98,7 +111,9 @@ class TestQuarkCreateRoutes(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(res["cidr"], create_route["cidr"])
 
     def test_create_conflicting_route_raises(self):
-        subnet = dict(id=2)
+        excluded_net = netaddr.IPNetwork("192.168.0.1/32")
+        ip_policy = {"exclude": [excluded_net]}
+        subnet = dict(id=2, ip_policy=ip_policy, cidr="192.168.0.0/24")
         create_route = dict(id=1, cidr="192.168.0.0/24", gateway="192.168.0.1",
                             subnet_id=subnet["id"])
         route = dict(id=1, cidr="192.168.0.0/24", gateway="192.168.0.1",
@@ -106,6 +121,17 @@ class TestQuarkCreateRoutes(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(create_route=create_route, find_routes=[route],
                          subnet=subnet):
             with self.assertRaises(quark_exceptions.RouteConflict):
+                self.plugin.create_route(self.context,
+                                         dict(route=create_route))
+
+    def test_create_route_gateway_conflict_raises(self):
+        subnet = dict(id=2, ip_policy=[], cidr="192.168.0.0/24")
+        create_route = dict(id=1, cidr="192.168.0.0/24", gateway="192.168.0.1",
+                            subnet_id=subnet["id"])
+        with self._stubs(create_route=create_route, find_routes=[],
+                         subnet=subnet):
+            with self.assertRaises(
+                    exceptions.GatewayConflictWithAllocationPools):
                 self.plugin.create_route(self.context,
                                          dict(route=create_route))
 

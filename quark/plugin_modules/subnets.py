@@ -22,7 +22,9 @@ from neutron.openstack.common import log as logging
 from neutron.openstack.common import timeutils
 from oslo.config import cfg
 
+from quark import allocation_pool
 from quark.db import api as db_api
+from quark.db import models as db_models
 from quark import exceptions as q_exc
 from quark import network_strategy
 from quark.plugin_modules import ip_policies
@@ -70,91 +72,6 @@ def _validate_subnet_cidr(context, network_id, new_subnet_cidr):
             raise exceptions.InvalidInput(error_message=err_msg)
 
 
-# Note(asadoughi): Copied from neutron/db/db_base_plugin_v2.py
-def _validate_allocation_pools(ip_pools, subnet_cidr):
-    """Validate IP allocation pools.
-
-    Verify start and end address for each allocation pool are valid,
-    ie: constituted by valid and appropriately ordered IP addresses.
-    Also, verify pools do not overlap among themselves.
-    Finally, verify that each range fall within the subnet's CIDR.
-    """
-    subnet = netaddr.IPNetwork(subnet_cidr)
-    subnet_first_ip = netaddr.IPAddress(subnet.first + 1)
-    subnet_last_ip = netaddr.IPAddress(subnet.last - 1)
-
-    LOG.debug(_("Performing IP validity checks on allocation pools"))
-    ip_sets = []
-    for ip_pool in ip_pools:
-        try:
-            start_ip = netaddr.IPAddress(ip_pool['start'])
-            end_ip = netaddr.IPAddress(ip_pool['end'])
-        except netaddr.AddrFormatError:
-            LOG.info(_("Found invalid IP address in pool: "
-                       "%(start)s - %(end)s:"),
-                     {'start': ip_pool['start'],
-                      'end': ip_pool['end']})
-            raise exceptions.InvalidAllocationPool(pool=ip_pool)
-        if (start_ip.version != subnet.version or
-                end_ip.version != subnet.version):
-            LOG.info(_("Specified IP addresses do not match "
-                       "the subnet IP version"))
-            raise exceptions.InvalidAllocationPool(pool=ip_pool)
-        if end_ip < start_ip:
-            LOG.info(_("Start IP (%(start)s) is greater than end IP "
-                       "(%(end)s)"),
-                     {'start': ip_pool['start'], 'end': ip_pool['end']})
-            raise exceptions.InvalidAllocationPool(pool=ip_pool)
-        if start_ip < subnet_first_ip or end_ip > subnet_last_ip:
-            LOG.info(_("Found pool larger than subnet "
-                       "CIDR:%(start)s - %(end)s"),
-                     {'start': ip_pool['start'],
-                      'end': ip_pool['end']})
-            raise exceptions.OutOfBoundsAllocationPool(
-                pool=ip_pool,
-                subnet_cidr=subnet_cidr)
-        # Valid allocation pool
-        # Create an IPSet for it for easily verifying overlaps
-        ip_sets.append(netaddr.IPSet(netaddr.IPRange(
-            ip_pool['start'],
-            ip_pool['end']).cidrs()))
-
-    LOG.debug(_("Checking for overlaps among allocation pools "
-                "and gateway ip"))
-    ip_ranges = ip_pools[:]
-
-    # Use integer cursors as an efficient way for implementing
-    # comparison and avoiding comparing the same pair twice
-    for l_cursor in range(len(ip_sets)):
-        for r_cursor in range(l_cursor + 1, len(ip_sets)):
-            if ip_sets[l_cursor] & ip_sets[r_cursor]:
-                l_range = ip_ranges[l_cursor]
-                r_range = ip_ranges[r_cursor]
-                LOG.info(_("Found overlapping ranges: %(l_range)s and "
-                           "%(r_range)s"),
-                         {'l_range': l_range, 'r_range': r_range})
-                raise exceptions.OverlappingAllocationPools(
-                    pool_1=l_range,
-                    pool_2=r_range,
-                    subnet_cidr=subnet_cidr)
-
-
-def _get_exclude_cidrs_from_allocation_pools(subnet_db, allocation_pools):
-    subnet_net = netaddr.IPNetwork(subnet_db["cidr"])
-    cidrset = netaddr.IPSet(
-        netaddr.IPRange(
-            netaddr.IPAddress(subnet_net.first),
-            netaddr.IPAddress(subnet_net.last)).cidrs())
-    for p in allocation_pools:
-        start = netaddr.IPAddress(p["start"])
-        end = netaddr.IPAddress(p["end"])
-        cidrset -= netaddr.IPSet(netaddr.IPRange(
-            netaddr.IPAddress(start),
-            netaddr.IPAddress(end)).cidrs())
-    cidrs = [str(x.cidr) for x in cidrset.iter_cidrs()]
-    return cidrs
-
-
 def create_subnet(context, subnet):
     """Create a subnet.
 
@@ -200,7 +117,9 @@ def create_subnet(context, subnet):
             err_msg = err % err_vals
             raise exceptions.InvalidInput(error_message=err_msg)
 
-        gateway_ip = utils.pop_param(sub_attrs, "gateway_ip", str(cidr[1]))
+        # See RM981. The default behavior of setting a gateway unless
+        # explicitly asked to not is no longer desirable.
+        gateway_ip = utils.pop_param(sub_attrs, "gateway_ip")
         dns_ips = utils.pop_param(sub_attrs, "dns_nameservers", [])
         host_routes = utils.pop_param(sub_attrs, "host_routes", [])
         allocation_pools = utils.pop_param(sub_attrs, "allocation_pools", None)
@@ -208,9 +127,19 @@ def create_subnet(context, subnet):
         sub_attrs["network"] = net
         new_subnet = db_api.subnet_create(context, **sub_attrs)
 
+        cidrs = []
+        alloc_pools = allocation_pool.AllocationPools(sub_attrs["cidr"],
+                                                      allocation_pools)
+        if isinstance(allocation_pools, list):
+            cidrs = alloc_pools.get_policy_cidrs()
+
+        ip_policies.ensure_default_policy(cidrs, [new_subnet])
+        new_subnet["ip_policy"] = db_api.ip_policy_create(context,
+                                                          exclude=cidrs)
         default_route = None
         for route in host_routes:
             netaddr_route = netaddr.IPNetwork(route["destination"])
+            alloc_pools.validate_gateway_excluded(route["nexthop"])
             if netaddr_route.value == routes.DEFAULT_ROUTE.value:
                 if default_route:
                     raise q_exc.DuplicateRouteConflict(
@@ -221,22 +150,16 @@ def create_subnet(context, subnet):
             new_subnet["routes"].append(db_api.route_create(
                 context, cidr=route["destination"], gateway=route["nexthop"]))
 
-        if gateway_ip and default_route is None:
-            new_subnet["routes"].append(db_api.route_create(
-                context, cidr=str(routes.DEFAULT_ROUTE), gateway=gateway_ip))
-
         for dns_ip in dns_ips:
             new_subnet["dns_nameservers"].append(db_api.dns_create(
                 context, ip=netaddr.IPAddress(dns_ip)))
 
-        cidrs = []
-        if isinstance(allocation_pools, list):
-            _validate_allocation_pools(allocation_pools, sub_attrs["cidr"])
-            cidrs = _get_exclude_cidrs_from_allocation_pools(
-                new_subnet, allocation_pools)
-        ip_policies.ensure_default_policy(cidrs, [new_subnet])
-        new_subnet["ip_policy"] = db_api.ip_policy_create(context,
-                                                          exclude=cidrs)
+        # if the gateway_ip is IN the cidr for the subnet and NOT excluded by
+        # policies, we should raise a 409 conflict
+        if gateway_ip and default_route is None:
+            alloc_pools.validate_gateway_excluded(gateway_ip)
+            new_subnet["routes"].append(db_api.route_create(
+                context, cidr=str(routes.DEFAULT_ROUTE), gateway=gateway_ip))
 
     subnet_dict = v._make_subnet_dict(new_subnet)
     subnet_dict["gateway_ip"] = gateway_ip
@@ -281,13 +204,20 @@ def update_subnet(context, id, subnet):
         gateway_ip = utils.pop_param(s, "gateway_ip", None)
         allocation_pools = utils.pop_param(s, "allocation_pools", None)
 
+        policies = db_models.IPPolicy.get_ip_policy_cidrs(subnet_db)
+        alloc_pools = allocation_pool.AllocationPools(subnet_db["cidr"],
+                                                      allocation_pools,
+                                                      policies)
+
         if gateway_ip:
+            alloc_pools.validate_gateway_excluded(gateway_ip)
             default_route = None
             for route in host_routes:
                 netaddr_route = netaddr.IPNetwork(route["destination"])
                 if netaddr_route.value == routes.DEFAULT_ROUTE.value:
                     default_route = route
                     break
+
             if default_route is None:
                 route_model = db_api.route_find(
                     context, cidr=str(routes.DEFAULT_ROUTE), subnet_id=id,
@@ -310,13 +240,12 @@ def update_subnet(context, id, subnet):
         if host_routes:
             subnet_db["routes"] = []
         for route in host_routes:
+            alloc_pools.validate_gateway_excluded(route["nexthop"])
             subnet_db["routes"].append(db_api.route_create(
                 context, cidr=route["destination"], gateway=route["nexthop"]))
 
         if isinstance(allocation_pools, list):
-            _validate_allocation_pools(allocation_pools, subnet_db["cidr"])
-            cidrs = _get_exclude_cidrs_from_allocation_pools(
-                subnet_db, allocation_pools)
+            cidrs = alloc_pools.get_policy_cidrs()
             ip_policies.ensure_default_policy(cidrs, [subnet_db])
             subnet_db["ip_policy"] = db_api.ip_policy_update(
                 context, subnet_db["ip_policy"], exclude=cidrs)
