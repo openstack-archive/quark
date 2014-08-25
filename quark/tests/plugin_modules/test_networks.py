@@ -19,11 +19,13 @@ import json
 import mock
 from neutron.common import exceptions
 from neutron import context
+from oslo.config import cfg
 
 from quark.db import api as db_api
 from quark.db import models
 from quark import exceptions as q_exc
 from quark import network_strategy
+from quark import plugin_views
 from quark.tests import test_quark_plugin
 
 
@@ -87,14 +89,39 @@ class TestQuarkGetNetworks(test_quark_plugin.TestQuarkPlugin):
 
 
 class TestQuarkGetNetworksShared(test_quark_plugin.TestQuarkPlugin):
+    def setUp(self):
+        super(TestQuarkGetNetworksShared, self).setUp()
+        self.strategy = {"public_network":
+                         {"required": True,
+                          "bridge": "xenbr0",
+                          "children": {"nova": "child_net"}}}
+        self.strategy_json = json.dumps(self.strategy)
+        self.old = plugin_views.STRATEGY
+        plugin_views.STRATEGY = network_strategy.JSONStrategy(
+            self.strategy_json)
+        cfg.CONF.set_override("default_net_strategy", self.strategy_json,
+                              "QUARK")
+
+    def tearDown(self):
+        plugin_views.STRATEGY = self.old
+
     @contextlib.contextmanager
     def _stubs(self, nets=None, subnets=None):
         net_mods = []
 
         if isinstance(nets, list):
             for net in nets:
+                subnet_mods = []
+                subnets = net.pop('subnets', [])
+
+                for subnet in subnets:
+                    subnet_mod = models.Subnet()
+                    subnet_mod.update(subnet)
+                    subnet_mods.append(subnet_mod)
+
                 net_mod = models.Network()
                 net_mod.update(net)
+                net_mod["subnets"] = subnet_mods
                 net_mods.append(net_mod)
         else:
             if nets:
@@ -104,39 +131,48 @@ class TestQuarkGetNetworksShared(test_quark_plugin.TestQuarkPlugin):
 
         db_mod = "quark.db.api"
 
-        self.strategy = {"public_network":
-                         {"required": True,
-                          "bridge": "xenbr0",
-                          "children": {"nova": "child_net"}}}
-        strategy_json = json.dumps(self.strategy)
-        db_api.STRATEGY = network_strategy.JSONStrategy(strategy_json)
+        db_api.STRATEGY = network_strategy.JSONStrategy(self.strategy_json)
+        network_strategy.STRATEGY = network_strategy.JSONStrategy(
+            self.strategy_json)
 
         with mock.patch("%s._network_find" % db_mod) as net_find:
             net_find.return_value = net_mods
             yield net_find
 
     def test_get_networks_shared(self):
+        net0 = dict(id='public_network', tenant_id=self.context.tenant_id,
+                    name="mynet", status="ACTIVE", subnets=[dict(id=0)])
         net1 = dict(id=1, tenant_id=self.context.tenant_id, name="mynet",
-                    status="ACTIVE")
-        with self._stubs(nets=[net1]) as net_find:
-            self.plugin.get_networks(self.context, {"shared": [True]})
+                    status="ACTIVE", subnets=[dict(id=1)])
+        with self._stubs(nets=[net0, net1]) as net_find:
+            ret = self.plugin.get_networks(self.context, {"shared": [True]})
+            """ Includes regression for RM8483. """
+            for net in ret:
+                if net['shared']:
+                    self.assertEqual(0, len(net['subnets']))
+                else:
+                    self.assertEqual(1, len(net['subnets']))
             net_find.assert_called_with(self.context, None,
                                         join_subnets=True,
                                         defaults=["public_network"])
 
     def test_get_networks_shared_false(self):
+        net0 = dict(id='public_network', tenant_id=self.context.tenant_id,
+                    name="mynet", status="ACTIVE", subnets=[dict(id=0)])
         net1 = dict(id=1, tenant_id=self.context.tenant_id, name="mynet",
                     status="ACTIVE")
-        with self._stubs(nets=[net1]) as net_find:
+        with self._stubs(nets=[net0, net1]) as net_find:
             invert = db_api.INVERT_DEFAULTS
             self.plugin.get_networks(self.context, {"shared": [False]})
             net_find.assert_called_with(self.context, None, join_subnets=True,
                                         defaults=[invert, "public_network"])
 
     def test_get_networks_no_shared(self):
+        net0 = dict(id='public_network', tenant_id=self.context.tenant_id,
+                    name="mynet", status="ACTIVE", subnets=[dict(id=0)])
         net1 = dict(id=1, tenant_id=self.context.tenant_id, name="mynet",
                     status="ACTIVE")
-        with self._stubs(nets=[net1]) as net_find:
+        with self._stubs(nets=[net0, net1]) as net_find:
             self.plugin.get_networks(self.context, {})
             net_find.assert_called_with(self.context, None, join_subnets=True,
                                         defaults=[])
