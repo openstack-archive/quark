@@ -1,3 +1,6 @@
 [submodule "quark.wiki"]
 	path = quark.wiki
 	url = git://github.com/rackerlabs/quark.wiki
+[submodule "quark/agent"]
+	path = quark/agent
+	url = git://github.com/rackerlabs/quark-agent

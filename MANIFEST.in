@@ -3,3 +3,6 @@ include *.txt
 include *.rst
 recursive-include docs *.txt
 prune dist
+# include files, but exclude the directory
+exclude quark/agent
+graft quark/agent
