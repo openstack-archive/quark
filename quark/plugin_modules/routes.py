@@ -50,6 +50,11 @@ def get_routes(context):
 def create_route(context, route):
     LOG.info("create_route for tenant %s" % context.tenant_id)
     route = route["route"]
+    for key in ["gateway", "cidr", "subnet_id"]:
+        if key not in route:
+            raise exceptions.BadRequest(resource="routes",
+                                        msg="%s is required" % key)
+
     subnet_id = route["subnet_id"]
     with context.session.begin():
         subnet = db_api.subnet_find(context, id=subnet_id, scope=db_api.ONE)
