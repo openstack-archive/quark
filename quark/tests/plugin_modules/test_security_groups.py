@@ -304,6 +304,14 @@ class TestQuarkCreateSecurityGroupRule(test_quark_plugin.TestQuarkPlugin):
         self.assertRaises(sg_ext.SecurityGroupRuleInvalidProtocol,
                           self._test_create_security_rule, protocol="DERP")
 
+    def test_create_security_rule_protocol_under_range_fails(self):
+        self.assertRaises(sg_ext.SecurityGroupRuleInvalidProtocol,
+                          self._test_create_security_rule, protocol=-1)
+
+    def test_create_security_rule_protocol_over_range_fails(self):
+        self.assertRaises(sg_ext.SecurityGroupRuleInvalidProtocol,
+                          self._test_create_security_rule, protocol=255)
+
     def test_create_security_rule_TCP(self):
         self._test_create_security_rule(protocol=6)
 
