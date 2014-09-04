@@ -41,11 +41,15 @@ def _validate_security_group_rule(context, rule):
     port_range_max = rule['port_range_max']
 
     if protocol:
-        proto = str(protocol).lower()
-        if proto in PROTOCOLS:
-            protocol = PROTOCOLS.get(proto)
+        try:
+            proto = int(protocol)
+        except ValueError:
+            proto = str(protocol).lower()
+            proto = PROTOCOLS.get(proto, -1)
 
-        if not protocol or not (protocol and isinstance(protocol, int)):
+        # Please see http://en.wikipedia.org/wiki/List_of_IP_protocol_numbers
+        # The field is always 8 bits, and 255 is a reserved value
+        if not (0 <= proto <= 254):
             raise sg_ext.SecurityGroupRuleInvalidProtocol(
                 protocol=protocol, values=PROTOCOLS.keys())
 
