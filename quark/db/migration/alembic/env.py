@@ -12,7 +12,8 @@ neutron_config = config.neutron_config
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
-logging_config.fileConfig(config.config_file_name)
+if not config.get_main_option("quiet_mode"):
+    logging_config.fileConfig(config.config_file_name)
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
