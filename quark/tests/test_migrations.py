@@ -27,6 +27,7 @@ class BaseMigrationTest(test_base.TestBase):
             os.path.join(quark.db.migration.__path__[0], 'alembic.ini'))
         self.config.set_main_option('script_location',
                                     'quark.db.migration:alembic')
+        self.config.set_main_option("quiet_mode", "True")
         self.fileno, self.filepath = tempfile.mkstemp()
         secret_cfg = mock.MagicMock()
         secret_cfg.database.connection = "sqlite:///" + self.filepath
