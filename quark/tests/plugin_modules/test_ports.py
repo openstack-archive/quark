@@ -195,6 +195,52 @@ class TestQuarkGetPortsByIPAddress(test_quark_plugin.TestQuarkPlugin):
                                       fields=None)
 
 
+class TestQuarkCreatePortFailure(test_quark_plugin.TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, port=None, network=None, addr=None, mac=None):
+        if network:
+            network["network_plugin"] = "BASE"
+            network["ipam_strategy"] = "ANY"
+        port_model = models.Port()
+        port_model.update(port)
+        port_models = port_model
+
+        db_mod = "quark.db.api"
+        ipam = "quark.ipam.QuarkIpam"
+        with contextlib.nested(
+            mock.patch("%s.port_create" % db_mod),
+            mock.patch("%s.network_find" % db_mod),
+            mock.patch("%s.port_find" % db_mod),
+            mock.patch("%s.allocate_ip_address" % ipam),
+            mock.patch("%s.allocate_mac_address" % ipam),
+            mock.patch("%s.port_count_all" % db_mod),
+        ) as (port_create, net_find, port_find, alloc_ip, alloc_mac,
+              port_count):
+            port_create.return_value = port_models
+            net_find.return_value = network
+            port_find.return_value = models.Port()
+            alloc_ip.return_value = addr
+            alloc_mac.return_value = mac
+            port_count.return_value = 0
+            yield port_create
+
+    def test_create_multiple_ports_on_same_net_and_device_id_bad_request(self):
+        network = dict(id=1)
+        ip = dict()
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
+        port_1 = dict(port=dict(mac_address="AA:BB:CC:DD:EE:00", network_id=1,
+                                tenant_id=self.context.tenant_id, device_id=1,
+                                name="Fake"))
+        port_2 = dict(port=dict(mac_address="AA:BB:CC:DD:EE:11", network_id=1,
+                                tenant_id=self.context.tenant_id, device_id=1,
+                                name="Faker"))
+
+        with self._stubs(port=port_1, network=network, addr=ip, mac=mac):
+            with self.assertRaises(exceptions.BadRequest):
+                self.plugin.create_port(self.context, port_1)
+                self.plugin.create_port(self.context, port_2)
+
+
 class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, port=None, network=None, addr=None, mac=None):
