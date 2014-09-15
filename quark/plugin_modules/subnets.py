@@ -24,7 +24,6 @@ from oslo.config import cfg
 
 from quark import allocation_pool
 from quark.db import api as db_api
-from quark.db import models as db_models
 from quark import exceptions as q_exc
 from quark import network_strategy
 from quark.plugin_modules import ip_policies
@@ -204,10 +203,8 @@ def update_subnet(context, id, subnet):
         gateway_ip = utils.pop_param(s, "gateway_ip", None)
         allocation_pools = utils.pop_param(s, "allocation_pools", None)
 
-        policies = db_models.IPPolicy.get_ip_policy_cidrs(subnet_db)
         alloc_pools = allocation_pool.AllocationPools(subnet_db["cidr"],
-                                                      allocation_pools,
-                                                      policies)
+                                                      allocation_pools)
 
         if gateway_ip:
             alloc_pools.validate_gateway_excluded(gateway_ip)
