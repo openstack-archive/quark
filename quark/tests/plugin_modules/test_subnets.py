@@ -765,10 +765,10 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
 
             dns_ips = subnet.pop("dns_nameservers", [])
             host_routes = subnet.pop("host_routes", [])
+            exclude = [models.IPPolicyCIDR(cidr="172.16.0.0/32"),
+                       models.IPPolicyCIDR(cidr="172.16.0.255/32")]
             subnet_mod = models.Subnet(
-                ip_policy=models.IPPolicy(
-                    exclude=[models.IPPolicyCIDR(cidr="172.16.0.0/32"),
-                             models.IPPolicyCIDR(cidr="172.16.0.255/32")]),
+                ip_policy=models.IPPolicy(exclude=exclude),
                 network=models.Network(id=1)
             )
             subnet_mod.update(subnet)

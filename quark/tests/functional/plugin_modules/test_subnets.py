@@ -13,10 +13,16 @@
 # License for# the specific language governing permissions and limitations
 #  under the License.
 
+import mock
+import netaddr
+
 import contextlib
 
 from quark.db import api as db_api
 import quark.ipam
+import quark.plugin_modules.ip_policies as policy_api
+import quark.plugin_modules.networks as network_api
+import quark.plugin_modules.subnets as subnet_api
 from quark.tests.functional.base import BaseFunctionalTest
 
 
@@ -43,3 +49,54 @@ class QuarkGetSubnets(BaseFunctionalTest):
                                                            net["id"]).all()
             self.assertEqual(len(subnets), 1)
             self.assertEqual(subnets[0][0]["id"], "1")
+
+
+class QuarkUpdateSubnets(BaseFunctionalTest):
+    @contextlib.contextmanager
+    def _stubs(self, network, subnet):
+        self.ipam = quark.ipam.QuarkIpamANY()
+        with contextlib.nested(mock.patch("neutron.common.rpc.get_notifier")):
+            net = network_api.create_network(self.context, network)
+            subnet['subnet']['network_id'] = net['id']
+            sub1 = subnet_api.create_subnet(self.context, subnet)
+            yield net, sub1
+
+    def test_update_allocation_pools(self):
+        cidr = "192.168.1.0/24"
+        ip_network = netaddr.IPNetwork(cidr)
+        network = dict(name="public", tenant_id="fake", network_plugin="BASE")
+        network = {"network": network}
+        subnet = dict(id=1, ip_version=4, next_auto_assign_ip=2,
+                      cidr=cidr, first_ip=ip_network.first,
+                      last_ip=ip_network.last, ip_policy=None,
+                      tenant_id="fake")
+        subnet = {"subnet": subnet}
+        with self._stubs(network, subnet) as (net, sub1):
+            subnet = subnet_api.get_subnet(self.context, 1)
+            start_pools = subnet['allocation_pools']
+            new_pools = [
+                [dict(start='192.168.1.10', end='192.168.1.50')],
+                [dict(start='192.168.1.5', end='192.168.1.25')],
+                [dict(start='192.168.1.50', end='192.168.1.51')],
+                [dict(start='192.168.1.50', end='192.168.1.51'),
+                    dict(start='192.168.1.100', end='192.168.1.250')],
+                [dict(start='192.168.1.50', end='192.168.1.51')],
+                start_pools,
+            ]
+
+            prev_pool = start_pools
+            for pool in new_pools:
+                subnet_update = {"subnet": dict(allocation_pools=pool)}
+                subnet = subnet_api.update_subnet(self.context, 1,
+                                                  subnet_update)
+                self.assertNotEqual(prev_pool, subnet['allocation_pools'])
+                self.assertEqual(pool, subnet['allocation_pools'])
+                policy_id = subnet['ip_policy_id']
+                policy = policy_api.get_ip_policy(self.context, policy_id)
+                ip_set = netaddr.IPSet()
+                for ip in policy['exclude']:
+                    ip_set.add(netaddr.IPNetwork(ip))
+                for extent in pool:
+                    for ip in netaddr.IPRange(extent['start'], extent['end']):
+                        self.assertFalse(ip in ip_set)
+                prev_pool = pool
