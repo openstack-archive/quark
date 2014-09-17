@@ -42,7 +42,9 @@ quark_resources = [
     quota.BaseResource('routes_per_subnet',
                        'quota_routes_per_subnet'),
     quota.BaseResource('security_rules_per_group',
-                       'quota_security_rules_per_group')
+                       'quota_security_rules_per_group'),
+    quota.BaseResource('security_groups_per_port',
+                       'quota_security_groups_per_port')
 ]
 
 quark_quota_opts = [
@@ -54,7 +56,10 @@ quark_quota_opts = [
                help=_('Maximum routes per subnet')),
     cfg.IntOpt('quota_security_rules_per_group',
                default=20,
-               help=_('Maximum security group rules in a group'))
+               help=_('Maximum security group rules in a group')),
+    cfg.IntOpt("quota_security_groups_per_port",
+               default=5,
+               help=_("Maximum number of security groups per port"))
 ]
 
 

@@ -15,6 +15,7 @@
 
 import netaddr
 from neutron.common import exceptions
+from neutron.extensions import securitygroup as sg_ext
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import uuidutils
 from neutron import quota
@@ -90,9 +91,11 @@ def create_port(context, port):
 
     ipam_driver = ipam.IPAM_REGISTRY.get_strategy(net["ipam_strategy"])
     net_driver = registry.DRIVER_REGISTRY.get_driver(net["network_plugin"])
-    group_ids, security_groups = v.make_security_group_list(
+    group_ids, security_groups = _make_security_group_list(
         context, port["port"].pop("security_groups", None))
 
+    quota.QUOTAS.limit_check(context, context.tenant_id,
+                             security_groups_per_port=len(group_ids))
     addresses = []
     mac = None
     backend_port = None
@@ -225,6 +228,11 @@ def update_port(context, id, port):
     utils.filter_body(context, port_dict, admin_only=admin_only,
                       always_filter=always_filter)
 
+    group_ids, security_groups = _make_security_group_list(
+        context, port_dict.pop("security_groups", None))
+    quota.QUOTAS.limit_check(context, context.tenant_id,
+                             security_groups_per_port=len(group_ids))
+
     if fixed_ips is not None:
         # NOTE(mdietz): we want full control over IPAM since
         #              we're allocating by subnet instead of
@@ -283,8 +291,6 @@ def update_port(context, id, port):
             port_dict["addresses"] = port_db["ip_addresses"]
             port_dict["addresses"].extend(addresses)
 
-    group_ids, security_groups = v.make_security_group_list(
-        context, port_dict.pop("security_groups", None))
     net_driver = registry.DRIVER_REGISTRY.get_driver(
         port_db.network["network_plugin"])
     net_driver.update_port(context, port_id=port_db.backend_key,
@@ -489,3 +495,17 @@ def diagnose_port(context, id, fields):
         raise exceptions.PortNotFound(port_id=id, net_id='')
     port = _diag_port(context, db_port, fields)
     return {'ports': port}
+
+
+def _make_security_group_list(context, group_ids):
+    if not group_ids or not utils.attr_specified(group_ids):
+        return ([], [])
+    group_ids = list(set(group_ids))
+    groups = []
+    for gid in group_ids:
+        group = db_api.security_group_find(context, id=gid,
+                                           scope=db_api.ONE)
+        if not group:
+            raise sg_ext.SecurityGroupNotFound(id=gid)
+        groups.append(group)
+    return (group_ids, groups)

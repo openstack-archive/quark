@@ -243,7 +243,8 @@ class TestQuarkCreatePortFailure(test_quark_plugin.TestQuarkPlugin):
 
 class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
-    def _stubs(self, port=None, network=None, addr=None, mac=None):
+    def _stubs(self, port=None, network=None, addr=None, mac=None,
+               limit_raise=False):
         if network:
             network["network_plugin"] = "BASE"
             network["ipam_strategy"] = "ANY"
@@ -259,12 +260,16 @@ class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
             mock.patch("%s.allocate_ip_address" % ipam),
             mock.patch("%s.allocate_mac_address" % ipam),
             mock.patch("%s.port_count_all" % db_mod),
-        ) as (port_create, net_find, alloc_ip, alloc_mac, port_count):
+            mock.patch("neutron.quota.QuotaEngine.limit_check")
+        ) as (port_create, net_find, alloc_ip, alloc_mac, port_count,
+              limit_check):
             port_create.return_value = port_models
             net_find.return_value = network
             alloc_ip.return_value = addr
             alloc_mac.return_value = mac
             port_count.return_value = 0
+            if limit_raise:
+                limit_check.side_effect = exceptions.OverQuota
             yield port_create
 
     def test_create_port(self):
@@ -419,6 +424,32 @@ class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
         with self.assertRaises(sg_ext.SecurityGroupNotFound):
             self.test_create_port_security_groups([])
 
+    def test_create_port_security_groups_over_quota(self):
+        network = dict(id=1)
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
+        port_name = "foobar"
+        ip = dict()
+
+        groups = []
+        group_ids = range(6)
+        for gid in group_ids:
+            group = models.SecurityGroup()
+            group.update({'id': gid, 'tenant_id': self.context.tenant_id,
+                          'name': 'foo', 'description': 'bar'})
+            groups.append(group)
+
+        port = dict(port=dict(mac_address=mac["address"], network_id=1,
+                              tenant_id=self.context.tenant_id, device_id=2,
+                              name=port_name, security_groups=groups))
+
+        with self._stubs(port=port["port"], network=network, addr=ip,
+                         mac=mac, limit_raise=True):
+            with mock.patch("quark.db.api.security_group_find") as group_find:
+                group_find.return_value = groups
+                port["port"]["security_groups"] = groups
+                with self.assertRaises(exceptions.OverQuota):
+                    self.plugin.create_port(self.context, port)
+
 
 class TestQuarkPortCreateQuota(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
@@ -438,12 +469,15 @@ class TestQuarkPortCreateQuota(test_quark_plugin.TestQuarkPlugin):
             mock.patch("%s.allocate_ip_address" % ipam),
             mock.patch("%s.allocate_mac_address" % ipam),
             mock.patch("quark.db.api.port_count_all"),
-        ) as (port_create, net_find, alloc_ip, alloc_mac, port_count):
+            mock.patch("neutron.quota.QuotaEngine.limit_check")
+        ) as (port_create, net_find, alloc_ip, alloc_mac, port_count,
+              limit_check):
             port_create.return_value = port_models
             net_find.return_value = network
             alloc_ip.return_value = addr
             alloc_mac.return_value = mac
             port_count.return_value = len(network["ports"])
+            limit_check.side_effect = exceptions.OverQuota
             yield port_create
 
     def test_create_port_net_at_max(self):
@@ -473,8 +507,9 @@ class TestQuarkUpdatePort(test_quark_plugin.TestQuarkPlugin):
             mock.patch("quark.db.api.port_find"),
             mock.patch("quark.db.api.port_update"),
             mock.patch("quark.ipam.QuarkIpam.allocate_ip_address"),
-            mock.patch("quark.ipam.QuarkIpam.deallocate_ips_by_port")
-        ) as (port_find, port_update, alloc_ip, dealloc_ip):
+            mock.patch("quark.ipam.QuarkIpam.deallocate_ips_by_port"),
+            mock.patch("neutron.quota.QuotaEngine.limit_check")
+        ) as (port_find, port_update, alloc_ip, dealloc_ip, limit_check):
             port_find.return_value = port_model
             port_update.return_value = port_model
             if new_ips:
@@ -574,8 +609,9 @@ class TestQuarkUpdatePortSetsIps(test_quark_plugin.TestQuarkPlugin):
         with contextlib.nested(
             mock.patch("quark.db.api.port_find"),
             mock.patch("quark.db.api.port_update"),
-            mock.patch("quark.ipam.QuarkIpam.deallocate_ips_by_port")
-        ) as (port_find, port_update, dealloc_ip):
+            mock.patch("quark.ipam.QuarkIpam.deallocate_ips_by_port"),
+            mock.patch("neutron.quota.QuotaEngine.limit_check")
+        ) as (port_find, port_update, dealloc_ip, limit_check):
             port_find.return_value = port_model
             port_update.return_value = port_model
             alloc_ip = mock.patch("quark.ipam.QuarkIpam.allocate_ip_address",
@@ -756,7 +792,8 @@ class TestQuarkCreatePortOnSharedNetworks(test_quark_plugin.TestQuarkPlugin):
             mock.patch("%s.network_find" % db_mod),
             mock.patch("%s.allocate_ip_address" % ipam),
             mock.patch("%s.allocate_mac_address" % ipam),
-        ) as (port_create, net_find, alloc_ip, alloc_mac):
+            mock.patch("neutron.quota.QuotaEngine.limit_check")
+        ) as (port_create, net_find, alloc_ip, alloc_mac, limit_check):
             port_create.return_value = port_models
             net_find.return_value = network
             alloc_ip.return_value = addr
@@ -996,8 +1033,9 @@ class TestQuarkPortCreateFiltering(test_quark_plugin.TestQuarkPlugin):
             mock.patch("neutron.openstack.common.uuidutils.generate_uuid"),
             mock.patch("quark.plugin_views._make_port_dict"),
             mock.patch("%s.port_count_all" % db_mod),
+            mock.patch("neutron.quota.QuotaEngine.limit_check")
         ) as (port_create, net_find, alloc_ip, alloc_mac, gen_uuid, make_port,
-              port_count):
+              port_count, limit_check):
             net_find.return_value = network
             alloc_ip.return_value = addr
             alloc_mac.return_value = mac
@@ -1084,7 +1122,8 @@ class TestQuarkPortUpdateFiltering(test_quark_plugin.TestQuarkPlugin):
             mock.patch("quark.db.api.port_update"),
             mock.patch("quark.drivers.registry.DriverRegistry.get_driver"),
             mock.patch("quark.plugin_views._make_port_dict"),
-        ) as (port_find, port_update, get_driver, make_port):
+            mock.patch("neutron.quota.QuotaEngine.limit_check")
+        ) as (port_find, port_update, get_driver, make_port, limit_check):
             yield port_find, port_update
 
     def test_update_port_attribute_filtering(self):

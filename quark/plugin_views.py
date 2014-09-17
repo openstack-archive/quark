@@ -18,15 +18,13 @@ View Helpers for Quark Plugin
 """
 
 import netaddr
-from neutron.extensions import securitygroup as sg_ext
 from neutron.openstack.common import log as logging
 from oslo.config import cfg
 
-from quark.db import api as db_api
 from quark.db import models
 from quark import network_strategy
 from quark import protocols
-from quark import utils
+
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -260,17 +258,3 @@ def _make_ip_policy_dict(ipp):
             "subnet_ids": [s["id"] for s in ipp["subnets"]],
             "network_ids": [n["id"] for n in ipp["networks"]],
             "exclude": [ippc["cidr"] for ippc in ipp["exclude"]]}
-
-
-def make_security_group_list(context, group_ids):
-    if not group_ids or not utils.attr_specified(group_ids):
-        return ([], [])
-    group_ids = list(set(group_ids))
-    groups = []
-    for gid in group_ids:
-        group = db_api.security_group_find(context, id=gid,
-                                           scope=db_api.ONE)
-        if not group:
-            raise sg_ext.SecurityGroupNotFound(id=gid)
-        groups.append(group)
-    return (group_ids, groups)
