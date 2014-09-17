@@ -68,6 +68,7 @@ def append_quark_extensions(conf):
 
 append_quark_extensions(CONF)
 
+
 CONF.register_opts(quark_quota_opts, "QUOTAS")
 quota.QUOTAS.register_resources(quark_resources)
 

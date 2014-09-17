@@ -265,18 +265,20 @@ port_group_association_table = sa.Table(
 
 
 class SecurityGroupRule(BASEV2, models.HasId, models.HasTenant):
-    __tablename__ = "quark_security_group_rule"
+    __tablename__ = "quark_security_group_rules"
     id = sa.Column(sa.String(36), primary_key=True)
     group_id = sa.Column(sa.String(36),
                          sa.ForeignKey("quark_security_groups.id"),
                          nullable=False)
     direction = sa.Column(sa.String(10), nullable=False)
-    ethertype = sa.Column(sa.String(4), nullable=False)
+    ethertype = sa.Column(sa.Integer(), nullable=False)
     port_range_max = sa.Column(sa.Integer(), nullable=True)
     port_range_min = sa.Column(sa.Integer(), nullable=True)
     protocol = sa.Column(sa.Integer(), nullable=True)
-    remote_ip_prefix = sa.Column(sa.String(22), nullable=True)
-    remote_group_id = sa.Column(sa.String(36), nullable=True)
+    remote_ip_prefix = sa.Column(sa.String(255), nullable=True)
+    remote_group_id = sa.Column(sa.String(36),
+                                sa.ForeignKey("quark_security_groups.id"),
+                                nullable=True)
 
 
 class SecurityGroup(BASEV2, models.HasId):

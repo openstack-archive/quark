@@ -13,7 +13,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from neutron.common import exceptions
 from neutron.extensions import securitygroup as sg_ext
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import uuidutils
@@ -22,7 +21,7 @@ from oslo.config import cfg
 
 from quark.db import api as db_api
 from quark import plugin_views as v
-
+from quark import protocols
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -30,8 +29,6 @@ DEFAULT_SG_UUID = "00000000-0000-0000-0000-000000000000"
 
 
 def _validate_security_group_rule(context, rule):
-    PROTOCOLS = {"icmp": 1, "tcp": 6, "udp": 17}
-    ALLOWED_WITH_RANGE = [6, 17]
 
     if rule.get("remote_ip_prefix") and rule.get("remote_group_id"):
         raise sg_ext.SecurityGroupRemoteGroupAndRemoteIpPrefix()
@@ -41,31 +38,17 @@ def _validate_security_group_rule(context, rule):
     port_range_max = rule['port_range_max']
 
     if protocol:
-        try:
-            proto = int(protocol)
-        except ValueError:
-            proto = str(protocol).lower()
-            proto = PROTOCOLS.get(proto, -1)
-
-        # Please see http://en.wikipedia.org/wiki/List_of_IP_protocol_numbers
-        # The field is always 8 bits, and 255 is a reserved value
-        if not (0 <= proto <= 254):
-            raise sg_ext.SecurityGroupRuleInvalidProtocol(
-                protocol=protocol, values=PROTOCOLS.keys())
-
-        if protocol in ALLOWED_WITH_RANGE:
-            if (port_range_min is None) != (port_range_max is None):
-                raise exceptions.InvalidInput(
-                    error_message="For TCP/UDP rules, cannot wildcard "
-                                  "only one end of port range.")
-            if port_range_min is not None and port_range_max is not None:
-                if port_range_min > port_range_max:
-                    raise sg_ext.SecurityGroupInvalidPortRange()
-
+        protocol = protocols.translate_protocol(protocol, rule["ethertype"])
+        protocols.validate_protocol_with_port_ranges(protocol,
+                                                     port_range_min,
+                                                     port_range_max)
         rule['protocol'] = protocol
     else:
         if port_range_min is not None or port_range_max is not None:
             raise sg_ext.SecurityGroupProtocolRequiredWithPorts()
+
+    ethertype = protocols.translate_ethertype(rule["ethertype"])
+    rule["ethertype"] = ethertype
 
     return rule
 
@@ -87,34 +70,9 @@ def create_security_group(context, security_group):
     return v._make_security_group_dict(dbgroup)
 
 
-def _create_default_security_group(context):
-    default_group = {
-        "name": "default", "description": "",
-        "group_id": DEFAULT_SG_UUID,
-        "port_egress_rules": [],
-        "port_ingress_rules": [
-            {"ethertype": "IPv4", "protocol": 1},
-            {"ethertype": "IPv4", "protocol": 6},
-            {"ethertype": "IPv4", "protocol": 17},
-            {"ethertype": "IPv6", "protocol": 1},
-            {"ethertype": "IPv6", "protocol": 6},
-            {"ethertype": "IPv6", "protocol": 17},
-        ]}
-
-    default_group["id"] = DEFAULT_SG_UUID
-    default_group["tenant_id"] = context.tenant_id
-    for rule in default_group.pop("port_ingress_rules"):
-        db_api.security_group_rule_create(
-            context, security_group_id=default_group["id"],
-            tenant_id=context.tenant_id, direction="ingress",
-            **rule)
-    db_api.security_group_create(context, **default_group)
-
-
 def create_security_group_rule(context, security_group_rule):
     LOG.info("create_security_group for tenant %s" %
              (context.tenant_id))
-
     with context.session.begin():
         rule = _validate_security_group_rule(
             context, security_group_rule["security_group_rule"])
