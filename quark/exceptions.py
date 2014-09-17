@@ -9,6 +9,10 @@ class InvalidMacAddressRange(exceptions.NeutronException):
     message = _("Invalid MAC address range %(cidr)s.")
 
 
+class InvalidEthertype(exceptions.NeutronException):
+    message = _("Invalid Ethertype %(ethertype)s.")
+
+
 class MacAddressRangeNotFound(exceptions.NotFound):
     message = _("MAC address range %(mac_address_range_id) not found.")
 

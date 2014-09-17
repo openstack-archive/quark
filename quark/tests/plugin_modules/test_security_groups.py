@@ -21,7 +21,9 @@ from neutron.extensions import securitygroup as sg_ext
 from oslo.config import cfg
 
 from quark.db import models
+from quark import exceptions as q_exc
 from quark.plugin_modules import security_groups
+from quark import protocols
 from quark.tests import test_quark_plugin
 
 
@@ -94,10 +96,12 @@ class TestQuarkGetSecurityGroupRules(test_quark_plugin.TestQuarkPlugin):
     def test_get_security_group_rules(self):
         rule = {"id": 1, "remote_group_id": 2, "direction": "ingress",
                 "port_range_min": 80, "port_range_max": 100,
-                "remote_ip_prefix": None, "ethertype": "IPv4",
-                "tenant_id": "foo", "protocol": "udp", "group_id": 1}
+                "remote_ip_prefix": None,
+                "ethertype": protocols.translate_ethertype("IPv4"),
+                "tenant_id": "foo", "protocol": "UDP", "group_id": 1}
         expected = rule.copy()
         expected["security_group_id"] = expected.pop("group_id")
+        expected["ethertype"] = "IPv4"
 
         with self._stubs([rule]):
             resp = self.plugin.get_security_group_rules(self.context, {})
@@ -108,10 +112,12 @@ class TestQuarkGetSecurityGroupRules(test_quark_plugin.TestQuarkPlugin):
     def test_get_security_group_rule(self):
         rule = {"id": 1, "remote_group_id": 2, "direction": "ingress",
                 "port_range_min": 80, "port_range_max": 100,
-                "remote_ip_prefix": None, "ethertype": "IPv4",
-                "tenant_id": "foo", "protocol": "udp", "group_id": 1}
+                "remote_ip_prefix": None,
+                "ethertype": protocols.translate_ethertype("IPv4"),
+                "tenant_id": "foo", "protocol": "UDP", "group_id": 1}
         expected = rule.copy()
         expected["security_group_id"] = expected.pop("group_id")
+        expected["ethertype"] = "IPv4"
 
         with self._stubs(rule):
             resp = self.plugin.get_security_group_rule(self.context, 1)
@@ -246,7 +252,6 @@ class TestQuarkCreateSecurityGroupRule(test_quark_plugin.TestQuarkPlugin):
                      'protocol': None, 'port_range_min': None,
                      'port_range_max': None}
         self.expected = {
-            'id': 1,
             'remote_group_id': None,
             'direction': None,
             'port_range_min': None,
@@ -258,34 +263,43 @@ class TestQuarkCreateSecurityGroupRule(test_quark_plugin.TestQuarkPlugin):
             'security_group_id': 1}
 
     @contextlib.contextmanager
-    def _stubs(self, rule, group):
-        dbrule = models.SecurityGroupRule()
-        dbrule.update(rule)
-        dbrule.group_id = rule['security_group_id']
+    def _stubs(self, rule, group, limit_raise=False):
         dbgroup = None
         if group:
             dbgroup = models.SecurityGroup()
             dbgroup.update(group)
 
+        def _create_rule(context, **rule):
+            dbrule = models.SecurityGroupRule()
+            dbrule.update(rule)
+            dbrule["group_id"] = rule['security_group_id']
+            return dbrule
+
         with contextlib.nested(
-                mock.patch("quark.db.api.security_group_find"),
-                mock.patch("quark.db.api.security_group_rule_find"),
-                mock.patch("quark.db.api.security_group_rule_create")
-        ) as (group_find, rule_find, rule_create):
+            mock.patch("quark.db.api.security_group_find"),
+            mock.patch("quark.db.api.security_group_rule_find"),
+            mock.patch("quark.db.api.security_group_rule_create"),
+            mock.patch("quark.protocols.human_readable_protocol"),
+            mock.patch("neutron.quota.QuotaEngine.limit_check")
+        ) as (group_find, rule_find, rule_create, human, limit_check):
             group_find.return_value = dbgroup
             rule_find.return_value.count.return_value = group.get(
                 'port_rules', None) if group else 0
-            rule_create.return_value = dbrule
+
+            rule_create.side_effect = _create_rule
+            human.return_value = rule["protocol"]
+            if limit_raise:
+                limit_check.side_effect = exceptions.OverQuota
             yield rule_create
 
-    def _test_create_security_rule(self, **ruleset):
+    def _test_create_security_rule(self, limit_raise=False, **ruleset):
         ruleset['tenant_id'] = self.context.tenant_id
         rule = dict(self.rule, **ruleset)
         group = rule.pop('group')
         expected = dict(self.expected, **ruleset)
         expected.pop('group', None)
         hax = {'security_group_rule': rule}
-        with self._stubs(rule, group) as rule_create:
+        with self._stubs(rule, group, limit_raise) as rule_create:
             result = self.plugin.create_security_group_rule(self.context, hax)
             self.assertTrue(rule_create.called)
             for key in expected.keys():
@@ -293,24 +307,6 @@ class TestQuarkCreateSecurityGroupRule(test_quark_plugin.TestQuarkPlugin):
 
     def test_create_security_rule_IPv6(self):
         self._test_create_security_rule(ethertype='IPv6')
-
-    def test_create_security_rule_UDP(self):
-        self._test_create_security_rule(protocol=17)
-
-    def test_create_security_rule_UDP_string(self):
-        self._test_create_security_rule(protocol="UDP")
-
-    def test_create_security_rule_bad_string_fail(self):
-        self.assertRaises(sg_ext.SecurityGroupRuleInvalidProtocol,
-                          self._test_create_security_rule, protocol="DERP")
-
-    def test_create_security_rule_protocol_under_range_fails(self):
-        self.assertRaises(sg_ext.SecurityGroupRuleInvalidProtocol,
-                          self._test_create_security_rule, protocol=-1)
-
-    def test_create_security_rule_protocol_over_range_fails(self):
-        self.assertRaises(sg_ext.SecurityGroupRuleInvalidProtocol,
-                          self._test_create_security_rule, protocol=255)
 
     def test_create_security_rule_TCP(self):
         self._test_create_security_rule(protocol=6)
@@ -325,22 +321,10 @@ class TestQuarkCreateSecurityGroupRule(test_quark_plugin.TestQuarkPlugin):
         with self.assertRaises(exceptions.InvalidInput):
             self._test_create_security_rule(protocol=6, port_range_min=0)
 
-    def test_create_security_group_no_proto_with_ranges_fails(self):
-        with self.assertRaises(sg_ext.SecurityGroupProtocolRequiredWithPorts):
-            self._test_create_security_rule(protocol=None, port_range_min=0)
-        with self.assertRaises(Exception):  # noqa
-            self._test_create_security_rule(
-                protocol=6, port_range_min=1, port_range_max=0)
-
     def test_create_security_rule_remote_conflicts(self):
         with self.assertRaises(Exception):  # noqa
             self._test_create_security_rule(remote_ip_prefix='192.168.0.1',
                                             remote_group_id='0')
-
-    def test_create_security_rule_min_greater_than_max_fails(self):
-        with self.assertRaises(sg_ext.SecurityGroupInvalidPortRange):
-            self._test_create_security_rule(protocol=6, port_range_min=10,
-                                            port_range_max=9)
 
     def test_create_security_rule_no_group(self):
         with self.assertRaises(sg_ext.SecurityGroupNotFound):
@@ -349,7 +333,15 @@ class TestQuarkCreateSecurityGroupRule(test_quark_plugin.TestQuarkPlugin):
     def test_create_security_rule_group_at_max(self):
         with self.assertRaises(exceptions.OverQuota):
             self._test_create_security_rule(
-                group={'id': 1, 'rules': [models.SecurityGroupRule()]})
+                group={'id': 1, 'rules': [models.SecurityGroupRule()]},
+                limit_raise=True)
+
+    def test_create_security_group_no_proto_with_ranges_fails(self):
+        with self.assertRaises(sg_ext.SecurityGroupProtocolRequiredWithPorts):
+            self._test_create_security_rule(protocol=None, port_range_min=0)
+        with self.assertRaises(Exception):  # noqa
+            self._test_create_security_rule(
+                protocol=6, port_range_min=1, port_range_max=0)
 
 
 class TestQuarkDeleteSecurityGroupRule(test_quark_plugin.TestQuarkPlugin):
@@ -393,3 +385,46 @@ class TestQuarkDeleteSecurityGroupRule(test_quark_plugin.TestQuarkPlugin):
                          None):
             with self.assertRaises(sg_ext.SecurityGroupNotFound):
                 self.plugin.delete_security_group_rule(self.context, 1)
+
+
+class TestQuarkProtocolHandling(test_quark_plugin.TestQuarkPlugin):
+    def test_create_security_rule_min_greater_than_max_fails(self):
+        with self.assertRaises(sg_ext.SecurityGroupInvalidPortRange):
+            protocols.validate_protocol_with_port_ranges(
+                protocol=6, port_range_min=10, port_range_max=9)
+
+    def test_translate_protocol_string(self):
+        proto = protocols.translate_protocol("udp", "IPv4")
+        self.assertEqual(proto, 17)
+
+    def test_translate_protocol_int(self):
+        proto = protocols.translate_protocol(17, "IPv4")
+        self.assertEqual(proto, 17)
+
+    def test_human_readable_protocol_string(self):
+        proto = protocols.human_readable_protocol("UDP", "IPv4")
+        self.assertEqual(proto, "UDP")
+
+    def test_human_readable_protocol_int(self):
+        proto = protocols.human_readable_protocol(17, "IPv4")
+        self.assertEqual(proto, "UDP")
+
+    def test_human_readable_protocol_string_as_int(self):
+        proto = protocols.human_readable_protocol("17", "IPv4")
+        self.assertEqual(proto, "UDP")
+
+    def test_invalid_protocol_string_fail(self):
+        with self.assertRaises(sg_ext.SecurityGroupRuleInvalidProtocol):
+            protocols.translate_protocol("DERP", "IPv4")
+
+    def test_translate_protocol_under_range(self):
+        with self.assertRaises(sg_ext.SecurityGroupRuleInvalidProtocol):
+            protocols.translate_protocol(-1, "IPv4")
+
+    def test_translate_protocol_over_range(self):
+        with self.assertRaises(sg_ext.SecurityGroupRuleInvalidProtocol):
+            protocols.translate_protocol(256, "IPv4")
+
+    def test_translate_protocol_invalid_ethertype(self):
+        with self.assertRaises(q_exc.InvalidEthertype):
+            protocols.translate_protocol(256, "IPv7")

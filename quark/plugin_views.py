@@ -25,6 +25,7 @@ from oslo.config import cfg
 from quark.db import api as db_api
 from quark.db import models
 from quark import network_strategy
+from quark import protocols
 from quark import utils
 
 CONF = cfg.CONF
@@ -151,13 +152,18 @@ def _make_security_group_dict(security_group, fields=None):
 
 
 def _make_security_group_rule_dict(security_rule, fields=None):
+    ethertype = protocols.human_readable_ethertype(
+        security_rule.get("ethertype"))
+    protocol = protocols.human_readable_protocol(
+        security_rule.get("protocol"), ethertype)
+
     res = {"id": security_rule.get("id"),
-           "ethertype": security_rule.get("ethertype"),
+           "ethertype": ethertype,
            "direction": security_rule.get("direction"),
            "tenant_id": security_rule.get("tenant_id"),
            "port_range_max": security_rule.get("port_range_max"),
            "port_range_min": security_rule.get("port_range_min"),
-           "protocol": security_rule.get("protocol"),
+           "protocol": protocol,
            "remote_ip_prefix": security_rule.get("remote_ip_prefix"),
            "security_group_id": security_rule.get("group_id"),
            "remote_group_id": security_rule.get("remote_group_id")}
