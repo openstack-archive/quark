@@ -53,8 +53,10 @@ def create_port(context, port):
     mac_address = utils.pop_param(port_attrs, "mac_address", None)
     segment_id = utils.pop_param(port_attrs, "segment_id")
     fixed_ips = utils.pop_param(port_attrs, "fixed_ips")
+    if "device_id" not in port_attrs:
+        port_attrs['device_id'] = ""
+    device_id = port_attrs['device_id']
     net_id = port_attrs["network_id"]
-    device_id = port_attrs["device_id"]
 
     port_id = uuidutils.generate_uuid()
 

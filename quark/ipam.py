@@ -484,11 +484,15 @@ class QuarkIpam(object):
 
         for subnet, ips_in_subnet in subnets:
             ipnet = netaddr.IPNetwork(subnet["cidr"])
-            if ip_address and ip_address not in ipnet:
-                if subnet_ids is not None:
-                    raise q_exc.IPAddressNotInSubnet(
-                        ip_addr=ip_address, subnet_id=subnet["id"])
-                continue
+            if ip_address:
+                na_ip = netaddr.IPAddress(ip_address)
+                if ipnet.version == 4 and na_ip.version != 4:
+                    na_ip = na_ip.ipv4()
+                if na_ip not in ipnet:
+                    if subnet_ids is not None:
+                        raise q_exc.IPAddressNotInSubnet(
+                            ip_addr=ip_address, subnet_id=subnet["id"])
+                    continue
 
             ip_policy = None
             if not ip_address:
