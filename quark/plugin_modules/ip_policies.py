@@ -18,29 +18,12 @@ from neutron.common import exceptions
 from neutron.openstack.common import log as logging
 from oslo.config import cfg
 
-from quark import allocation_pool
 from quark.db import api as db_api
 from quark import exceptions as quark_exceptions
 from quark import plugin_views as v
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
-
-
-def _validate_policy_with_routes(context, policies, subnets):
-    pools = {}
-    policy_networks = [netaddr.IPNetwork(p) for p in policies]
-    for subnet in subnets:
-        pool = allocation_pool.AllocationPools(subnet["cidr"],
-                                               policies=policy_networks)
-        pools[subnet["id"]] = pool
-
-    subnet_ids = [subnet["id"] for subnet in subnets]
-
-    routes = db_api.route_find(context, subnet_id=subnet_ids)
-    for route in routes:
-        subnet_pool = pools[route["subnet_id"]]
-        subnet_pool.validate_gateway_excluded(route["gateway"])
 
 
 def create_ip_policy(context, ip_policy):
@@ -178,8 +161,6 @@ def update_ip_policy(context, id, ip_policy):
                     id=model["ip_policy"]["id"], n_id=model["id"])
             model["ip_policy"] = ipp_db
 
-        if ip_policy_cidrs:
-            _validate_policy_with_routes(context, ip_policy_cidrs, all_subnets)
         ipp_db = db_api.ip_policy_update(context, ipp_db, **ipp)
     return v._make_ip_policy_dict(ipp_db)
 
