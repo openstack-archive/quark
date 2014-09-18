@@ -20,9 +20,7 @@ from neutron.openstack.common import log as logging
 from neutron import quota
 from oslo.config import cfg
 
-from quark import allocation_pool
 from quark.db import api as db_api
-from quark.db import models as db_models
 from quark import exceptions as quark_exceptions
 from quark import plugin_views as v
 
@@ -60,10 +58,6 @@ def create_route(context, route):
         subnet = db_api.subnet_find(context, id=subnet_id, scope=db_api.ONE)
         if not subnet:
             raise exceptions.SubnetNotFound(subnet_id=subnet_id)
-        policies = db_models.IPPolicy.get_ip_policy_cidrs(subnet)
-        alloc_pools = allocation_pool.AllocationPools(subnet["cidr"],
-                                                      policies=policies)
-        alloc_pools.validate_gateway_excluded(route["gateway"])
 
         # TODO(anyone): May want to denormalize the cidr values into columns
         #               to achieve single db lookup on conflict check
