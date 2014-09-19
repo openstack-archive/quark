@@ -145,6 +145,16 @@ class AllocationPools(object):
         self._exclude_cidrs = None
         self._policies.append(policy)
 
+    def validate_gateway_excluded(self, gateway_ip):
+        self._refresh_excludes()
+        gateway_ip_addr = netaddr.IPAddress(gateway_ip)
+        if gateway_ip_addr in self._subnet_cidr:
+            if (not self._exclude_cidrs or
+                    (self._exclude_cidrs and gateway_ip_addr
+                     not in self._exclude_cidrs)):
+                raise exceptions.GatewayConflictWithAllocationPools(
+                    ip_address=gateway_ip, pool=self._alloc_pools)
+
     def get_policy_cidrs(self):
         self._refresh_excludes()
         return [str(c) for c in self._exclude_cidrs.iter_cidrs()]

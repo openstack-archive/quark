@@ -145,6 +145,7 @@ def create_subnet(context, subnet):
 
                 default_route = route
                 gateway_ip = default_route["nexthop"]
+                alloc_pools.validate_gateway_excluded(gateway_ip)
             new_subnet["routes"].append(db_api.route_create(
                 context, cidr=route["destination"], gateway=route["nexthop"]))
 
@@ -152,7 +153,10 @@ def create_subnet(context, subnet):
             new_subnet["dns_nameservers"].append(db_api.dns_create(
                 context, ip=netaddr.IPAddress(dns_ip)))
 
+        # if the gateway_ip is IN the cidr for the subnet and NOT excluded by
+        # policies, we should raise a 409 conflict
         if gateway_ip and default_route is None:
+            alloc_pools.validate_gateway_excluded(gateway_ip)
             new_subnet["routes"].append(db_api.route_create(
                 context, cidr=str(routes.DEFAULT_ROUTE), gateway=gateway_ip))
 
@@ -203,6 +207,7 @@ def update_subnet(context, id, subnet):
                                                       allocation_pools)
 
         if gateway_ip:
+            alloc_pools.validate_gateway_excluded(gateway_ip)
             default_route = None
             for route in host_routes:
                 netaddr_route = netaddr.IPNetwork(route["destination"])

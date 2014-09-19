@@ -124,6 +124,17 @@ class TestQuarkCreateRoutes(test_quark_plugin.TestQuarkPlugin):
                 self.plugin.create_route(self.context,
                                          dict(route=create_route))
 
+    def test_create_route_gateway_conflict_raises(self):
+        subnet = dict(id=2, ip_policy=[], cidr="192.168.0.0/24")
+        create_route = dict(id=1, cidr="192.168.0.0/24", gateway="192.168.0.1",
+                            subnet_id=subnet["id"])
+        with self._stubs(create_route=create_route, find_routes=[],
+                         subnet=subnet):
+            with self.assertRaises(
+                    exceptions.GatewayConflictWithAllocationPools):
+                self.plugin.create_route(self.context,
+                                         dict(route=create_route))
+
     def test_create_route_no_gateway_raises(self):
         subnet = dict(id=2, ip_policy=[], cidr="192.168.0.0/24")
         create_route = dict(id=1, cidr="192.168.0.0/24",

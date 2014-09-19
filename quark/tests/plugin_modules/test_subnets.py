@@ -273,6 +273,17 @@ class TestQuarkCreateSubnetAllocationPools(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(subnet_create.call_count, 1)
             self.assertEqual(resp["allocation_pools"], pools)
 
+    def test_create_subnet_allocation_pools_gateway_conflict(self):
+        pools = [dict(start="192.168.1.1", end="192.168.1.20")]
+        s = dict(subnet=dict(allocation_pools=pools,
+                             cidr="192.168.1.1/24",
+                             gateway_ip="192.168.1.1",
+                             network_id=1))
+        with self._stubs(s["subnet"]):
+            with self.assertRaises(
+                    exceptions.GatewayConflictWithAllocationPools):
+                self.plugin.create_subnet(self.context, s)
+
     def test_create_subnet_allocation_pools_invalid_outside(self):
         pools = [dict(start="192.168.0.10", end="192.168.0.20")]
         s = dict(subnet=dict(
@@ -972,6 +983,16 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
             resp = self.plugin.update_subnet(self.context, 1, s)
             expected_pools = []
             self.assertEqual(resp["allocation_pools"], expected_pools)
+
+    def test_update_subnet_conflicting_gateway(self):
+        pools = [dict(start="172.16.0.1", end="172.16.0.254")]
+        s = dict(subnet=dict(allocation_pools=pools, gateway_ip="172.16.0.1"))
+        with self._stubs(
+            new_ip_policy=['172.16.0.0/30', '172.16.0.4/32', '172.16.0.255/32']
+        ) as (dns_create, route_update, route_create):
+            with self.assertRaises(
+                    exceptions.GatewayConflictWithAllocationPools):
+                self.plugin.update_subnet(self.context, 1, s)
 
 
 class TestQuarkDeleteSubnet(test_quark_plugin.TestQuarkPlugin):
