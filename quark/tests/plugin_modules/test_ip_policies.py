@@ -483,6 +483,18 @@ class TestQuarkUpdatePolicySubnetWithRoutes(test_quark_plugin.TestQuarkPlugin):
             route_find.return_value = routes
             yield ip_policy_update
 
+    def test_update_ip_policy_has_route_conflict_raises(self):
+        subnet = dict(id=1, cidr="192.168.0.0/24")
+        ipp = dict(id=1, subnets=[subnet], exclude=["192.168.0.1/32"],
+                   name="foo", tenant_id=1)
+        route = {"gateway": "192.168.0.1", "subnet_id": subnet["id"]}
+        with self._stubs(ipp, subnets=[subnet], routes=[route]):
+            with self.assertRaises(
+                    exceptions.GatewayConflictWithAllocationPools):
+                self.plugin.update_ip_policy(
+                    self.context, 1,
+                    dict(ip_policy=dict(subnet_ids=[1], exclude=[])))
+
     def test_update_ip_policy_no_route_conflict(self):
         subnet = dict(id=1, cidr="192.168.0.0/24")
         ipp = dict(id=1, subnets=[subnet], exclude=["192.168.0.1/32"],
