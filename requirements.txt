@@ -8,6 +8,7 @@ http://tarballs.openstack.org/neutron/neutron-master.tar.gz#egg=neutron
 aiclib
 gunicorn
 pymysql>=0.6.2
+redis==2.10.3
 
 # NOTE(jkoelker) not technically required, but something has to commit
 #                the transactions. in the future this should be the

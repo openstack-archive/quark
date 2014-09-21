@@ -14,6 +14,10 @@
 #  under the License.
 
 import json
+import uuid
+
+import mock
+import netaddr
 
 from quark.drivers import unmanaged
 from quark import network_strategy
@@ -59,6 +63,25 @@ class TestUnmanagedDriver(test_base.TestBase):
     def test_update_port(self):
         self.driver.update_port(context=self.context,
                                 network_id="public_network", port_id=2)
+
+    @mock.patch("quark.security_groups.redis_client.Client")
+    def test_update_port_with_security_groups(self, redis_cli):
+        mock_client = mock.MagicMock()
+        redis_cli.return_value = mock_client
+
+        port_id = str(uuid.uuid4())
+        device_id = str(uuid.uuid4())
+        mac_address = netaddr.EUI("AA:BB:CC:DD:EE:FF").value
+        security_groups = [str(uuid.uuid4())]
+        payload = {}
+        mock_client.serialize.return_value = payload
+        self.driver.update_port(
+            context=self.context, network_id="public_network", port_id=port_id,
+            device_id=device_id, mac_address=mac_address,
+            security_groups=security_groups)
+        mock_client.serialize.assert_called_once_with(security_groups)
+        mock_client.apply_rules.assert_called_once_with(
+            device_id, mac_address, payload)
 
     def test_delete_port(self):
         self.driver.delete_port(context=self.context, port_id=2)
