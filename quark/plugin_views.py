@@ -56,7 +56,7 @@ def _make_network_dict(network, fields=None):
     res = {"id": network["id"],
            "name": network.get("name"),
            "tenant_id": network.get("tenant_id"),
-           "admin_state_up": None,
+           "admin_state_up": True,
            "status": "ACTIVE",
            "shared": shared_net}
     if CONF.QUARK.show_ipam_strategy:
