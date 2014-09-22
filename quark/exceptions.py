@@ -105,3 +105,17 @@ class IPPolicyInUse(exceptions.InUse):
 
 class DriverLimitReached(exceptions.InvalidInput):
     message = _("Driver has reached limit on resource '%(limit)s'")
+
+
+class SecurityGroupsNotImplemented(exceptions.InvalidInput):
+    message = _("Security Groups are not currently implemented on port "
+                "create")
+
+
+class TenantNetworkSecurityGroupsNotImplemented(exceptions.InvalidInput):
+    message = _("Security Groups are not currently implemented for "
+                "tenant networks")
+
+
+class SecurityGroupsCouldNotBeApplied(exceptions.NeutronException):
+    message = _("There was an error applying security groups to the port.")

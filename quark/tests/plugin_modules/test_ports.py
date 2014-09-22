@@ -19,7 +19,6 @@ import json
 import mock
 from neutron.api.v2 import attributes as neutron_attrs
 from neutron.common import exceptions
-from neutron.extensions import securitygroup as sg_ext
 from oslo.config import cfg
 
 from quark.db import models
@@ -244,7 +243,7 @@ class TestQuarkCreatePortFailure(test_quark_plugin.TestQuarkPlugin):
 class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, port=None, network=None, addr=None, mac=None,
-               limit_raise=False):
+               limit_checks=None):
         if network:
             network["network_plugin"] = "BASE"
             network["ipam_strategy"] = "ANY"
@@ -268,8 +267,8 @@ class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
             alloc_ip.return_value = addr
             alloc_mac.return_value = mac
             port_count.return_value = 0
-            if limit_raise:
-                limit_check.side_effect = exceptions.OverQuota
+            if limit_checks:
+                limit_check.side_effect = limit_checks
             yield port_create
 
     def test_create_port(self):
@@ -389,7 +388,7 @@ class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
             with self.assertRaises(exceptions.NetworkNotFound):
                 self.plugin.create_port(self.context, port)
 
-    def test_create_port_security_groups(self, groups=[1]):
+    def test_create_port_security_groups_raises(self, groups=[1]):
         network = dict(id=1)
         mac = dict(address="AA:BB:CC:DD:EE:FF")
         port_name = "foobar"
@@ -400,54 +399,10 @@ class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
         port = dict(port=dict(mac_address=mac["address"], network_id=1,
                               tenant_id=self.context.tenant_id, device_id=2,
                               name=port_name, security_groups=[group]))
-        expected = {'status': "ACTIVE",
-                    'name': port_name,
-                    'device_owner': None,
-                    'mac_address': mac["address"],
-                    'network_id': network["id"],
-                    'tenant_id': self.context.tenant_id,
-                    'admin_state_up': None,
-                    'fixed_ips': [],
-                    'security_groups': groups,
-                    'device_id': 2}
         with self._stubs(port=port["port"], network=network, addr=ip,
-                         mac=mac) as port_create:
-            with mock.patch("quark.db.api.security_group_find") as group_find:
-                group_find.return_value = (groups and group)
-                port["port"]["security_groups"] = groups or [1]
-                result = self.plugin.create_port(self.context, port)
-                self.assertTrue(port_create.called)
-                for key in expected.keys():
-                    self.assertEqual(result[key], expected[key])
-
-    def test_create_port_security_groups_not_found(self):
-        with self.assertRaises(sg_ext.SecurityGroupNotFound):
-            self.test_create_port_security_groups([])
-
-    def test_create_port_security_groups_over_quota(self):
-        network = dict(id=1)
-        mac = dict(address="AA:BB:CC:DD:EE:FF")
-        port_name = "foobar"
-        ip = dict()
-
-        groups = []
-        group_ids = range(6)
-        for gid in group_ids:
-            group = models.SecurityGroup()
-            group.update({'id': gid, 'tenant_id': self.context.tenant_id,
-                          'name': 'foo', 'description': 'bar'})
-            groups.append(group)
-
-        port = dict(port=dict(mac_address=mac["address"], network_id=1,
-                              tenant_id=self.context.tenant_id, device_id=2,
-                              name=port_name, security_groups=groups))
-
-        with self._stubs(port=port["port"], network=network, addr=ip,
-                         mac=mac, limit_raise=True):
-            with mock.patch("quark.db.api.security_group_find") as group_find:
-                group_find.return_value = groups
-                port["port"]["security_groups"] = groups
-                with self.assertRaises(exceptions.OverQuota):
+                         mac=mac):
+            with mock.patch("quark.db.api.security_group_find"):
+                with self.assertRaises(q_exc.SecurityGroupsNotImplemented):
                     self.plugin.create_port(self.context, port)
 
 
@@ -495,7 +450,7 @@ class TestQuarkPortCreateQuota(test_quark_plugin.TestQuarkPlugin):
 
 class TestQuarkUpdatePort(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
-    def _stubs(self, port, new_ips=None):
+    def _stubs(self, port, new_ips=None, parent_net=False):
         port_model = None
         if port:
             net_model = models.Network()
@@ -503,12 +458,13 @@ class TestQuarkUpdatePort(test_quark_plugin.TestQuarkPlugin):
             port_model = models.Port()
             port_model.network = net_model
             port_model.update(port)
+
         with contextlib.nested(
             mock.patch("quark.db.api.port_find"),
             mock.patch("quark.db.api.port_update"),
             mock.patch("quark.ipam.QuarkIpam.allocate_ip_address"),
             mock.patch("quark.ipam.QuarkIpam.deallocate_ips_by_port"),
-            mock.patch("neutron.quota.QuotaEngine.limit_check")
+            mock.patch("neutron.quota.QuotaEngine.limit_check"),
         ) as (port_find, port_update, alloc_ip, dealloc_ip, limit_check):
             port_find.return_value = port_model
             port_update.return_value = port_model
@@ -590,6 +546,63 @@ class TestQuarkUpdatePort(test_quark_plugin.TestQuarkPlugin):
                                 ip_address=new_addr["address_readable"])]))
             self.plugin.update_port(self.context, 1, new_port)
             self.assertEqual(alloc_ip.call_count, 1)
+
+
+class TestQuarkUpdatePortSecurityGroups(test_quark_plugin.TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, port, new_ips=None, parent_net=False):
+        port_model = None
+        sg_mod = models.SecurityGroup()
+        if port:
+            net_model = models.Network()
+            net_model["network_plugin"] = "BASE"
+            port_model = models.Port()
+            port_model.network = net_model
+            port_model.update(port)
+            port_model["security_groups"].append(sg_mod)
+
+        with contextlib.nested(
+            mock.patch("quark.db.api.port_find"),
+            mock.patch("quark.db.api.port_update"),
+            mock.patch("quark.ipam.QuarkIpam.allocate_ip_address"),
+            mock.patch("quark.ipam.QuarkIpam.deallocate_ips_by_port"),
+            mock.patch("neutron.quota.QuotaEngine.limit_check"),
+            mock.patch("quark.plugin_modules.ports.STRATEGY"
+                       ".is_parent_network"),
+            mock.patch("quark.db.api.security_group_find")
+        ) as (port_find, port_update, alloc_ip, dealloc_ip, limit_check,
+              net_strat, sg_find):
+            port_find.return_value = port_model
+            port_update.return_value = port_model
+            if new_ips:
+                alloc_ip.return_value = new_ips
+            net_strat.return_value = parent_net
+            sg_find.return_value = sg_mod
+            yield port_find, port_update, alloc_ip, dealloc_ip, sg_find
+
+    def test_update_port_security_groups_on_tenant_net_raises(self):
+        with self._stubs(
+            port=dict(id=1)
+        ) as (port_find, port_update, alloc_ip, dealloc_ip, sg_find):
+            new_port = dict(port=dict(name="ourport",
+                                      security_groups=[1]))
+            with self.assertRaises(
+                    q_exc.TenantNetworkSecurityGroupsNotImplemented):
+                self.plugin.update_port(self.context, 1, new_port)
+
+    def test_update_port_security_groups(self):
+        with self._stubs(
+            port=dict(id=1), parent_net=True
+        ) as (port_find, port_update, alloc_ip, dealloc_ip, sg_find):
+            new_port = dict(port=dict(name="ourport",
+                                      security_groups=[1]))
+            port = self.plugin.update_port(self.context, 1, new_port)
+            port_update.assert_called_once_with(
+                self.context,
+                port_find(),
+                name="ourport",
+                security_groups=[sg_find()])
+            self.assertEqual(sg_find()["id"], port["security_groups"][0])
 
 
 class TestQuarkUpdatePortSetsIps(test_quark_plugin.TestQuarkPlugin):

@@ -16,6 +16,8 @@
 from neutron.openstack.common import log as logging
 
 from quark import network_strategy
+from quark.security_groups import redis_client
+
 
 STRATEGY = network_strategy.STRATEGY
 LOG = logging.getLogger(__name__)
@@ -59,6 +61,13 @@ class UnmanagedDriver(object):
 
     def update_port(self, context, port_id, **kwargs):
         LOG.info("update_port %s %s" % (context.tenant_id, port_id))
+
+        if "security_groups" in kwargs:
+            client = redis_client.Client()
+            payload = client.serialize(kwargs["security_groups"])
+            client.apply_rules(kwargs["device_id"], kwargs["mac_address"],
+                               payload)
+
         return {"uuid": port_id}
 
     def delete_port(self, context, port_id, **kwargs):

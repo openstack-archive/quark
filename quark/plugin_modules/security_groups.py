@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from neutron.common import exceptions
 from neutron.extensions import securitygroup as sg_ext
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import uuidutils
@@ -29,9 +30,14 @@ DEFAULT_SG_UUID = "00000000-0000-0000-0000-000000000000"
 
 
 def _validate_security_group_rule(context, rule):
+    # TODO(mdietz): As per RM8615, Remote groups are not currently supported
+    if rule.get("remote_group_id"):
+        raise exceptions.InvalidInput(
+            error_message="Remote groups are not currently supported")
 
-    if rule.get("remote_ip_prefix") and rule.get("remote_group_id"):
-        raise sg_ext.SecurityGroupRemoteGroupAndRemoteIpPrefix()
+    if "direction" in rule and rule["direction"] != "ingress":
+        raise exceptions.InvalidInput(
+            error_message="Non-ingress rules are not currently supported")
 
     protocol = rule.pop('protocol')
     port_range_min = rule['port_range_min']

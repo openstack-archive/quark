@@ -62,7 +62,6 @@ def create_port(context, port):
     port_id = uuidutils.generate_uuid()
 
     net = db_api.network_find(context, id=net_id, scope=db_api.ONE)
-
     if not net:
         raise exceptions.NetworkNotFound(net_id=net_id)
 
@@ -83,7 +82,6 @@ def create_port(context, port):
         segment_id = None
         port_count = db_api.port_count_all(context, network_id=[net_id],
                                            tenant_id=[context.tenant_id])
-
         quota.QUOTAS.limit_check(
             context, context.tenant_id,
             ports_per_network=port_count + 1)
@@ -92,10 +90,17 @@ def create_port(context, port):
             raise q_exc.AmbiguousNetworkId(net_id=net_id)
 
     ipam_driver = ipam.IPAM_REGISTRY.get_strategy(net["ipam_strategy"])
-    net_driver = registry.DRIVER_REGISTRY.get_driver(net["network_plugin"])
-    group_ids, security_groups = _make_security_group_list(
-        context, port["port"].pop("security_groups", None))
 
+    net_driver = registry.DRIVER_REGISTRY.get_driver(net["network_plugin"])
+
+    # TODO(anyone): security groups are not currently supported on port create,
+    #               nor on isolated networks today. Please see RM8615
+    security_groups = utils.pop_param(port_attrs, "security_groups")
+    if security_groups:
+        raise q_exc.SecurityGroupsNotImplemented()
+
+    group_ids, security_groups = _make_security_group_list(context,
+                                                           security_groups)
     quota.QUOTAS.limit_check(context, context.tenant_id,
                              security_groups_per_port=len(group_ids))
     addresses = []
@@ -230,8 +235,15 @@ def update_port(context, id, port):
     utils.filter_body(context, port_dict, admin_only=admin_only,
                       always_filter=always_filter)
 
-    group_ids, security_groups = _make_security_group_list(
-        context, port_dict.pop("security_groups", None))
+    # TODO(anyone): security groups are not currently supported on port create,
+    #               nor on isolated networks today. Please see RM8615
+    security_groups = utils.pop_param(port_dict, "security_groups")
+    if security_groups:
+        if not STRATEGY.is_parent_network(port_db["network_id"]):
+            raise q_exc.TenantNetworkSecurityGroupsNotImplemented()
+
+    group_ids, security_groups = _make_security_group_list(context,
+                                                           security_groups)
     quota.QUOTAS.limit_check(context, context.tenant_id,
                              security_groups_per_port=len(group_ids))
 
@@ -295,8 +307,15 @@ def update_port(context, id, port):
 
     net_driver = registry.DRIVER_REGISTRY.get_driver(
         port_db.network["network_plugin"])
-    net_driver.update_port(context, port_id=port_db.backend_key,
-                           security_groups=group_ids)
+
+    # TODO(anyone): What do we want to have happen here if this fails? Is it
+    #               ok to continue to keep the IPs but fail to apply security
+    #               groups? Is there a clean way to have a multi-status? Since
+    #               we're in a beta-y status, I'm going to let this sit for
+    #               a future patch where we have time to solve it well.
+    net_driver.update_port(context, port_id=port_db["backend_key"],
+                           mac_address=port_db["mac_address"],
+                           security_groups=security_groups)
 
     port_dict["security_groups"] = security_groups
 
