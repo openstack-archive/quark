@@ -36,8 +36,7 @@ def main():
                    " search paths (~/.neutron/, ~/, /etc/neutron/, /etc/) and"
                    " the '--config-file' option!"))
 
-    neutron_db_api.configure_db()
-    neutron_db_api.register_models(base=models.BASEV2)
+    models.BASEV2.metadata.create_all(neutron_db_api.get_engine())
     used_ips = get_used_ips(neutron_db_api.get_session())
     unused_ips = get_unused_ips(neutron_db_api.get_session(), used_ips)
     print(json.dumps(dict(used=used_ips, unused=unused_ips)))
@@ -97,8 +96,9 @@ def get_used_ips(session):
             models.IPAddress._deallocated == 0,
             models.IPPolicyCIDR.id == None))
 
-        return {tenant_id: address_count
-                for tenant_id, address_count in query.all()}
+        ret = ((tenant_id, address_count)
+               for tenant_id, address_count in query.all())
+        return dict(ret)
 
 
 def get_unused_ips(session, used_ips_counts):
