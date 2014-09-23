@@ -1,4 +1,4 @@
-# Copyright 2013 Openstack Foundation
+# Copyright 2014 Openstack Foundation
 # All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -154,6 +154,7 @@ class TestQuarkGetNetworksShared(test_quark_plugin.TestQuarkPlugin):
                     self.assertEqual(1, len(net['subnets']))
             net_find.assert_called_with(self.context, None,
                                         join_subnets=True,
+                                        shared=[True],
                                         defaults=["public_network"])
 
     def test_get_networks_shared_false(self):
@@ -165,6 +166,7 @@ class TestQuarkGetNetworksShared(test_quark_plugin.TestQuarkPlugin):
             invert = db_api.INVERT_DEFAULTS
             self.plugin.get_networks(self.context, {"shared": [False]})
             net_find.assert_called_with(self.context, None, join_subnets=True,
+                                        shared=[False],
                                         defaults=[invert, "public_network"])
 
     def test_get_networks_no_shared(self):
