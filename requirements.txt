@@ -11,6 +11,9 @@ gunicorn
 pymysql>=0.6.2
 redis==2.10.3
 
+# agent deps
+xenapi==1.2
+
 # NOTE(jkoelker) not technically required, but something has to commit
 #                the transactions. in the future this should be the
 #                neutron wsgi service
