@@ -95,10 +95,9 @@ class QuarkTestIPFiltering(QuarkIpamBaseFunctionalTest):
             id = int(res[0].get("id"))
             self.assertEqual(self.ip_address1["id"], id)
             res = self.plugin.get_ip_addresses(self.context, tenant_id="456")
-            self.assertEqual(2, len(res))
-            self.assertEqual(self.ip_address1["id"], int(res[0].get("id")))
-            self.assertEqual(int(self.context.tenant_id),
-                             int(res[0]["used_by_tenant_id"]))
+            self.assertEqual(1, len(res))
+            id = int(res[0].get("id"))
+            self.assertEqual(self.ip_address2["id"], id)
 
     def test_basic_ip_filtering_with_same_tenant_id_with_different_ip(self):
         with self._stubs(self.network, self.subnet,
@@ -115,18 +114,15 @@ class QuarkTestIPFiltering(QuarkIpamBaseFunctionalTest):
         with self._stubs(self.network, self.subnet, self.ip_address1,
                          self.ip_address2, self.ip_address3):
             res = self.plugin.get_ip_addresses(self.context)
-            self.assertEqual(2, len(res))
+            self.assertEqual(3, len(res))
 
     def test_basic_ip_filtering_with_tenant_id_without_ip(self):
         with self._stubs(self.network, self.subnet,
                          self.ip_address1,
                          self.ip_address2,
                          self.ip_address3):
-            res = self.plugin.get_ip_addresses(self.context)
-            self.assertEqual(2, len(res))
-            self.assertEqual(self.ip_address1["id"], int(res[0].get("id")))
-            self.assertEqual(int(self.context.tenant_id),
-                             int(res[0]["used_by_tenant_id"]))
+            res = self.plugin.get_ip_addresses(self.context, tenant_id="1234")
+            self.assertEqual(0, len(res))
 
     def test_basic_ip_filtering_with_used_by_tenant_id(self):
         with self._stubs(self.network, self.subnet, self.ip_address1,
@@ -138,7 +134,9 @@ class QuarkTestIPFiltering(QuarkIpamBaseFunctionalTest):
             self.assertEqual(self.ip_address1["id"], id)
             res = self.plugin.get_ip_addresses(self.context,
                                                used_by_tenant_id="456")
-            self.assertEqual(0, len(res))
+            self.assertEqual(1, len(res))
+            id = int(res[0].get("id"))
+            self.assertEqual(self.ip_address2["id"], id)
 
     def test_filtering_with_same_used_by_tenant_id_with_different_ip(self):
         with self._stubs(self.network, self.subnet,
