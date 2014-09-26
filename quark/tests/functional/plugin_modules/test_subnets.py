@@ -83,6 +83,61 @@ class QuarkGetSubnetsFromPlugin(BaseFunctionalTest):
         cfg.CONF.set_override('show_subnet_ip_policy_id', original, "QUARK")
 
 
+class QuarkCreateSubnets(BaseFunctionalTest):
+    @contextlib.contextmanager
+    def _stubs(self, network, subnet):
+        self.ipam = quark.ipam.QuarkIpamANY()
+        with contextlib.nested(mock.patch("neutron.common.rpc.get_notifier")):
+            net = network_api.create_network(self.context, network)
+            subnet['subnet']['network_id'] = net['id']
+            sub1 = subnet_api.create_subnet(self.context, subnet)
+            yield net, sub1
+
+    def test_create_allocation_pools_empty(self):
+        cidr = "192.168.1.0/24"
+        ip_network = netaddr.IPNetwork(cidr)
+        network = dict(name="public", tenant_id="fake", network_plugin="BASE")
+        network = {"network": network}
+        pools = []
+        subnet = dict(id=1, ip_version=4, next_auto_assign_ip=2,
+                      cidr=cidr, first_ip=ip_network.first,
+                      last_ip=ip_network.last, ip_policy=None,
+                      tenant_id="fake", allocation_pools=pools)
+        subnet = {"subnet": subnet}
+        with self._stubs(network, subnet) as (net, sub1):
+            self.assertEqual(sub1["allocation_pools"], [])
+
+    def test_create_allocation_pools_none(self):
+        cidr = "192.168.1.0/24"
+        ip_network = netaddr.IPNetwork(cidr)
+        network = dict(name="public", tenant_id="fake", network_plugin="BASE")
+        network = {"network": network}
+        pools = None
+        subnet = dict(id=1, ip_version=4, next_auto_assign_ip=2,
+                      cidr=cidr, first_ip=ip_network.first,
+                      last_ip=ip_network.last, ip_policy=None,
+                      tenant_id="fake", allocation_pools=pools)
+        subnet = {"subnet": subnet}
+        with self._stubs(network, subnet) as (net, sub1):
+            self.assertEqual(sub1["allocation_pools"],
+                             [dict(start="192.168.1.1", end="192.168.1.254")])
+
+    def test_create_allocation_pools_full(self):
+        cidr = "192.168.1.0/24"
+        ip_network = netaddr.IPNetwork(cidr)
+        network = dict(name="public", tenant_id="fake", network_plugin="BASE")
+        network = {"network": network}
+        pools = [dict(start="192.168.1.0", end="192.168.1.255")]
+        subnet = dict(id=1, ip_version=4, next_auto_assign_ip=2,
+                      cidr=cidr, first_ip=ip_network.first,
+                      last_ip=ip_network.last, ip_policy=None,
+                      tenant_id="fake", allocation_pools=pools)
+        subnet = {"subnet": subnet}
+        with self._stubs(network, subnet) as (net, sub1):
+            self.assertEqual(sub1["allocation_pools"],
+                             [dict(start="192.168.1.1", end="192.168.1.254")])
+
+
 class QuarkUpdateSubnets(BaseFunctionalTest):
     @contextlib.contextmanager
     def _stubs(self, network, subnet):
