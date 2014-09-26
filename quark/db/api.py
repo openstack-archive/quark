@@ -17,7 +17,6 @@ import datetime
 import inspect
 
 import netaddr
-from neutron.common import exceptions
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import timeutils
 from neutron.openstack.common import uuidutils
@@ -149,18 +148,8 @@ def _model_query(context, model, filters, fields=None):
         model_filters.append(model.used_by_tenant_id.in_(
                              filters["used_by_tenant_id"]))
 
-    # RM9305: this is hairy. I believe Nova is always an admin when talking
-    #         to Neutron. However, the tenant_id will get injected, so we
-    #         should use that to filter. Meanwhile, we need to provide the
-    #         ability to do an unqualified filter as neutron itself will
-    #         create a god context with no tenant as part of policy
-    #         enforcement.
     if not filters.get("shared"):
-        if context.tenant_id is not None:
-            filters["tenant_id"] = [context.tenant_id]
-        else:
-            if not context.is_admin:
-                raise exceptions.NotAuthorized()
+        filters["tenant_id"] = [context.tenant_id]
 
     if filters.get("tenant_id"):
         if model == models.IPAddress:
