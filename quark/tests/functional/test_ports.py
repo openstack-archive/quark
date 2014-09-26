@@ -13,12 +13,10 @@
 # License for# the specific language governing permissions and limitations
 #  under the License.
 
-import contextlib
-
 import mock
 import netaddr
-from neutron.common import exceptions as n_exc
-from neutron import context
+
+import contextlib
 
 from quark.db import api as db_api
 from quark import exceptions
@@ -49,60 +47,6 @@ class QuarkFindPortsSorted(BaseFunctionalTest):
         db_api.port_delete(self.context, port_mod1)
         db_api.port_delete(self.context, port_mod2)
         db_api.port_delete(self.context, port_mod3)
-
-
-class QuarkCreatePorts(BaseFunctionalTest):
-    @contextlib.contextmanager
-    def _fixtures(self, network_info, subnet_info):
-        self.ipam = quark.ipam.QuarkIpamANY()
-        with contextlib.nested(
-                mock.patch("neutron.common.rpc.get_notifier"),
-                mock.patch("neutron.quota.QUOTAS.limit_check")):
-            net = network_api.create_network(self.context, network_info)
-            mac = {'mac_address_range': dict(cidr="AA:BB:CC")}
-            self.context.is_admin = True
-            macrng_api.create_mac_address_range(self.context, mac)
-            self.context.is_admin = False
-            subnet_info['subnet']['network_id'] = net['id']
-            sub = subnet_api.create_subnet(self.context, subnet_info)
-            yield net, sub
-
-    def test_non_admin_create_port_no_tenant_raises(self):
-        cidr = "192.168.1.0/24"
-        ip_network = netaddr.IPNetwork(cidr)
-        network = dict(name="public", tenant_id="fake", network_plugin="BASE")
-        network = {"network": network}
-        subnet = dict(id=1, ip_version=4, next_auto_assign_ip=2,
-                      cidr=cidr, first_ip=ip_network.first,
-                      last_ip=ip_network.last, ip_policy=None,
-                      tenant_id="fake")
-        subnet = {"subnet": subnet}
-        port = {"port": dict()}
-        with self._fixtures(network, subnet) as (net, sub):
-            port['port']['network_id'] = net['id']
-            bad_context = context.Context(None, None, is_admin=False)
-            with self.assertRaises(n_exc.NotAuthorized):
-                port_api.create_port(bad_context, port)
-
-    def test_admin_create_port_no_tenant_does_not_raise(self):
-        cidr = "192.168.1.0/24"
-        ip_network = netaddr.IPNetwork(cidr)
-        network = dict(name="public", tenant_id="fake", network_plugin="BASE")
-        network = {"network": network}
-        subnet = dict(id=1, ip_version=4, next_auto_assign_ip=2,
-                      cidr=cidr, first_ip=ip_network.first,
-                      last_ip=ip_network.last, ip_policy=None,
-                      tenant_id="fake")
-        subnet = {"subnet": subnet}
-        port = {"port": dict()}
-        with self._fixtures(network, subnet) as (net, sub):
-            port['port']['network_id'] = net['id']
-            god_context = context.Context(None, None, is_admin=True,
-                                          load_admin_roles=False)
-            try:
-                port_api.create_port(god_context, port)
-            except Exception:
-                self.fail("This should not have raised")
 
 
 class QuarkUpdatePorts(BaseFunctionalTest):
