@@ -20,6 +20,7 @@ from neutron.common import rpc as n_rpc
 from neutron.openstack.common import importutils
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import timeutils
+from neutron import quota
 from oslo.config import cfg
 
 from quark import allocation_pool
@@ -115,6 +116,23 @@ def create_subnet(context, subnet):
             err_vals["prefix"] = 31
             err_msg = err % err_vals
             raise exceptions.InvalidInput(error_message=err_msg)
+        # Enforce subnet quotas
+        net_subnets = get_subnets(context,
+                                  filters=dict(network_id=net_id))
+
+        v4_count, v6_count = 0, 0
+        for subnet in net_subnets:
+            if netaddr.IPNetwork(subnet['cidr']).version == 6:
+                v6_count += 1
+            else:
+                v4_count += 1
+
+        if cidr.version == 6:
+            quota.QUOTAS.limit_check(context, context.tenant_id,
+                                     v6_subnets_per_network=v6_count + 1)
+        else:
+            quota.QUOTAS.limit_check(context, context.tenant_id,
+                                     v4_subnets_per_network=v4_count + 1)
 
         # See RM981. The default behavior of setting a gateway unless
         # explicitly asked to not is no longer desirable.

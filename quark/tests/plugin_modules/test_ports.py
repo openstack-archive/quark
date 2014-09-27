@@ -240,7 +240,7 @@ class TestQuarkCreatePortFailure(test_quark_plugin.TestQuarkPlugin):
                 self.plugin.create_port(self.context, port_2)
 
 
-class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
+class TestQuarkCreatePortsSameDevBadRequest(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, port=None, network=None, addr=None, mac=None,
                limit_checks=None):

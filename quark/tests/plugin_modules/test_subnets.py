@@ -1037,6 +1037,110 @@ class TestQuarkDeleteSubnet(test_quark_plugin.TestQuarkPlugin):
                 self.plugin.delete_subnet(self.context, 1)
 
 
+class TestSubnetsQuotas(test_quark_plugin.TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, subnet_values, deleted_at=None):
+        class FakeContext(object):
+            def __enter__(*args, **kwargs):
+                pass
+
+            def __exit__(*args, **kwargs):
+                pass
+
+        self.context.session.begin = FakeContext
+        subnets = list()
+        for s in subnet_values:
+            s["network"] = models.Network()
+            s["network"]["created_at"] = s["created_at"]
+            subnet = models.Subnet(**s)
+            subnets.append(subnet)
+        db_mod = "quark.db.api"
+        rpc_mod = "neutron.common.rpc"
+        time_mod = "neutron.openstack.common.timeutils"
+        sub_plugin_mod = "quark.plugin_modules.subnets"
+        with contextlib.nested(
+            mock.patch("%s.get_subnets" % sub_plugin_mod),
+            mock.patch("%s.subnet_find" % db_mod),
+            mock.patch("%s.network_find" % db_mod),
+            mock.patch("%s.subnet_create" % db_mod),
+            mock.patch("%s.subnet_delete" % db_mod),
+            mock.patch("%s.get_notifier" % rpc_mod),
+            mock.patch("%s.utcnow" % time_mod),
+            mock.patch("%s._validate_subnet_cidr" % sub_plugin_mod)
+        ) as (get_subnets, sub_find, net_find, sub_create, sub_del, notify,
+              time_func, sub_validate):
+            sub_create.return_value = subnets[0]
+            sub_find.return_value = subnets[0]
+            retsubs = []
+            if len(subnets) > 1:
+                retsubs = subnets[1:]
+            get_subnets.return_value = retsubs
+            time_func.return_value = deleted_at
+            yield notify
+
+    def test_create_subnet_v4_alongside_v6_quota_pass(self):
+        original_4 = cfg.CONF.QUOTAS.quota_v4_subnets_per_network
+        original_6 = cfg.CONF.QUOTAS.quota_v6_subnets_per_network
+        s = [dict(network_id=1, cidr="192.167.10.0/24",
+                  tenant_id=1, id=1, created_at="123"),
+             dict(network_id=1, cidr="::0/24",
+                  tenant_id=1, id=2, created_at="123")]
+        with self._stubs(s):
+            cfg.CONF.set_override('quota_v4_subnets_per_network', 1, "QUOTAS")
+            cfg.CONF.set_override('quota_v6_subnets_per_network', 1, "QUOTAS")
+            self.plugin.create_subnet(self.context, dict(subnet=s[0]))
+            cfg.CONF.set_override('quota_v4_subnets_per_network', original_4,
+                                  "QUOTAS")
+            cfg.CONF.set_override('quota_v6_subnets_per_network', original_6,
+                                  "QUOTAS")
+
+    def test_create_subnet_v4_quota_pass(self):
+        original_4 = cfg.CONF.QUOTAS.quota_v4_subnets_per_network
+        s = [dict(network_id=1, cidr="192.167.10.0/24",
+                  tenant_id=1, id=1, created_at="123")]
+        with self._stubs(s):
+            cfg.CONF.set_override('quota_v4_subnets_per_network', 1, "QUOTAS")
+            self.plugin.create_subnet(self.context, dict(subnet=s[0]))
+            cfg.CONF.set_override('quota_v4_subnets_per_network', original_4,
+                                  "QUOTAS")
+
+    def test_create_subnet_v6_quota_pass(self):
+        original_6 = cfg.CONF.QUOTAS.quota_v6_subnets_per_network
+        s = [dict(network_id=1, cidr="::0/24",
+                  tenant_id=1, id=1, created_at="123")]
+        with self._stubs(s):
+            cfg.CONF.set_override('quota_v6_subnets_per_network', 1, "QUOTAS")
+            self.plugin.create_subnet(self.context, dict(subnet=s[0]))
+            cfg.CONF.set_override('quota_v6_subnets_per_network', original_6,
+                                  "QUOTAS")
+
+    def test_create_subnet_v4_quota_fail(self):
+        original_4 = cfg.CONF.QUOTAS.quota_v4_subnets_per_network
+        s = [dict(network_id=1, cidr="192.167.10.0/24",
+                  tenant_id=1, id=1, created_at="123"),
+             dict(network_id=1, cidr="192.168.10.0/24",
+                  tenant_id=1, id=2, created_at="124")]
+        with self._stubs(s):
+            cfg.CONF.set_override('quota_v4_subnets_per_network', 1, "QUOTAS")
+            with self.assertRaises(exceptions.OverQuota):
+                self.plugin.create_subnet(self.context, dict(subnet=s[0]))
+            cfg.CONF.set_override('quota_v4_subnets_per_network', original_4,
+                                  "QUOTAS")
+
+    def test_create_subnet_v6_quota_fail(self):
+        original_6 = cfg.CONF.QUOTAS.quota_v6_subnets_per_network
+        s = [dict(network_id=1, cidr="::0/24",
+                  tenant_id=1, id=1, created_at="123"),
+             dict(network_id=1, cidr="::1/24",
+                  tenant_id=1, id=2, created_at="124")]
+        with self._stubs(s):
+            cfg.CONF.set_override('quota_v6_subnets_per_network', 1, "QUOTAS")
+            with self.assertRaises(exceptions.OverQuota):
+                self.plugin.create_subnet(self.context, dict(subnet=s[0]))
+            cfg.CONF.set_override('quota_v6_subnets_per_network', original_6,
+                                  "QUOTAS")
+
+
 class TestSubnetsNotification(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, s, deleted_at=None):
@@ -1057,6 +1161,7 @@ class TestSubnetsNotification(test_quark_plugin.TestQuarkPlugin):
         time_mod = "neutron.openstack.common.timeutils"
         sub_plugin_mod = "quark.plugin_modules.subnets"
         with contextlib.nested(
+            mock.patch("%s.get_subnets" % sub_plugin_mod),
             mock.patch("%s.subnet_find" % db_mod),
             mock.patch("%s.network_find" % db_mod),
             mock.patch("%s.subnet_create" % db_mod),
@@ -1064,9 +1169,10 @@ class TestSubnetsNotification(test_quark_plugin.TestQuarkPlugin):
             mock.patch("%s.get_notifier" % rpc_mod),
             mock.patch("%s.utcnow" % time_mod),
             mock.patch("%s._validate_subnet_cidr" % sub_plugin_mod)
-        ) as (sub_find, net_find, sub_create, sub_del, notify,
+        ) as (get_subnets, sub_find, net_find, sub_create, sub_del, notify,
               time_func, sub_validate):
             sub_create.return_value = subnet
+            get_subnets.return_value = []
             sub_find.return_value = subnet
             time_func.return_value = deleted_at
             yield notify
