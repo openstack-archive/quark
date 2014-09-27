@@ -13,11 +13,13 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import netaddr
 from neutron.common import exceptions
 from neutron.extensions import providernet as pnet
 from neutron.openstack.common import importutils
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import uuidutils
+from neutron import quota
 from oslo.config import cfg
 
 from quark.db import api as db_api
@@ -60,8 +62,25 @@ def create_network(context, network):
     LOG.info("create_network for tenant %s" % context.tenant_id)
 
     with context.session.begin():
-        # Generate a uuid that we're going to hand to the backend and db
         net_attrs = network["network"]
+        subs = net_attrs.pop("subnets", [])
+        # Enforce subnet quotas
+        if len(subs) > 0:
+            v4_count, v6_count = 0, 0
+            for s in subs:
+                version = netaddr.IPNetwork(s['subnet']['cidr']).version
+                if version == 6:
+                    v6_count += 1
+                else:
+                    v4_count += 1
+            if v4_count > 0:
+                quota.QUOTAS.limit_check(context, context.tenant_id,
+                                         v4_subnets_per_network=v4_count)
+            if v6_count > 0:
+                quota.QUOTAS.limit_check(context, context.tenant_id,
+                                         v6_subnets_per_network=v6_count)
+
+        # Generate a uuid that we're going to hand to the backend and db
         net_uuid = utils.pop_param(net_attrs, "id", None)
         net_type = None
         if net_uuid and context.is_admin:
@@ -95,8 +114,6 @@ def create_network(context, network):
         net_driver.create_network(context, net_attrs["name"],
                                   network_id=net_uuid, phys_type=pnet_type,
                                   phys_net=phys_net, segment_id=seg_id)
-
-        subs = net_attrs.pop("subnets", [])
 
         net_attrs["id"] = net_uuid
         net_attrs["tenant_id"] = context.tenant_id
