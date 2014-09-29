@@ -27,9 +27,9 @@ class AllocationPools(object):
         self._alloc_pools = pools
         version = self._subnet_cidr.version
         self._subnet_first_ip = netaddr.IPAddress(
-            self._subnet_cidr.first + 1, version=version)
+            self._subnet_cidr.first, version=version)
         self._subnet_last_ip = netaddr.IPAddress(
-            self._subnet_cidr.last - 1, version=version)
+            self._subnet_cidr.last, version=version)
 
         # If passed an empty list, the entire subnet is unallocatable.
         # If None is passed, the entire subnet is allocatable
