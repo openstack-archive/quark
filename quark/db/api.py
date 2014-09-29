@@ -375,6 +375,26 @@ def mac_address_create(context, **mac_dict):
 INVERT_DEFAULTS = 'invert_defaults'
 
 
+# HACK(amir): RM9305: do not allow a tenant to associate a network to a port
+# that does not belong to them unless it is publicnet or servicenet
+def _remove_unauthorized_networks(f):
+    def wrapped(*args, **kwargs):
+        context = args[0]
+        tenant_id = context.tenant_id
+        net_or_nets = f(*args, **kwargs)
+
+        def _auth_filter(net):
+            return (net and (STRATEGY.is_parent_network(net["id"]) or
+                             net["tenant_id"] == tenant_id))
+        if not isinstance(net_or_nets, list):
+            if _auth_filter(net_or_nets):
+                return net_or_nets
+        else:
+            return [net for net in net_or_nets if _auth_filter(net)]
+    return wrapped
+
+
+@_remove_unauthorized_networks
 @scoped
 def network_find(context, fields=None, **filters):
     ids = []

@@ -202,13 +202,14 @@ class TestQuarkUpdateNetwork(test_quark_plugin.TestQuarkPlugin):
             yield net_update
 
     def test_update_network(self):
-        net = dict(id=1)
+        net = dict(id=1, tenant_id=self.context.tenant_id)
         new_net = net.copy()
         new_net["ipam_strategy"] = "BOTH_REQUIRED"
         with self._stubs(net=net) as net_update:
             self.plugin.update_network(self.context, 1, dict(network=new_net))
             net_update.assert_called_once_with(
-                self.context, net, id=net["id"])
+                self.context, net, id=net["id"],
+                tenant_id=self.context.tenant_id)
 
     def test_update_network_not_found_fails(self):
         with self._stubs(net=None):
@@ -216,7 +217,7 @@ class TestQuarkUpdateNetwork(test_quark_plugin.TestQuarkPlugin):
                 self.plugin.update_network(self.context, 1, None)
 
     def test_update_network_admin_set_ipam_strategy(self):
-        net = dict(id=1)
+        net = dict(id=1, tenant_id=self.context.tenant_id)
         new_net = net.copy()
         new_net["ipam_strategy"] = "BOTH_REQUIRED"
 
@@ -225,7 +226,7 @@ class TestQuarkUpdateNetwork(test_quark_plugin.TestQuarkPlugin):
             self.plugin.update_network(admin_ctx, 1, dict(network=new_net))
             net_update.assert_called_once_with(
                 admin_ctx, net, ipam_strategy=new_net["ipam_strategy"],
-                id=net["id"])
+                id=net["id"], tenant_id=self.context.tenant_id)
 
 
 class TestQuarkDeleteNetwork(test_quark_plugin.TestQuarkPlugin):
@@ -264,13 +265,13 @@ class TestQuarkDeleteNetwork(test_quark_plugin.TestQuarkPlugin):
             yield net_delete
 
     def test_delete_network(self):
-        net = dict(id=1)
+        net = dict(id=1, tenant_id=self.context.tenant_id)
         with self._stubs(net=net, ports=[]) as net_delete:
             self.plugin.delete_network(self.context, 1)
             self.assertTrue(net_delete.called)
 
     def test_delete_network_with_ports_fails(self):
-        net = dict(id=1)
+        net = dict(id=1, tenant_id=self.context.tenant_id)
         port = dict(id=2)
         with self._stubs(net=net, ports=[port]):
             with self.assertRaises(exceptions.NetworkInUse):
@@ -282,7 +283,7 @@ class TestQuarkDeleteNetwork(test_quark_plugin.TestQuarkPlugin):
                 self.plugin.delete_network(self.context, 1)
 
     def test_delete_network_with_subnets_passes(self):
-        net = dict(id=1)
+        net = dict(id=1, tenant_id=self.context.tenant_id)
         subnet = dict(id=1)
         with self._stubs(net=net, ports=[], subnets=[subnet]) as net_delete:
             self.plugin.delete_network(self.context, 1)

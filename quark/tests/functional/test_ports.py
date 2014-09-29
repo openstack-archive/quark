@@ -15,12 +15,16 @@
 
 import mock
 import netaddr
+from neutron.common import exceptions as neutron_exc
 
 import contextlib
+import json
 
 from quark.db import api as db_api
 from quark import exceptions
 import quark.ipam
+from quark import network_strategy
+import quark.plugin
 import quark.plugin_modules.mac_address_ranges as macrng_api
 import quark.plugin_modules.networks as network_api
 import quark.plugin_modules.ports as port_api
@@ -133,3 +137,93 @@ class QuarkFindPortsFilterByDeviceOwner(BaseFunctionalTest):
         db_api.port_delete(self.context, port_mod1)
         db_api.port_delete(self.context, port_mod2)
         db_api.port_delete(self.context, port_mod3)
+
+
+class QuarkCreatePortsRM9305(BaseFunctionalTest):
+    PUBLICNET = "00000000-0000-0000-0000-000000000000"
+    SERVICENET = "11111111-1111-1111-1111-111111111111"
+    TENANT_NET = "tenant-id-net"
+    OTHER_NET = "other-tenant-id-net"
+
+    def setUp(self):
+        super(QuarkCreatePortsRM9305, self).setUp()
+        strategy = {self.PUBLICNET: {"bridge": "publicnet"},
+                    self.SERVICENET: {"bridge": "servicenet"}}
+        strategy_json = json.dumps(strategy)
+        db_api.STRATEGY = network_strategy.JSONStrategy(strategy_json)
+        self.plugin = quark.plugin.Plugin()
+
+    @contextlib.contextmanager
+    def _stubs(self):
+        with contextlib.nested(
+            mock.patch("neutron.common.rpc.get_notifier"),
+            mock.patch("neutron.quota.QUOTAS.limit_check")
+        ):
+            mac = {'mac_address_range': dict(cidr="AA:BB:CC")}
+            self.context.is_admin = True
+            macrng_api.create_mac_address_range(self.context, mac)
+            self.context.is_admin = False
+
+            def _make_subnet(cidr, net_id, tenant_id):
+                old_tid = self.context.tenant_id
+                self.context.tenant_id = tenant_id
+                network = dict(
+                    id=net_id,
+                    name="irrelevant",
+                    tenant_id=tenant_id,
+                    network_plugin="BASE",
+                    ipam_strategy="ANY")
+                db_api.network_create(self.context, **network)
+
+                ip_network = netaddr.IPNetwork(cidr)
+                subnet = dict(ip_version=4,
+                              next_auto_assign_ip=ip_network.first,
+                              cidr=cidr,
+                              first_ip=ip_network.first,
+                              last_ip=ip_network.last, ip_policy=None,
+                              tenant_id=tenant_id)
+                subnet['network_id'] = net_id
+                subnet_info = {"subnet": subnet}
+                subnet_api.create_subnet(self.context, subnet_info)
+                self.context.tenant_id = old_tid
+            _make_subnet("192.168.0.0/24", self.PUBLICNET, "rackspace")
+            _make_subnet("192.168.1.0/24", self.SERVICENET, "rackspace")
+            _make_subnet("192.168.2.0/24", self.TENANT_NET,
+                         self.context.tenant_id)
+            _make_subnet("192.168.3.0/24", self.OTHER_NET, "other-tenant")
+            yield
+
+    def test_RM9305_tenant_create_servicenet_port(self):
+        port_1 = dict(port=dict(mac_address="AA:BB:CC:DD:EE:00",
+                                network_id=self.SERVICENET,
+                                tenant_id=self.context.tenant_id, device_id=2,
+                                segment_id="bar",
+                                name="Fake"))
+        with self._stubs():
+            self.plugin.create_port(self.context, port_1)
+
+    def test_RM9305_tenant_create_publicnet_port(self):
+        port_1 = dict(port=dict(mac_address="AA:BB:CC:DD:EE:00",
+                                network_id=self.PUBLICNET,
+                                tenant_id=self.context.tenant_id, device_id=3,
+                                segment_id="bar",
+                                name="Fake"))
+        with self._stubs():
+            self.plugin.create_port(self.context, port_1)
+
+    def test_RM9305_tenant_create_tenants_port(self):
+        port_1 = dict(port=dict(mac_address="AA:BB:CC:DD:EE:00",
+                                network_id=self.TENANT_NET,
+                                tenant_id=self.context.tenant_id, device_id=4,
+                                name="Fake"))
+        with self._stubs():
+            self.plugin.create_port(self.context, port_1)
+
+    def test_RM9305_tenant_create_other_tenants_port(self):
+        port_1 = dict(port=dict(mac_address="AA:BB:CC:DD:EE:00",
+                                network_id=self.OTHER_NET,
+                                tenant_id=self.context.tenant_id, device_id=5,
+                                name="Fake"))
+        with self._stubs():
+            with self.assertRaises(neutron_exc.NetworkNotFound):
+                self.plugin.create_port(self.context, port_1)
