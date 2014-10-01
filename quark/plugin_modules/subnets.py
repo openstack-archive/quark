@@ -17,6 +17,7 @@ import netaddr
 from neutron.common import config as neutron_cfg
 from neutron.common import exceptions
 from neutron.common import rpc as n_rpc
+from neutron.db import quota_db as qdb
 from neutron.openstack.common import importutils
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import timeutils
@@ -119,20 +120,32 @@ def create_subnet(context, subnet):
         # Enforce subnet quotas
         net_subnets = get_subnets(context,
                                   filters=dict(network_id=net_id))
+        if not context.is_admin:
+            v4_count, v6_count = 0, 0
+            for subnet in net_subnets:
+                if netaddr.IPNetwork(subnet['cidr']).version == 6:
+                    v6_count += 1
+                else:
+                    v4_count += 1
 
-        v4_count, v6_count = 0, 0
-        for subnet in net_subnets:
-            if netaddr.IPNetwork(subnet['cidr']).version == 6:
-                v6_count += 1
+            if cidr.version == 6:
+                tenant_quota_v6 = context.session.query(qdb.Quota).filter_by(
+                    tenant_id=context.tenant_id,
+                    resource='v6_subnets_per_network').first()
+                if tenant_quota_v6 != -1:
+                    quota.QUOTAS.limit_check(
+                        context,
+                        context.tenant_id,
+                        v6_subnets_per_network=v6_count + 1)
             else:
-                v4_count += 1
-
-        if cidr.version == 6:
-            quota.QUOTAS.limit_check(context, context.tenant_id,
-                                     v6_subnets_per_network=v6_count + 1)
-        else:
-            quota.QUOTAS.limit_check(context, context.tenant_id,
-                                     v4_subnets_per_network=v4_count + 1)
+                tenant_quota_v4 = context.session.query(qdb.Quota).filter_by(
+                    tenant_id=context.tenant_id,
+                    resource='v4_subnets_per_network').first()
+                if tenant_quota_v4 != -1:
+                    quota.QUOTAS.limit_check(
+                        context,
+                        context.tenant_id,
+                        v4_subnets_per_network=v4_count + 1)
 
         # See RM981. The default behavior of setting a gateway unless
         # explicitly asked to not is no longer desirable.
