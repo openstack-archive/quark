@@ -224,7 +224,7 @@ class TestQuarkCreatePortFailure(test_quark_plugin.TestQuarkPlugin):
             yield port_create
 
     def test_create_multiple_ports_on_same_net_and_device_id_bad_request(self):
-        network = dict(id=1)
+        network = dict(id=1, tenant_id=self.context.tenant_id)
         ip = dict()
         mac = dict(address="AA:BB:CC:DD:EE:FF")
         port_1 = dict(port=dict(mac_address="AA:BB:CC:DD:EE:00", network_id=1,
@@ -238,6 +238,93 @@ class TestQuarkCreatePortFailure(test_quark_plugin.TestQuarkPlugin):
             with self.assertRaises(exceptions.BadRequest):
                 self.plugin.create_port(self.context, port_1)
                 self.plugin.create_port(self.context, port_2)
+
+
+class TestQuarkCreatePortRM9305(test_quark_plugin.TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, port=None, network=None, addr=None, mac=None):
+        if network:
+            network["network_plugin"] = "BASE"
+            network["ipam_strategy"] = "ANY"
+        port_model = models.Port()
+        port_model.update(port)
+        port_models = port_model
+
+        db_mod = "quark.db.api"
+        ipam = "quark.ipam.QuarkIpam"
+        with contextlib.nested(
+            mock.patch("%s.port_create" % db_mod),
+            mock.patch("%s.network_find" % db_mod),
+            mock.patch("%s.port_find" % db_mod),
+            mock.patch("%s.allocate_ip_address" % ipam),
+            mock.patch("%s.allocate_mac_address" % ipam),
+            mock.patch("%s.port_count_all" % db_mod),
+        ) as (port_create, net_find, port_find, alloc_ip, alloc_mac,
+              port_count):
+            port_create.return_value = port_models
+            net_find.return_value = network
+            port_find.return_value = None
+            alloc_ip.return_value = addr
+            alloc_mac.return_value = mac
+            port_count.return_value = 0
+            yield port_create
+
+    def test_RM9305_tenant_create_servicenet_port(self):
+        network_id = "11111111-1111-1111-1111-111111111111"
+        network = dict(id=network_id,
+                       tenant_id="rackspace")
+        ip = dict()
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
+        port_1 = dict(port=dict(mac_address="AA:BB:CC:DD:EE:00",
+                                network_id=network_id,
+                                tenant_id=self.context.tenant_id, device_id=2,
+                                name="Fake"))
+
+        with self._stubs(port=port_1, network=network, addr=ip, mac=mac):
+            self.plugin.create_port(self.context, port_1)
+
+    def test_RM9305_tenant_create_publicnet_port(self):
+        network_id = "00000000-0000-0000-0000-000000000000"
+        network = dict(id=network_id,
+                       tenant_id="rackspace")
+        ip = dict()
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
+        port_1 = dict(port=dict(mac_address="AA:BB:CC:DD:EE:00",
+                                network_id=network_id,
+                                tenant_id=self.context.tenant_id, device_id=3,
+                                name="Fake"))
+
+        with self._stubs(port=port_1, network=network, addr=ip, mac=mac):
+            self.plugin.create_port(self.context, port_1)
+
+    def test_RM9305_tenant_create_tenants_port(self):
+        network_id = "foobar"
+        network = dict(id=network_id,
+                       tenant_id=self.context.tenant_id)
+        ip = dict()
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
+        port_1 = dict(port=dict(mac_address="AA:BB:CC:DD:EE:00",
+                                network_id=network_id,
+                                tenant_id=self.context.tenant_id, device_id=4,
+                                name="Fake"))
+
+        with self._stubs(port=port_1, network=network, addr=ip, mac=mac):
+            self.plugin.create_port(self.context, port_1)
+
+    def test_RM9305_tenant_create_other_tenants_port(self):
+        network_id = "foobar"
+        network = dict(id=network_id,
+                       tenant_id="other_tenant")
+        ip = dict()
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
+        port_1 = dict(port=dict(mac_address="AA:BB:CC:DD:EE:00",
+                                network_id=network_id,
+                                tenant_id=self.context.tenant_id, device_id=5,
+                                name="Fake"))
+
+        with self._stubs(port=port_1, network=network, addr=ip, mac=mac):
+            with self.assertRaises(exceptions.NotAuthorized):
+                self.plugin.create_port(self.context, port_1)
 
 
 class TestQuarkCreatePortsSameDevBadRequest(test_quark_plugin.TestQuarkPlugin):
@@ -272,7 +359,7 @@ class TestQuarkCreatePortsSameDevBadRequest(test_quark_plugin.TestQuarkPlugin):
             yield port_create
 
     def test_create_port(self):
-        network = dict(id=1)
+        network = dict(id=1, tenant_id=self.context.tenant_id)
         mac = dict(address="AA:BB:CC:DD:EE:FF")
         port_name = "foobar"
         ip = dict()
@@ -296,7 +383,7 @@ class TestQuarkCreatePortsSameDevBadRequest(test_quark_plugin.TestQuarkPlugin):
                 self.assertEqual(result[key], expected[key])
 
     def test_create_port_segment_id_on_unshared_net_ignored(self):
-        network = dict(id=1)
+        network = dict(id=1, tenant_id=self.context.tenant_id)
         mac = dict(address="AA:BB:CC:DD:EE:FF")
         port_name = "foobar"
         ip = dict()
@@ -320,7 +407,7 @@ class TestQuarkCreatePortsSameDevBadRequest(test_quark_plugin.TestQuarkPlugin):
                 self.assertEqual(result[key], expected[key])
 
     def test_create_port_mac_address_not_specified(self):
-        network = dict(id=1)
+        network = dict(id=1, tenant_id=self.context.tenant_id)
         mac = dict(address="AA:BB:CC:DD:EE:FF")
         ip = dict()
         port = dict(port=dict(mac_address=mac["address"], network_id=1,
@@ -342,7 +429,7 @@ class TestQuarkCreatePortsSameDevBadRequest(test_quark_plugin.TestQuarkPlugin):
                 self.assertEqual(result[key], expected[key])
 
     def test_create_port_fixed_ips(self):
-        network = dict(id=1)
+        network = dict(id=1, tenant_id=self.context.tenant_id)
         mac = dict(address="AA:BB:CC:DD:EE:FF")
         ip = mock.MagicMock()
         ip.get = lambda x, *y: 1 if x == "subnet_id" else None
@@ -367,7 +454,7 @@ class TestQuarkCreatePortsSameDevBadRequest(test_quark_plugin.TestQuarkPlugin):
                 self.assertEqual(result[key], expected[key])
 
     def test_create_port_fixed_ips_bad_request(self):
-        network = dict(id=1)
+        network = dict(id=1, tenant_id=self.context.tenant_id)
         mac = dict(address="AA:BB:CC:DD:EE:FF")
         ip = mock.MagicMock()
         ip.get = lambda x: 1 if x == "subnet_id" else None
@@ -389,7 +476,7 @@ class TestQuarkCreatePortsSameDevBadRequest(test_quark_plugin.TestQuarkPlugin):
                 self.plugin.create_port(self.context, port)
 
     def test_create_port_security_groups_raises(self, groups=[1]):
-        network = dict(id=1)
+        network = dict(id=1, tenant_id=self.context.tenant_id)
         mac = dict(address="AA:BB:CC:DD:EE:FF")
         port_name = "foobar"
         ip = dict()
@@ -436,7 +523,8 @@ class TestQuarkPortCreateQuota(test_quark_plugin.TestQuarkPlugin):
             yield port_create
 
     def test_create_port_net_at_max(self):
-        network = dict(id=1, ports=[models.Port()])
+        network = dict(id=1, ports=[models.Port()],
+                       tenant_id=self.context.tenant_id)
         mac = dict(address="AA:BB:CC:DD:EE:FF")
         port_name = "foobar"
         ip = dict()
@@ -814,7 +902,8 @@ class TestQuarkCreatePortOnSharedNetworks(test_quark_plugin.TestQuarkPlugin):
             yield port_create
 
     def test_create_port_shared_net_no_quota_check(self):
-        network = dict(id=1, ports=[models.Port()])
+        network = dict(id=1, ports=[models.Port()],
+                       tenant_id=self.context.tenant_id)
         mac = dict(address="AA:BB:CC:DD:EE:FF")
         port_name = "foobar"
         ip = dict()
@@ -830,7 +919,8 @@ class TestQuarkCreatePortOnSharedNetworks(test_quark_plugin.TestQuarkPlugin):
                 self.fail("create_port raised OverQuota")
 
     def test_create_port_shared_net_no_segment_id_fails(self):
-        network = dict(id=1, ports=[models.Port()])
+        network = dict(id=1, ports=[models.Port()],
+                       tenant_id=self.context.tenant_id)
         mac = dict(address="AA:BB:CC:DD:EE:FF")
         port_name = "foobar"
         ip = dict()
@@ -1057,7 +1147,7 @@ class TestQuarkPortCreateFiltering(test_quark_plugin.TestQuarkPlugin):
             yield port_create, alloc_mac, net_find
 
     def test_create_port_attribute_filtering(self):
-        network = dict(id=1)
+        network = dict(id=1, tenant_id=self.context.tenant_id)
         mac = dict(address="AA:BB:CC:DD:EE:FF")
         port_name = "foobar"
         ip = dict()
@@ -1087,7 +1177,7 @@ class TestQuarkPortCreateFiltering(test_quark_plugin.TestQuarkPlugin):
                 security_groups=[], device_id=2)
 
     def test_create_port_attribute_filtering_admin(self):
-        network = dict(id=1)
+        network = dict(id=1, tenant_id=self.context.tenant_id)
         mac = dict(address="AA:BB:CC:DD:EE:FF")
         port_name = "foobar"
         ip = dict()
