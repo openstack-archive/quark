@@ -15,6 +15,7 @@
 
 import netaddr
 from neutron.common import exceptions
+from neutron.db import quota_db as qdb
 from neutron.extensions import providernet as pnet
 from neutron.openstack.common import importutils
 from neutron.openstack.common import log as logging
@@ -65,21 +66,33 @@ def create_network(context, network):
         net_attrs = network["network"]
         subs = net_attrs.pop("subnets", [])
         # Enforce subnet quotas
-        if len(subs) > 0:
-            v4_count, v6_count = 0, 0
-            for s in subs:
-                version = netaddr.IPNetwork(s['subnet']['cidr']).version
-                if version == 6:
-                    v6_count += 1
-                else:
-                    v4_count += 1
-            if v4_count > 0:
-                quota.QUOTAS.limit_check(context, context.tenant_id,
-                                         v4_subnets_per_network=v4_count)
-            if v6_count > 0:
-                quota.QUOTAS.limit_check(context, context.tenant_id,
-                                         v6_subnets_per_network=v6_count)
-
+        if not context.is_admin:
+            if len(subs) > 0:
+                v4_count, v6_count = 0, 0
+                for s in subs:
+                    version = netaddr.IPNetwork(s['subnet']['cidr']).version
+                    if version == 6:
+                        v6_count += 1
+                    else:
+                        v4_count += 1
+                if v4_count > 0:
+                    tenant_q_v4 = context.session.query(qdb.Quota).filter_by(
+                        tenant_id=context.tenant_id,
+                        resource='v4_subnets_per_network').first()
+                    if tenant_q_v4 != -1:
+                        quota.QUOTAS.limit_check(
+                            context,
+                            context.tenant_id,
+                            v4_subnets_per_network=v4_count)
+                if v6_count > 0:
+                    tenant_q_v6 = context.session.query(qdb.Quota).filter_by(
+                        tenant_id=context.tenant_id,
+                        resource='v6_subnets_per_network').first()
+                    if tenant_q_v6 != -1:
+                        quota.QUOTAS.limit_check(
+                            context,
+                            context.tenant_id,
+                            v6_subnets_per_network=v6_count)
         # Generate a uuid that we're going to hand to the backend and db
         net_uuid = utils.pop_param(net_attrs, "id", None)
         net_type = None

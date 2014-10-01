@@ -1140,6 +1140,30 @@ class TestSubnetsQuotas(test_quark_plugin.TestQuarkPlugin):
             cfg.CONF.set_override('quota_v6_subnets_per_network', original_6,
                                   "QUOTAS")
 
+    def test_create_subnet_zero_quota_fail(self):
+        original_4 = cfg.CONF.QUOTAS.quota_v4_subnets_per_network
+        s = [dict(network_id=1, cidr="192.167.10.0/24",
+                  tenant_id=1, id=1, created_at="123")]
+        with self._stubs(s):
+            cfg.CONF.set_override('quota_v4_subnets_per_network', 0, "QUOTAS")
+            with self.assertRaises(exceptions.OverQuota):
+                self.plugin.create_subnet(self.context, dict(subnet=s[0]))
+            cfg.CONF.set_override('quota_v4_subnets_per_network', original_4,
+                                  "QUOTAS")
+
+    def test_create_subnet_negative_one_quota_pass(self):
+        original_4 = cfg.CONF.QUOTAS.quota_v4_subnets_per_network
+        s = [dict(network_id=1, cidr="192.167.10.0/24",
+                  tenant_id=1, id=1, created_at="123")]
+        with self._stubs(s):
+            cfg.CONF.set_override('quota_v4_subnets_per_network', 0, "QUOTAS")
+            with self.assertRaises(exceptions.OverQuota):
+                self.plugin.create_subnet(self.context, dict(subnet=s[0]))
+            cfg.CONF.set_override('quota_v4_subnets_per_network', -1, "QUOTAS")
+            self.plugin.create_subnet(self.context, dict(subnet=s[0]))
+            cfg.CONF.set_override('quota_v4_subnets_per_network', original_4,
+                                  "QUOTAS")
+
 
 class TestSubnetsNotification(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
