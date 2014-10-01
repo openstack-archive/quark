@@ -380,6 +380,21 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
             self.assertEqual(len(address), 1)
             self.assertEqual(address[0]["version"], 6)
 
+    def test_allocate_provided_ip_address_one_v6_subnet_open(self):
+        subnet6 = dict(id=1, first_ip=self.v6_fip.value,
+                       last_ip=self.v6_lip.value, cidr="feed::/104",
+                       ip_version=6, next_auto_assign_ip=self.v6_fip.value + 1,
+                       ip_policy=None)
+        with self._stubs(subnets=[[], [(subnet6, 0)]],
+                         addresses=[None, None, None, None]):
+            address = []
+            ip_address = netaddr.IPAddress("feed::13")
+            self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
+                                          ip_address=ip_address)
+            self.assertEqual(len(address), 1)
+            self.assertEqual(ip_address,
+                             netaddr.IPAddress(address[0]['address']))
+
     def test_allocate_new_ip_address_no_avail_subnets(self):
         with self._stubs(subnets=[[], []],
                          addresses=[None, None, None, None]):
@@ -859,6 +874,22 @@ class QuarkIpamAllocateFromV6Subnet(QuarkIpamBaseTest):
             self.assertEqual(0, ip_create.call_count)
 
         cfg.CONF.set_override('v6_allocation_attempts', old_override, 'QUARK')
+
+    def test_allocate_v6_with_ip_and_no_mac(self):
+        fip = netaddr.IPAddress('fe80::')
+        ip_address = netaddr.IPAddress("fe80::7")
+        lip = netaddr.IPAddress('fe80::FF:FFFF')
+        port_id = "945af340-ed34-4fec-8c87-853a2df492b4"
+        subnet6 = dict(id=1, first_ip=fip, last_ip=lip,
+                       cidr="feed::/104", ip_version=6,
+                       next_auto_assign_ip=fip, ip_policy=None)
+
+        with self._stubs(policies=[], ip_address=ip_address) as (
+                policy_find, ip_find, ip_create, ip_update):
+            a = self.ipam._allocate_from_v6_subnet(self.context, 0, subnet6,
+                                                   port_id, self.reuse_after,
+                                                   ip_address=ip_address)
+            self.assertEqual(a['address'], ip_address.value)
 
 
 class QuarkIpamAllocateV6IPGeneration(QuarkIpamBaseTest):

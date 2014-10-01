@@ -271,10 +271,9 @@ class QuarkIpam(object):
             if subnet["ip_version"] == 4:
                 next_ip = next_ip.ipv4()
 
-        if (ip_policy_cidrs is not None and next_ip in ip_policy_cidrs):
-            if not ip_address:
-                raise q_exc.IPAddressPolicyRetryableFailure(ip_addr=next_ip,
-                                                            net_id=net_id)
+        if ip_policy_cidrs and next_ip in ip_policy_cidrs and not ip_address:
+            raise q_exc.IPAddressPolicyRetryableFailure(ip_addr=next_ip,
+                                                        net_id=net_id)
         try:
             with context.session.begin():
                 address = db_api.ip_address_create(
@@ -309,11 +308,12 @@ class QuarkIpam(object):
         have to iterate over each and every subnet returned
         """
 
-        if not (ip_address is None and "mac_address" in kwargs and
-                kwargs["mac_address"]):
-            return self._allocate_from_subnet(context, net_id, subnet,
-                                              reuse_after, ip_address,
-                                              **kwargs)
+        if (ip_address or "mac_address" not in kwargs or
+                not kwargs["mac_address"]):
+            return self._allocate_from_subnet(context, net_id=net_id,
+                                              subnet=subnet, port_id=port_id,
+                                              reuse_after=reuse_after,
+                                              ip_address=ip_address, **kwargs)
         else:
             ip_policy_cidrs = models.IPPolicy.get_ip_policy_cidrs(subnet)
             for tries, ip_address in enumerate(
