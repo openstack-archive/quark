@@ -26,6 +26,8 @@ import quark.plugin_modules.networks as network_api
 import quark.plugin_modules.subnets as subnet_api
 from quark.tests.functional.base import BaseFunctionalTest
 
+CONF = cfg.CONF
+
 
 class QuarkGetSubnets(BaseFunctionalTest):
     @contextlib.contextmanager
@@ -149,6 +151,8 @@ class QuarkUpdateSubnets(BaseFunctionalTest):
             yield net, sub1
 
     def test_update_allocation_pools(self):
+        og = CONF.QUARK.allow_allocation_pool_update
+        CONF.set_override('allow_allocation_pool_update', True, 'QUARK')
         cidr = "192.168.1.0/24"
         ip_network = netaddr.IPNetwork(cidr)
         network = dict(name="public", tenant_id="fake", network_plugin="BASE")
@@ -170,7 +174,6 @@ class QuarkUpdateSubnets(BaseFunctionalTest):
                 [dict(start='192.168.1.50', end='192.168.1.51')],
                 start_pools,
             ]
-
             prev_pool = start_pools
             for pool in new_pools:
                 subnet_update = {"subnet": dict(allocation_pools=pool)}
@@ -188,3 +191,4 @@ class QuarkUpdateSubnets(BaseFunctionalTest):
                     for ip in netaddr.IPRange(extent['start'], extent['end']):
                         self.assertFalse(ip in ip_set)
                 prev_pool = pool
+        CONF.set_override('allow_allocation_pool_update', og, 'QUARK')

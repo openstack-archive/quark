@@ -26,6 +26,7 @@ from oslo.config import cfg
 
 from quark import allocation_pool
 from quark.db import api as db_api
+from quark.db import models
 from quark import exceptions as q_exc
 from quark import network_strategy
 from quark.plugin_modules import ip_policies
@@ -36,6 +37,15 @@ from quark import utils
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 STRATEGY = network_strategy.STRATEGY
+
+quark_subnet_opts = [
+    cfg.BoolOpt('allow_allocation_pool_update',
+                default=False,
+                help=_('Controls whether or not to allow allocation_pool'
+                       'updates or not'))
+]
+
+CONF.register_opts(quark_subnet_opts, "QUARK")
 
 ipam_driver = (importutils.import_class(CONF.QUARK.ipam_driver))()
 
@@ -233,9 +243,17 @@ def update_subnet(context, id, subnet):
         host_routes = utils.pop_param(s, "host_routes", [])
         gateway_ip = utils.pop_param(s, "gateway_ip", None)
         allocation_pools = utils.pop_param(s, "allocation_pools", None)
-
-        alloc_pools = allocation_pool.AllocationPools(subnet_db["cidr"],
-                                                      allocation_pools)
+        if not CONF.QUARK.allow_allocation_pool_update:
+            if allocation_pools:
+                raise exceptions.BadRequest(
+                    resource="subnets",
+                    msg="Allocation pools cannot be updated.")
+            alloc_pools = allocation_pool.AllocationPools(
+                subnet_db["cidr"],
+                policies=models.IPPolicy.get_ip_policy_cidrs(subnet_db))
+        else:
+            alloc_pools = allocation_pool.AllocationPools(subnet_db["cidr"],
+                                                          allocation_pools)
 
         if gateway_ip:
             alloc_pools.validate_gateway_excluded(gateway_ip)
@@ -270,13 +288,12 @@ def update_subnet(context, id, subnet):
         for route in host_routes:
             subnet_db["routes"].append(db_api.route_create(
                 context, cidr=route["destination"], gateway=route["nexthop"]))
-
-        if isinstance(allocation_pools, list):
-            cidrs = alloc_pools.get_policy_cidrs()
-            ip_policies.ensure_default_policy(cidrs, [subnet_db])
-            subnet_db["ip_policy"] = db_api.ip_policy_update(
-                context, subnet_db["ip_policy"], exclude=cidrs)
-
+        if CONF.QUARK.allow_allocation_pool_update:
+            if isinstance(allocation_pools, list):
+                cidrs = alloc_pools.get_policy_cidrs()
+                ip_policies.ensure_default_policy(cidrs, [subnet_db])
+                subnet_db["ip_policy"] = db_api.ip_policy_update(
+                    context, subnet_db["ip_policy"], exclude=cidrs)
         subnet = db_api.subnet_update(context, subnet_db, **s)
     return v._make_subnet_dict(subnet)
 
