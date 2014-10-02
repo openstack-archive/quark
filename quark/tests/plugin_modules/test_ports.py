@@ -398,6 +398,15 @@ class TestQuarkCreatePortFailure(test_quark_plugin.TestQuarkPlugin):
 
 
 class TestQuarkCreatePortRM9305(test_quark_plugin.TestQuarkPlugin):
+    def setUp(self):
+        super(TestQuarkCreatePortRM9305, self).setUp()
+        strategy = {"00000000-0000-0000-0000-000000000000":
+                    {"bridge": "publicnet"},
+                    "11111111-1111-1111-1111-111111111111":
+                    {"bridge": "servicenet"}}
+        strategy_json = json.dumps(strategy)
+        quark_ports.STRATEGY = network_strategy.JSONStrategy(strategy_json)
+
     @contextlib.contextmanager
     def _stubs(self, port=None, network=None, addr=None, mac=None):
         if network:
@@ -406,7 +415,6 @@ class TestQuarkCreatePortRM9305(test_quark_plugin.TestQuarkPlugin):
         port_model = models.Port()
         port_model.update(port)
         port_models = port_model
-
         db_mod = "quark.db.api"
         ipam = "quark.ipam.QuarkIpam"
         with contextlib.nested(
@@ -435,6 +443,7 @@ class TestQuarkCreatePortRM9305(test_quark_plugin.TestQuarkPlugin):
         port_1 = dict(port=dict(mac_address="AA:BB:CC:DD:EE:00",
                                 network_id=network_id,
                                 tenant_id=self.context.tenant_id, device_id=2,
+                                segment_id="bar",
                                 name="Fake"))
 
         with self._stubs(port=port_1, network=network, addr=ip, mac=mac):
@@ -449,6 +458,7 @@ class TestQuarkCreatePortRM9305(test_quark_plugin.TestQuarkPlugin):
         port_1 = dict(port=dict(mac_address="AA:BB:CC:DD:EE:00",
                                 network_id=network_id,
                                 tenant_id=self.context.tenant_id, device_id=3,
+                                segment_id="bar",
                                 name="Fake"))
 
         with self._stubs(port=port_1, network=network, addr=ip, mac=mac):
