@@ -904,6 +904,16 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(len(res["host_routes"]), 0)
             self.assertEqual(res["gateway_ip"], "4.3.2.1")
 
+    def test_update_subnet_allocation_pools_invalid_outside(self):
+        og = cfg.CONF.QUARK.allow_allocation_pool_update
+        cfg.CONF.set_override('allow_allocation_pool_update', True, 'QUARK')
+        pools = [dict(start="172.16.1.10", end="172.16.1.20")]
+        s = dict(subnet=dict(allocation_pools=pools))
+        with self._stubs() as (dns_create, route_update, route_create):
+            with self.assertRaises(exceptions.OutOfBoundsAllocationPool):
+                self.plugin.update_subnet(self.context, 1, s)
+        cfg.CONF.set_override('allow_allocation_pool_update', og, 'QUARK')
+
     def test_update_subnet_allocation_pools_zero(self):
         with self._stubs() as (dns_create, route_update, route_create):
             resp = self.plugin.update_subnet(self.context, 1,
@@ -911,21 +921,9 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(resp["allocation_pools"],
                              [dict(start="172.16.0.1", end="172.16.0.254")])
 
-    def test_update_subnet_allocation_pools_invalid_outside(self):
-        pools = [dict(start="172.16.1.10", end="172.16.1.20")]
-        s = dict(subnet=dict(allocation_pools=pools))
-        with self._stubs() as (dns_create, route_update, route_create):
-            with self.assertRaises(exceptions.OutOfBoundsAllocationPool):
-                self.plugin.update_subnet(self.context, 1, s)
-
-    def test_create_subnet_allocation_pools_invalid_overlaps(self):
-        pools = [dict(start="172.15.255.255", end="172.16.0.20")]
-        s = dict(subnet=dict(allocation_pools=pools))
-        with self._stubs() as (dns_create, route_update, route_create):
-            with self.assertRaises(exceptions.OutOfBoundsAllocationPool):
-                self.plugin.update_subnet(self.context, 1, s)
-
     def test_update_subnet_allocation_pools_one(self):
+        og = cfg.CONF.QUARK.allow_allocation_pool_update
+        cfg.CONF.set_override('allow_allocation_pool_update', True, 'QUARK')
         pools = [dict(start="172.16.0.10", end="172.16.0.20")]
         s = dict(subnet=dict(allocation_pools=pools))
         with self._stubs(
@@ -936,8 +934,11 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
         ) as (dns_create, route_update, route_create):
             resp = self.plugin.update_subnet(self.context, 1, s)
             self.assertEqual(resp["allocation_pools"], pools)
+        cfg.CONF.set_override('allow_allocation_pool_update', og, 'QUARK')
 
     def test_update_subnet_allocation_pools_two(self):
+        og = cfg.CONF.QUARK.allow_allocation_pool_update
+        cfg.CONF.set_override('allow_allocation_pool_update', True, 'QUARK')
         pools = [dict(start="172.16.0.10", end="172.16.0.20"),
                  dict(start="172.16.0.40", end="172.16.0.50")]
         s = dict(subnet=dict(allocation_pools=pools))
@@ -950,8 +951,11 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
         ) as (dns_create, route_update, route_create):
             resp = self.plugin.update_subnet(self.context, 1, s)
             self.assertEqual(resp["allocation_pools"], pools)
+        cfg.CONF.set_override('allow_allocation_pool_update', og, 'QUARK')
 
     def test_update_subnet_allocation_pools_three(self):
+        og = cfg.CONF.QUARK.allow_allocation_pool_update
+        cfg.CONF.set_override('allow_allocation_pool_update', True, 'QUARK')
         pools = [dict(start="172.16.0.5", end="172.16.0.254")]
         s = dict(subnet=dict(allocation_pools=pools))
         with self._stubs(
@@ -959,8 +963,11 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
         ) as (dns_create, route_update, route_create):
             resp = self.plugin.update_subnet(self.context, 1, s)
             self.assertEqual(resp["allocation_pools"], pools)
+        cfg.CONF.set_override('allow_allocation_pool_update', og, 'QUARK')
 
     def test_update_subnet_allocation_pools_four(self):
+        og = cfg.CONF.QUARK.allow_allocation_pool_update
+        cfg.CONF.set_override('allow_allocation_pool_update', True, 'QUARK')
         pools = [dict(start="2607:f0d0:1002:51::a",
                       end="2607:f0d0:1002:51:ffff:ffff:ffff:fffe")]
         s = dict(subnet=dict(allocation_pools=pools))
@@ -972,19 +979,18 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
         ) as (dns_create, route_update, route_create):
             resp = self.plugin.update_subnet(self.context, 1, s)
             self.assertEqual(resp["allocation_pools"], pools)
+        cfg.CONF.set_override('allow_allocation_pool_update', og, 'QUARK')
 
-    def test_update_subnet_allocation_pools_empty_list(self):
-        # Empty allocation_pools list yields subnet completely blocked out.
-        pools = []
+    def test_update_subnet_allocation_pools_invalid(self):
+        pools = [dict(start="172.16.0.1", end="172.16.0.250")]
         s = dict(subnet=dict(allocation_pools=pools))
-        with self._stubs(
-            new_ip_policy=[]
-        ) as (dns_create, route_update, route_create):
-            resp = self.plugin.update_subnet(self.context, 1, s)
-            expected_pools = []
-            self.assertEqual(resp["allocation_pools"], expected_pools)
+        with self._stubs() as (dns_create, route_update, route_create):
+            with self.assertRaises(exceptions.BadRequest):
+                self.plugin.update_subnet(self.context, 1, s)
 
     def test_update_subnet_conflicting_gateway(self):
+        og = cfg.CONF.QUARK.allow_allocation_pool_update
+        cfg.CONF.set_override('allow_allocation_pool_update', True, 'QUARK')
         pools = [dict(start="172.16.0.1", end="172.16.0.254")]
         s = dict(subnet=dict(allocation_pools=pools, gateway_ip="172.16.0.1"))
         with self._stubs(
@@ -993,6 +999,7 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
             with self.assertRaises(
                     exceptions.GatewayConflictWithAllocationPools):
                 self.plugin.update_subnet(self.context, 1, s)
+        cfg.CONF.set_override('allow_allocation_pool_update', og, 'QUARK')
 
 
 class TestQuarkDeleteSubnet(test_quark_plugin.TestQuarkPlugin):
