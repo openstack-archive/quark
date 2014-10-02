@@ -37,9 +37,8 @@ STRATEGY = network_strategy.STRATEGY
 # HACK(amir): RM9305: do not allow a tenant to associate a network to a port
 # that does not belong to them unless it is publicnet or servicenet
 def _raise_if_unauthorized(tenant_id, net):
-    rax_networks = ('00000000-0000-0000-0000-000000000000',
-                    '11111111-1111-1111-1111-111111111111')
-    if net["id"] not in rax_networks and net["tenant_id"] != tenant_id:
+    if (not STRATEGY.is_parent_network(net["id"])
+            and net["tenant_id"] != tenant_id):
         raise exceptions.NotAuthorized()
 
 
