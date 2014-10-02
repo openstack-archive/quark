@@ -19,6 +19,7 @@ import mock
 import netaddr
 from neutron.common import exceptions
 from neutron.common import rpc
+from oslo.config import cfg
 
 from quark.db import api as db_api
 import quark.ipam
@@ -34,6 +35,29 @@ class QuarkNetworkFunctionalTest(BaseFunctionalTest):
         patcher.start()
         self.addCleanup(patcher.stop)
         rpc.init(mock.MagicMock())
+
+
+class QuarkGetNetwork(QuarkNetworkFunctionalTest):
+
+    def test_show_ipam_strategy(self):
+        plugin = quark.plugin.Plugin()
+        network = dict(name="public", tenant_id="fake", network_plugin="BASE")
+        network = dict(network=network)
+        original = cfg.CONF.QUARK.show_ipam_strategy
+
+        cfg.CONF.set_override('show_ipam_strategy', True, "QUARK")
+        net = plugin.create_network(self.context, network)
+        self.assertTrue('ipam_strategy' in net)
+        net = plugin.get_network(self.context, net['id'])
+        self.assertTrue('ipam_strategy' in net)
+
+        cfg.CONF.set_override('show_ipam_strategy', False, "QUARK")
+        net = plugin.create_network(self.context, network)
+        self.assertFalse('ipam_strategy' in net)
+        net = plugin.get_network(self.context, net['id'])
+        self.assertFalse('ipam_strategy' in net)
+
+        cfg.CONF.set_override('show_ipam_strategy', original, "QUARK")
 
 
 class QuarkDeleteNetworKDeallocatedIPs(QuarkNetworkFunctionalTest):

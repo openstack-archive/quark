@@ -35,6 +35,9 @@ quark_view_opts = [
                 default=True,
                 help=_('Controls whether or not to calculate and display'
                        'allocation pools or not')),
+    cfg.BoolOpt('show_ipam_strategy',
+                default=False,
+                help=_('Controls whether or not to show ipam_strategy')),
     cfg.BoolOpt('show_subnet_ip_policy_id',
                 default=True,
                 help=_('Controls whether or not to show ip_policy_id for'
@@ -54,9 +57,11 @@ def _make_network_dict(network, fields=None):
            "name": network.get("name"),
            "tenant_id": network.get("tenant_id"),
            "admin_state_up": None,
-           "ipam_strategy": network.get("ipam_strategy"),
            "status": "ACTIVE",
            "shared": shared_net}
+    if CONF.QUARK.show_ipam_strategy:
+        res['ipam_strategy'] = network.get("ipam_strategy")
+
     if not shared_net:
         if fields and "all_subnets" in fields:
             res["subnets"] = [_make_subnet_dict(s)
