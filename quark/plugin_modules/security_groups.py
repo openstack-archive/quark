@@ -56,6 +56,9 @@ def _validate_security_group_rule(context, rule):
     ethertype = protocols.translate_ethertype(rule["ethertype"])
     rule["ethertype"] = ethertype
 
+    protocols.validate_remote_ip_prefix(ethertype,
+                                        rule.get("remote_ip_prefix"))
+
     return rule
 
 

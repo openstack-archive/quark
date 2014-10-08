@@ -90,18 +90,26 @@ class Client(object):
         rule_uuid = str(uuid.uuid4())
         rule_dict = {"id": rule_uuid, "rules": []}
 
+        # TODO(mdietz): If/when we support other rule types, this comment
+        #               will have to be revised.
         # Action and direction are static, for now. The implementation may
-        # support 'deny' and 'egress' respectively in the future
+        # support 'deny' and 'egress' respectively in the future. We allow
+        # the direction to be set to something else, technically, but current
+        # plugin level call actually raises. It's supported here for unit
+        # test purposes at this time
         for group in groups:
             for rule in group.rules:
-                direction = "ingress"
+                direction = rule["direction"]
                 source = ''
                 destination = ''
                 if rule["remote_ip_prefix"]:
                     if direction == "ingress":
-                        source = rule["remote_ip_prefix"]
+                        source = netaddr.IPNetwork(rule["remote_ip_prefix"])
+                        source = str(source.ipv6())
                     else:
-                        destination = rule["remote_ip_prefix"]
+                        destination = netaddr.IPNetwork(
+                            rule["remote_ip_prefix"])
+                        destination = str(destination.ipv6())
 
                 rule_dict["rules"].append(
                     {"ethertype": rule["ethertype"],
