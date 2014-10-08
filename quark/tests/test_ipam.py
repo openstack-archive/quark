@@ -390,7 +390,7 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
             address = []
             ip_address = netaddr.IPAddress("feed::13")
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
-                                          ip_address=ip_address)
+                                          ip_addresses=[ip_address])
             self.assertEqual(len(address), 1)
             self.assertEqual(ip_address,
                              netaddr.IPAddress(address[0]['address']))
@@ -449,7 +449,7 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
                          addresses=[address, None, None]):
             address = []
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
-                                          subnets=[subnet4])
+                                          subnets=[subnet4['id']])
             self.assertEqual(len(address), 2)
             self.assertEqual(address[0]["address"], self.v46_val)
             self.assertEqual(address[0]["version"], 4)
@@ -1028,7 +1028,7 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
         with self._stubs(subnets=subnets, addresses=[None, None]):
             address = []
             self.ipam.allocate_ip_address(
-                self.context, address, 0, 0, 0, ip_address="0.0.0.240")
+                self.context, address, 0, 0, 0, ip_addresses=["0.0.0.240"])
             self.assertEqual(address[0]["address"],
                              netaddr.IPAddress('::ffff:0.0.0.240').value)
             self.assertEqual(address[0]["subnet_id"], 1)
@@ -1040,7 +1040,7 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
         with self._stubs(subnets=subnets, addresses=[None, None]):
             with self.assertRaises(exceptions.IpAddressGenerationFailure):
                 self.ipam.allocate_ip_address(
-                    self.context, [], 0, 0, 0, ip_address="0.0.0.240")
+                    self.context, [], 0, 0, 0, ip_addresses=["0.0.0.240"])
 
 
 class QuarkIPAddressAllocationTestRetries(QuarkIpamBaseTest):
@@ -1083,7 +1083,7 @@ class QuarkIPAddressAllocationTestRetries(QuarkIpamBaseTest):
                                   addr_found]):
             with self.assertRaises(exceptions.IpAddressInUse):
                 self.ipam.allocate_ip_address(
-                    self.context, [], 0, 0, 0, ip_address="0.0.0.1")
+                    self.context, [], 0, 0, 0, ip_addresses=["0.0.0.1"])
 
     def test_allocate_implicit_already_allocated_fails_and_retries(self):
         subnet1 = dict(id=1, first_ip=0, last_ip=255, next_auto_assign_ip=1,
@@ -1113,7 +1113,7 @@ class QuarkIPAddressAllocationTestRetries(QuarkIpamBaseTest):
                                   addr_found]):
             with self.assertRaises(q_exc.IPAddressNotInSubnet):
                 self.ipam.allocate_ip_address(
-                    self.context, [], 0, 0, 0, ip_address="0.0.1.0",
+                    self.context, [], 0, 0, 0, ip_addresses=["0.0.1.0"],
                     subnets=subnet1)
 
     def test_allocate_specific_subnet_unusable_fails(self):
@@ -1128,7 +1128,7 @@ class QuarkIPAddressAllocationTestRetries(QuarkIpamBaseTest):
                                   addr_found]):
             with self.assertRaises(exceptions.IpAddressGenerationFailure):
                 self.ipam.allocate_ip_address(
-                    self.context, [], 0, 0, 0, ip_address="0.0.1.0",
+                    self.context, [], 0, 0, 0, ip_addresses=["0.0.1.0"],
                     subnets=subnet1)
 
     def test_allocate_last_ip_closes_subnet(self):
@@ -1288,7 +1288,7 @@ class TestQuarkIpPoliciesIpAllocation(QuarkIpamBaseTest):
         with self._stubs(subnets=subnets, addresses=[None, None]):
             address = []
             self.ipam.allocate_ip_address(
-                self.context, address, 0, 0, 0, ip_address="0.0.0.240")
+                self.context, address, 0, 0, 0, ip_addresses=["0.0.0.240"])
             self.assertEqual(address[0]["address"],
                              netaddr.IPAddress('::ffff:0.0.0.240').value)
 

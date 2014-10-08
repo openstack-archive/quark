@@ -18,6 +18,8 @@ import netaddr
 
 import contextlib
 
+from neutron.common import exceptions as q_exc
+
 from quark.db import api as db_api
 from quark import exceptions
 import quark.ipam
@@ -47,6 +49,89 @@ class QuarkFindPortsSorted(BaseFunctionalTest):
         db_api.port_delete(self.context, port_mod1)
         db_api.port_delete(self.context, port_mod2)
         db_api.port_delete(self.context, port_mod3)
+
+
+class QuarkCreatePortSatisfyIpam(BaseFunctionalTest):
+    @contextlib.contextmanager
+    def _stubs(self, network_info, subnet_v4_info, subnet_v6_info=None):
+        with contextlib.nested(
+                mock.patch("neutron.common.rpc.get_notifier"),
+                mock.patch("neutron.quota.QUOTAS.limit_check")):
+            self.context.is_admin = True
+            net = network_api.create_network(self.context, network_info)
+            mac = {'mac_address_range': dict(cidr="AA:BB:CC")}
+            macrng_api.create_mac_address_range(self.context, mac)
+            self.context.is_admin = False
+            subnet_v4_info['subnet']['network_id'] = net['id']
+            sub_v4 = subnet_api.create_subnet(self.context, subnet_v4_info)
+            sub_v6 = None
+            if subnet_v6_info:
+                subnet_v6_info['subnet']['network_id'] = net['id']
+                sub_v6 = subnet_api.create_subnet(self.context, subnet_v6_info)
+
+            yield net, sub_v4, sub_v6
+
+    def test_port_created_should_satisfy_ipam_strategy(self):
+        cidr = "192.168.1.0/24"
+        cidr_v6 = "2001:db8::/32"
+        ip_network = netaddr.IPNetwork(cidr)
+        ipv6_network = netaddr.IPNetwork(cidr_v6)
+        network = dict(id=1, name="public", tenant_id="make",
+                       network_plugin="BASE",
+                       ipam_strategy="BOTH_REQUIRED")
+        network = {"network": network}
+        subnet_v4 = dict(id=1, ip_version=4, next_auto_assign_ip=2,
+                         cidr=cidr, first_ip=ip_network.first,
+                         last_ip=ip_network.last, ip_policy=None,
+                         tenant_id="fake")
+        subnet_v6 = dict(id=2, ip_version=6, next_auto_assign_ip=2,
+                         cidr=cidr_v6, first_ip=ipv6_network.first,
+                         last_ip=ipv6_network.last, ip_policy=None,
+                         tenant_id="fake")
+        subnet_v4_info = {"subnet": subnet_v4}
+        subnet_v6_info = {"subnet": subnet_v6}
+
+        def _make_body(ipv4, ipv6):
+            fix_ipv4 = dict(ip_address=ipv4, subnet_id=sub_v4['id'])
+            fix_ipv6 = dict(ip_address=ipv6, subnet_id=sub_v6['id'])
+            port_info = {"port": dict(fixed_ips=[fix_ipv4, fix_ipv6],
+                                      network_id=net['id'])}
+            return port_info
+
+        with self._stubs(network, subnet_v4_info, subnet_v6_info) as (
+                net, sub_v4, sub_v6):
+            ipv4 = "192.168.1.50"
+            ipv6 = "2001:db8::10"
+
+            port = port_api.create_port(self.context, _make_body(ipv4, ipv6))
+
+            self.assertEqual(ipv4, port["fixed_ips"][0]["ip_address"])
+            self.assertEqual(ipv6, port["fixed_ips"][1]["ip_address"])
+
+    def test_port_created_doesnt_satisfy_ipam_strategy_raises(self):
+        cidr = "192.168.1.0/24"
+        ip_network = netaddr.IPNetwork(cidr)
+        network = dict(id=1, name="public", tenant_id="make",
+                       network_plugin="BASE",
+                       ipam_strategy="BOTH_REQUIRED")
+        network = {"network": network}
+        subnet_v4 = dict(id=1, ip_version=4, next_auto_assign_ip=2,
+                         cidr=cidr, first_ip=ip_network.first,
+                         last_ip=ip_network.last, ip_policy=None,
+                         tenant_id="fake")
+        subnet_v4_info = {"subnet": subnet_v4}
+
+        def _make_body_only_v4(ip):
+            fix_ip = dict(ip_address=ip, subnet_id=sub_v4['id'])
+            port_info = {"port": dict(fixed_ips=[fix_ip],
+                                      network_id=net['id'])}
+            return port_info
+
+        with self._stubs(network, subnet_v4_info) as (
+                net, sub_v4, sub_v6):
+            ip = "192.168.1.50"
+            with self.assertRaises(q_exc.IpAddressGenerationFailure):
+                port_api.create_port(self.context, _make_body_only_v4(ip))
 
 
 class QuarkUpdatePorts(BaseFunctionalTest):
