@@ -443,3 +443,19 @@ class TestQuarkProtocolHandling(test_quark_plugin.TestQuarkPlugin):
     def test_translate_protocol_invalid_ethertype(self):
         with self.assertRaises(q_exc.InvalidEthertype):
             protocols.translate_protocol(256, "IPv7")
+
+    def test_validate_remote_ip_prefix(self):
+        try:
+            protocols.validate_remote_ip_prefix(0x800, "192.168.0.0/24")
+        except Exception:
+            self.fail("Should not have raised")
+
+    def test_validate_remote_ip_prefix_no_prefix_does_nothing(self):
+        try:
+            protocols.validate_remote_ip_prefix(0x800, None)
+        except Exception:
+            self.fail("Should not have raised")
+
+    def test_validate_remote_ip_prefix_ethertype_remote_net_conflict(self):
+        with self.assertRaises(exceptions.InvalidInput):
+            protocols.validate_remote_ip_prefix(0x86DD, "192.168.0.0/24")

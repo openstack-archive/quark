@@ -75,7 +75,7 @@ class TestRedisSerialization(test_base.TestBase):
     @mock.patch("quark.security_groups.redis_client.redis.Redis")
     def test_serialize_group_with_rules(self, redis):
         rule_dict = {"ethertype": 0x800, "protocol": 6, "port_range_min": 80,
-                     "port_range_max": 443}
+                     "port_range_max": 443, "direction": "ingress"}
         client = redis_client.Client()
         group = models.SecurityGroup()
         rule = models.SecurityGroupRule()
@@ -96,7 +96,7 @@ class TestRedisSerialization(test_base.TestBase):
 
     @mock.patch("quark.security_groups.redis_client.redis.Redis")
     def test_serialize_group_with_rules_and_remote_network(self, redis):
-        rule_dict = {"ethertype": 0x800, "protocol": 1,
+        rule_dict = {"ethertype": 0x800, "protocol": 1, "direction": "ingress",
                      "remote_ip_prefix": "192.168.0.0/24"}
         client = redis_client.Client()
         group = models.SecurityGroup()
@@ -113,5 +113,28 @@ class TestRedisSerialization(test_base.TestBase):
         self.assertEqual(None, rule["port end"])
         self.assertEqual("allow", rule["action"])
         self.assertEqual("ingress", rule["direction"])
-        self.assertEqual("192.168.0.0/24", rule["source network"])
+        self.assertEqual("::ffff:192.168.0.0/120", rule["source network"])
         self.assertEqual("", rule["destination network"])
+
+    @mock.patch("quark.security_groups.redis_client.redis.Redis")
+    def test_serialize_group_egress_rules(self, redis):
+        rule_dict = {"ethertype": 0x800, "protocol": 1,
+                     "direction": "egress",
+                     "remote_ip_prefix": "192.168.0.0/24"}
+        client = redis_client.Client()
+        group = models.SecurityGroup()
+        rule = models.SecurityGroupRule()
+        rule.update(rule_dict)
+        group.rules.append(rule)
+
+        payload = client.serialize([group])
+        self.assertTrue(payload.get("id") is not None)
+        rule = payload["rules"][0]
+        self.assertEqual(0x800, rule["ethertype"])
+        self.assertEqual(1, rule["protocol"])
+        self.assertEqual(None, rule["port start"])
+        self.assertEqual(None, rule["port end"])
+        self.assertEqual("allow", rule["action"])
+        self.assertEqual("ingress", rule["direction"])
+        self.assertEqual("::ffff:192.168.0.0/120", rule["destination network"])
+        self.assertEqual("", rule["source network"])
