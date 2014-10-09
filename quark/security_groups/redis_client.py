@@ -20,6 +20,7 @@ import netaddr
 from neutron.openstack.common import log as logging
 from oslo.config import cfg
 import redis
+import redis.sentinel
 
 from quark import exceptions as q_exc
 
@@ -32,7 +33,18 @@ quark_opts = [
                help=_("The server to write security group rules to")),
     cfg.IntOpt('redis_security_groups_port',
                default=6379,
-               help=_("The port for the redis server"))]
+               help=_("The port for the redis server")),
+    cfg.BoolOpt("redis_use_sentinels",
+                default=False,
+                help=_("Tell the redis client to use sentinels rather than a "
+                       "direct connection")),
+    cfg.ListOpt("redis_sentinel_hosts",
+                default=["localhost:26397"],
+                help=_("Comma-separated list of host:port pairs for Redis "
+                       "sentinel hosts")),
+    cfg.StrOpt("redis_sentinel_master",
+               default='',
+               help=_("The name label of the master redis sentinel"))]
 
 CONF.register_opts(quark_opts, "QUARK")
 
@@ -46,10 +58,23 @@ class Client(object):
         #       also supports connection pooling, which may be necessary
         #       going forward, but we'll roll with this for now.
         try:
+            if CONF.QUARK.redis_use_sentinels:
+                host, port = self._discover_master_sentinel()
             self._client = redis.Redis(host=host, port=port)
         except redis.ConnectionError as e:
             LOG.exception(e)
             raise q_exc.SecurityGroupsCouldNotBeApplied()
+
+    def _discover_master_sentinel(self):
+        sentinel_list = [tuple(host.split(':'))
+                         for host in CONF.QUARK.redis_sentinel_hosts]
+        if not sentinel_list:
+            raise TypeError("sentinel_list is not a properly formatted list "
+                            "of 'host:port' pairs")
+
+        sentinel = redis.sentinel.Sentinel(sentinel_list)
+        host, port = sentinel.discover_master(CONF.QUARK.redis_sentinel_master)
+        return host, port
 
     def serialize(self, groups):
         """Creates a payload for the redis server
