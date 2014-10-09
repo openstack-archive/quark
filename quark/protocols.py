@@ -105,9 +105,11 @@ def validate_remote_ip_prefix(ethertype, prefix):
         net = netaddr.IPNetwork(prefix)
         if ((ethertype == ETHERTYPES["IPv4"] and net.version == 6) or
                 (ethertype == ETHERTYPES["IPv6"] and net.version == 4)):
-                raise exceptions.InvalidInput(
-                    error_message="Etherytype does not match the IP version "
-                                  "of the passed remote_ip_prefix")
+            human_ether = human_readable_ethertype(ethertype)
+            raise exceptions.InvalidInput(
+                error_message="Etherytype %s does not match "
+                              "remote_ip_prefix, which is IP version %s" %
+                              (human_ether, net.version))
 
 
 def validate_protocol_with_port_ranges(protocol, port_range_min,
