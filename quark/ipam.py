@@ -17,6 +17,7 @@
 Quark Pluggable IPAM
 """
 
+import itertools
 import random
 import uuid
 
@@ -397,37 +398,57 @@ class QuarkIpam(object):
 
     def allocate_ip_address(self, context, new_addresses, net_id, port_id,
                             reuse_after, segment_id=None, version=None,
-                            ip_address=None, subnets=None, **kwargs):
+                            ip_addresses=None, subnets=None, **kwargs):
         elevated = context.elevated()
-        if ip_address:
-            ip_address = netaddr.IPAddress(ip_address)
+        subnets = subnets or []
+        ip_addresses = ip_addresses or []
 
-        new_addresses.extend(self.attempt_to_reallocate_ip(
-            context, net_id, port_id, reuse_after, version=None,
-            ip_address=ip_address, segment_id=segment_id, subnets=subnets,
-            **kwargs))
+        def _try_reallocate_ip_address(ip_addr=None):
+            new_addresses.extend(self.attempt_to_reallocate_ip(
+                context, net_id, port_id, reuse_after, version=None,
+                ip_address=ip_addr, segment_id=segment_id, subnets=subnets,
+                **kwargs))
+
+        def _try_allocate_ip_address(ip_addr=None, sub=None):
+            for retry in xrange(cfg.CONF.QUARK.ip_address_retry_max):
+                if not sub:
+                    subnets = self._choose_available_subnet(
+                        elevated, net_id, version, segment_id=segment_id,
+                        ip_address=ip_addr, reallocated_ips=new_addresses)
+                else:
+                    subnets = [self.select_subnet(context, net_id,
+                                                  ip_addr, segment_id,
+                                                  subnet_ids=[sub])]
+
+                try:
+                    self._allocate_ips_from_subnets(context, new_addresses,
+                                                    net_id, subnets,
+                                                    port_id, reuse_after,
+                                                    ip_addr, **kwargs)
+                except q_exc.IPAddressRetryableFailure:
+                    LOG.exception("Error in allocating IP")
+                    continue
+
+                break
+
+        ip_addresses = [netaddr.IPAddress(ip_address)
+                        for ip_address in ip_addresses]
+
+        if ip_addresses:
+            for ip_address in ip_addresses:
+                _try_reallocate_ip_address(ip_address)
+        else:
+            _try_reallocate_ip_address()
 
         if self.is_strategy_satisfied(new_addresses):
             return
 
-        for retry in xrange(cfg.CONF.QUARK.ip_address_retry_max):
-            if not subnets:
-                subs = self._choose_available_subnet(
-                    elevated, net_id, version, segment_id=segment_id,
-                    ip_address=ip_address, reallocated_ips=new_addresses)
-            else:
-                subs = [self.select_subnet(context, net_id, ip_address,
-                                           segment_id, subnet_ids=subnets)]
-
-            try:
-                self._allocate_ips_from_subnets(context, new_addresses, net_id,
-                                                subs, port_id, reuse_after,
-                                                ip_address, **kwargs)
-            except q_exc.IPAddressRetryableFailure:
-                LOG.exception("Error in allocating IP")
-                continue
-
-            break
+        if ip_addresses or subnets:
+            for ip_address, subnet in itertools.izip_longest(ip_addresses,
+                                                             subnets):
+                _try_allocate_ip_address(ip_address, subnet)
+        else:
+            _try_allocate_ip_address()
 
         if self.is_strategy_satisfied(new_addresses, allocate_complete=True):
             self._notify_new_addresses(context, new_addresses)

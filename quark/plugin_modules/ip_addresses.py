@@ -85,7 +85,7 @@ def create_ip_address(context, ip_address):
             port['id'],
             CONF.QUARK.ipam_reuse_after,
             ip_version,
-            ip_address)
+            ip_addresses=[ip_address])
 
         for port in ports:
             port["ip_addresses"].append(address)
