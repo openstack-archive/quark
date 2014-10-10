@@ -164,6 +164,8 @@ def update_network(context, id, network):
         net = db_api.network_find(context, id=id, scope=db_api.ONE)
         if not net:
             raise exceptions.NetworkNotFound(net_id=id)
+        if context.tenant_id != net["tenant_id"]:
+            raise exceptions.NotAuthorized()
         net_dict = network["network"]
         utils.pop_param(net_dict, "network_plugin")
         if not context.is_admin and "ipam_strategy" in net_dict:
@@ -252,6 +254,8 @@ def delete_network(context, id):
         net = db_api.network_find(context, id=id, scope=db_api.ONE)
         if not net:
             raise exceptions.NetworkNotFound(net_id=id)
+        if context.tenant_id != net["tenant_id"]:
+            raise exceptions.NotAuthorized()
         if net.ports:
             raise exceptions.NetworkInUse(net_id=id)
         net_driver = registry.DRIVER_REGISTRY.get_driver(net["network_plugin"])
