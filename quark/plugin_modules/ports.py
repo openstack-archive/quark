@@ -114,24 +114,28 @@ def create_port(context, port):
     quota.QUOTAS.limit_check(context, context.tenant_id,
                              security_groups_per_port=len(group_ids))
     addresses = []
-    mac = None
     backend_port = None
 
     with utils.CommandManager().execute() as cmd_mgr:
         @cmd_mgr.do
         def _allocate_ips(fixed_ips, net, port_id, segment_id, mac):
-            ips = []
             subnets = []
+            ip_addresses = {}
             if fixed_ips:
                 for fixed_ip in fixed_ips:
                     subnet_id = fixed_ip.get("subnet_id")
                     ip_address = fixed_ip.get("ip_address")
-                    if not (subnet_id and ip_address):
+                    if not subnet_id:
                         raise exceptions.BadRequest(
                             resource="fixed_ips",
-                            msg="subnet_id and ip_address required")
-                    ips.append(ip_address)
-                    subnets.append(subnet_id)
+                            msg="subnet_id required")
+                    if ip_address:
+                        ip_addresses[ip_address] = subnet_id
+                    else:
+                        subnets.append(subnet_id)
+
+                ips = ip_addresses.keys()
+                subnets = ip_addresses.values() + subnets
 
                 ipam_driver.allocate_ip_address(
                     context, addresses, net["id"], port_id,

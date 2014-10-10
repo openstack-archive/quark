@@ -618,9 +618,9 @@ class QuarkIpamBOTHREQ(QuarkIpamBOTH):
         for ip in reallocated_ips:
             if ip is not None:
                 req.remove(ip["version"])
-        ips_allocated = len(req)
-        if ips_allocated == 0:
-            return True
+            ips_allocated = len(req)
+            if ips_allocated == 0:
+                return True
 
         return False
 
