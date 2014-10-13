@@ -33,7 +33,7 @@ class TestRedisSerialization(test_base.TestBase):
     def setUp(self):
         super(TestRedisSerialization, self).setUp()
 
-    @mock.patch("quark.security_groups.redis_client.redis.Redis")
+    @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
     def test_redis_key(self, redis):
         client = redis_client.Client()
         device_id = str(uuid.uuid4())
@@ -44,7 +44,7 @@ class TestRedisSerialization(test_base.TestBase):
         self.assertEqual(expected, redis_key)
 
     @mock.patch("quark.security_groups.redis_client.Client.rule_key")
-    @mock.patch("quark.security_groups.redis_client.redis.Redis")
+    @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
     def test_apply_rules(self, rule_key, redis):
         client = redis_client.Client()
         port_id = 1
@@ -54,7 +54,7 @@ class TestRedisSerialization(test_base.TestBase):
 
     def test_client_connection_fails_gracefully(self):
         conn_err = redis.ConnectionError
-        with mock.patch("redis.Redis") as redis_mock:
+        with mock.patch("redis.StrictRedis") as redis_mock:
             redis_mock.side_effect = conn_err
             with self.assertRaises(q_exc.SecurityGroupsCouldNotBeApplied):
                 redis_client.Client()
@@ -63,12 +63,12 @@ class TestRedisSerialization(test_base.TestBase):
         port_id = 1
         mac_address = netaddr.EUI("AA:BB:CC:DD:EE:FF")
         conn_err = redis.ConnectionError
-        with mock.patch("redis.Redis") as redis_mock:
+        with mock.patch("redis.StrictRedis") as redis_mock:
             client = redis_client.Client()
             redis_mock.set.side_effect = conn_err
             client.apply_rules(port_id, mac_address.value, [])
 
-    @mock.patch("quark.security_groups.redis_client.redis.Redis")
+    @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
     def test_serialize_group_no_rules(self, redis):
         client = redis_client.Client()
         group = models.SecurityGroup()
@@ -76,7 +76,7 @@ class TestRedisSerialization(test_base.TestBase):
         self.assertTrue(payload.get("id") is not None)
         self.assertEqual([], payload.get("rules"))
 
-    @mock.patch("quark.security_groups.redis_client.redis.Redis")
+    @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
     def test_serialize_group_with_rules(self, redis):
         rule_dict = {"ethertype": 0x800, "protocol": 6, "port_range_min": 80,
                      "port_range_max": 443, "direction": "ingress"}
@@ -98,7 +98,7 @@ class TestRedisSerialization(test_base.TestBase):
         self.assertEqual("", rule["source network"])
         self.assertEqual("", rule["destination network"])
 
-    @mock.patch("quark.security_groups.redis_client.redis.Redis")
+    @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
     def test_serialize_group_with_rules_and_remote_network(self, redis):
         rule_dict = {"ethertype": 0x800, "protocol": 1, "direction": "ingress",
                      "remote_ip_prefix": "192.168.0.0/24"}
@@ -120,7 +120,7 @@ class TestRedisSerialization(test_base.TestBase):
         self.assertEqual("::ffff:192.168.0.0/120", rule["source network"])
         self.assertEqual("", rule["destination network"])
 
-    @mock.patch("quark.security_groups.redis_client.redis.Redis")
+    @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
     def test_serialize_group_egress_rules(self, redis):
         rule_dict = {"ethertype": 0x800, "protocol": 1,
                      "direction": "egress",
@@ -159,7 +159,7 @@ class TestRedisSentinelConnection(test_base.TestBase):
         CONF.set_override("redis_sentinel_master", '', "QUARK")
 
     @mock.patch("redis.sentinel.Sentinel.discover_master")
-    @mock.patch("quark.security_groups.redis_client.redis.Redis")
+    @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
     def test_sentinel_connection(self, redis, discover_master):
         host = "127.0.0.1"
         port = 6379
@@ -173,7 +173,7 @@ class TestRedisSentinelConnection(test_base.TestBase):
             redis.assert_called_with(host=host, port=port)
 
     @mock.patch("redis.sentinel.Sentinel.discover_master")
-    @mock.patch("quark.security_groups.redis_client.redis.Redis")
+    @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
     def test_sentinel_connection_bad_format_raises(self, redis,
                                                    discover_master):
         sentinels = ""
@@ -182,3 +182,37 @@ class TestRedisSentinelConnection(test_base.TestBase):
         with self._stubs(True, sentinels, master_label):
             with self.assertRaises(TypeError):
                 redis_client.Client()
+
+
+class TestRedisSSHConnection(test_base.TestBase):
+    def setUp(self):
+        super(TestRedisSSHConnection, self).setUp()
+
+    @contextlib.contextmanager
+    def _stubs(self, use_sentinels, sentinels, master_label):
+        CONF.set_override("redis_use_ssl", True, "QUARK")
+        CONF.set_override("redis_ssl_certfile", 'my.cert', "QUARK")
+        CONF.set_override("redis_ssl_ca_certs", 'server.cert', "QUARK")
+        CONF.set_override("redis_ssl_keyfile", 'keyfile', "QUARK")
+        yield
+        CONF.set_override("redis_ssl_keyfile", '', "QUARK")
+        CONF.set_override("redis_ssl_ca_certs", '', "QUARK")
+        CONF.set_override("redis_ssl_certfile", '', "QUARK")
+        CONF.set_override("redis_use_ssl", False, "QUARK")
+
+    @mock.patch("redis.sentinel.Sentinel.discover_master")
+    @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
+    def test_sentinel_connection(self, redis, discover_master):
+        host = "127.0.0.1"
+        port = 6379
+        sentinels = ["%s:%s" % (host, port)]
+        master_label = "master"
+        discover_master.return_value = (host, port)
+
+        with self._stubs(True, sentinels, master_label):
+            redis_client.Client()
+            redis.assert_called_with(host=host, port=port, ssl=True,
+                                     ssl_certfile="my.cert",
+                                     ssl_keyfile="keyfile",
+                                     ssl_ca_certs="server.cert",
+                                     ssl_cert_reqs="required")

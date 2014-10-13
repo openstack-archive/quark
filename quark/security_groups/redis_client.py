@@ -44,7 +44,19 @@ quark_opts = [
                        "sentinel hosts")),
     cfg.StrOpt("redis_sentinel_master",
                default='',
-               help=_("The name label of the master redis sentinel"))]
+               help=_("The name label of the master redis sentinel")),
+    cfg.BoolOpt("redis_use_ssl",
+                default=False,
+                help=_("Configures whether or not to use SSL")),
+    cfg.StrOpt("redis_ssl_certfile",
+               default='',
+               help=_("Path to the SSL cert")),
+    cfg.StrOpt("redis_ssl_keyfile",
+               default='',
+               help=_("Path to the SSL keyfile")),
+    cfg.StrOpt("redis_ssl_ca_certs",
+               default='',
+               help=_("Path to the SSL CA certs"))]
 
 CONF.register_opts(quark_opts, "QUARK")
 
@@ -60,7 +72,17 @@ class Client(object):
         try:
             if CONF.QUARK.redis_use_sentinels:
                 host, port = self._discover_master_sentinel()
-            self._client = redis.Redis(host=host, port=port)
+
+            kwargs = {"host": host, "port": port}
+            if CONF.QUARK.redis_use_ssl:
+                kwargs["ssl"] = True
+                if CONF.QUARK.redis_ssl_certfile:
+                    kwargs["ssl_certfile"] = CONF.QUARK.redis_ssl_certfile
+                    kwargs["ssl_cert_reqs"] = "required"
+                    kwargs["ssl_ca_certs"] = CONF.QUARK.redis_ssl_ca_certs
+                    kwargs["ssl_keyfile"] = CONF.QUARK.redis_ssl_keyfile
+
+            self._client = redis.StrictRedis(**kwargs)
         except redis.ConnectionError as e:
             LOG.exception(e)
             raise q_exc.SecurityGroupsCouldNotBeApplied()
