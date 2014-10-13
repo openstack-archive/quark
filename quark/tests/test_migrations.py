@@ -7,7 +7,6 @@ from alembic import command as alembic_command
 from alembic import config as alembic_config
 import mock
 import netaddr
-from oslo.db.sqlalchemy import test_migrations
 import sqlalchemy as sa
 from sqlalchemy import create_engine
 from sqlalchemy import pool
@@ -17,7 +16,6 @@ from sqlalchemy.sql import table
 
 from quark.db.custom_types import INET
 import quark.db.migration
-from quark.db.migration.alembic import target_metadata
 from quark.tests import test_base
 
 
@@ -776,15 +774,3 @@ class Test1664300cb03a(BaseMigrationTest):
         alembic_command.upgrade(self.config, '1664300cb03a')
         with self.assertRaises(NotImplementedError):
             alembic_command.downgrade(self.config, '1acd075bd7e1')
-
-
-class ModelsMigrationsSync(BaseMigrationTest,
-                           test_migrations.ModelsMigrationsSync):
-    def get_engine(self):
-        return self.engine
-
-    def db_sync(self, engine):
-        alembic_command.upgrade(self.config, 'head')
-
-    def get_metadata(self):
-        return target_metadata
