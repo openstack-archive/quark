@@ -13,16 +13,20 @@
 #    License for the specific language governing permissions and limitations
 #
 
+import contextlib
 import uuid
 
 import mock
 import netaddr
+from oslo.config import cfg
 import redis
 
 from quark.db import models
 from quark import exceptions as q_exc
 from quark.security_groups import redis_client
 from quark.tests import test_base
+
+CONF = cfg.CONF
 
 
 class TestRedisSerialization(test_base.TestBase):
@@ -138,3 +142,43 @@ class TestRedisSerialization(test_base.TestBase):
         self.assertEqual("ingress", rule["direction"])
         self.assertEqual("::ffff:192.168.0.0/120", rule["destination network"])
         self.assertEqual("", rule["source network"])
+
+
+class TestRedisSentinelConnection(test_base.TestBase):
+    def setUp(self):
+        super(TestRedisSentinelConnection, self).setUp()
+
+    @contextlib.contextmanager
+    def _stubs(self, use_sentinels, sentinels, master_label):
+        CONF.set_override("redis_use_sentinels", True, "QUARK")
+        CONF.set_override("redis_sentinel_hosts", sentinels, "QUARK")
+        CONF.set_override("redis_sentinel_master", master_label, "QUARK")
+        yield
+        CONF.set_override("redis_use_sentinels", False, "QUARK")
+        CONF.set_override("redis_sentinel_hosts", '', "QUARK")
+        CONF.set_override("redis_sentinel_master", '', "QUARK")
+
+    @mock.patch("redis.sentinel.Sentinel.discover_master")
+    @mock.patch("quark.security_groups.redis_client.redis.Redis")
+    def test_sentinel_connection(self, redis, discover_master):
+        host = "127.0.0.1"
+        port = 6379
+        sentinels = ["%s:%s" % (host, port)]
+        master_label = "master"
+        discover_master.return_value = (host, port)
+
+        with self._stubs(True, sentinels, master_label):
+            redis_client.Client()
+            discover_master.assert_called_with(master_label)
+            redis.assert_called_with(host=host, port=port)
+
+    @mock.patch("redis.sentinel.Sentinel.discover_master")
+    @mock.patch("quark.security_groups.redis_client.redis.Redis")
+    def test_sentinel_connection_bad_format_raises(self, redis,
+                                                   discover_master):
+        sentinels = ""
+        master_label = "master"
+
+        with self._stubs(True, sentinels, master_label):
+            with self.assertRaises(TypeError):
+                redis_client.Client()
