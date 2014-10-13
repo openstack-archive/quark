@@ -210,3 +210,11 @@ class QuarkNetworkFunctionalTestRM9709(QuarkNetworkFunctionalTest):
             with self.assertRaises(exceptions.NetworkNotFound):
                 self.plugin.update_network(
                     self.context, self.OTHER_NET, payload)
+
+    def test_get_networks(self):
+        with self._stubs():
+            nets = self.plugin.get_networks(self.context)
+            self.assertEqual(len(nets), 3)
+            self.assertEqual(
+                set([net["id"] for net in nets]),
+                set([self.TENANT_NET, self.PUBLICNET, self.SERVICENET]))
