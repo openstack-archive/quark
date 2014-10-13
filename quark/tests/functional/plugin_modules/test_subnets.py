@@ -48,8 +48,8 @@ class QuarkGetSubnets(BaseFunctionalTest):
                       cidr="0.0.0.0/24", first_ip=0, last_ip=255,
                       ip_policy=None, tenant_id="fake")
         with self._stubs(network, subnet) as (net, sub1, sub2):
-            subnets = db_api.subnet_find_allocation_counts(self.context,
-                                                           net["id"]).all()
+            subnets = db_api.subnet_find_ordered_by_most_full(self.context,
+                                                              net["id"]).all()
             self.assertEqual(len(subnets), 1)
             self.assertEqual(subnets[0][0]["id"], "1")
 
