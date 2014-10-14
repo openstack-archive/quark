@@ -23,7 +23,7 @@ from neutron.openstack.common import uuidutils
 from oslo.config import cfg
 from sqlalchemy import event, exc
 from sqlalchemy import func as sql_func
-from sqlalchemy import and_, asc, orm, or_, not_
+from sqlalchemy import and_, asc, desc, orm, or_, not_
 from sqlalchemy.pool import Pool
 
 from quark.db import models
@@ -318,12 +318,12 @@ def mac_address_find(context, lock_mode=False, **filters):
 
 
 def mac_address_range_find_allocation_counts(context, address=None):
+    count = sql_func.count(models.MacAddress.address)
     query = context.session.query(models.MacAddressRange,
-                                  sql_func.count(models.MacAddress.address).
-                                  label("count")).with_lockmode("update")
+                                  count.label("count")).with_lockmode("update")
     query = query.outerjoin(models.MacAddress)
     query = query.group_by(models.MacAddressRange.id)
-    query = query.order_by("count DESC")
+    query = query.order_by(desc(count))
     if address:
         query = query.filter(models.MacAddressRange.last_address >= address)
         query = query.filter(models.MacAddressRange.first_address <= address)
@@ -478,14 +478,15 @@ def network_delete(context, network):
     context.session.delete(network)
 
 
-def subnet_find_allocation_counts(context, net_id, **filters):
-    query = context.session.query(models.Subnet,
-                                  sql_func.count(models.IPAddress.address).
-                                  label("count")).with_lockmode('update')
+def subnet_find_ordered_by_most_full(context, net_id, **filters):
+    count = sql_func.count(models.IPAddress.address).label("count")
+    size = (models.Subnet.last_ip - models.Subnet.first_ip)
+    remaining = (size + 1 - count)
+    query = context.session.query(models.Subnet, count).with_lockmode('update')
     query = query.filter_by(do_not_use=False)
     query = query.outerjoin(models.Subnet.generated_ips)
     query = query.group_by(models.Subnet.id)
-    query = query.order_by("count DESC")
+    query = query.order_by(desc(remaining))
 
     query = query.filter(models.Subnet.network_id == net_id)
     if "ip_version" in filters:

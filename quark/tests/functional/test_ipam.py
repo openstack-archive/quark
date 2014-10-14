@@ -180,3 +180,60 @@ class QuarkIPAddressFindReallocatable(QuarkIpamBaseFunctionalTest):
                 db_api.ip_address_find(self.context, **ip_kwargs)
             except Exception:
                 self.fail("This should not have raised")
+
+
+class QuarkIPAddressAllocateWithFullSubnetsNotMarkedAsFull(
+        QuarkIpamBaseFunctionalTest):
+    @contextlib.contextmanager
+    def _fixtures(self, models):
+
+        self.ipam = quark.ipam.QuarkIpamANY()
+        net = dict(name="public", tenant_id='fake')
+        net_mod = db_api.network_create(self.context, **net)
+        with self.context.session.begin():
+            for model in models:
+                policy_mod = db_api.ip_policy_create(
+                    self.context, **model['ip_policy'])
+                model['subnet']["network"] = net_mod
+                model['subnet']["ip_policy"] = policy_mod
+                db_api.subnet_create(self.context, **model['subnet'])
+        yield net_mod
+
+    def _create_models(self, subnet_cidr, ip_version, next_ip):
+        models = {}
+        net = netaddr.IPNetwork(subnet_cidr)
+        first = str(netaddr.IPAddress(net.first))
+        last = str(netaddr.IPAddress(net.last))
+        models['ip_policy'] = dict(name='testpolicy',
+                                   description='blah',
+                                   exclude=[first, last])
+        models["subnet"] = dict(cidr=subnet_cidr,
+                                next_auto_assign_ip=next_ip,
+                                tenant_id='fake',
+                                do_not_use=False)
+        return models
+
+    def test_subnets_get_marked_as_full_retroactively(self):
+        models = []
+        models.append(self._create_models("0.0.0.0/31", 4, 255))
+        models.append(self._create_models("1.1.1.0/31", 4, 255))
+        models.append(self._create_models("2.2.2.0/30", 4, 255))
+
+        with self._fixtures(models) as net:
+            ipaddress = []
+            self.ipam.allocate_ip_address(self.context, ipaddress,
+                                          net['id'], 0, 0)
+            self.assertEqual(ipaddress[0].version, 4)
+            self.assertEqual(ipaddress[0].address_readable, "2.2.2.1")
+
+            with self.context.session.begin():
+                subnets = db_api.subnet_find(self.context).all()
+                self.assertEqual(len(subnets), 3)
+
+                full_subnets = [s for s in subnets
+                                if s.next_auto_assign_ip == -1]
+                available_subnets = list(set(full_subnets) ^ set(subnets))
+                self.assertEqual(len(available_subnets), 1)
+                self.assertEqual(available_subnets[0].cidr, "2.2.2.0/30")
+                self.assertEqual(available_subnets[0].next_auto_assign_ip,
+                                 netaddr.IPAddress("2.2.2.2").ipv6().value)

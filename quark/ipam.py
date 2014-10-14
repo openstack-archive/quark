@@ -499,7 +499,7 @@ class QuarkIpam(object):
     # - fix off-by-one error and overflow
     def select_subnet(self, context, net_id, ip_address, segment_id,
                       subnet_ids=None, **filters):
-        subnets = db_api.subnet_find_allocation_counts(
+        subnets = db_api.subnet_find_ordered_by_most_full(
             context, net_id, segment_id=segment_id, scope=db_api.ALL,
             subnet_id=subnet_ids, **filters)
 
@@ -533,9 +533,14 @@ class QuarkIpam(object):
                     # -1 to be safe
                     if ip < subnet["first_ip"] or ip > subnet["last_ip"]:
                         ip = -1
-                    db_api.subnet_update(context, subnet,
-                                         next_auto_assign_ip=ip)
+                    self._set_subnet_next_auto_assign_ip(context, subnet, ip)
                 return subnet
+            else:
+                self._set_subnet_next_auto_assign_ip(context, subnet, -1)
+
+    def _set_subnet_next_auto_assign_ip(self, context, subnet, ip):
+        with context.session.begin():
+            db_api.subnet_update(context, subnet, next_auto_assign_ip=ip)
 
 
 class QuarkIpamANY(QuarkIpam):
