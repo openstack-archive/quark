@@ -117,5 +117,9 @@ class TenantNetworkSecurityGroupsNotImplemented(exceptions.InvalidInput):
                 "tenant networks")
 
 
-class SecurityGroupsCouldNotBeApplied(exceptions.NeutronException):
-    message = _("There was an error applying security groups to the port.")
+class RedisConnectionFailure(exceptions.NeutronException):
+    message = _("No connection to Redis could be made.")
+
+
+class RedisSlaveWritesForbidden(exceptions.NeutronException):
+    message = _("No write actions can be applied to Slave redis nodes.")

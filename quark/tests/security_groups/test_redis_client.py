@@ -32,9 +32,12 @@ CONF = cfg.CONF
 class TestRedisSerialization(test_base.TestBase):
     def setUp(self):
         super(TestRedisSerialization, self).setUp()
+        # Forces the connection pool to be recreated on every test
+        redis_client.Client.connection_pool = None
 
+    @mock.patch("redis.ConnectionPool")
     @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
-    def test_redis_key(self, redis):
+    def test_redis_key(self, strict_redis, conn_pool):
         client = redis_client.Client()
         device_id = str(uuid.uuid4())
         mac_address = netaddr.EUI("AA:BB:CC:DD:EE:FF")
@@ -42,42 +45,63 @@ class TestRedisSerialization(test_base.TestBase):
         redis_key = client.rule_key(device_id, mac_address.value)
         expected = "%s.%s" % (device_id, str(mac_address))
         self.assertEqual(expected, redis_key)
+        conn_pool.assert_called_with(connection_class=redis.Connection)
 
+    @mock.patch("redis.ConnectionPool")
     @mock.patch("quark.security_groups.redis_client.Client.rule_key")
     @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
-    def test_apply_rules(self, rule_key, redis):
-        client = redis_client.Client()
+    def test_apply_rules(self, strict_redis, rule_key, conn_pool):
+        client = redis_client.Client(use_master=True)
         port_id = 1
         mac_address = netaddr.EUI("AA:BB:CC:DD:EE:FF")
         client.apply_rules(port_id, mac_address.value, [])
         self.assertTrue(client._client.set.called)
 
-    def test_client_connection_fails_gracefully(self):
+    @mock.patch("redis.ConnectionPool")
+    @mock.patch("quark.security_groups.redis_client.Client.rule_key")
+    @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
+    def test_apply_rules_with_slave_fails(self, strict_redis, rule_key,
+                                          conn_pool):
+        client = redis_client.Client()
+        port_id = 1
+        mac_address = netaddr.EUI("AA:BB:CC:DD:EE:FF")
+        with self.assertRaises(q_exc.RedisSlaveWritesForbidden):
+            client.apply_rules(port_id, mac_address.value, [])
+
+    @mock.patch("redis.ConnectionPool")
+    def test_client_connection_fails_gracefully(self, conn_pool):
         conn_err = redis.ConnectionError
         with mock.patch("redis.StrictRedis") as redis_mock:
             redis_mock.side_effect = conn_err
-            with self.assertRaises(q_exc.SecurityGroupsCouldNotBeApplied):
-                redis_client.Client()
+            with self.assertRaises(q_exc.RedisConnectionFailure):
+                redis_client.Client(use_master=True)
 
-    def test_apply_rules_set_fails_gracefully(self):
+    @mock.patch("redis.ConnectionPool")
+    def test_apply_rules_set_fails_gracefully(self, conn_pool):
         port_id = 1
         mac_address = netaddr.EUI("AA:BB:CC:DD:EE:FF")
         conn_err = redis.ConnectionError
         with mock.patch("redis.StrictRedis") as redis_mock:
-            client = redis_client.Client()
-            redis_mock.set.side_effect = conn_err
-            client.apply_rules(port_id, mac_address.value, [])
+            mocked_redis_cli = mock.MagicMock()
+            redis_mock.return_value = mocked_redis_cli
 
+            client = redis_client.Client(use_master=True)
+            mocked_redis_cli.set.side_effect = conn_err
+            with self.assertRaises(q_exc.RedisConnectionFailure):
+                client.apply_rules(port_id, mac_address.value, [])
+
+    @mock.patch("redis.ConnectionPool")
     @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
-    def test_serialize_group_no_rules(self, redis):
+    def test_serialize_group_no_rules(self, strict_redis, conn_pool):
         client = redis_client.Client()
         group = models.SecurityGroup()
         payload = client.serialize([group])
         self.assertTrue(payload.get("id") is not None)
         self.assertEqual([], payload.get("rules"))
 
+    @mock.patch("redis.ConnectionPool")
     @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
-    def test_serialize_group_with_rules(self, redis):
+    def test_serialize_group_with_rules(self, strict_redis, conn_pool):
         rule_dict = {"ethertype": 0x800, "protocol": 6, "port_range_min": 80,
                      "port_range_max": 443, "direction": "ingress"}
         client = redis_client.Client()
@@ -98,8 +122,10 @@ class TestRedisSerialization(test_base.TestBase):
         self.assertEqual("", rule["source network"])
         self.assertEqual("", rule["destination network"])
 
+    @mock.patch("redis.ConnectionPool")
     @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
-    def test_serialize_group_with_rules_and_remote_network(self, redis):
+    def test_serialize_group_with_rules_and_remote_network(self, strict_redis,
+                                                           conn_pool):
         rule_dict = {"ethertype": 0x800, "protocol": 1, "direction": "ingress",
                      "remote_ip_prefix": "192.168.0.0/24"}
         client = redis_client.Client()
@@ -120,8 +146,9 @@ class TestRedisSerialization(test_base.TestBase):
         self.assertEqual("::ffff:192.168.0.0/120", rule["source network"])
         self.assertEqual("", rule["destination network"])
 
+    @mock.patch("redis.ConnectionPool")
     @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
-    def test_serialize_group_egress_rules(self, redis):
+    def test_serialize_group_egress_rules(self, strict_redis, conn_pool):
         rule_dict = {"ethertype": 0x800, "protocol": 1,
                      "direction": "egress",
                      "remote_ip_prefix": "192.168.0.0/24"}
@@ -147,6 +174,8 @@ class TestRedisSerialization(test_base.TestBase):
 class TestRedisSentinelConnection(test_base.TestBase):
     def setUp(self):
         super(TestRedisSentinelConnection, self).setUp()
+        # Forces the connection pool to be recreated on every test
+        redis_client.Client.connection_pool = None
 
     @contextlib.contextmanager
     def _stubs(self, use_sentinels, sentinels, master_label):
@@ -158,35 +187,41 @@ class TestRedisSentinelConnection(test_base.TestBase):
         CONF.set_override("redis_sentinel_hosts", '', "QUARK")
         CONF.set_override("redis_sentinel_master", '', "QUARK")
 
-    @mock.patch("redis.sentinel.Sentinel.discover_master")
+    @mock.patch("redis.sentinel.SentinelConnectionPool")
+    @mock.patch("redis.sentinel.Sentinel.master_for")
     @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
-    def test_sentinel_connection(self, redis, discover_master):
+    def test_sentinel_connection(self, strict_redis, master_for,
+                                 sentinel_pool):
         host = "127.0.0.1"
         port = 6379
         sentinels = ["%s:%s" % (host, port)]
         master_label = "master"
-        discover_master.return_value = (host, port)
 
         with self._stubs(True, sentinels, master_label):
-            redis_client.Client()
-            discover_master.assert_called_with(master_label)
-            redis.assert_called_with(host=host, port=port)
+            redis_client.Client(use_master=True)
+            master_for.assert_called_with(
+                master_label,
+                connection_pool=redis_client.Client.connection_pool)
+            sentinel_pool.assert_called_with(connection_class=redis.Connection)
 
-    @mock.patch("redis.sentinel.Sentinel.discover_master")
+    @mock.patch("redis.sentinel.SentinelConnectionPool")
+    @mock.patch("redis.sentinel.Sentinel.master_for")
     @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
-    def test_sentinel_connection_bad_format_raises(self, redis,
-                                                   discover_master):
+    def test_sentinel_connection_bad_format_raises(self, strict_redis,
+                                                   master_for, sentinel_pool):
         sentinels = ""
         master_label = "master"
 
         with self._stubs(True, sentinels, master_label):
             with self.assertRaises(TypeError):
-                redis_client.Client()
+                redis_client.Client(use_master=True)
 
 
 class TestRedisSSHConnection(test_base.TestBase):
     def setUp(self):
         super(TestRedisSSHConnection, self).setUp()
+        # Forces the connection pool to be recreated on every test
+        redis_client.Client.connection_pool = None
 
     @contextlib.contextmanager
     def _stubs(self, use_sentinels, sentinels, master_label):
@@ -200,19 +235,24 @@ class TestRedisSSHConnection(test_base.TestBase):
         CONF.set_override("redis_ssl_certfile", '', "QUARK")
         CONF.set_override("redis_use_ssl", False, "QUARK")
 
-    @mock.patch("redis.sentinel.Sentinel.discover_master")
+    @mock.patch("redis.ConnectionPool")
+    @mock.patch("redis.sentinel.Sentinel.master_for")
     @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
-    def test_sentinel_connection(self, redis, discover_master):
+    def test_ssl_connection(self, strict_redis, master_for, conn_pool):
         host = "127.0.0.1"
         port = 6379
         sentinels = ["%s:%s" % (host, port)]
         master_label = "master"
-        discover_master.return_value = (host, port)
 
         with self._stubs(True, sentinels, master_label):
-            redis_client.Client()
-            redis.assert_called_with(host=host, port=port, ssl=True,
-                                     ssl_certfile="my.cert",
-                                     ssl_keyfile="keyfile",
-                                     ssl_ca_certs="server.cert",
-                                     ssl_cert_reqs="required")
+            redis_client.Client(use_master=True)
+            ssl_conn = redis.connection.SSLConnection
+            conn_pool.assert_called_with(ssl=True,
+                                         ssl_certfile="my.cert",
+                                         ssl_keyfile="keyfile",
+                                         ssl_ca_certs="server.cert",
+                                         ssl_cert_reqs="required",
+                                         connection_class=ssl_conn)
+            strict_redis.assert_called_with(
+                host=host, port=port,
+                connection_pool=redis_client.Client.connection_pool)
