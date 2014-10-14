@@ -108,6 +108,21 @@ class IsHazTags(object):
         return orm.relationship("TagAssociation", backref=backref)
 
 
+port_ip_association_table = sa.Table(
+    "quark_port_ip_address_associations",
+    BASEV2.metadata,
+    # We just need sqlalchemy to think these are primary keys
+    sa.Column("port_id", sa.String(36),
+              sa.ForeignKey("quark_ports.id"), nullable=False,
+              primary_key=True),
+    sa.Column("ip_address_id", sa.String(36),
+              sa.ForeignKey("quark_ip_addresses.id"), nullable=False,
+              primary_key=True),
+    sa.Column("enabled", sa.Boolean(), default=True, nullable=False,
+              server_default='1'),
+    **TABLE_KWARGS)
+
+
 class IPAddress(BASEV2, models.HasId):
     """More closely emulate the melange version of the IP table.
 
@@ -240,18 +255,6 @@ class Subnet(BASEV2, models.HasId, IsHazTags):
                              sa.ForeignKey("quark_ip_policy.id"))
     # Legacy data
     do_not_use = sa.Column(sa.Boolean(), default=False)
-
-
-port_ip_association_table = sa.Table(
-    "quark_port_ip_address_associations",
-    BASEV2.metadata,
-    sa.Column("port_id", sa.String(36),
-              sa.ForeignKey("quark_ports.id")),
-    sa.Column("ip_address_id", sa.String(36),
-              sa.ForeignKey("quark_ip_addresses.id")),
-    sa.Column("enabled", sa.Boolean(), default=True, nullable=False,
-              server_default='1'),
-    **TABLE_KWARGS)
 
 
 port_group_association_table = sa.Table(
