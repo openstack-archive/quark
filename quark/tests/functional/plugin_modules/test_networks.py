@@ -184,6 +184,33 @@ class QuarkNetworkFunctionalTestRM9709(QuarkNetworkFunctionalTest):
             with self.assertRaises(exceptions.NetworkNotFound):
                 self.plugin.delete_network(self.context, self.OTHER_NET)
 
+    def test_delete_networks_tenant_id_none_admin(self):
+        with self._stubs():
+            old_tid = self.admin_context.tenant_id
+            self.admin_context.tenant_id = None
+
+            self.plugin.delete_network(self.admin_context, id=self.PUBLICNET)
+            self.plugin.delete_network(self.admin_context, id=self.SERVICENET)
+            self.plugin.delete_network(self.admin_context, id=self.TENANT_NET)
+            self.plugin.delete_network(self.admin_context, id=self.OTHER_NET)
+
+            self.admin_context.tenant_id = old_tid
+
+    def test_delete_networks_tenant_id_none_not_admin(self):
+        with self._stubs():
+            old_tid, self.context.tenant_id = self.context.tenant_id, None
+
+            with self.assertRaises(exceptions.NotAuthorized):
+                self.plugin.delete_network(self.context, id=self.PUBLICNET)
+            with self.assertRaises(exceptions.NotAuthorized):
+                self.plugin.delete_network(self.context, id=self.SERVICENET)
+            with self.assertRaises(exceptions.NetworkNotFound):
+                self.plugin.delete_network(self.context, id=self.TENANT_NET)
+            with self.assertRaises(exceptions.NetworkNotFound):
+                self.plugin.delete_network(self.context, id=self.OTHER_NET)
+
+            self.context.tenant_id = old_tid
+
     def test_update_publicnet(self):
         payload = dict(network=dict(name="foo"))
         with self._stubs():
@@ -211,6 +238,43 @@ class QuarkNetworkFunctionalTestRM9709(QuarkNetworkFunctionalTest):
                 self.plugin.update_network(
                     self.context, self.OTHER_NET, payload)
 
+    def test_update_networks_tenant_id_none_admin(self):
+        payload = dict(network=dict(name="foo"))
+        with self._stubs():
+            old_tid = self.admin_context.tenant_id
+            self.admin_context.tenant_id = None
+
+            self.plugin.update_network(
+                self.admin_context, self.TENANT_NET, payload)
+            self.plugin.update_network(
+                self.admin_context, self.PUBLICNET, payload)
+            self.plugin.update_network(
+                self.admin_context, self.SERVICENET, payload)
+            self.plugin.update_network(
+                self.admin_context, self.OTHER_NET, payload)
+
+            self.admin_context.tenant_id = old_tid
+
+    def test_update_networks_tenant_id_none_not_admin(self):
+        payload = dict(network=dict(name="foo"))
+        with self._stubs():
+            old_tid, self.context.tenant_id = self.context.tenant_id, None
+
+            with self.assertRaises(exceptions.NotAuthorized):
+                self.plugin.update_network(self.context,
+                                           self.PUBLICNET, payload)
+            with self.assertRaises(exceptions.NotAuthorized):
+                self.plugin.update_network(self.context,
+                                           self.SERVICENET, payload)
+            with self.assertRaises(exceptions.NetworkNotFound):
+                self.plugin.update_network(self.context,
+                                           self.TENANT_NET, payload)
+            with self.assertRaises(exceptions.NetworkNotFound):
+                self.plugin.update_network(self.context,
+                                           self.OTHER_NET, payload)
+
+            self.context.tenant_id = old_tid
+
     def test_get_networks(self):
         with self._stubs():
             nets = self.plugin.get_networks(self.context)
@@ -218,3 +282,27 @@ class QuarkNetworkFunctionalTestRM9709(QuarkNetworkFunctionalTest):
             self.assertEqual(
                 set([net["id"] for net in nets]),
                 set([self.TENANT_NET, self.PUBLICNET, self.SERVICENET]))
+
+    def test_get_networks_tenant_id_none_admin(self):
+        with self._stubs():
+            old_tid = self.admin_context.tenant_id
+            self.admin_context.tenant_id = None
+            nets = self.plugin.get_networks(self.admin_context)
+
+            self.assertEqual(len(nets), 4)
+            self.assertEqual(
+                set([net["id"] for net in nets]),
+                set([self.TENANT_NET, self.PUBLICNET, self.SERVICENET,
+                     self.OTHER_NET]))
+            self.admin_context.tenant_id = old_tid
+
+    def test_get_networks_tenant_id_none_not_admin(self):
+        with self._stubs():
+            old_tid, self.context.tenant_id = self.context.tenant_id, None
+            nets = self.plugin.get_networks(self.context)
+
+            self.assertEqual(len(nets), 2)
+            self.assertEqual(
+                set([net["id"] for net in nets]),
+                set([self.PUBLICNET, self.SERVICENET]))
+            self.context.tenant_id = old_tid

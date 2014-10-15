@@ -375,8 +375,8 @@ def mac_address_create(context, **mac_dict):
 INVERT_DEFAULTS = 'invert_defaults'
 
 
-# HACK(amir): RM9305/RM9709: do not allow a tenant to act on a network that is
-#             not shared nor does not belong to them
+# FIXME(amir): RM9305/RM9709: do not allow a tenant to act on a network that is
+#              not shared nor does not belong to them
 def _remove_unauthorized_networks(f):
     def wrapped(*args, **kwargs):
         context = args[0]
@@ -384,8 +384,15 @@ def _remove_unauthorized_networks(f):
         net_or_nets = f(*args, **kwargs)
 
         def _auth_filter(net):
-            return (net and (STRATEGY.is_parent_network(net["id"]) or
-                             net["tenant_id"] == tenant_id))
+            if not net:
+                return False
+            if STRATEGY.is_parent_network(net["id"]):
+                return True
+            if ((tenant_id is None and context.is_admin) or
+                    net["tenant_id"] == tenant_id):
+                return True
+            return False
+
         try:
             # net_or_nets is list or Query object
             return [net for net in net_or_nets if _auth_filter(net)]
