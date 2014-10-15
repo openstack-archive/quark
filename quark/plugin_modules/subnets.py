@@ -144,8 +144,7 @@ def create_subnet(context, subnet):
                     resource='v6_subnets_per_network').first()
                 if tenant_quota_v6 != -1:
                     quota.QUOTAS.limit_check(
-                        context,
-                        context.tenant_id,
+                        context, context.tenant_id,
                         v6_subnets_per_network=v6_count + 1)
             else:
                 tenant_quota_v4 = context.session.query(qdb.Quota).filter_by(
@@ -153,8 +152,7 @@ def create_subnet(context, subnet):
                     resource='v4_subnets_per_network').first()
                 if tenant_quota_v4 != -1:
                     quota.QUOTAS.limit_check(
-                        context,
-                        context.tenant_id,
+                        context, context.tenant_id,
                         v4_subnets_per_network=v4_count + 1)
 
         # See RM981. The default behavior of setting a gateway unless
@@ -176,6 +174,10 @@ def create_subnet(context, subnet):
         ip_policies.ensure_default_policy(cidrs, [new_subnet])
         new_subnet["ip_policy"] = db_api.ip_policy_create(context,
                                                           exclude=cidrs)
+
+        quota.QUOTAS.limit_check(context, context.tenant_id,
+                                 routes_per_subnet=len(host_routes))
+
         default_route = None
         for route in host_routes:
             netaddr_route = netaddr.IPNetwork(route["destination"])
@@ -187,8 +189,12 @@ def create_subnet(context, subnet):
                 default_route = route
                 gateway_ip = default_route["nexthop"]
                 alloc_pools.validate_gateway_excluded(gateway_ip)
+
             new_subnet["routes"].append(db_api.route_create(
                 context, cidr=route["destination"], gateway=route["nexthop"]))
+
+        quota.QUOTAS.limit_check(context, context.tenant_id,
+                                 dns_nameservers_per_subnet=len(dns_ips))
 
         for dns_ip in dns_ips:
             new_subnet["dns_nameservers"].append(db_api.dns_create(
@@ -278,6 +284,9 @@ def update_subnet(context, id, subnet):
 
         if dns_ips:
             subnet_db["dns_nameservers"] = []
+            quota.QUOTAS.limit_check(context, context.tenant_id,
+                                     dns_nameservers_per_subnet=len(dns_ips))
+
         for dns_ip in dns_ips:
             subnet_db["dns_nameservers"].append(db_api.dns_create(
                 context,
@@ -285,6 +294,9 @@ def update_subnet(context, id, subnet):
 
         if host_routes:
             subnet_db["routes"] = []
+            quota.QUOTAS.limit_check(context, context.tenant_id,
+                                     routes_per_subnet=len(host_routes))
+
         for route in host_routes:
             subnet_db["routes"].append(db_api.route_create(
                 context, cidr=route["destination"], gateway=route["nexthop"]))
