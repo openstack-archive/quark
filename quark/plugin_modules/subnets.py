@@ -42,7 +42,7 @@ quark_subnet_opts = [
     cfg.BoolOpt('allow_allocation_pool_update',
                 default=False,
                 help=_('Controls whether or not to allow allocation_pool'
-                       'updates or not'))
+                       'updates'))
 ]
 
 CONF.register_opts(quark_subnet_opts, "QUARK")
@@ -171,6 +171,11 @@ def create_subnet(context, subnet):
         if isinstance(allocation_pools, list):
             cidrs = alloc_pools.get_policy_cidrs()
 
+        quota.QUOTAS.limit_check(
+            context,
+            context.tenant_id,
+            alloc_pools_per_subnet=len(alloc_pools))
+
         ip_policies.ensure_default_policy(cidrs, [new_subnet])
         new_subnet["ip_policy"] = db_api.ip_policy_create(context,
                                                           exclude=cidrs)
@@ -260,6 +265,11 @@ def update_subnet(context, id, subnet):
         else:
             alloc_pools = allocation_pool.AllocationPools(subnet_db["cidr"],
                                                           allocation_pools)
+
+        quota.QUOTAS.limit_check(
+            context,
+            context.tenant_id,
+            alloc_pools_per_subnet=len(alloc_pools))
 
         if gateway_ip:
             alloc_pools.validate_gateway_excluded(gateway_ip)

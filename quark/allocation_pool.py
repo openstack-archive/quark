@@ -39,6 +39,9 @@ class AllocationPools(object):
                  "end": self._subnet_last_ip}]
         self._policies = policies or []
 
+    def __len__(self):
+        return len(self._alloc_pools)
+
     # Note(asadoughi): Copied from neutron/db/db_base_plugin_v2.py
     def _validate_allocation_pools(self):
         """Validate IP allocation pools.
