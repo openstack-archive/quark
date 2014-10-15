@@ -37,30 +37,29 @@ LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
 
 quark_resources = [
+    quota.BaseResource('dns_nameservers_per_subnet',
+                       'quota_dns_nameservers_per_subnet'),
     quota.BaseResource('ports_per_network',
                        'quota_ports_per_network'),
-    quota.BaseResource('v6_subnets_per_network',
-                       'quota_v6_subnets_per_network'),
-    quota.BaseResource('v4_subnets_per_network',
-                       'quota_v4_subnets_per_network'),
     quota.BaseResource('routes_per_subnet',
                        'quota_routes_per_subnet'),
     quota.BaseResource('security_rules_per_group',
                        'quota_security_rules_per_group'),
     quota.BaseResource('security_groups_per_port',
-                       'quota_security_groups_per_port')
+                       'quota_security_groups_per_port'),
+    quota.BaseResource('v4_subnets_per_network',
+                       'quota_v4_subnets_per_network'),
+    quota.BaseResource('v6_subnets_per_network',
+                       'quota_v6_subnets_per_network')
 ]
 
 quark_quota_opts = [
+    cfg.IntOpt('quota_dns_nameservers_per_subnet',
+               default=2,
+               help=_('Maximum number of dns nameservers per subnet')),
     cfg.IntOpt('quota_ports_per_network',
                default=250,
                help=_('Maximum ports per network')),
-    cfg.IntOpt('quota_v6_subnets_per_network',
-               default=1,
-               help=_('Maximum v6 subnets per network')),
-    cfg.IntOpt('quota_v4_subnets_per_network',
-               default=1,
-               help=_('Maximum v4 subnets per network')),
     cfg.IntOpt('quota_routes_per_subnet',
                default=3,
                help=_('Maximum routes per subnet')),
@@ -69,7 +68,13 @@ quark_quota_opts = [
                help=_('Maximum security group rules in a group')),
     cfg.IntOpt("quota_security_groups_per_port",
                default=5,
-               help=_("Maximum number of security groups per port"))
+               help=_("Maximum number of security groups per port")),
+    cfg.IntOpt('quota_v4_subnets_per_network',
+               default=1,
+               help=_('Maximum v4 subnets per network')),
+    cfg.IntOpt('quota_v6_subnets_per_network',
+               default=1,
+               help=_('Maximum v6 subnets per network'))
 ]
 
 

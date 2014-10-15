@@ -15,6 +15,7 @@
 
 import contextlib
 import copy
+from datetime import datetime
 import time
 import uuid
 
@@ -360,7 +361,7 @@ class TestQuarkCreateSubnetAllocationPools(test_quark_plugin.TestQuarkPlugin):
 # * workaround is also in place for lame ATTR_NOT_SPECIFIED object()
 class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
-    def _stubs(self, subnet=None, network=True, routes=None, dns=None):
+    def _stubs(self, subnet=None, network=True, routes=(), dns=()):
 
         subnet_mod = models.Subnet(
             network=models.Network(id=1) if network else None)
@@ -370,8 +371,7 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
 
         subnet["dns_nameservers"] = dns_ips
         subnet["host_routes"] = host_routes
-        routes = routes or []
-        dns = dns or []
+        dns = [{"ip": x} for x in dns]
         route_models = [models.Route(**r) for r in routes]
         dns_models = [models.DNSNameserver(**d) for d in dns]
 
@@ -535,13 +535,12 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
 
     def test_create_subnet_dns_nameservers(self):
         routes = [dict(cidr="0.0.0.0/0", gateway="0.0.0.0")]
-        dns_ns = [dict(ip="4.2.2.1"), dict(ip="4.2.2.2")]
+        dns_ns = ["4.2.2.1", "4.2.2.2"]
         subnet = dict(
             subnet=dict(network_id=1,
                         tenant_id=self.context.tenant_id, ip_version=4,
                         cidr="172.16.0.0/24", gateway_ip="0.0.0.0",
-                        dns_nameservers=["4.2.2.1", "4.2.2.2"],
-                        enable_dhcp=None))
+                        dns_nameservers=dns_ns, enable_dhcp=None))
         with self._stubs(
             subnet=subnet["subnet"],
             routes=routes,
@@ -720,6 +719,53 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                     self.assertIsNone(res[key])
                 else:
                     self.assertEqual(res[key], subnet["subnet"][key])
+
+    def test_create_subnet_routes_quota_pass(self):
+        routes = (("0.0.0.0/0", "127.0.0.1"),
+                  ("1.0.0.0/0", "127.0.0.1"),
+                  ("2.0.0.0/0", "127.0.0.1"))
+        host_routes = [{"destination": x, "nexthop": y} for x, y in routes]
+        stub_routes = [{"cidr": x, "gateway": y} for x, y in routes]
+        subnet = {"subnet":
+                  {"cidr": "192.167.10.0/24", "created_at": datetime.now(),
+                   "host_routes": host_routes, "id": 1, "ip_version": 4,
+                   "network_id": 1, "tenant_id": self.context.tenant_id}}
+        with self._stubs(subnet=subnet.get("subnet"), routes=stub_routes):
+            self.plugin.create_subnet(self.context, subnet)
+
+    def test_create_subnet_routes_quota_fail(self):
+        routes = (("0.0.0.0/0", "127.0.0.1"),
+                  ("1.0.0.0/0", "127.0.0.1"),
+                  ("2.0.0.0/0", "127.0.0.1"),
+                  ("3.0.0.0/0", "127.0.0.1"))
+        host_routes = [{"destination": x, "nexthop": y} for x, y in routes]
+        stub_routes = [{"cidr": x, "gateway": y} for x, y in routes]
+        subnet = {"subnet":
+                  {"cidr": "192.167.10.0/24", "created_at": datetime.now(),
+                   "host_routes": host_routes, "id": 1, "ip_version": 4,
+                   "network_id": 1, "tenant_id": self.context.tenant_id}}
+        with self._stubs(subnet=subnet.get("subnet"), routes=stub_routes):
+            with self.assertRaises(exceptions.OverQuota):
+                self.plugin.create_subnet(self.context, subnet)
+
+    def test_create_subnet_dns_quota_pass(self):
+        nameservers = ["7.0.0.1", "7.0.0.2"]
+        subnet = {"subnet":
+                  {"cidr": "192.167.10.0/24", "created_at": datetime.now(),
+                   "dns_nameservers": nameservers, "id": 1, "ip_version": 4,
+                   "network_id": 1, "tenant_id": self.context.tenant_id}}
+        with self._stubs(subnet=subnet.get("subnet"), dns=nameservers):
+            self.plugin.create_subnet(self.context, subnet)
+
+    def test_create_subnet_dns_quota_fail(self):
+        nameservers = ["7.0.0.1", "7.0.0.2", "7.0.0.3"]
+        subnet = {"subnet":
+                  {"cidr": "192.167.10.0/24", "created_at": datetime.now(),
+                   "dns_nameservers": nameservers, "id": 1, "ip_version": 4,
+                   "network_id": 1, "tenant_id": self.context.tenant_id}}
+        with self._stubs(subnet=subnet.get("subnet"), dns=nameservers):
+            with self.assertRaises(exceptions.OverQuota):
+                self.plugin.create_subnet(self.context, subnet)
 
 
 class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
@@ -1015,10 +1061,9 @@ class TestQuarkDeleteSubnet(test_quark_plugin.TestQuarkPlugin):
             ip_mod.update(ip)
             ip_mods.append(ip_mod)
 
-        db_mod = "quark.db.api"
         with contextlib.nested(
-            mock.patch("%s.subnet_find" % db_mod),
-            mock.patch("%s.subnet_delete" % db_mod),
+            mock.patch("quark.db.api.subnet_find"),
+            mock.patch("quark.db.api.subnet_delete"),
             mock.patch("neutron.common.rpc.get_notifier")
         ) as (sub_find, sub_delete, get_notifier):
             if subnet_mod:
@@ -1047,33 +1092,24 @@ class TestQuarkDeleteSubnet(test_quark_plugin.TestQuarkPlugin):
 class TestSubnetsQuotas(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, subnet_values, deleted_at=None):
-        class FakeContext(object):
-            def __enter__(*args, **kwargs):
-                pass
+        self.context.session.begin = mock.MagicMock()
 
-            def __exit__(*args, **kwargs):
-                pass
-
-        self.context.session.begin = FakeContext
         subnets = list()
         for s in subnet_values:
             s["network"] = models.Network()
             s["network"]["created_at"] = s["created_at"]
+            s["dns_nameservers"] = []
             subnet = models.Subnet(**s)
             subnets.append(subnet)
-        db_mod = "quark.db.api"
-        rpc_mod = "neutron.common.rpc"
-        time_mod = "neutron.openstack.common.timeutils"
-        sub_plugin_mod = "quark.plugin_modules.subnets"
         with contextlib.nested(
-            mock.patch("%s.get_subnets" % sub_plugin_mod),
-            mock.patch("%s.subnet_find" % db_mod),
-            mock.patch("%s.network_find" % db_mod),
-            mock.patch("%s.subnet_create" % db_mod),
-            mock.patch("%s.subnet_delete" % db_mod),
-            mock.patch("%s.get_notifier" % rpc_mod),
-            mock.patch("%s.utcnow" % time_mod),
-            mock.patch("%s._validate_subnet_cidr" % sub_plugin_mod)
+            mock.patch("quark.plugin_modules.subnets.get_subnets"),
+            mock.patch("quark.db.api.subnet_find"),
+            mock.patch("quark.db.api.network_find"),
+            mock.patch("quark.db.api.subnet_create"),
+            mock.patch("quark.db.api.subnet_delete"),
+            mock.patch("neutron.common.rpc.get_notifier"),
+            mock.patch("neutron.openstack.common.timeutils.utcnow"),
+            mock.patch("quark.plugin_modules.subnets._validate_subnet_cidr")
         ) as (get_subnets, sub_find, net_find, sub_create, sub_del, notify,
               time_func, sub_validate):
             sub_create.return_value = subnets[0]
@@ -1187,21 +1223,18 @@ class TestSubnetsNotification(test_quark_plugin.TestQuarkPlugin):
         s["network"] = models.Network()
         s["network"]["created_at"] = s["created_at"]
         subnet = models.Subnet(**s)
-        db_mod = "quark.db.api"
-        rpc_mod = "neutron.common.rpc"
-        time_mod = "neutron.openstack.common.timeutils"
-        sub_plugin_mod = "quark.plugin_modules.subnets"
         with contextlib.nested(
-            mock.patch("%s.get_subnets" % sub_plugin_mod),
-            mock.patch("%s.subnet_find" % db_mod),
-            mock.patch("%s.network_find" % db_mod),
-            mock.patch("%s.subnet_create" % db_mod),
-            mock.patch("%s.subnet_delete" % db_mod),
-            mock.patch("%s.get_notifier" % rpc_mod),
-            mock.patch("%s.utcnow" % time_mod),
-            mock.patch("%s._validate_subnet_cidr" % sub_plugin_mod)
+            mock.patch("quark.plugin_modules.subnets.get_subnets"),
+            mock.patch("quark.db.api.subnet_find"),
+            mock.patch("quark.db.api.network_find"),
+            mock.patch("quark.db.api.subnet_create"),
+            mock.patch("quark.db.api.subnet_delete"),
+            mock.patch("neutron.common.rpc.get_notifier"),
+            mock.patch("neutron.quota.QUOTAS"),
+            mock.patch("neutron.openstack.common.timeutils.utcnow"),
+            mock.patch("quark.plugin_modules.subnets._validate_subnet_cidr")
         ) as (get_subnets, sub_find, net_find, sub_create, sub_del, notify,
-              time_func, sub_validate):
+              quota_engine, time_func, sub_validate):
             sub_create.return_value = subnet
             get_subnets.return_value = []
             sub_find.return_value = subnet
