@@ -21,6 +21,8 @@ import contextlib
 
 from quark.db import api as db_api
 import quark.ipam
+# import below necessary if file run by itself
+from quark import plugin  # noqa
 import quark.plugin_modules.ip_policies as policy_api
 import quark.plugin_modules.networks as network_api
 import quark.plugin_modules.subnets as subnet_api
@@ -138,6 +140,24 @@ class QuarkCreateSubnets(BaseFunctionalTest):
         with self._stubs(network, subnet) as (net, sub1):
             self.assertEqual(sub1["allocation_pools"],
                              [dict(start="192.168.1.1", end="192.168.1.254")])
+
+    def test_create_ipv6_subnet_with_multiple_allocation_pools(self):
+        cidr = "fd00:243:e319::/64"
+        ip_network = netaddr.IPNetwork(cidr)
+        network = dict(name="public", tenant_id="fake", network_plugin="BASE")
+        network = {"network": network}
+        pools = [{'start': 'fd00:243:e319::64', 'end': 'fd00:243:e319::384'},
+                 {'start': 'fd00:243:e319::3e8', 'end': 'fd00:243:e319::76c'},
+                 {'start': 'fd00:243:e319::7d0', 'end': 'fd00:243:e319::b54'}]
+        next_auto_assign_ip = ip_network.first + 1
+        subnet = dict(id=1, ip_versino=6,
+                      next_auto_assign_ip=next_auto_assign_ip,
+                      cidr=cidr, first_ip=ip_network.first,
+                      last_ip=ip_network.last, ip_policy=None,
+                      tenant_id="fake", allocation_pools=pools)
+        subnet = {"subnet": subnet}
+        with self._stubs(network, subnet) as (net, sub1):
+            self.assertEqual(sub1["allocation_pools"], pools)
 
 
 class QuarkUpdateSubnets(BaseFunctionalTest):
