@@ -62,41 +62,75 @@ CONF.register_opts(quark_opts, "QUARK")
 
 
 class Client(object):
-    def __init__(self):
-        host = CONF.QUARK.redis_security_groups_host
-        port = CONF.QUARK.redis_security_groups_port
+    connection_pool = None
 
-        # NOTE: this is a naive implementation. The redis module
-        #       also supports connection pooling, which may be necessary
-        #       going forward, but we'll roll with this for now.
+    def __init__(self, use_master=False):
+        self._ensure_connection_pool_exists()
+        self._sentinel_list = None
+        self._use_master = use_master
+
         try:
             if CONF.QUARK.redis_use_sentinels:
-                host, port = self._discover_master_sentinel()
+                self._client = self._client_from_sentinel(self._use_master)
+            else:
+                self._client = self._client_from_config()
 
-            kwargs = {"host": host, "port": port}
-            if CONF.QUARK.redis_use_ssl:
-                kwargs["ssl"] = True
-                if CONF.QUARK.redis_ssl_certfile:
-                    kwargs["ssl_certfile"] = CONF.QUARK.redis_ssl_certfile
-                    kwargs["ssl_cert_reqs"] = "required"
-                    kwargs["ssl_ca_certs"] = CONF.QUARK.redis_ssl_ca_certs
-                    kwargs["ssl_keyfile"] = CONF.QUARK.redis_ssl_keyfile
-
-            self._client = redis.StrictRedis(**kwargs)
         except redis.ConnectionError as e:
             LOG.exception(e)
-            raise q_exc.SecurityGroupsCouldNotBeApplied()
+            raise q_exc.RedisConnectionFailure()
 
-    def _discover_master_sentinel(self):
-        sentinel_list = [tuple(host.split(':'))
-                         for host in CONF.QUARK.redis_sentinel_hosts]
-        if not sentinel_list:
-            raise TypeError("sentinel_list is not a properly formatted list "
-                            "of 'host:port' pairs")
+    def _ensure_connection_pool_exists(self):
+        if not Client.connection_pool:
+            LOG.info("Creating redis connection pool for the first time...")
+            connect_class = redis.Connection
+            connect_kw = {}
+            if CONF.QUARK.redis_use_ssl:
+                LOG.info("Communicating with redis over SSL")
+                connect_class = redis.SSLConnection
+                connect_kw["ssl"] = True
+                if CONF.QUARK.redis_ssl_certfile:
+                    connect_kw["ssl_certfile"] = CONF.QUARK.redis_ssl_certfile
+                    connect_kw["ssl_cert_reqs"] = "required"
+                    connect_kw["ssl_ca_certs"] = CONF.QUARK.redis_ssl_ca_certs
+                    connect_kw["ssl_keyfile"] = CONF.QUARK.redis_ssl_keyfile
 
-        sentinel = redis.sentinel.Sentinel(sentinel_list)
-        host, port = sentinel.discover_master(CONF.QUARK.redis_sentinel_master)
-        return host, port
+            klass = redis.ConnectionPool
+            if CONF.QUARK.redis_use_sentinels:
+                klass = redis.sentinel.SentinelConnectionPool
+
+            Client.connection_pool = klass(connection_class=connect_class,
+                                           **connect_kw)
+
+    def _get_sentinel_list(self):
+        if not self._sentinel_list:
+            self._sentinel_list = [tuple(host.split(':'))
+                                   for host in CONF.QUARK.redis_sentinel_hosts]
+            if not self._sentinel_list:
+                raise TypeError("sentinel_list is not a properly formatted"
+                                "list of 'host:port' pairs")
+
+        return self._sentinel_list
+
+    def _client_from_config(self):
+        host = CONF.QUARK.redis_security_groups_host
+        port = CONF.QUARK.redis_security_groups_port
+        LOG.info("Initializing redis connection %s:%s" % (host, port))
+        kwargs = {"host": host, "port": port,
+                  "connection_pool": Client.connection_pool}
+        return redis.StrictRedis(**kwargs)
+
+    def _client_from_sentinel(self, is_master=True):
+        master = is_master and "master" or "slave"
+        LOG.info("Initializing redis connection to %s node, master label %s" %
+                 (master, CONF.QUARK.redis_sentinel_master))
+
+        sentinel = redis.sentinel.Sentinel(self._get_sentinel_list())
+        func = sentinel.slave_for
+        if is_master:
+            func = sentinel.master_for
+
+        return func(CONF.QUARK.redis_sentinel_master,
+                    connection_pool=Client.connection_pool)
 
     def serialize(self, groups):
         """Creates a payload for the redis server
@@ -175,9 +209,14 @@ class Client(object):
 
     def apply_rules(self, device_id, mac_address, rules):
         """Writes a series of security group rules to a redis server."""
+        LOG.info("Applying security group rules for device %s with MAC %s" %
+                 (device_id, mac_address))
+        if not self._use_master:
+            raise q_exc.RedisSlaveWritesForbidden()
+
         redis_key = self.rule_key(device_id, mac_address)
         try:
             self._client.set(redis_key, json.dumps(rules))
         except redis.ConnectionError as e:
             LOG.exception(e)
-            raise q_exc.SecurityGroupsCouldNotBeApplied()
+            raise q_exc.RedisConnectionFailure()

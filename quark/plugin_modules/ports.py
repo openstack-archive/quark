@@ -324,6 +324,7 @@ def update_port(context, id, port):
     #               a future patch where we have time to solve it well.
     net_driver.update_port(context, port_id=port_db["backend_key"],
                            mac_address=port_db["mac_address"],
+                           device_id=port_db["device_id"],
                            security_groups=security_groups)
 
     port_dict["security_groups"] = security_groups

@@ -63,7 +63,7 @@ class UnmanagedDriver(object):
         LOG.info("update_port %s %s" % (context.tenant_id, port_id))
 
         if "security_groups" in kwargs:
-            client = redis_client.Client()
+            client = redis_client.Client(use_master=True)
             payload = client.serialize(kwargs["security_groups"])
             client.apply_rules(kwargs["device_id"], kwargs["mac_address"],
                                payload)
