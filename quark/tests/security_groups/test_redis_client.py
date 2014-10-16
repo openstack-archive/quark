@@ -38,6 +38,8 @@ class TestRedisSerialization(test_base.TestBase):
     @mock.patch("redis.ConnectionPool")
     @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
     def test_redis_key(self, strict_redis, conn_pool):
+        host = "127.0.0.1"
+        port = 6379
         client = redis_client.Client()
         device_id = str(uuid.uuid4())
         mac_address = netaddr.EUI("AA:BB:CC:DD:EE:FF")
@@ -45,7 +47,8 @@ class TestRedisSerialization(test_base.TestBase):
         redis_key = client.rule_key(device_id, mac_address.value)
         expected = "%s.%s" % (device_id, str(mac_address))
         self.assertEqual(expected, redis_key)
-        conn_pool.assert_called_with(connection_class=redis.Connection)
+        conn_pool.assert_called_with(connection_class=redis.Connection,
+                                     host=host, port=port)
 
     @mock.patch("redis.ConnectionPool")
     @mock.patch("quark.security_groups.redis_client.Client.rule_key")
@@ -202,7 +205,8 @@ class TestRedisSentinelConnection(test_base.TestBase):
             master_for.assert_called_with(
                 master_label,
                 connection_pool=redis_client.Client.connection_pool)
-            sentinel_pool.assert_called_with(connection_class=redis.Connection)
+            sentinel_pool.assert_called_with(connection_class=redis.Connection,
+                                             host=host, port=port)
 
     @mock.patch("redis.sentinel.SentinelConnectionPool")
     @mock.patch("redis.sentinel.Sentinel.master_for")
@@ -229,7 +233,9 @@ class TestRedisSSHConnection(test_base.TestBase):
         CONF.set_override("redis_ssl_certfile", 'my.cert', "QUARK")
         CONF.set_override("redis_ssl_ca_certs", 'server.cert', "QUARK")
         CONF.set_override("redis_ssl_keyfile", 'keyfile', "QUARK")
+        CONF.set_override("redis_ssl_cert_reqs", 'required', "QUARK")
         yield
+        CONF.set_override("redis_ssl_cert_reqs", 'none', "QUARK")
         CONF.set_override("redis_ssl_keyfile", '', "QUARK")
         CONF.set_override("redis_ssl_ca_certs", '', "QUARK")
         CONF.set_override("redis_ssl_certfile", '', "QUARK")
@@ -247,12 +253,11 @@ class TestRedisSSHConnection(test_base.TestBase):
         with self._stubs(True, sentinels, master_label):
             redis_client.Client(use_master=True)
             ssl_conn = redis.connection.SSLConnection
-            conn_pool.assert_called_with(ssl=True,
-                                         ssl_certfile="my.cert",
+            conn_pool.assert_called_with(ssl_certfile="my.cert",
                                          ssl_keyfile="keyfile",
                                          ssl_ca_certs="server.cert",
                                          ssl_cert_reqs="required",
-                                         connection_class=ssl_conn)
+                                         connection_class=ssl_conn,
+                                         host=host, port=port)
             strict_redis.assert_called_with(
-                host=host, port=port,
                 connection_pool=redis_client.Client.connection_pool)

@@ -30,10 +30,12 @@ LOG = logging.getLogger(__name__)
 quark_opts = [
     cfg.StrOpt('redis_security_groups_host',
                default='127.0.0.1',
-               help=_("The server to write security group rules to")),
+               help=_("The server to write security group rules to or "
+                      "retrieve sentinel information from, as appropriate")),
     cfg.IntOpt('redis_security_groups_port',
                default=6379,
-               help=_("The port for the redis server")),
+               help=_("The port for the redis server to write rules to or "
+                      "retrieve sentinel information from, as appropriate")),
     cfg.BoolOpt("redis_use_sentinels",
                 default=False,
                 help=_("Tell the redis client to use sentinels rather than a "
@@ -56,7 +58,11 @@ quark_opts = [
                help=_("Path to the SSL keyfile")),
     cfg.StrOpt("redis_ssl_ca_certs",
                default='',
-               help=_("Path to the SSL CA certs"))]
+               help=_("Path to the SSL CA certs")),
+    cfg.StrOpt("redis_ssl_cert_reqs",
+               default='none',
+               help=_("Certificate requirements. Values are 'none', "
+                      "'optional', and 'required'"))]
 
 CONF.register_opts(quark_opts, "QUARK")
 
@@ -82,15 +88,20 @@ class Client(object):
     def _ensure_connection_pool_exists(self):
         if not Client.connection_pool:
             LOG.info("Creating redis connection pool for the first time...")
+            host = CONF.QUARK.redis_security_groups_host
+            port = CONF.QUARK.redis_security_groups_port
+            LOG.info("Using redis host %s:%s" % (host, port))
+
             connect_class = redis.Connection
-            connect_kw = {}
+            connect_kw = {"host": host, "port": port}
+
             if CONF.QUARK.redis_use_ssl:
                 LOG.info("Communicating with redis over SSL")
                 connect_class = redis.SSLConnection
-                connect_kw["ssl"] = True
                 if CONF.QUARK.redis_ssl_certfile:
+                    cert_req = CONF.QUARK.redis_ssl_cert_reqs
                     connect_kw["ssl_certfile"] = CONF.QUARK.redis_ssl_certfile
-                    connect_kw["ssl_cert_reqs"] = "required"
+                    connect_kw["ssl_cert_reqs"] = cert_req
                     connect_kw["ssl_ca_certs"] = CONF.QUARK.redis_ssl_ca_certs
                     connect_kw["ssl_keyfile"] = CONF.QUARK.redis_ssl_keyfile
 
@@ -112,11 +123,7 @@ class Client(object):
         return self._sentinel_list
 
     def _client_from_config(self):
-        host = CONF.QUARK.redis_security_groups_host
-        port = CONF.QUARK.redis_security_groups_port
-        LOG.info("Initializing redis connection %s:%s" % (host, port))
-        kwargs = {"host": host, "port": port,
-                  "connection_pool": Client.connection_pool}
+        kwargs = {"connection_pool": Client.connection_pool}
         return redis.StrictRedis(**kwargs)
 
     def _client_from_sentinel(self, is_master=True):
