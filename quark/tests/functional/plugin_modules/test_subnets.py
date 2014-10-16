@@ -15,6 +15,7 @@
 
 import mock
 import netaddr
+from neutron.common import exceptions
 from oslo.config import cfg
 
 import contextlib
@@ -94,6 +95,44 @@ class QuarkCreateSubnets(BaseFunctionalTest):
             subnet['subnet']['network_id'] = net['id']
             sub1 = subnet_api.create_subnet(self.context, subnet)
             yield net, sub1
+
+    def test_create_allocation_pools_over_quota_fail(self):
+        original_pool_quota = cfg.CONF.QUOTAS.quota_alloc_pools_per_subnet
+        cidr = "1.1.1.0/8"
+        ip_network = netaddr.IPNetwork(cidr)
+        network = dict(name="public", tenant_id="fake", network_plugin="BASE")
+        network = {"network": network}
+        pools = [{"start": "1.0.1.2", "end": "1.0.2.0"},
+                 {"start": "1.0.2.2", "end": "1.0.3.0"}]
+        subnet = dict(id=1, ip_version=4, next_auto_assign_ip=2,
+                      cidr=cidr, first_ip=ip_network.first,
+                      last_ip=ip_network.last, ip_policy=None,
+                      tenant_id="fake", allocation_pools=pools)
+        subnet = {"subnet": subnet}
+        with self.assertRaises(exceptions.OverQuota):
+            cfg.CONF.set_override('quota_alloc_pools_per_subnet', 1, "QUOTAS")
+            with self._stubs(network, subnet) as (net, sub):
+                self.assertTrue(sub)
+        cfg.CONF.set_override('quota_alloc_pools_per_subnet',
+                              original_pool_quota, "QUOTAS")
+
+    def test_create_allocation_pools_under_quota_pass(self):
+        original_pool_quota = cfg.CONF.QUOTAS.quota_alloc_pools_per_subnet
+        cidr = "1.1.1.0/8"
+        ip_network = netaddr.IPNetwork(cidr)
+        network = dict(name="public", tenant_id="fake", network_plugin="BASE")
+        network = {"network": network}
+        pools = [{"start": "1.0.1.2", "end": "1.0.2.0"}]
+        subnet = dict(id=1, ip_version=4, next_auto_assign_ip=2,
+                      cidr=cidr, first_ip=ip_network.first,
+                      last_ip=ip_network.last, ip_policy=None,
+                      tenant_id="fake", allocation_pools=pools)
+        subnet = {"subnet": subnet}
+        cfg.CONF.set_override('quota_alloc_pools_per_subnet', 1, "QUOTAS")
+        with self._stubs(network, subnet) as (net, sub):
+            self.assertTrue(sub)
+        cfg.CONF.set_override('quota_alloc_pools_per_subnet',
+                              original_pool_quota, "QUOTAS")
 
     def test_create_allocation_pools_empty(self):
         cidr = "192.168.1.0/24"

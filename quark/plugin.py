@@ -37,6 +37,8 @@ LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
 
 quark_resources = [
+    quota.BaseResource('alloc_pools_per_subnet',
+                       'quota_alloc_pools_per_subnet'),
     quota.BaseResource('dns_nameservers_per_subnet',
                        'quota_dns_nameservers_per_subnet'),
     quota.BaseResource('ports_per_network',
@@ -54,6 +56,9 @@ quark_resources = [
 ]
 
 quark_quota_opts = [
+    cfg.IntOpt("quota_alloc_pools_per_subnet",
+               default=5,
+               help=_("Maximum number of allocation pools per subnet")),
     cfg.IntOpt('quota_dns_nameservers_per_subnet',
                default=2,
                help=_('Maximum number of dns nameservers per subnet')),
