@@ -411,7 +411,7 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
             self.assertEqual(len(address), 1)
             self.assertEqual(address[0]["version"], 6)
 
-    def test_allocate_provided_ip_address_one_v6_subnet_open(self):
+    def test_allocate_fixed_ip_address_one_v6_subnet_open(self):
         subnet6 = dict(id=1, first_ip=self.v6_fip.value,
                        last_ip=self.v6_lip.value, cidr="feed::/104",
                        ip_version=6, next_auto_assign_ip=self.v6_fip.value + 1,
@@ -981,10 +981,13 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
             mock.patch("quark.db.api.subnet_find_ordered_by_most_full")
         ) as (addr_find, subnet_find):
             addr_find.side_effect = addresses
-            subnet_find.return_value = subnets
+            if isinstance(subnets, list):
+                subnet_find.return_value = subnets
+            else:
+                subnet_find.side_effect = subnets
             yield
 
-    def test_allocate_new_ip_address_in_empty_range(self):
+    def test_allocate_new_ip_address_in_empty_subnet(self):
         subnet = dict(id=1, first_ip=0, last_ip=255,
                       cidr="0.0.0.0/24", ip_version=4,
                       next_auto_assign_ip=0,
@@ -996,6 +999,130 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
                                           version=4)
             self.assertEqual(address[0]["address"],
                              netaddr.IPAddress("::ffff:0.0.0.1").value)
+
+    def test_allocate_one_fixed_ipv4_address(self):
+        fip = netaddr.IPAddress("10.0.0.1").value
+        lip = netaddr.IPAddress("10.0.0.255").value
+        subnet = dict(id=1, first_ip=fip, last_ip=lip,
+                      cidr="10.0.0.0/24", ip_version=4,
+                      next_auto_assign_ip=fip + 1,
+                      ip_policy=None)
+
+        with self._stubs(subnets=[(subnet, 0)], addresses=[None, None]):
+            address = []
+            ip_address = ["10.0.0.17"]
+            self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
+                                          ip_addresses=ip_address,
+                                          subnets=[subnet])
+            self.assertEqual(len(address), 1)
+            self.assertEqual(netaddr.IPAddress(address[0]['address']),
+                             netaddr.IPAddress('::ffff:10.0.0.17'))
+
+    def test_allocate_two_fixed_ipv4_addresses(self):
+        fip1 = netaddr.IPAddress("192.168.0.1").value
+        lip1 = netaddr.IPAddress("192.168.0.255").value
+        subnet1 = dict(id=1, first_ip=fip1, last_ip=lip1,
+                       cidr="192.168.0.0/24", ip_version=4,
+                       next_auto_assign_ip=fip1 + 1,
+                       ip_policy=None)
+        fip2 = netaddr.IPAddress('10.0.0.1').value
+        lip2 = netaddr.IPAddress('10.0.0.255').value
+        subnet2 = dict(id=2, first_ip=fip2, last_ip=lip2,
+                       cidr="10.0.0.0/24", ip_version=4,
+                       next_auto_assign_ip=fip2 + 1,
+                       ip_policy=None)
+
+        with self._stubs(subnets=([(subnet1, 0)], [(subnet2, 0)]),
+                         addresses=[None, None]):
+            address = []
+            ip_addresses = ["192.168.0.17", "10.0.0.17"]
+            self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
+                                          ip_addresses=ip_addresses,
+                                          subnets=[subnet1, subnet2])
+            self.assertEqual(len(address), 2)
+            self.assertEqual(netaddr.IPAddress(address[0]['address']),
+                             netaddr.IPAddress('::ffff:192.168.0.17'))
+            self.assertEqual(address[0]['version'], 4)
+            self.assertEqual(netaddr.IPAddress(address[1]['address']),
+                             netaddr.IPAddress('::ffff:10.0.0.17'))
+            self.assertEqual(address[1]['version'], 4)
+
+    def test_allocate_one_fixed_ipv6_address(self):
+        fip = netaddr.IPAddress("feed::01").value
+        lip = netaddr.IPAddress("feed::ff:ffff").value
+        subnet = dict(id=1, first_ip=fip, last_ip=lip,
+                      cidr="feed::/104", ip_version=6,
+                      next_auto_assign_ip=fip + 1,
+                      ip_policy=None)
+
+        with self._stubs(subnets=[(subnet, 0)], addresses=[None, None]):
+            address = []
+            ip_address = ["feed::13"]
+            self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
+                                          ip_addresses=ip_address,
+                                          subnets=[subnet])
+            self.assertEqual(len(address), 1)
+            self.assertEqual(netaddr.IPAddress(address[0]['address']),
+                             netaddr.IPAddress('feed::13'))
+            self.assertEqual(address[0]["version"], 6)
+
+    def test_allocate_two_fixed_ipv6_addresses(self):
+        fip1 = netaddr.IPAddress("feed::1").value
+        lip1 = netaddr.IPAddress("feed::ff:ffff").value
+        subnet1 = dict(id=1, first_ip=fip1, last_ip=lip1,
+                       cidr="feed::/104", ip_version=6,
+                       next_auto_assign_ip=fip1 + 1,
+                       ip_policy=None)
+        fip2 = netaddr.IPAddress('feef::1').value
+        lip2 = netaddr.IPAddress('feef::ff:ffff').value
+        subnet2 = dict(id=2, first_ip=fip2, last_ip=lip2,
+                       cidr="feef::/104", ip_version=6,
+                       next_auto_assign_ip=fip2 + 1,
+                       ip_policy=None)
+
+        with self._stubs(subnets=([(subnet1, 0)], [(subnet2, 0)]),
+                         addresses=[None, None]):
+            address = []
+            ip_addresses = ["feed::13", "feef::13"]
+            self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
+                                          ip_addresses=ip_addresses,
+                                          subnets=[subnet1, subnet2])
+            self.assertEqual(len(address), 2)
+            self.assertEqual(netaddr.IPAddress(address[0]['address']),
+                             netaddr.IPAddress('feed::13'))
+            self.assertEqual(address[0]["version"], 6)
+            self.assertEqual(netaddr.IPAddress(address[1]['address']),
+                             netaddr.IPAddress('feef::13'))
+            self.assertEqual(address[1]["version"], 6)
+
+    def test_allocate_one_fixed_ipv6_and_one_fixed_ipv4_address(self):
+        fip1 = netaddr.IPAddress("feed::01").value
+        lip1 = netaddr.IPAddress("feed::ff:ffff").value
+        subnet1 = dict(id=1, first_ip=fip1, last_ip=lip1,
+                       cidr="feed::/104", ip_version=6,
+                       next_auto_assign_ip=fip1 + 1,
+                       ip_policy=None)
+        fip2 = netaddr.IPAddress('10.0.0.1').value
+        lip2 = netaddr.IPAddress('10.0.0.255').value
+        subnet2 = dict(id=2, first_ip=fip2, last_ip=lip2,
+                       cidr="10.0.0.0/24", ip_version=4,
+                       next_auto_assign_ip=fip2 + 1,
+                       ip_policy=None)
+
+        with self._stubs(subnets=([(subnet1, 0)], [(subnet2, 0)]),
+                         addresses=[None, None]):
+            address = []
+            ip_addresses = ["feed::13", "10.0.0.17"]
+            self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
+                                          ip_addresses=ip_addresses,
+                                          subnets=[subnet1, subnet2])
+            self.assertEqual(len(address), 2)
+            self.assertEqual(netaddr.IPAddress(address[0]['address']),
+                             netaddr.IPAddress('feed::13'))
+            self.assertEqual(address[0]["version"], 6)
+            self.assertEqual(netaddr.IPAddress(address[1]['address']),
+                             netaddr.IPAddress('::ffff:10.0.0.17'))
+            self.assertEqual(address[1]["version"], 4)
 
     def test_allocate_ip_one_full_one_open_subnet(self):
         subnet1 = dict(id=1, first_ip=0, last_ip=0,
