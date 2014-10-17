@@ -176,14 +176,14 @@ class NVPDriver(base.BaseDriver):
             })
         return info
 
-    def diag_network(self, context, network_id, get_status):
+    def diag_network(self, context, network_id, get_status, **kwargs):
         switches = self._lswitch_status_query(context, network_id)['results']
         return {'logical_switches': [self._collect_lswitch_info(s, get_status)
                 for s in switches]}
 
     def create_port(self, context, network_id, port_id,
                     status=True, security_groups=None,
-                    device_id=""):
+                    device_id="", **kwargs):
         security_groups = security_groups or []
         tenant_id = context.tenant_id
         lswitch = self._create_or_choose_lswitch(context, network_id)
@@ -213,7 +213,7 @@ class NVPDriver(base.BaseDriver):
         return res
 
     def update_port(self, context, port_id, status=True,
-                    security_groups=None):
+                    security_groups=None, **kwargs):
         security_groups = security_groups or []
         connection = self.get_connection()
         lswitch_id = self._lswitch_from_port(context, port_id)
@@ -290,7 +290,7 @@ class NVPDriver(base.BaseDriver):
         info.update(_tag_unroll(lport['tags']))
         return info
 
-    def diag_port(self, context, port_id, get_status=False):
+    def diag_port(self, context, port_id, get_status=False, **kwargs):
         connection = self.get_connection()
         lswitch_uuid = self._lswitch_from_port(context, port_id)
         lswitch_port = connection.lswitch_port(lswitch_uuid, port_id)
@@ -348,7 +348,7 @@ class NVPDriver(base.BaseDriver):
         profile.tags(tags)
         return profile.create()
 
-    def delete_security_group(self, context, group_id):
+    def delete_security_group(self, context, group_id, **kwargs):
         guuid = self._get_security_group_id(context, group_id)
         connection = self.get_connection()
         LOG.debug("Deleting security profile %s" % group_id)

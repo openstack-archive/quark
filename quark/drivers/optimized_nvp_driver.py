@@ -68,7 +68,7 @@ class OptimizedNVPDriver(NVPDriver):
 
     def create_port(self, context, network_id, port_id,
                     status=True, security_groups=None,
-                    device_id=""):
+                    device_id="", **kwargs):
         security_groups = security_groups or []
         nvp_port = super(OptimizedNVPDriver, self).create_port(
             context, network_id, port_id, status=status,
@@ -88,8 +88,8 @@ class OptimizedNVPDriver(NVPDriver):
         switch.port_count = switch.port_count + 1
         return nvp_port
 
-    def update_port(self, context, port_id,
-                    status=True, security_groups=None):
+    def update_port(self, context, port_id, status=True,
+                    security_groups=None, **kwargs):
         security_groups = security_groups or []
         nvp_port = super(OptimizedNVPDriver, self).update_port(
             context, port_id, status=status,
@@ -97,7 +97,7 @@ class OptimizedNVPDriver(NVPDriver):
         port = self._lport_select_by_id(context, port_id)
         port.update(nvp_port)
 
-    def delete_port(self, context, port_id):
+    def delete_port(self, context, port_id, **kwargs):
         port = self._lport_select_by_id(context, port_id)
         switch = port.switch
         try:
@@ -143,7 +143,7 @@ class OptimizedNVPDriver(NVPDriver):
         profile = SecurityProfile(id=group_id, nvp_id=nvp_group['uuid'])
         context.session.add(profile)
 
-    def delete_security_group(self, context, group_id):
+    def delete_security_group(self, context, group_id, **kwargs):
         super(OptimizedNVPDriver, self).delete_security_group(
             context, group_id)
         group = self._query_security_group(context, group_id)

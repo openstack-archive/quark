@@ -46,7 +46,7 @@ class UnmanagedDriver(object):
         LOG.info("create_network %s %s %s" % (context, network_name,
                                               tags))
 
-    def delete_network(self, context, network_id):
+    def delete_network(self, context, network_id, **kwargs):
         LOG.info("delete_network %s" % network_id)
 
     def diag_network(self, context, network_id, **kwargs):
@@ -85,7 +85,7 @@ class UnmanagedDriver(object):
         LOG.info("Deleting security profile %s for tenant %s" %
                  (group_id, context.tenant_id))
 
-    def update_security_group(self, context, group_id, **kwargs):
+    def update_security_group(self, context, group_id, **group):
         LOG.info("Updating security profile %s for tenant %s" %
                  (group_id, context.tenant_id))
 
