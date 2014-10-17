@@ -16,6 +16,7 @@ from sqlalchemy.sql import table
 
 from quark.db.custom_types import INET
 import quark.db.migration
+from quark.db import models
 from quark.tests import test_base
 
 
@@ -774,3 +775,71 @@ class Test1664300cb03a(BaseMigrationTest):
         alembic_command.upgrade(self.config, '1664300cb03a')
         with self.assertRaises(NotImplementedError):
             alembic_command.downgrade(self.config, '1acd075bd7e1')
+
+
+class Test4fc07b41d45c(BaseMigrationTest):
+    def _mock_inserts(self):
+        mock_rows = [dict(id="1", _deallocated=False, address_type=None),
+                     dict(id="2", _deallocated=True, address_type=None),
+                     dict(id="3", _deallocated=None, address_type=None),
+                     dict(id="4", _deallocated=True, address_type=None),
+                     dict(id="5", _deallocated=False, address_type=None)]
+        [insert.execute() for insert in
+            [self.ip_addresses_table.insert().values(**row)
+             for row in mock_rows]]
+
+    def setUp(self):
+        super(Test4fc07b41d45c, self).setUp()
+        self.previous_revision = "42a3c8c0db75"
+        self.current_revision = "4fc07b41d45c"
+        self.metadata = sa.MetaData(bind=self.engine)
+        # NOTE(thomasem): Create a quark_ip_addresses table that has an
+        # identical schema as the revision before it for the columns this data
+        # migration is concerned with.
+        self.ip_addresses_table = sa.Table(
+            'quark_ip_addresses', self.metadata,
+            sa.Column('id', sa.String(length=36), primary_key=True),
+            sa.Column('_deallocated', sa.Boolean()),
+            sa.Column('address_type', sa.Enum(*models.IPAddress.address_types))
+        )
+        self.metadata.create_all()
+        alembic_command.stamp(self.config, self.previous_revision)
+
+    def test_upgrade(self):
+        self._mock_inserts()
+        alembic_command.upgrade(self.config, self.current_revision)
+        results = self.connection.execute(
+            select([self.ip_addresses_table]).order_by(
+                self.ip_addresses_table.c.id)).fetchall()
+        expected_results = [
+            (u'1', False, u'fixed'),
+            (u'2', True, None),
+            (u'3', None, None),
+            (u'4', True, None),
+            (u'5', False, u'fixed')
+        ]
+        self.assertEqual(results, expected_results)
+
+    def test_downgrade(self):
+        self._mock_inserts()
+        alembic_command.upgrade(self.config, self.current_revision)
+        alembic_command.downgrade(self.config, self.previous_revision)
+        results = self.connection.execute(
+            select([self.ip_addresses_table]).order_by(
+                self.ip_addresses_table.c.id)).fetchall()
+        expected_results = [
+            (u'1', False, None),
+            (u'2', True, None),
+            (u'3', None, None),
+            (u'4', True, None),
+            (u'5', False, None)
+        ]
+        self.assertEqual(results, expected_results)
+
+    def test_upgrade_empty(self):
+        alembic_command.upgrade(self.config, self.current_revision)
+        results = self.connection.execute(
+            select([self.ip_addresses_table]).order_by(
+                self.ip_addresses_table.c.id)).fetchall()
+        expected_results = []
+        self.assertEqual(results, expected_results)

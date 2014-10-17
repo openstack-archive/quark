@@ -133,7 +133,7 @@ class IPAddress(BASEV2, models.HasId):
     __table_args__ = (sa.UniqueConstraint("subnet_id", "address",
                                           name="subnet_id_address"),
                       TABLE_KWARGS)
-
+    address_types = set(['fixed', 'shared', 'floating'])
     address_readable = sa.Column(sa.String(128), nullable=False)
     address = sa.Column(custom_types.INET(), nullable=False, index=True)
     subnet_id = sa.Column(sa.String(36),
@@ -149,6 +149,8 @@ class IPAddress(BASEV2, models.HasId):
     _deallocated = sa.Column(sa.Boolean())
     # Legacy data
     used_by_tenant_id = sa.Column(sa.String(255))
+    address_type = sa.Column(sa.Enum(*address_types,
+                                     name="quark_ip_address_types"))
 
     @hybrid.hybrid_property
     def deallocated(self):
