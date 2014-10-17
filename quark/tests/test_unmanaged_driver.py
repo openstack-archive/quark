@@ -74,12 +74,12 @@ class TestUnmanagedDriver(test_base.TestBase):
         mac_address = netaddr.EUI("AA:BB:CC:DD:EE:FF").value
         security_groups = [str(uuid.uuid4())]
         payload = {}
-        mock_client.serialize.return_value = payload
+        mock_client.serialize_groups.return_value = payload
         self.driver.update_port(
             context=self.context, network_id="public_network", port_id=port_id,
             device_id=device_id, mac_address=mac_address,
             security_groups=security_groups)
-        mock_client.serialize.assert_called_once_with(security_groups)
+        mock_client.serialize_groups.assert_called_once_with(security_groups)
         mock_client.apply_rules.assert_called_once_with(
             device_id, mac_address, payload)
 

@@ -30,10 +30,12 @@ LOG = logging.getLogger(__name__)
 quark_opts = [
     cfg.StrOpt('redis_security_groups_host',
                default='127.0.0.1',
-               help=_("The server to write security group rules to")),
+               help=_("The server to write security group rules to or "
+                      "retrieve sentinel information from, as appropriate")),
     cfg.IntOpt('redis_security_groups_port',
                default=6379,
-               help=_("The port for the redis server")),
+               help=_("The port for the redis server to write rules to or "
+                      "retrieve sentinel information from, as appropriate")),
     cfg.BoolOpt("redis_use_sentinels",
                 default=False,
                 help=_("Tell the redis client to use sentinels rather than a "
@@ -56,9 +58,21 @@ quark_opts = [
                help=_("Path to the SSL keyfile")),
     cfg.StrOpt("redis_ssl_ca_certs",
                default='',
-               help=_("Path to the SSL CA certs"))]
+               help=_("Path to the SSL CA certs")),
+    cfg.StrOpt("redis_ssl_cert_reqs",
+               default='none',
+               help=_("Certificate requirements. Values are 'none', "
+                      "'optional', and 'required'"))]
 
 CONF.register_opts(quark_opts, "QUARK")
+
+# TODO(mdietz): Rewrite this to use a module level connection
+#               pool, and then incorporate that into creating
+#               connections. When connecting to a master we
+#               connect by creating a redis client, and when
+#               we connect to a slave, we connect by telling it
+#               we want a slave and ending up with a connection,
+#               with no control over SSL or anything else.  :-|
 
 
 class Client(object):
@@ -82,15 +96,20 @@ class Client(object):
     def _ensure_connection_pool_exists(self):
         if not Client.connection_pool:
             LOG.info("Creating redis connection pool for the first time...")
+            host = CONF.QUARK.redis_security_groups_host
+            port = CONF.QUARK.redis_security_groups_port
+            LOG.info("Using redis host %s:%s" % (host, port))
+
             connect_class = redis.Connection
-            connect_kw = {}
+            connect_kw = {"host": host, "port": port}
+
             if CONF.QUARK.redis_use_ssl:
                 LOG.info("Communicating with redis over SSL")
                 connect_class = redis.SSLConnection
-                connect_kw["ssl"] = True
                 if CONF.QUARK.redis_ssl_certfile:
+                    cert_req = CONF.QUARK.redis_ssl_cert_reqs
                     connect_kw["ssl_certfile"] = CONF.QUARK.redis_ssl_certfile
-                    connect_kw["ssl_cert_reqs"] = "required"
+                    connect_kw["ssl_cert_reqs"] = cert_req
                     connect_kw["ssl_ca_certs"] = CONF.QUARK.redis_ssl_ca_certs
                     connect_kw["ssl_keyfile"] = CONF.QUARK.redis_ssl_keyfile
 
@@ -112,11 +131,7 @@ class Client(object):
         return self._sentinel_list
 
     def _client_from_config(self):
-        host = CONF.QUARK.redis_security_groups_host
-        port = CONF.QUARK.redis_security_groups_port
-        LOG.info("Initializing redis connection %s:%s" % (host, port))
-        kwargs = {"host": host, "port": port,
-                  "connection_pool": Client.connection_pool}
+        kwargs = {"connection_pool": Client.connection_pool}
         return redis.StrictRedis(**kwargs)
 
     def _client_from_sentinel(self, is_master=True):
@@ -132,7 +147,41 @@ class Client(object):
         return func(CONF.QUARK.redis_sentinel_master,
                     connection_pool=Client.connection_pool)
 
-    def serialize(self, groups):
+    def serialize_rules(self, rules):
+        """Creates a payload for the redis server."""
+        # TODO(mdietz): If/when we support other rule types, this comment
+        #               will have to be revised.
+        # Action and direction are static, for now. The implementation may
+        # support 'deny' and 'egress' respectively in the future. We allow
+        # the direction to be set to something else, technically, but current
+        # plugin level call actually raises. It's supported here for unit
+        # test purposes at this time
+        serialized = []
+        for rule in rules:
+            direction = rule["direction"]
+            source = ''
+            destination = ''
+            if rule["remote_ip_prefix"]:
+                if direction == "ingress":
+                    source = netaddr.IPNetwork(rule["remote_ip_prefix"])
+                    source = str(source.ipv6())
+                else:
+                    destination = netaddr.IPNetwork(
+                        rule["remote_ip_prefix"])
+                    destination = str(destination.ipv6())
+
+            serialized.append(
+                {"ethertype": rule["ethertype"],
+                 "protocol": rule["protocol"],
+                 "port start": rule["port_range_min"],
+                 "port end": rule["port_range_max"],
+                 "source network": source,
+                 "destination network": destination,
+                 "action": "allow",
+                 "direction": "ingress"})
+        return serialized
+
+    def serialize_groups(self, groups):
         """Creates a payload for the redis server
 
         The rule schema is the following:
@@ -167,45 +216,17 @@ class Client(object):
           ]
         }
         """
-
-        rule_uuid = str(uuid.uuid4())
-        rule_dict = {"id": rule_uuid, "rules": []}
-
-        # TODO(mdietz): If/when we support other rule types, this comment
-        #               will have to be revised.
-        # Action and direction are static, for now. The implementation may
-        # support 'deny' and 'egress' respectively in the future. We allow
-        # the direction to be set to something else, technically, but current
-        # plugin level call actually raises. It's supported here for unit
-        # test purposes at this time
+        rules = []
         for group in groups:
-            for rule in group.rules:
-                direction = rule["direction"]
-                source = ''
-                destination = ''
-                if rule["remote_ip_prefix"]:
-                    if direction == "ingress":
-                        source = netaddr.IPNetwork(rule["remote_ip_prefix"])
-                        source = str(source.ipv6())
-                    else:
-                        destination = netaddr.IPNetwork(
-                            rule["remote_ip_prefix"])
-                        destination = str(destination.ipv6())
-
-                rule_dict["rules"].append(
-                    {"ethertype": rule["ethertype"],
-                     "protocol": rule["protocol"],
-                     "port start": rule["port_range_min"],
-                     "port end": rule["port_range_max"],
-                     "source network": source,
-                     "destination network": destination,
-                     "action": "allow",
-                     "direction": "ingress"})
-
-        return rule_dict
+            rules.extend(self.serialize_rules(group.rules))
+        return rules
 
     def rule_key(self, device_id, mac_address):
         return "{0}.{1}".format(device_id, str(netaddr.EUI(mac_address)))
+
+    def get_rules_for_port(self, device_id, mac_address):
+        return json.loads(self._client.get(
+            self.rule_key(device_id, mac_address)))
 
     def apply_rules(self, device_id, mac_address, rules):
         """Writes a series of security group rules to a redis server."""
@@ -214,9 +235,20 @@ class Client(object):
         if not self._use_master:
             raise q_exc.RedisSlaveWritesForbidden()
 
+        ruleset_uuid = str(uuid.uuid4())
+        rule_dict = {"id": ruleset_uuid, "rules": rules}
         redis_key = self.rule_key(device_id, mac_address)
         try:
-            self._client.set(redis_key, json.dumps(rules))
+            self._client.set(redis_key, json.dumps(rule_dict))
         except redis.ConnectionError as e:
             LOG.exception(e)
             raise q_exc.RedisConnectionFailure()
+
+    def echo(self, echo_str):
+        return self._client.echo(echo_str)
+
+    def vif_keys(self):
+        return self._client.keys("*.??-??-??-??-??-??")
+
+    def delete_vif_rules(self, key):
+        self._client.delete(key)
