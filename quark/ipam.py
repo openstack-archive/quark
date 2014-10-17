@@ -245,7 +245,9 @@ class QuarkIpam(object):
                                     elevated, address, deallocated=False,
                                     deallocated_at=None,
                                     used_by_tenant_id=context.tenant_id,
-                                    allocated_at=timeutils.utcnow())
+                                    allocated_at=timeutils.utcnow(),
+                                    address_type=kwargs.get('address_type',
+                                                            'fixed'))
                                 return [updated_address]
                             else:
                                 # Make sure we never find it again
@@ -280,7 +282,8 @@ class QuarkIpam(object):
                 address = db_api.ip_address_create(
                     context, address=next_ip, subnet_id=subnet["id"],
                     deallocated=0, version=subnet["ip_version"],
-                    network_id=net_id)
+                    network_id=net_id,
+                    address_type=kwargs.get('type', 'fixed'))
                 address["deallocated"] = 0
         except Exception:
             # NOTE(mdietz): Our version of sqlalchemy incorrectly raises None
@@ -356,7 +359,8 @@ class QuarkIpam(object):
                         return db_api.ip_address_create(
                             context, address=ip_address,
                             subnet_id=subnet["id"],
-                            version=subnet["ip_version"], network_id=net_id)
+                            version=subnet["ip_version"], network_id=net_id,
+                            address_type=kwargs.get('address_type', 'fixed'))
                 except db_exception.DBDuplicateEntry:
                     LOG.debug("Duplicate entry found when inserting subnet_id"
                               " %s ip_address %s", subnet["id"], ip_address)
@@ -458,6 +462,7 @@ class QuarkIpam(object):
 
     def deallocate_ip_address(self, context, address):
         address["deallocated"] = 1
+        address["address_type"] = None
         payload = dict(used_by_tenant_id=address["used_by_tenant_id"],
                        ip_block_id=address["subnet_id"],
                        ip_address=address["address_readable"],
