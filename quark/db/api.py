@@ -76,7 +76,7 @@ for _name, klass in inspect.getmembers(models, inspect.isclass):
 def _listify(filters):
     for key in ["name", "network_id", "id", "device_id", "tenant_id",
                 "subnet_id", "mac_address", "shared", "version", "segment_id",
-                "device_owner", "ip_address", "used_by_tenant_id"]:
+                "device_owner", "ip_address", "used_by_tenant_id", "group_id"]:
         if key in filters:
             if not filters[key]:
                 continue
@@ -104,6 +104,9 @@ def _model_query(context, model, filters, fields=None):
 
     if filters.get("id"):
         model_filters.append(model.id.in_(filters["id"]))
+
+    if filters.get("group_id"):
+        model_filters.append(model.group_id.in_(filters["group_id"]))
 
     if filters.get("reuse_after"):
         reuse_after = filters["reuse_after"]
@@ -594,6 +597,29 @@ def security_group_find(context, **filters):
         orm.joinedload(models.SecurityGroup.rules))
     model_filters = _model_query(context, models.SecurityGroup, filters)
     return query.filter(*model_filters)
+
+
+@scoped
+def security_group_count(context, **filters):
+    query = context.session.query(sql_func.count(models.SecurityGroup.id))
+    model_filters = _model_query(context, models.SecurityGroup, filters)
+    return query.filter(*model_filters).scalar()
+
+
+@scoped
+def ports_with_security_groups_find(context):
+    query = context.session.query(models.Port)
+    query = query.join(models.Port.security_groups)
+    query = query.options(orm.contains_eager(models.Port.security_groups))
+    return query
+
+
+@scoped
+def ports_with_security_groups_count(context):
+    query = context.session.query(
+        sql_func.count(models.port_group_association_table.c.port_id))
+    query = query.group_by(models.port_group_association_table.c.port_id)
+    return query.scalar()
 
 
 def security_group_create(context, **sec_group_dict):

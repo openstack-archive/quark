@@ -64,7 +64,7 @@ class UnmanagedDriver(object):
 
         if "security_groups" in kwargs:
             client = redis_client.Client(use_master=True)
-            payload = client.serialize(kwargs["security_groups"])
+            payload = client.serialize_groups(kwargs["security_groups"])
             client.apply_rules(kwargs["device_id"], kwargs["mac_address"],
                                payload)
 

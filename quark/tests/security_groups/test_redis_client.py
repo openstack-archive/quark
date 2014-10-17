@@ -14,6 +14,7 @@
 #
 
 import contextlib
+import json
 import uuid
 
 import mock
@@ -50,15 +51,23 @@ class TestRedisSerialization(test_base.TestBase):
         conn_pool.assert_called_with(connection_class=redis.Connection,
                                      host=host, port=port)
 
+    @mock.patch("uuid.uuid4")
     @mock.patch("redis.ConnectionPool")
-    @mock.patch("quark.security_groups.redis_client.Client.rule_key")
     @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
-    def test_apply_rules(self, strict_redis, rule_key, conn_pool):
+    def test_apply_rules(self, strict_redis, conn_pool, uuid4):
         client = redis_client.Client(use_master=True)
-        port_id = 1
+        device_id = "device"
+        uuid4.return_value = "uuid"
+
         mac_address = netaddr.EUI("AA:BB:CC:DD:EE:FF")
-        client.apply_rules(port_id, mac_address.value, [])
+        client.apply_rules(device_id, mac_address.value, [])
         self.assertTrue(client._client.set.called)
+
+        redis_key = client.rule_key(device_id, mac_address.value)
+
+        rule_dict = {"rules": [], "id": "uuid"}
+        client._client.set.assert_called_with(
+            redis_key, json.dumps(rule_dict))
 
     @mock.patch("redis.ConnectionPool")
     @mock.patch("quark.security_groups.redis_client.Client.rule_key")
@@ -98,9 +107,8 @@ class TestRedisSerialization(test_base.TestBase):
     def test_serialize_group_no_rules(self, strict_redis, conn_pool):
         client = redis_client.Client()
         group = models.SecurityGroup()
-        payload = client.serialize([group])
-        self.assertTrue(payload.get("id") is not None)
-        self.assertEqual([], payload.get("rules"))
+        payload = client.serialize_groups([group])
+        self.assertEqual([], payload)
 
     @mock.patch("redis.ConnectionPool")
     @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
@@ -113,9 +121,8 @@ class TestRedisSerialization(test_base.TestBase):
         rule.update(rule_dict)
         group.rules.append(rule)
 
-        payload = client.serialize([group])
-        self.assertTrue(payload.get("id") is not None)
-        rule = payload["rules"][0]
+        payload = client.serialize_groups([group])
+        rule = payload[0]
         self.assertEqual(0x800, rule["ethertype"])
         self.assertEqual(6, rule["protocol"])
         self.assertEqual(80, rule["port start"])
@@ -137,9 +144,8 @@ class TestRedisSerialization(test_base.TestBase):
         rule.update(rule_dict)
         group.rules.append(rule)
 
-        payload = client.serialize([group])
-        self.assertTrue(payload.get("id") is not None)
-        rule = payload["rules"][0]
+        payload = client.serialize_groups([group])
+        rule = payload[0]
         self.assertEqual(0x800, rule["ethertype"])
         self.assertEqual(1, rule["protocol"])
         self.assertEqual(None, rule["port start"])
@@ -161,9 +167,8 @@ class TestRedisSerialization(test_base.TestBase):
         rule.update(rule_dict)
         group.rules.append(rule)
 
-        payload = client.serialize([group])
-        self.assertTrue(payload.get("id") is not None)
-        rule = payload["rules"][0]
+        payload = client.serialize_groups([group])
+        rule = payload[0]
         self.assertEqual(0x800, rule["ethertype"])
         self.assertEqual(1, rule["protocol"])
         self.assertEqual(None, rule["port start"])
