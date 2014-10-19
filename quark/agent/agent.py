@@ -19,9 +19,9 @@ import time
 from neutron.openstack.common import log as logging
 from oslo.config import cfg
 
-from quark.agent import redis_client as redis
 from quark.agent import version_control
 from quark.agent import xapi
+from quark.security_groups import redis_client as redis
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -43,7 +43,7 @@ def _sleep():
 
 
 def run():
-    redis_client = redis.RedisClient()
+    redis_client = redis.Client()
     xapi_client = xapi.XapiClient()
     vc = version_control.VersionControl()
 

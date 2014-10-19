@@ -151,3 +151,23 @@ class CommandManager(object):
                 cmd(do.result)
             except Exception:
                 LOG.exception("Rollback failed and wasn't caught!")
+
+
+class retry_loop(object):
+    def __init__(self, retry_times):
+        self._retry_times = retry_times
+
+    def __call__(self, f):
+        def wrapped_f(*args, **kwargs):
+            level = self._retry_times
+            while level > 0:
+                try:
+                    return f(*args, **kwargs)
+                except Exception:
+                    level = level - 1
+                    if level > 0:
+                        LOG.debug("Retrying `%s` %d more times...",
+                                  f.func_name, level)
+                    else:
+                        raise
+        return wrapped_f

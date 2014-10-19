@@ -1,7 +1,7 @@
 import mock
 
-from quark.agent import utils
 from quark.tests import test_base
+from quark import utils
 
 
 class TestRetryLoop(test_base.TestBase):

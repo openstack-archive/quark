@@ -23,9 +23,13 @@ import redis
 import redis.sentinel
 
 from quark import exceptions as q_exc
+from quark import utils
+
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
+SECURITY_GROUP_VERSION_UUID_KEY = "id"
+SECURITY_GROUP_RULE_KEY = "rules"
 
 quark_opts = [
     cfg.StrOpt('redis_security_groups_host',
@@ -62,7 +66,13 @@ quark_opts = [
     cfg.StrOpt("redis_ssl_cert_reqs",
                default='none',
                help=_("Certificate requirements. Values are 'none', "
-                      "'optional', and 'required'"))]
+                      "'optional', and 'required'")),
+    cfg.StrOpt("redis_db",
+               default="0",
+               help=("The database number to use")),
+    cfg.FloatOpt("redis_socket_timeout",
+                 default=0.1,
+                 help=("Timeout for Redis socket operations"))]
 
 CONF.register_opts(quark_opts, "QUARK")
 
@@ -131,7 +141,9 @@ class Client(object):
         return self._sentinel_list
 
     def _client_from_config(self):
-        kwargs = {"connection_pool": Client.connection_pool}
+        kwargs = {"connection_pool": Client.connection_pool,
+                  "db": CONF.QUARK.redis_db,
+                  "socket_timeout": CONF.QUARK.redis_socket_timeout}
         return redis.StrictRedis(**kwargs)
 
     def _client_from_sentinel(self, is_master=True):
@@ -145,6 +157,8 @@ class Client(object):
             func = sentinel.master_for
 
         return func(CONF.QUARK.redis_sentinel_master,
+                    db=CONF.QUARK.redis_db,
+                    socket_timeout=CONF.QUARK.redis_socket_timeout,
                     connection_pool=Client.connection_pool)
 
     def serialize_rules(self, rules):
@@ -236,7 +250,8 @@ class Client(object):
             raise q_exc.RedisSlaveWritesForbidden()
 
         ruleset_uuid = str(uuid.uuid4())
-        rule_dict = {"id": ruleset_uuid, "rules": rules}
+        rule_dict = {SECURITY_GROUP_VERSION_UUID_KEY: ruleset_uuid,
+                     SECURITY_GROUP_RULE_KEY: rules}
         redis_key = self.rule_key(device_id, mac_address)
         try:
             self._client.set(redis_key, json.dumps(rule_dict))
@@ -252,3 +267,27 @@ class Client(object):
 
     def delete_vif_rules(self, key):
         self._client.delete(key)
+
+    @utils.retry_loop(3)
+    def get_security_groups(self, new_interfaces):
+        """Gets security groups for interfaces from Redis
+
+        Returns a dictionary of xapi.VIFs mapped to security group version
+        UUIDs from a set of xapi.VIF.
+        """
+
+        new_interfaces = tuple(new_interfaces)
+
+        p = self._client.pipeline()
+        for vif in new_interfaces:
+            p.get(str(vif))
+        security_groups = p.execute()
+
+        ret = {}
+        for vif, security_group in zip(new_interfaces, security_groups):
+            security_group_uuid = None
+            if security_group:
+                security_group_uuid = json.loads(security_group).get(
+                    SECURITY_GROUP_VERSION_UUID_KEY)
+            ret[vif] = security_group_uuid
+        return ret
