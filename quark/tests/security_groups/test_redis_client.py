@@ -22,6 +22,7 @@ import netaddr
 from oslo.config import cfg
 import redis
 
+from quark.agent.xapi import VIF
 from quark.db import models
 from quark import exceptions as q_exc
 from quark.security_groups import redis_client
@@ -209,6 +210,8 @@ class TestRedisSentinelConnection(test_base.TestBase):
             redis_client.Client(use_master=True)
             master_for.assert_called_with(
                 master_label,
+                db=CONF.QUARK.redis_db,
+                socket_timeout=CONF.QUARK.redis_socket_timeout,
                 connection_pool=redis_client.Client.connection_pool)
             sentinel_pool.assert_called_with(connection_class=redis.Connection,
                                              host=host, port=port)
@@ -265,4 +268,60 @@ class TestRedisSSHConnection(test_base.TestBase):
                                          connection_class=ssl_conn,
                                          host=host, port=port)
             strict_redis.assert_called_with(
+                socket_timeout=CONF.QUARK.redis_socket_timeout,
+                db=CONF.QUARK.redis_db,
                 connection_pool=redis_client.Client.connection_pool)
+
+
+class TestRedisForAgent(test_base.TestBase):
+    def setUp(self):
+        super(TestRedisForAgent, self).setUp()
+
+        patch = mock.patch("quark.security_groups.redis_client."
+                           "redis.StrictRedis")
+        self.MockSentinel = patch.start()
+        self.addCleanup(patch.stop)
+
+    @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
+    def test_get_security_groups_empty(self, strict_redis):
+        mock_redis = mock.MagicMock()
+        mock_pipeline = mock.MagicMock()
+        strict_redis.return_value = mock_redis
+        mock_redis.pipeline.return_value = mock_pipeline
+
+        rc = redis_client.Client()
+        group_uuids = rc.get_security_groups(set())
+        mock_redis.pipeline.assert_called_once_with()
+        self.assertEqual(mock_pipeline.get.call_count, 0)
+        mock_pipeline.execute.assert_called_once_with()
+        self.assertEqual(group_uuids, {})
+
+    @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
+    def test_get_security_groups_nonempty(self, strict_redis):
+        mock_redis = mock.MagicMock()
+        mock_pipeline = mock.MagicMock()
+        strict_redis.return_value = mock_redis
+        mock_redis.pipeline.return_value = mock_pipeline
+
+        rc = redis_client.Client()
+
+        mock_pipeline.execute.return_value = [
+            None,
+            '{}',
+            '{"%s": null}' % redis_client.SECURITY_GROUP_VERSION_UUID_KEY,
+            '{"%s": "1-2-3"}' % redis_client.SECURITY_GROUP_VERSION_UUID_KEY]
+
+        new_interfaces = ([VIF(1, 2), VIF(3, 4), VIF(5, 6), VIF(7, 8)])
+        group_uuids = rc.get_security_groups(new_interfaces)
+        mock_pipeline.get.assert_has_calls(
+            [mock.call("1.2"),
+             mock.call("3.4"),
+             mock.call("5.6"),
+             mock.call("7.8")],
+            any_order=True)
+        mock_pipeline.execute.assert_called_once_with()
+        self.assertEqual(group_uuids,
+                         {VIF(1, 2): None,
+                          VIF(3, 4): None,
+                          VIF(5, 6): None,
+                          VIF(7, 8): "1-2-3"})
