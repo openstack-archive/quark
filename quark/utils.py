@@ -171,3 +171,8 @@ class retry_loop(object):
                     else:
                         raise
         return wrapped_f
+
+
+def pretty_kwargs(**kwargs):
+    kwargs_str = ', '.join("%s=%s" % (k, v) for k, v in kwargs.items())
+    return kwargs_str
