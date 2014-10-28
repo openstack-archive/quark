@@ -26,9 +26,6 @@ from quark import exceptions as quark_exceptions
 from quark.plugin_modules import ip_addresses
 from quark.tests import test_quark_plugin
 
-from neutron.openstack.common import log as logging
-LOG = logging.getLogger(__name__)
-
 
 def _port_associate_stub(context, ports, address, **kwargs):
     for port in ports:
