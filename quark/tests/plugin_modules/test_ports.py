@@ -693,6 +693,48 @@ class TestQuarkUpdatePort(test_quark_plugin.TestQuarkPlugin):
             self.plugin.update_port(self.context, 1, new_port)
             self.assertEqual(alloc_ip.call_count, 1)
 
+    def test_update_port_multiple_fixed_ips(self):
+        ip1 = netaddr.IPAddress("1.1.1.1")
+        ip2 = netaddr.IPAddress("1.1.1.2")
+        with self._stubs(
+            port=dict(id=1, name="myport", mac_address="0:0:0:0:0:1")
+        ) as (port_find, port_update, alloc_ip, dealloc_ip):
+
+            class AllocIPMock(object):
+                def __init__(mock_self):
+                    mock_self.called_once = False
+
+                def __call__(mock_self, ctxt, addrs, *args, **kwargs):
+                    # RM10187 fix - assert that the allocate is called with an
+                    # empty list each time. Otherwise any call after the first
+                    # could pass because the requested IP was created but not
+                    # allocated, or fail because the IP hadn't been generated
+                    # but the IP generated on the previous call satisfied the
+                    # IPAM strategy.
+                    self.assertEqual(addrs, [])
+                    if not mock_self.called_once:
+                        addrs.append(models.IPAddress(
+                            address=ip1.value, address_readable=str(ip1)))
+                        mock_self.called_once = True
+                    else:
+                        addrs.append(models.IPAddress(
+                            address=ip2.value, address_readable=str(ip2)))
+
+            alloc_ip.side_effect = AllocIPMock()
+
+            new_port = dict(port=dict(
+                fixed_ips=[dict(subnet_id=1,
+                                ip_address=str(ip1)),
+                           dict(subnet_id=1,
+                                ip_address=str(ip2))]))
+            port_res = self.plugin.update_port(self.context, 1, new_port)
+            self.assertEqual(alloc_ip.call_count, 2)
+
+            self.assertEqual(port_res["fixed_ips"][0]["ip_address"],
+                             str(ip1.ipv6()))
+            self.assertEqual(port_res["fixed_ips"][1]["ip_address"],
+                             str(ip2.ipv6()))
+
 
 class TestQuarkUpdatePortSecurityGroups(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
