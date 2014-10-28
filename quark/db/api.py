@@ -270,11 +270,10 @@ def port_associate_ip(context, ports, address, enable_port=None):
 def update_port_associations_for_ip(context, ports, address):
     assoc_ports = set(address.ports)
     new_ports = set(ports)
-    in_both = assoc_ports & new_ports
-    new_address = port_associate_ip(context, new_ports - in_both,
+    new_address = port_associate_ip(context, new_ports - assoc_ports,
                                     address)
     return port_disassociate_ip(context,
-                                assoc_ports - in_both, new_address)
+                                assoc_ports - new_ports, new_address)
 
 
 def port_update(context, port, **kwargs):
