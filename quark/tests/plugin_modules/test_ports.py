@@ -197,7 +197,6 @@ class TestQuarkGetPortsByIPAddress(test_quark_plugin.TestQuarkPlugin):
 class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, port=None, ip_addresses=None):
-        self.maxDiff = None
         ip_models = [models.IPAddress(**ip) for ip in ip_addresses]
         mac = {"address": "AA:BB:CC:DD:EE:FF"}
         network = {"network_plugin": "BASE",
