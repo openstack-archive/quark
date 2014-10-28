@@ -25,9 +25,9 @@ from sqlalchemy.ext import hybrid
 from sqlalchemy import orm
 
 from quark.db import custom_types
-from quark.db import FIXED_IP
-from quark.db import FLOATING_IP
-from quark.db import SHARED_IP
+from quark.db import FIXED
+from quark.db import FLOATING
+from quark.db import SHARED
 # NOTE(mdietz): This is the only way to actually create the quotas table,
 #              regardless if we need it. This is how it's done upstream.
 # NOTE(jhammond): If it isn't obvious quota_driver is unused and that's ok.
@@ -159,7 +159,7 @@ class IPAddress(BASEV2, models.HasId):
     # Legacy data
     used_by_tenant_id = sa.Column(sa.String(255))
 
-    address_type = sa.Column(sa.Enum(FIXED_IP, FLOATING_IP, SHARED_IP,
+    address_type = sa.Column(sa.Enum(FIXED, FLOATING, SHARED,
                              name="quark_ip_address_types"))
     associations = orm.relationship(PortIpAssociation, backref="ip_address")
 
