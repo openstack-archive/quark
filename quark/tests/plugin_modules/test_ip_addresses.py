@@ -604,3 +604,18 @@ class TestQuarkGetIpAddresses(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(ip["subnet_id"], addr_res["subnet_id"])
             self.assertEqual(ip["address_readable"], addr_res["address"])
             self.assertEqual(addr_res["port_ids"][0], port["id"])
+
+    def test_get_ip_addresses_multiple(self):
+        port = dict(id=100, device_id="foobar")
+        ips = [dict(id=1, address=3232235876, address_readable="192.168.1.100",
+                    subnet_id=1, network_id=2, version=4),
+               dict(id=2, address=3232235878, address_readable="192.168.1.101",
+                    subnet_id=1, network_id=2, version=4)]
+        with self._stubs(ips=ips, ports=[port]):
+            res = self.plugin.get_ip_addresses(self.context)
+            self.assertEqual(len(res), 2)
+            for i, addr in enumerate(sorted(res, key=lambda x: x['id'])):
+                self.assertEqual(ips[i]["id"], addr["id"])
+                self.assertEqual(ips[i]["subnet_id"], addr["subnet_id"])
+                self.assertEqual(ips[i]["address_readable"], addr["address"])
+                self.assertEqual(addr["port_ids"][0], port["id"])
