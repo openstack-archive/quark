@@ -13,7 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 from neutron import context
+from oslo.config import cfg
 import unittest2
 
 
@@ -22,6 +25,8 @@ class TestBase(unittest2.TestCase):
 
     def setUp(self):
         super(TestBase, self).setUp()
+        tox_path = os.environ.get("VIRTUAL_ENV")
+        cfg.CONF.set_override('state_path', tox_path)
         self.context = context.Context('fake', 'fake', is_admin=False)
         self.admin_context = context.Context('fake', 'fake', is_admin=True,
                                              load_admin_roles=False)
