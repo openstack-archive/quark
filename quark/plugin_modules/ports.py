@@ -294,10 +294,16 @@ def update_port(context, id, port):
 
         for ip in ips_to_allocate:
             if ip in ip_addresses:
+                # NOTE: Fix for RM10187 - we were losing the list of IPs if
+                #       more than one IP was to be allocated. Track an
+                #       aggregate list instead, and add it to the running total
+                #       after each allocate
+                allocated = []
                 ipam_driver.allocate_ip_address(
-                    context, addresses, port_db["network_id"],
+                    context, allocated, port_db["network_id"],
                     port_db["id"], reuse_after=None, ip_addresses=[ip],
                     subnets=[ip_addresses[ip]])
+                addresses.extend(allocated)
 
         for ip in ips_to_deallocate:
             ipam_driver.deallocate_ips_by_port(
