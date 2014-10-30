@@ -245,6 +245,37 @@ def port_create(context, **port_dict):
     return port
 
 
+def port_disassociate_ip(context, ports, address):
+    assocs_to_remove = [assoc for assoc in address.associations
+                        if assoc.port in ports]
+    for assoc in assocs_to_remove:
+        context.session.delete(assoc)
+        # NOTE(thomasem): Need to update in-session model for caller.
+        address.associations.remove(assoc)
+    context.session.add(address)
+    return address
+
+
+def port_associate_ip(context, ports, address, enable_port=None):
+    for port in ports:
+        assoc = models.PortIpAssociation()
+        assoc.port_id = port.id
+        assoc.ip_address_id = address.id
+        assoc.enabled = port.id in enable_port if enable_port else False
+        address.associations.append(assoc)
+    context.session.add(address)
+    return address
+
+
+def update_port_associations_for_ip(context, ports, address):
+    assoc_ports = set(address.ports)
+    new_ports = set(ports)
+    new_address = port_associate_ip(context, new_ports - assoc_ports,
+                                    address)
+    return port_disassociate_ip(context,
+                                assoc_ports - new_ports, new_address)
+
+
 def port_update(context, port, **kwargs):
     if "addresses" in kwargs:
         port["ip_addresses"] = kwargs.pop("addresses")
@@ -284,23 +315,6 @@ def ip_address_find(context, lock_mode=False, **filters):
     if lock_mode:
         query = query.with_lockmode("update")
 
-    ip_shared = filters.pop("shared", None)
-    if ip_shared is not None:
-        cnt = sql_func.count(models.port_ip_association_table.c.port_id)
-        stmt = context.session.query(models.IPAddress,
-                                     cnt.label("ports_count"))
-        stmt = stmt.outerjoin(models.port_ip_association_table)
-        stmt = stmt.group_by(models.IPAddress.id).subquery()
-
-        query = query.outerjoin(stmt, stmt.c.id == models.IPAddress.id)
-
-        # !@# HACK(amir): replace once attributes are configured in ip address
-        #                extension correctly
-        if "True" in ip_shared:
-            query = query.filter(stmt.c.ports_count > 1)
-        else:
-            query = query.filter(stmt.c.ports_count <= 1)
-
     model_filters = _model_query(context, models.IPAddress, filters)
     if "do_not_use" in filters:
         query = query.filter(models.Subnet.do_not_use == filters["do_not_use"])
@@ -308,6 +322,15 @@ def ip_address_find(context, lock_mode=False, **filters):
     if filters.get("device_id"):
         model_filters.append(models.IPAddress.ports.any(
             models.Port.device_id.in_(filters["device_id"])))
+
+    if filters.get("port_id"):
+        model_filters.append(models.IPAddress.ports.any(
+            models.Port.id == filters['port_id']))
+
+    if filters.get("address_type"):
+        model_filters.append(
+            models.IPAddress.address_type == filters['address_type'])
+
     return query.filter(*model_filters)
 
 
