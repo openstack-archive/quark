@@ -19,8 +19,7 @@ from oslo.config import cfg
 import webob
 
 from quark.db import api as db_api
-from quark.db import FIXED
-from quark.db import SHARED
+from quark.db import ip_types
 from quark import exceptions as quark_exceptions
 from quark import ipam
 from quark import plugin_views as v
@@ -78,7 +77,8 @@ def _can_be_shared(address_model):
 
 def create_ip_address(context, body):
     LOG.info("create_ip_address for tenant %s" % context.tenant_id)
-    address_type = SHARED if _shared_ip_request(body) else FIXED
+    address_type = (ip_types.SHARED if _shared_ip_request(body)
+                    else ip_types.FIXED)
     ip_dict = body.get("ip_address")
     port_ids = ip_dict.get('port_ids', [])
     network_id = ip_dict.get('network_id')

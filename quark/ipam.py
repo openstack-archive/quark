@@ -30,7 +30,7 @@ from oslo.config import cfg
 from oslo.db import exception as db_exception
 
 from quark.db import api as db_api
-from quark.db import FIXED
+from quark.db import ip_types
 from quark.db import models
 from quark import exceptions as q_exc
 from quark import utils
@@ -300,7 +300,7 @@ class QuarkIpam(object):
                                     allocated_at=timeutils.utcnow(),
                                     port_id=port_id,
                                     address_type=kwargs.get('address_type',
-                                                            FIXED))
+                                                            ip_types.FIXED))
                                 return [updated_address]
                             else:
                                 # Make sure we never find it again
@@ -350,7 +350,7 @@ class QuarkIpam(object):
                     deallocated=0, version=subnet["ip_version"],
                     network_id=net_id,
                     port_id=port_id,
-                    address_type=kwargs.get('address_type', FIXED))
+                    address_type=kwargs.get('address_type', ip_types.FIXED))
                 address["deallocated"] = 0
         except Exception:
             # NOTE(mdietz): Our version of sqlalchemy incorrectly raises None
@@ -433,7 +433,8 @@ class QuarkIpam(object):
                             deallocated_at=None,
                             used_by_tenant_id=context.tenant_id,
                             allocated_at=timeutils.utcnow(),
-                            address_type=kwargs.get('address_type', FIXED))
+                            address_type=kwargs.get('address_type',
+                                                    ip_types.FIXED))
 
                 # This triggers when the IP is allocated to another tenant,
                 # either because we missed it due to our filters above, or
@@ -444,7 +445,8 @@ class QuarkIpam(object):
                             context, address=ip_address,
                             subnet_id=subnet["id"],
                             version=subnet["ip_version"], network_id=net_id,
-                            address_type=kwargs.get('address_type', FIXED))
+                            address_type=kwargs.get('address_type',
+                                                    ip_types.FIXED))
                 except db_exception.DBDuplicateEntry:
                     LOG.info("{0} exists but was already "
                              "allocated".format(str(ip_address)))
