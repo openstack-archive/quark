@@ -876,21 +876,24 @@ class TestQuarkUpdatePortSecurityGroups(test_quark_plugin.TestQuarkPlugin):
             mock.patch("neutron.quota.QuotaEngine.limit_check"),
             mock.patch("quark.plugin_modules.ports.STRATEGY"
                        ".is_parent_network"),
-            mock.patch("quark.db.api.security_group_find")
+            mock.patch("quark.db.api.security_group_find"),
+            mock.patch("quark.drivers.base.BaseDriver.update_port")
         ) as (port_find, port_update, alloc_ip, dealloc_ip, limit_check,
-              net_strat, sg_find):
+              net_strat, sg_find, driver_port_update):
             port_find.return_value = port_model
             port_update.return_value = port_model
             if new_ips:
                 alloc_ip.return_value = new_ips
             net_strat.return_value = parent_net
             sg_find.return_value = sg_mod
-            yield port_find, port_update, alloc_ip, dealloc_ip, sg_find
+            yield (port_find, port_update, alloc_ip, dealloc_ip, sg_find,
+                   driver_port_update)
 
     def test_update_port_security_groups_on_tenant_net_raises(self):
         with self._stubs(
             port=dict(id=1)
-        ) as (port_find, port_update, alloc_ip, dealloc_ip, sg_find):
+        ) as (port_find, port_update, alloc_ip, dealloc_ip, sg_find,
+              driver_port_update):
             new_port = dict(port=dict(name="ourport",
                                       security_groups=[1]))
             with self.assertRaises(
@@ -900,7 +903,8 @@ class TestQuarkUpdatePortSecurityGroups(test_quark_plugin.TestQuarkPlugin):
     def test_update_port_security_groups(self):
         with self._stubs(
             port=dict(id=1), parent_net=True
-        ) as (port_find, port_update, alloc_ip, dealloc_ip, sg_find):
+        ) as (port_find, port_update, alloc_ip, dealloc_ip, sg_find,
+              driver_port_update):
             new_port = dict(port=dict(name="ourport",
                                       security_groups=[1]))
             port = self.plugin.update_port(self.context, 1, new_port)
@@ -910,6 +914,20 @@ class TestQuarkUpdatePortSecurityGroups(test_quark_plugin.TestQuarkPlugin):
                 name="ourport",
                 security_groups=[sg_find()])
             self.assertEqual(sg_find()["id"], port["security_groups"][0])
+
+    def test_update_port_no_security_groups(self):
+        port_dict = {"id": 1, "mac_address": "AA:BB:CC:DD:EE:FF",
+                     "device_id": 2, "backend_key": 3}
+        with self._stubs(
+            port=port_dict, parent_net=True
+        ) as (port_find, port_update, alloc_ip, dealloc_ip, sg_find,
+              driver_port_update):
+            new_port = dict(port=dict(name="ourport"))
+            self.plugin.update_port(self.context, 1, new_port)
+            driver_port_update.assert_called_once_with(
+                self.context, port_id=port_dict["backend_key"],
+                mac_address=port_dict["mac_address"],
+                device_id=port_dict["device_id"])
 
 
 class TestQuarkUpdatePortSetsIps(test_quark_plugin.TestQuarkPlugin):

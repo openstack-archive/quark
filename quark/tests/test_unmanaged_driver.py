@@ -18,7 +18,6 @@ import uuid
 
 import mock
 import netaddr
-from neutron.api.v2 import attributes as attr
 
 from quark.drivers import unmanaged
 from quark import network_strategy
@@ -83,24 +82,6 @@ class TestUnmanagedDriver(test_base.TestBase):
         mock_client.serialize_groups.assert_called_once_with(security_groups)
         mock_client.apply_rules.assert_called_once_with(
             device_id, mac_address, payload)
-
-    @mock.patch("quark.security_groups.redis_client.Client")
-    def test_update_port_with_security_groups_unset(self, redis_cli):
-        mock_client = mock.MagicMock()
-        redis_cli.return_value = mock_client
-
-        port_id = str(uuid.uuid4())
-        device_id = str(uuid.uuid4())
-        mac_address = netaddr.EUI("AA:BB:CC:DD:EE:FF").value
-        security_groups = attr.ATTR_NOT_SPECIFIED
-        payload = {}
-        mock_client.serialize_groups.return_value = payload
-        self.driver.update_port(
-            context=self.context, network_id="public_network", port_id=port_id,
-            device_id=device_id, mac_address=mac_address,
-            security_groups=security_groups)
-        self.assertEqual(mock_client.serialize_groups.call_count, 0)
-        self.assertEqual(mock_client.apply_rules.call_count, 0)
 
     def test_delete_port(self):
         self.driver.delete_port(context=self.context, port_id=2)
