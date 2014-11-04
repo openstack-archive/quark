@@ -633,11 +633,11 @@ class QuarkIpam(object):
     # - removed session.begin due to deadlocks
     # - fix off-by-one error and overflow
     def select_subnet(self, context, net_id, ip_address, segment_id,
-                      subnet_ids=None, ip_version=None, **filters):
+                      subnet_ids=None, **filters):
         LOG.info("Selecting subnet(s) - (Step 2 of 3) [{0}]".format(
             utils.pretty_kwargs(network_id=net_id, ip_address=ip_address,
                                 segment_id=segment_id, subnet_ids=subnet_ids,
-                                ip_version=ip_version)))
+                                ip_version=filters.get("ip_version"))))
 
         subnets = db_api.subnet_find_ordered_by_most_full(
             context, net_id, segment_id=segment_id, scope=db_api.ALL,
