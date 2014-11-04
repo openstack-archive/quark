@@ -13,7 +13,6 @@
 #    License for the specific language governing permissions and limitations
 #
 
-from neutron.api.v2 import attributes as attr
 from neutron.openstack.common import log as logging
 
 from quark import network_strategy
@@ -63,8 +62,7 @@ class UnmanagedDriver(object):
     def update_port(self, context, port_id, **kwargs):
         LOG.info("update_port %s %s" % (context.tenant_id, port_id))
 
-        if ("security_groups" in kwargs and
-                kwargs["security_groups"] is not attr.ATTR_NOT_SPECIFIED):
+        if "security_groups" in kwargs:
             client = redis_client.Client(use_master=True)
             payload = client.serialize_groups(kwargs["security_groups"])
             client.apply_rules(kwargs["device_id"], kwargs["mac_address"],

@@ -256,13 +256,13 @@ def update_port(context, id, port):
 
     # TODO(anyone): security groups are not currently supported on port create,
     #               nor on isolated networks today. Please see RM8615
-    security_groups = utils.pop_param(port_dict, "security_groups")
-    if security_groups:
+    new_security_groups = utils.pop_param(port_dict, "security_groups")
+    if new_security_groups:
         if not STRATEGY.is_parent_network(port_db["network_id"]):
             raise q_exc.TenantNetworkSecurityGroupsNotImplemented()
 
-    group_ids, security_groups = _make_security_group_list(context,
-                                                           security_groups)
+    group_ids, security_group_mods = _make_security_group_list(
+        context, new_security_groups)
     quota.QUOTAS.limit_check(context, context.tenant_id,
                              security_groups_per_port=len(group_ids))
 
@@ -338,12 +338,15 @@ def update_port(context, id, port):
     #               groups? Is there a clean way to have a multi-status? Since
     #               we're in a beta-y status, I'm going to let this sit for
     #               a future patch where we have time to solve it well.
+    kwargs = {}
+    if new_security_groups:
+        kwargs["security_groups"] = security_group_mods
     net_driver.update_port(context, port_id=port_db["backend_key"],
                            mac_address=port_db["mac_address"],
                            device_id=port_db["device_id"],
-                           security_groups=security_groups)
+                           **kwargs)
 
-    port_dict["security_groups"] = security_groups
+    port_dict["security_groups"] = security_group_mods
 
     with context.session.begin():
         port = db_api.port_update(context, port_db, **port_dict)
