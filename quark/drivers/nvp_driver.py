@@ -496,7 +496,7 @@ class NVPDriver(base.BaseDriver):
         switch = connection.lswitch()
         if network_name is None:
             network_name = network_id
-        switch.display_name(network_name)
+        switch.display_name(network_name[:40])
         tags = tags or []
         tags.append({"tag": tenant_id, "scope": "os_tid"})
         if network_id:

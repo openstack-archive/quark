@@ -136,6 +136,14 @@ class TestNVPDriverCreateNetwork(TestNVPDriver):
             self.assertTrue(connection.lswitch().create.called)
             self.assertTrue(connection.lswitch().transport_zone.called)
 
+    def test_create_network_name_longer_than_40_chars_gets_trimmed(self):
+        with self._stubs() as (connection):
+            long_n = 'A' * 50
+            self.driver.create_network(self.context, long_n)
+            self.assertTrue(connection.lswitch().create.called)
+            self.assertTrue(connection.lswitch().transport_zone.called)
+            connection.lswitch().display_name.assert_called_with(long_n[:40])
+
 
 class TestNVPDriverProviderNetwork(TestNVPDriver):
     """Testing all of the network types is unnecessary, but a nice have."""
