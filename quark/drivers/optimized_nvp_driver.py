@@ -219,7 +219,7 @@ class OptimizedNVPDriver(NVPDriver):
         new_switch = LSwitch(nvp_id=nvp_id, network_id=network_id,
                              port_count=0, transport_zone=phys_net,
                              transport_connector=phys_type,
-                             display_name=network_name,
+                             display_name=network_name[:40],
                              segment_id=segment_id)
         context.session.add(new_switch)
         return new_switch
