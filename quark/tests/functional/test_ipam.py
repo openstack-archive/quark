@@ -196,14 +196,19 @@ class QuarkIPAddressAllocateWithFullSubnetsNotMarkedAsFull(
                     self.context, **model['ip_policy'])
                 model['subnet']["network"] = net_mod
                 model['subnet']["ip_policy"] = policy_mod
-                db_api.subnet_create(self.context, **model['subnet'])
+                next_ip = model['subnet'].pop("next_auto_assign_ip", 0)
+                sub_mod = db_api.subnet_create(self.context, **model['subnet'])
+                # NOTE(amir): update after cidr constructor has been invoked
+                db_api.subnet_update(self.context,
+                                     sub_mod,
+                                     next_auto_assign_ip=next_ip)
         yield net_mod
 
     def _create_models(self, subnet_cidr, ip_version, next_ip):
         models = {}
         net = netaddr.IPNetwork(subnet_cidr)
-        first = str(netaddr.IPAddress(net.first))
-        last = str(netaddr.IPAddress(net.last))
+        first = str(netaddr.IPAddress(net.first)) + "/32"
+        last = str(netaddr.IPAddress(net.last)) + "/32"
         models['ip_policy'] = dict(name='testpolicy',
                                    description='blah',
                                    exclude=[first, last])
@@ -215,9 +220,18 @@ class QuarkIPAddressAllocateWithFullSubnetsNotMarkedAsFull(
 
     def test_subnets_get_marked_as_full_retroactively(self):
         models = []
-        models.append(self._create_models("0.0.0.0/31", 4, 255))
-        models.append(self._create_models("1.1.1.0/31", 4, 255))
-        models.append(self._create_models("2.2.2.0/30", 4, 255))
+        models.append(self._create_models(
+            "0.0.0.0/31",
+            4,
+            netaddr.IPNetwork("0.0.0.0/31").ipv6().last))
+        models.append(self._create_models(
+            "1.1.1.0/31",
+            4,
+            netaddr.IPNetwork("1.1.1.0/31").ipv6().last))
+        models.append(self._create_models(
+            "2.2.2.0/30",
+            4,
+            netaddr.IPNetwork("2.2.2.0/30").ipv6().first))
 
         with self._fixtures(models) as net:
             ipaddress = []
@@ -232,6 +246,7 @@ class QuarkIPAddressAllocateWithFullSubnetsNotMarkedAsFull(
 
                 full_subnets = [s for s in subnets
                                 if s.next_auto_assign_ip == -1]
+                self.assertEqual(len(full_subnets), 2)
                 available_subnets = list(set(full_subnets) ^ set(subnets))
                 self.assertEqual(len(available_subnets), 1)
                 self.assertEqual(available_subnets[0].cidr, "2.2.2.0/30")
