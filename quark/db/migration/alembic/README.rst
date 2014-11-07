@@ -55,6 +55,28 @@ and you would use it like so
     INFO  [alembic.migration] Running upgrade 4358d1b8cc75 -> 1284c81cf727, 
     create lswitch and lswitch port orphaned tables
 
+step to run quark db migration if neutron  db already in different version
+
+Having problem with Quark db Migration run
+
+ create new_version migration file and the give the revision number from alembic_version
+  example:
+      revision = '1f71e54a85e7'
+      down_revision = None
+  And then goto initial_version.py file then down_version set to new_version's revision number
+    example:
+        revision = '1817eef6373c'
+        down_revision = '1f71e54a85e7'
+  then run migration
+     example:
+         quark-db-manage --config-file /etc/neutron/neutron.conf upgrade head
+
+Problem with Service Plugin
+
+goto      /etc/neutron/neutron.conf
+     and then comment
+    #service_plugins = neutron.services.l3_router.l3_router_plugin.L3RouterPlugin,neutron.services.loadbalancer.plugin.LoadBalancerPlugin
+
 
 Workflow for creating a revision
 ================================
