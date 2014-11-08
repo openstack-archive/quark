@@ -245,8 +245,7 @@ class QuarkIpam(object):
             "network_id": net_id, "reuse_after": reuse_after,
             "deallocated": True, "scope": db_api.ONE,
             "ip_address": ip_address, "lock_mode": True,
-            "version": version, "order_by": "address",
-            "do_not_use": False}
+            "version": version, "order_by": "address"}
 
         if sub_ids:
             ip_kwargs["subnet_id"] = sub_ids
@@ -273,6 +272,9 @@ class QuarkIpam(object):
                                  "{0}".format(address["address_readable"]))
                         subnet = address.get('subnet')
                         if subnet:
+                            if subnet["do_not_use"]:
+                                continue
+
                             policy = get_policy(subnet)
 
                             cidr = netaddr.IPNetwork(address["subnet"]["cidr"])
