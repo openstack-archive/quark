@@ -21,10 +21,9 @@ from neutron.openstack.common import log as logging
 from neutron.openstack.common import timeutils
 from neutron.openstack.common import uuidutils
 from oslo.config import cfg
-from sqlalchemy import event, exc
+from sqlalchemy import event
 from sqlalchemy import func as sql_func
 from sqlalchemy import and_, asc, desc, orm, or_, not_
-from sqlalchemy.pool import Pool
 
 from quark.db import models
 from quark import network_strategy
@@ -34,13 +33,6 @@ STRATEGY = network_strategy.STRATEGY
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
 
-quark_opts = [
-    cfg.BoolOpt('pessimistic_connection_pooling',
-                default=False,
-                help=_('Controls whether or not we pessimistically recreate '
-                       'sqlalchemy connections in the pool.'))]
-
-CONF.register_opts(quark_opts, "QUARK")
 
 ONE = "one"
 ALL = "all"
@@ -51,17 +43,6 @@ ALL = "all"
 def _perhaps_generate_id(target, args, kwargs):
     if hasattr(target, 'id') and target.id is None:
         target.id = uuidutils.generate_uuid()
-
-
-if CONF.QUARK.pessimistic_connection_pooling:
-    @event.listens_for(Pool, "checkout")
-    def ping_connection(dbapi_connection, connection_record, connection_proxy):
-        cursor = dbapi_connection.cursor()
-        try:
-            cursor.execute("SELECT 1")
-        except Exception:
-            raise exc.DisconnectionError()
-        cursor.close()
 
 
 # NOTE(jkoelker) Register the event on all models that have ids
