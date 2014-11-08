@@ -17,6 +17,7 @@
 Quark Pluggable IPAM
 """
 
+import functools
 import itertools
 import random
 import uuid
@@ -24,6 +25,7 @@ import uuid
 import netaddr
 from neutron.common import exceptions
 from neutron.common import rpc as n_rpc
+from neutron.openstack.common import lockutils
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import timeutils
 from oslo.config import cfg
@@ -52,7 +54,11 @@ quark_opts = [
     cfg.IntOpt("ip_address_retry_max",
                default=20,
                help=_("Number of times to attempt to allocate a new IP"
-                      " address before giving up."))
+                      " address before giving up.")),
+    cfg.BoolOpt("ipam_use_synchronization",
+                default=False,
+                help=_("Configures whether or not to use the experimental"
+                       " semaphore logic around IPAM"))
 ]
 
 CONF.register_opts(quark_opts, "QUARK")
@@ -61,6 +67,25 @@ CONF.register_opts(quark_opts, "QUARK")
 #               v6 addresses in netaddr is very slow.
 # netaddr.IPAddress("::0200:0:0:0").value
 MAGIC_INT = 144115188075855872
+
+
+def no_synchronization(*args, **kwargs):
+    def wrap(f):
+        @functools.wraps(f)
+        def inner(*args, **kwargs):
+            return f(*args, **kwargs)
+        return inner
+    return wrap
+
+
+def named(sema):
+    return "%s.%s" % (__name__, sema)
+
+
+if CONF.QUARK.ipam_use_synchronization:
+    synchronized = lockutils.synchronized
+else:
+    synchronized = no_synchronization
 
 
 def rfc2462_ip(mac, cidr):
@@ -88,6 +113,7 @@ def generate_v6(mac, port_id, cidr):
 
 
 class QuarkIpam(object):
+    @synchronized(named("allocate_mac_address"))
     def allocate_mac_address(self, context, net_id, port_id, reuse_after,
                              mac_address=None):
         if mac_address:
@@ -197,6 +223,7 @@ class QuarkIpam(object):
 
         raise exceptions.MacAddressGenerationFailure(net_id=net_id)
 
+    @synchronized(named("reallocate_ip"))
     def attempt_to_reallocate_ip(self, context, net_id, port_id, reuse_after,
                                  version=None, ip_address=None,
                                  segment_id=None, subnets=None, **kwargs):
@@ -634,6 +661,7 @@ class QuarkIpam(object):
     # RM6180(roaet):
     # - removed session.begin due to deadlocks
     # - fix off-by-one error and overflow
+    @synchronized(named("select_subnet"))
     def select_subnet(self, context, net_id, ip_address, segment_id,
                       subnet_ids=None, **filters):
         LOG.info("Selecting subnet(s) - (Step 2 of 3) [{0}]".format(
