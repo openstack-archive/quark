@@ -114,7 +114,7 @@ class QuarkTestIPFiltering(QuarkIpamBaseFunctionalTest):
         with self._stubs(self.network, self.subnet, self.ip_address1,
                          self.ip_address2, self.ip_address3):
             res = self.plugin.get_ip_addresses(self.context)
-            self.assertEqual(3, len(res))
+            self.assertEqual(2, len(res))
 
     def test_basic_ip_filtering_with_tenant_id_without_ip(self):
         with self._stubs(self.network, self.subnet,
@@ -134,9 +134,7 @@ class QuarkTestIPFiltering(QuarkIpamBaseFunctionalTest):
             self.assertEqual(self.ip_address1["id"], id)
             res = self.plugin.get_ip_addresses(self.context,
                                                used_by_tenant_id="456")
-            self.assertEqual(1, len(res))
-            id = int(res[0].get("id"))
-            self.assertEqual(self.ip_address2["id"], id)
+            self.assertEqual(0, len(res))
 
     def test_filtering_with_same_used_by_tenant_id_with_different_ip(self):
         with self._stubs(self.network, self.subnet,
@@ -158,3 +156,21 @@ class QuarkTestIPFiltering(QuarkIpamBaseFunctionalTest):
             res = self.plugin.get_ip_addresses(self.context,
                                                used_by_tenant_id="1234")
             self.assertEqual(0, len(res))
+
+    def test_basic_ip_filtering_without_tenant_id_as_admin(self):
+        with self._stubs(self.network, self.subnet, self.ip_address1,
+                         self.ip_address2, self.ip_address3):
+            res = self.plugin.get_ip_addresses(self.context.elevated())
+            self.assertEqual(3, len(res))
+
+    def test_basic_ip_filtering_with_used_by_tenant_id_as_admin(self):
+        with self._stubs(self.network, self.subnet, self.ip_address1,
+                         self.ip_address2, self.ip_address3):
+            res = self.plugin.get_ip_addresses(self.context.elevated(),
+                                               used_by_tenant_id="123")
+            self.assertEqual(2, len(res))
+            id = int(res[0].get("id"))
+            self.assertEqual(self.ip_address1["id"], id)
+            res = self.plugin.get_ip_addresses(self.context.elevated(),
+                                               used_by_tenant_id="456")
+            self.assertEqual(1, len(res))

@@ -131,12 +131,14 @@ def _model_query(context, model, filters, fields=None):
     # This works even when a non-shared, other-tenant owned network is passed
     # in because the authZ checks that happen in Neutron above us yank it back
     # out of the result set.
-    if not filters and not context.is_admin:
+    if not filters.get("tenant_id") and not context.is_admin:
         filters["tenant_id"] = [context.tenant_id]
+
     # Begin:Added for RM6299
     if filters.get("used_by_tenant_id"):
         model_filters.append(model.used_by_tenant_id.in_(
                              filters["used_by_tenant_id"]))
+
     if filters.get("tenant_id"):
         if model == models.IPAddress:
             model_filters.append(model.used_by_tenant_id.in_(
