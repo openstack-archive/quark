@@ -112,3 +112,26 @@ class QuarkFindSubnetAllocationCount(QuarkIpamBaseFunctionalTest):
             self.assertEqual(subnets[1][1], 0)
             self.assertEqual(subnets[2][0].cidr, "2.2.2.0/30")
             self.assertEqual(subnets[2][1], 1)
+
+    def test_ordering_subnets_find_allocc_when_counts_unequal_size_equal(self):
+        models = []
+        cidrs = ["0.0.0.0/31", "1.1.1.0/31", "2.2.2.0/31"]
+        for cidr in cidrs:
+            last = netaddr.IPNetwork(cidr).last
+            models.append(self._create_models(cidr, 4, last))
+
+        with self._fixtures(models) as net:
+            self._create_ip_address("2.2.2.1", 4, "2.2.2.0/31", net["id"])
+            self._create_ip_address("2.2.2.2", 4, "2.2.2.0/31", net["id"])
+            self._create_ip_address("1.1.1.1", 4, "1.1.1.0/31", net["id"])
+
+            subnets = db_api.subnet_find_ordered_by_most_full(
+                self.context, net['id'], segment_id=None,
+                scope=db_api.ALL).all()
+            self.assertEqual(len(subnets), 3)
+            self.assertEqual(subnets[0][0].cidr, "2.2.2.0/31")
+            self.assertEqual(subnets[0][1], 2)
+            self.assertEqual(subnets[1][0].cidr, "1.1.1.0/31")
+            self.assertEqual(subnets[1][1], 1)
+            self.assertEqual(subnets[2][0].cidr, "0.0.0.0/31")
+            self.assertEqual(subnets[2][1], 0)

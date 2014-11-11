@@ -463,12 +463,11 @@ def network_delete(context, network):
 def subnet_find_ordered_by_most_full(context, net_id, **filters):
     count = sql_func.count(models.IPAddress.address).label("count")
     size = (models.Subnet.last_ip - models.Subnet.first_ip)
-    remaining = (size + 1 - count)
     query = context.session.query(models.Subnet, count).with_lockmode('update')
     query = query.filter_by(do_not_use=False)
     query = query.outerjoin(models.Subnet.generated_ips)
     query = query.group_by(models.Subnet.id)
-    query = query.order_by(desc(remaining))
+    query = query.order_by(asc(size - count))
 
     query = query.filter(models.Subnet.network_id == net_id)
     if "ip_version" in filters:
