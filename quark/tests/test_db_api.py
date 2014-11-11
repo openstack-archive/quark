@@ -34,20 +34,17 @@ class TestDBAPI(BaseFunctionalTest):
 
     def test_ip_address_find_device_id(self):
         query_mock = mock.Mock()
-        second_query_mock = mock.Mock()
         filter_mock = mock.Mock()
 
         self.context.session.query = query_mock
-        query_mock.return_value = second_query_mock
-        second_query_mock.join.return_value = filter_mock
+        query_mock.return_value = filter_mock
 
         db_api.ip_address_find(self.context, device_id="foo")
         self.assertEqual(filter_mock.filter.call_count, 1)
 
     def test_ip_address_find_address_type(self):
         self.context.session.query = mock.MagicMock()
-        second_query_mock = self.context.session.query.return_value
-        filter_mock = second_query_mock.join.return_value
+        filter_mock = self.context.session.query.return_value
 
         db_api.ip_address_find(self.context, address_type="foo")
         # NOTE(thomasem): Creates sqlalchemy.sql.elements.BinaryExpression
@@ -62,8 +59,7 @@ class TestDBAPI(BaseFunctionalTest):
 
     def test_ip_address_find_port_id(self):
         self.context.session.query = mock.MagicMock()
-        second_query_mock = self.context.session.query.return_value
-        final_query_mock = second_query_mock.join.return_value
+        final_query_mock = self.context.session.query.return_value
 
         db_api.ip_address_find(self.context, port_id="foo")
         # NOTE(thomasem): Creates sqlalchemy.sql.elements.BinaryExpression

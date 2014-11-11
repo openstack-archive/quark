@@ -1485,6 +1485,7 @@ class QuarkIPAddressAllocateDeallocated(QuarkIpamBaseTest):
 
     def test_allocate_finds_deallocated_ip_succeeds(self):
         subnet = dict(id=1, ip_version=4, next_auto_assign_ip=0,
+                      do_not_use=False,
                       cidr="0.0.0.0/24", ip_policy=None)
         address = dict(id=1, address=1, subnet=subnet)
         addresses_found = [None, address, None]
@@ -1498,6 +1499,7 @@ class QuarkIPAddressAllocateDeallocated(QuarkIpamBaseTest):
 
     def test_allocate_finds_deallocated_ip_out_of_range_deletes(self):
         subnet = dict(id=1, ip_version=4, next_auto_assign_ip=2,
+                      do_not_use=False,
                       cidr="0.0.0.0/29", ip_policy=None)
         address = dict(id=1, address=254)
         address2 = dict(id=1, address=1)
@@ -1516,7 +1518,7 @@ class QuarkIPAddressAllocateDeallocated(QuarkIpamBaseTest):
     def test_allocate_finds_no_deallocated_creates_new_ip(self):
         subnet = dict(id=1, ip_version=4, next_auto_assign_ip=2,
                       cidr="0.0.0.0/24", first_ip=0, last_ip=255,
-                      ip_policy=None)
+                      ip_policy=None, do_not_use=False)
         address = dict(id=1, address=0)
         addresses_found = [None, address, None]
         with self._stubs(

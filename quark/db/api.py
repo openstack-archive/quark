@@ -310,14 +310,11 @@ def ip_address_create(context, **address_dict):
 @scoped
 def ip_address_find(context, lock_mode=False, **filters):
     query = context.session.query(models.IPAddress)
-    query = query.join(models.Subnet)
 
     if lock_mode:
         query = query.with_lockmode("update")
 
     model_filters = _model_query(context, models.IPAddress, filters)
-    if "do_not_use" in filters:
-        query = query.filter(models.Subnet.do_not_use == filters["do_not_use"])
 
     if filters.get("device_id"):
         model_filters.append(models.IPAddress.ports.any(
