@@ -49,6 +49,51 @@ class TestDBAPI(BaseFunctionalTest):
         db_api.ip_address_find(self.context, address_type="foo")
         # NOTE(thomasem): Creates sqlalchemy.sql.elements.BinaryExpression
         # when using SQLAlchemy models in expressions.
+        tenant_filter = (models.IPAddress.used_by_tenant_id.in_(
+                         [self.context.tenant_id]))
+        type_filter = models.IPAddress.address_type == "foo"
+        self.assertEqual(len(filter_mock.filter.call_args[0]), 2)
+        # NOTE(thomasem): Unfortunately BinaryExpression.compare isn't
+        # showing to be a reliable comparison, so using the string
+        # representation which dumps the associated SQL for the filter.
+        type_found = False
+        tenant_found = False
+        for model_filter in list(filter_mock.filter.call_args[0]):
+            if str(type_filter) == str(model_filter):
+                type_found = True
+            elif str(tenant_filter) == str(model_filter):
+                tenant_found = True
+        self.assertTrue(tenant_found)
+        self.assertTrue(type_found)
+
+    def test_ip_address_find_port_id(self):
+        self.context.session.query = mock.MagicMock()
+        final_query_mock = self.context.session.query.return_value
+
+        db_api.ip_address_find(self.context, port_id="foo")
+        # NOTE(thomasem): Creates sqlalchemy.sql.elements.BinaryExpression
+        # when using SQLAlchemy models in expressions.
+        tenant_filter = (models.IPAddress.used_by_tenant_id.in_(
+                         [self.context.tenant_id]))
+        port_filter = models.IPAddress.ports.any(models.Port.id == "foo")
+        self.assertEqual(len(final_query_mock.filter.call_args[0]), 2)
+        port_found = False
+        tenant_found = False
+        for model_filter in list(final_query_mock.filter.call_args[0]):
+            if str(port_filter) == str(model_filter):
+                port_found = True
+            elif str(tenant_filter) == str(model_filter):
+                tenant_found = True
+        self.assertTrue(tenant_found)
+        self.assertTrue(port_found)
+
+    def test_ip_address_find_address_type_as_admin(self):
+        self.context.session.query = mock.MagicMock()
+        filter_mock = self.context.session.query.return_value
+
+        db_api.ip_address_find(self.context.elevated(), address_type="foo")
+        # NOTE(thomasem): Creates sqlalchemy.sql.elements.BinaryExpression
+        # when using SQLAlchemy models in expressions.
         expected_filter = models.IPAddress.address_type == "foo"
         self.assertEqual(len(filter_mock.filter.call_args[0]), 1)
         # NOTE(thomasem): Unfortunately BinaryExpression.compare isn't
@@ -57,11 +102,11 @@ class TestDBAPI(BaseFunctionalTest):
         self.assertEqual(str(expected_filter), str(
             filter_mock.filter.call_args[0][0]))
 
-    def test_ip_address_find_port_id(self):
+    def test_ip_address_find_port_id_as_admin(self):
         self.context.session.query = mock.MagicMock()
         final_query_mock = self.context.session.query.return_value
 
-        db_api.ip_address_find(self.context, port_id="foo")
+        db_api.ip_address_find(self.context.elevated(), port_id="foo")
         # NOTE(thomasem): Creates sqlalchemy.sql.elements.BinaryExpression
         # when using SQLAlchemy models in expressions.
         expected_filter = models.IPAddress.ports.any(models.Port.id == "foo")
