@@ -13,20 +13,18 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from oslo.config import cfg
+from collections import defaultdict
+import json
+import sys
 
+import netaddr
 from neutron.common import config
 from neutron.db import api as neutron_db_api
-
-from quark.db import models
-
+from oslo.config import cfg
 from sqlalchemy import and_, or_, func
 from sqlalchemy.sql.expression import text
 
-from collections import defaultdict
-import json
-import netaddr
-import sys
+from quark.db import models
 
 
 def main():
@@ -44,7 +42,7 @@ def main():
 
 def _rackspace_filter(query):
     # NOTE(asadoughi): should be moved to config?
-    query = query.filter(or_(models.Subnet.do_not_use == None,
+    query = query.filter(or_(models.Subnet.do_not_use == None,  # noqa
                              models.Subnet.do_not_use == 0))
     public_network_id = "00000000-0000-0000-0000-000000000000"
     query = query.filter(models.Subnet.network_id == public_network_id)
@@ -78,7 +76,7 @@ def get_used_ips(session):
         query = query.outerjoin(
             models.IPAddress,
             and_(models.Subnet.id == models.IPAddress.subnet_id,
-                 or_(models.IPAddress._deallocated == None,
+                 or_(models.IPAddress._deallocated == None,  # noqa
                      models.IPAddress._deallocated == 0,
                      func.now() < func.date_add(
                          models.IPAddress.deallocated_at, window))))
@@ -92,7 +90,7 @@ def get_used_ips(session):
         # NOTE(asadoughi): (address is allocated) OR
         # (address is deallocated and not inside subnet's IP policy)
         query = query.filter(or_(
-            models.IPAddress._deallocated == None,
+            models.IPAddress._deallocated == None,  # noqa
             models.IPAddress._deallocated == 0,
             models.IPPolicyCIDR.id == None))
 
@@ -128,7 +126,3 @@ def get_unused_ips(session, used_ips_counts):
             ret[tenant_id] -= used_ips_counts[tenant_id]
 
         return ret
-
-
-if __name__ == "__main__":
-    main()
