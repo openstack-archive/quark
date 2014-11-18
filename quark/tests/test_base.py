@@ -16,6 +16,7 @@
 import os
 
 from neutron import context
+from neutron.tests.base import BaseTestCase
 from oslo.config import cfg
 import unittest2
 
@@ -27,6 +28,7 @@ class TestBase(unittest2.TestCase):
         super(TestBase, self).setUp()
         tox_path = os.environ.get("VIRTUAL_ENV")
         cfg.CONF.set_override('state_path', tox_path)
+        BaseTestCase.config_parse()
         self.context = context.Context('fake', 'fake', is_admin=False)
         self.admin_context = context.Context('fake', 'fake', is_admin=True,
                                              load_admin_roles=False)
