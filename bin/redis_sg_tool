@@ -16,20 +16,26 @@
 
 """Quark Redis Security Groups CLI tool.
 
-Usage: redis_sg_tool [-h] [--config-file PATH]
+Usage: redis_sg_tool [-h] [--config-file=PATH] [--retries=<retries>]
+                     [--retry-delay=<delay>] <command> [--yarly]
+
+Options:
+    -h --help  Show this screen.
+    --version  Show version.
+    --config-file=PATH  Use a different config file path
+    --retries=<retries>  Number of times to re-attempt some operations
+    --retry-delay=<delay>  Amount of time to wait between retries
+
+Available commands are:
     redis_sg_tool test-connection
     redis_sg_tool vifs-in-redis
     redis_sg_tool num-groups
     redis_sg_tool ports-with-groups
-    redis_sg_tool purge-orphans [--yarly] [--retries=<retries>]
-                                [--retry-delay=<delay>]
-    redis_sg_tool write-groups [--yarly] [--retries=<retries>]
-                               [--retry-delay=<delay>]
+    redis_sg_tool purge-orphans [--yarly]
+    redis_sg_tool write-groups [--yarly]
+    redis_sg_tool -h | --help
+    redis_sg_tool --version
 
-Options:
-    -h --help       Show this screen.
-    --version       Show version.
-    --config-file PATH  Use a different config file path
 """
 
 VERSION = 0.1
@@ -53,17 +59,22 @@ from quark.security_groups import redis_client
 class QuarkRedisTool(object):
     def __init__(self, arguments):
         self._args = arguments
+
         self._retries = RETRIES
         self._retry_delay = RETRY_DELAY
-        if self._args["--retries"]:
+
+        if self._args.get("--retries"):
             self._retries = int(self._args["--retries"])
 
-        if self._args["--retry-delay"]:
+        if self._args.get("--retry-delay"):
             self._retry_delay = int(self._args["--retry-delay"])
 
         config_args = []
-        if self._args["--config-file"]:
-            config_args.append(self._args["--config-file"])
+        if self._args.get("--config-file"):
+            config_args.append("--config-file=%s" %
+                               self._args.pop("--config-file"))
+
+        self._dryrun = not self._args.get("--yarly")
 
         config.init(config_args)
         if not cfg.CONF.config_file:
@@ -72,24 +83,19 @@ class QuarkRedisTool(object):
                        "/etc/) and the '--config-file' option!"))
 
     def dispatch(self):
-        if self._args["test-connection"]:
+        command = self._args.get("<command>")
+        if command == "test-connection":
             self.test_connection()
-        elif self._args["vifs-in-redis"]:
+        elif command == "vifs-in-redis":
             self.vif_count()
-        elif self._args["num-groups"]:
+        elif command == "num-groups":
             self.num_groups()
-        elif self._args["ports-with-groups"]:
+        elif command == "ports-with-groups":
             self.ports_with_groups()
-        elif self._args["purge-orphans"]:
-            dryrun = True
-            if "--yarly" in self._args and self._args["--yarly"]:
-                dryrun = False
-            self.purge_orphans(dryrun)
-        elif self._args["write-groups"]:
-            dryrun = True
-            if "--yarly" in self._args and self._args["--yarly"]:
-                dryrun = False
-            self.write_groups(dryrun)
+        elif command == "purge-orphans":
+            self.purge_orphans(self._dryrun)
+        elif command == "write-groups":
+            self.write_groups(self._dryrun)
         else:
             print ("Redis security groups tool. Re-run with -h/--help for "
                    "options")
