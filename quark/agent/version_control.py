@@ -84,13 +84,14 @@ class VersionControl(object):
 
         vifs = set(old_security_groups.keys() + new_security_groups.keys())
         for vif in vifs:
-            old_version = old_security_groups.get(vif)
-            new_version = new_security_groups.get(vif)
-            if not new_version:
+            old_version_null = old_security_groups.get(vif) is None
+            new_version_null = new_security_groups.get(vif) is None
+            if not old_version_null and new_version_null:
                 removed_sg.append(vif)
-            elif not old_version:
+            if old_version_null and not new_version_null:
                 added_sg.append(vif)
-            elif new_version != old_version:
+            if (not old_version_null and not new_version_null and
+                    old_security_groups[vif] != new_security_groups[vif]):
                 updated_sg.append(vif)
 
         return added_sg, updated_sg, removed_sg

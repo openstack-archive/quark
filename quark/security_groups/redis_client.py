@@ -257,12 +257,14 @@ class Client(object):
         Returns a dictionary of xapi.VIFs mapped to security group version
         UUIDs from a set of xapi.VIF.
         """
-
+        LOG.debug("Getting security groups from Redis for {0}".format(
+            new_interfaces))
         new_interfaces = tuple(new_interfaces)
 
         p = self._client.pipeline()
         for vif in new_interfaces:
-            p.get(str(vif))
+            key = self.rule_key(vif.device_id, vif.mac_address)
+            p.get(key)
         security_groups = p.execute()
 
         ret = {}

@@ -89,6 +89,18 @@ class TestVersionControl(test_base.TestBase):
             self.assertEqual(updated, [])
             self.assertEqual(removed, [])
 
+    def test_diff_nonempty_file_added_new_security_groups_null(self):
+        o_fn = "quark.agent.version_control._open_or_create_file_for_reading"
+        with mock.patch(o_fn) as m_open:
+            m_open.return_value = StringIO('{"3.4": null}')
+            added, updated, removed = self.version_control.diff({
+                VIF("3", "4"): "bar",
+            })
+            m_open.assert_called_once_with(self.FILEPATH)
+            self.assertEqual(added, [VIF("3", "4")])
+            self.assertEqual(updated, [])
+            self.assertEqual(removed, [])
+
     def test_diff_nonempty_file_updated_new_security_groups(self):
         o_fn = "quark.agent.version_control._open_or_create_file_for_reading"
         with mock.patch(o_fn) as m_open:
@@ -106,6 +118,18 @@ class TestVersionControl(test_base.TestBase):
         with mock.patch(o_fn) as m_open:
             m_open.return_value = StringIO('{"3.4": "bar"}')
             added, updated, removed = self.version_control.diff({})
+            m_open.assert_called_once_with(self.FILEPATH)
+            self.assertEqual(added, [])
+            self.assertEqual(updated, [])
+            self.assertEqual(removed, [VIF("3", "4")])
+
+    def test_diff_nonempty_file_removed_new_security_groups_null(self):
+        o_fn = "quark.agent.version_control._open_or_create_file_for_reading"
+        with mock.patch(o_fn) as m_open:
+            m_open.return_value = StringIO('{"3.4": "bar"}')
+            added, updated, removed = self.version_control.diff({
+                VIF("3", "4"): None,
+            })
             m_open.assert_called_once_with(self.FILEPATH)
             self.assertEqual(added, [])
             self.assertEqual(updated, [])

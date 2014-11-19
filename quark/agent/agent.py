@@ -18,6 +18,7 @@ import sys
 import time
 
 from neutron.common import config
+from neutron.common import utils as n_utils
 from neutron.openstack.common import log as logging
 from oslo.config import cfg
 
@@ -60,9 +61,9 @@ def run():
             _sleep()
             continue
 
-        new_instances = set(new_instances.values())
-        added_instances = new_instances - instances
-        removed_instances = instances - new_instances
+        new_instances_set = set(new_instances.values())
+        added_instances = new_instances_set - instances
+        removed_instances = instances - new_instances_set
         if added_instances or removed_instances:
             LOG.debug("instances: added %s removed %s",
                       added_instances, removed_instances)
@@ -77,8 +78,8 @@ def run():
             new_security_groups = redis_client.get_security_groups(
                 new_interfaces)
             added_sg, updated_sg, removed_sg = vc.diff(new_security_groups)
-            xapi.update_interfaces(new_instances,
-                                   added_sg, updated_sg, removed_sg)
+            xapi_client.update_interfaces(new_instances,
+                                          added_sg, updated_sg, removed_sg)
         except Exception:
             LOG.exception("Unable to get security groups from Redis and apply"
                           " them to xapi")
@@ -87,13 +88,15 @@ def run():
 
         vc.commit(new_security_groups)
 
-        instances = new_instances
+        instances = new_instances_set
         interfaces = new_interfaces
         _sleep()
 
 
 def main():
     config.init(sys.argv[1:])
+    config.setup_logging()
+    n_utils.log_opt_values(LOG)
     if not CONF.config_file:
         sys.exit(_("ERROR: Unable to find configuration file via the default"
                    " search paths (~/.neutron/, ~/, /etc/neutron/, /etc/) and"
