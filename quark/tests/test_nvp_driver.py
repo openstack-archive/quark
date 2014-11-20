@@ -124,10 +124,10 @@ class TestNVPDriverCreateNetwork(TestNVPDriver):
     @contextlib.contextmanager
     def _stubs(self):
         with contextlib.nested(
-            mock.patch("%s.get_connection" % self.d_pkg),
-        ) as (get_connection,):
+            mock.patch("%s._connection" % self.d_pkg),
+        ) as (conn,):
             connection = self._create_connection()
-            get_connection.return_value = connection
+            conn.return_value = connection
             yield connection
 
     def test_create_network(self):
@@ -151,8 +151,8 @@ class TestNVPDriverProviderNetwork(TestNVPDriver):
     @contextlib.contextmanager
     def _stubs(self, tz):
         with contextlib.nested(
-            mock.patch("%s.get_connection" % self.d_pkg),
-        ) as (get_connection,):
+            mock.patch("%s._connection" % self.d_pkg),
+        ) as (conn,):
             connection = self._create_connection()
             switch = self._create_lswitch(1, False)
             switch.transport_zone = mock.Mock()
@@ -161,7 +161,7 @@ class TestNVPDriverProviderNetwork(TestNVPDriver):
             tz_query = mock.Mock()
             tz_query.query = mock.Mock(return_value=tz_results)
             connection.transportzone = mock.Mock(return_value=tz_query)
-            get_connection.return_value = connection
+            conn.return_value = connection
             yield connection, switch
 
     def test_config_provider_attrs_flat_net(self):
@@ -286,11 +286,11 @@ class TestNVPDriverDeleteNetwork(TestNVPDriver):
     @contextlib.contextmanager
     def _stubs(self, network_exists=True):
         with contextlib.nested(
-            mock.patch("%s.get_connection" % self.d_pkg),
+            mock.patch("%s._connection" % self.d_pkg),
             mock.patch("%s._lswitches_for_network" % self.d_pkg),
-        ) as (get_connection, switch_list):
+        ) as (conn, switch_list):
             connection = self._create_connection()
-            get_connection.return_value = connection
+            conn.return_value = connection
             if network_exists:
                 ret = {"results": [{"uuid": self.lswitch_uuid}]}
             else:
@@ -318,12 +318,12 @@ class TestNVPDriverDeleteNetworkWithExceptions(TestNVPDriver):
     @contextlib.contextmanager
     def _stubs(self, network_exists=True, exception=None):
         with contextlib.nested(
-            mock.patch("%s.get_connection" % self.d_pkg),
+            mock.patch("%s._connection" % self.d_pkg),
             mock.patch("%s._lswitches_for_network" % self.d_pkg),
             mock.patch("%s._lswitch_delete" % self.d_pkg),
-        ) as (get_connection, switch_list, switch_delete):
+        ) as (conn, switch_list, switch_delete):
             connection = self._create_connection()
-            get_connection.return_value = connection
+            conn.return_value = connection
             if network_exists:
                 ret = {"results": [{"uuid": self.lswitch_uuid}]}
             else:
@@ -372,13 +372,14 @@ class TestNVPDriverCreatePort(TestNVPDriver):
     @contextlib.contextmanager
     def _stubs(self, has_lswitch=True, maxed_ports=False, net_details=None):
         with contextlib.nested(
-            mock.patch("%s.get_connection" % self.d_pkg),
+            mock.patch("%s._connection" % self.d_pkg),
+            mock.patch("%s._next_connection" % self.d_pkg),
             mock.patch("%s._lswitches_for_network" % self.d_pkg),
             mock.patch("%s._get_network_details" % self.d_pkg),
-        ) as (get_connection, get_switches, get_net_dets):
+        ) as (conn, next_conn, get_switches, get_net_dets):
             connection = self._create_connection(has_switches=has_lswitch,
                                                  maxed_ports=maxed_ports)
-            get_connection.return_value = connection
+            conn.return_value = connection
             get_switches.return_value = connection.lswitch().query()
             get_net_dets.return_value = net_details
             yield connection
@@ -517,11 +518,12 @@ class TestNVPDriverUpdatePort(TestNVPDriver):
     @contextlib.contextmanager
     def _stubs(self):
         with contextlib.nested(
-            mock.patch("%s.get_connection" % self.d_pkg),
-        ) as (get_connection,):
+            mock.patch("%s._connection" % self.d_pkg),
+            mock.patch("%s._next_connection" % self.d_pkg),
+        ) as (conn, next_conn):
             connection = self._create_connection()
             connection.securityprofile = self._create_security_profile()
-            get_connection.return_value = connection
+            conn.return_value = connection
             yield connection
 
     def test_update_port(self):
@@ -550,10 +552,10 @@ class TestNVPDriverLswitchesForNetwork(TestNVPDriver):
     @contextlib.contextmanager
     def _stubs(self, single_switch=True):
         with contextlib.nested(
-            mock.patch("%s.get_connection" % self.d_pkg),
-        ) as (get_connection,):
+            mock.patch("%s._connection" % self.d_pkg),
+        ) as (conn,):
             connection = self._create_connection(switch_count=1)
-            get_connection.return_value = connection
+            conn.return_value = connection
             yield connection
 
     def test_get_lswitches(self):
@@ -606,10 +608,11 @@ class TestNVPDriverDeletePort(TestNVPDriver):
     @contextlib.contextmanager
     def _stubs(self, switch_count=1):
         with contextlib.nested(
-            mock.patch("%s.get_connection" % self.d_pkg),
-        ) as (get_connection,):
+            mock.patch("%s._connection" % self.d_pkg),
+            mock.patch("%s._next_connection" % self.d_pkg),
+        ) as (conn, next_conn):
             connection = self._create_connection(switch_count=switch_count)
-            get_connection.return_value = connection
+            conn.return_value = connection
             yield connection
 
     def test_delete_port(self):
@@ -645,11 +648,11 @@ class TestNVPDriverDeletePortWithExceptions(TestNVPDriver):
     @contextlib.contextmanager
     def _stubs(self, switch_exception=None, delete_exception=None):
         with contextlib.nested(
-            mock.patch("%s.get_connection" % self.d_pkg),
+            mock.patch("%s._connection" % self.d_pkg),
             mock.patch("%s._lswitch_from_port" % self.d_pkg),
-        ) as (get_connection, switch):
+        ) as (conn, switch):
             connection = self._create_connection()
-            get_connection.return_value = connection
+            conn.return_value = connection
             if switch_exception:
                 switch.side_effect = switch_exception
             else:
@@ -729,11 +732,12 @@ class TestNVPDriverCreateSecurityGroup(TestNVPDriver):
     @contextlib.contextmanager
     def _stubs(self):
         with contextlib.nested(
-                mock.patch("%s.get_connection" % self.d_pkg),
-        ) as (get_connection,):
+            mock.patch("%s._connection" % self.d_pkg),
+            mock.patch("%s._next_connection" % self.d_pkg),
+        ) as (conn, next_conn):
             connection = self._create_connection()
             connection.securityprofile = self._create_security_profile()
-            get_connection.return_value = connection
+            conn.return_value = connection
             yield connection
 
     def test_security_group_create(self):
@@ -783,11 +787,12 @@ class TestNVPDriverDeleteSecurityGroup(TestNVPDriver):
     @contextlib.contextmanager
     def _stubs(self):
         with contextlib.nested(
-                mock.patch("%s.get_connection" % self.d_pkg),
-        ) as (get_connection,):
+            mock.patch("%s._connection" % self.d_pkg),
+            mock.patch("%s._next_connection" % self.d_pkg),
+        ) as (conn, next_conn):
             connection = self._create_connection()
             connection.securityprofile = self._create_security_profile()
-            get_connection.return_value = connection
+            conn.return_value = connection
             yield connection
 
     def test_security_group_delete(self):
@@ -812,11 +817,12 @@ class TestNVPDriverUpdateSecurityGroup(TestNVPDriver):
     @contextlib.contextmanager
     def _stubs(self):
         with contextlib.nested(
-                mock.patch("%s.get_connection" % self.d_pkg),
-        ) as (get_connection,):
+            mock.patch("%s._connection" % self.d_pkg),
+            mock.patch("%s._next_connection" % self.d_pkg),
+        ) as (conn, next_conn):
             connection = self._create_connection()
             connection.securityprofile = self._create_security_profile()
-            get_connection.return_value = connection
+            conn.return_value = connection
             yield connection
 
     def test_security_group_update(self):
@@ -872,14 +878,15 @@ class TestNVPDriverCreateSecurityGroupRule(TestNVPDriver):
     @contextlib.contextmanager
     def _stubs(self):
         with contextlib.nested(
-                mock.patch("%s.get_connection" % self.d_pkg),
-        ) as (get_connection,):
+            mock.patch("%s._connection" % self.d_pkg),
+            mock.patch("%s._next_connection" % self.d_pkg),
+        ) as (conn, next_conn):
             connection = self._create_connection()
             connection.securityprofile = self._create_security_profile()
             connection.securityrule = self._create_security_rule()
             connection.lswitch_port().query.return_value = (
                 self._create_lport_query(1, [self.profile_id]))
-            get_connection.return_value = connection
+            conn.return_value = connection
             yield connection
 
     def test_security_rule_create(self):
@@ -955,13 +962,13 @@ class TestNVPDriverDeleteSecurityGroupRule(TestNVPDriver):
             rulelist['logical_port_%s_rules' % rule.pop('direction')].append(
                 rule)
         with contextlib.nested(
-                mock.patch("%s.get_connection" % self.d_pkg),
-        ) as (get_connection,):
+                mock.patch("%s._connection" % self.d_pkg),
+        ) as (conn,):
             connection = self._create_connection()
             connection.securityprofile = self._create_security_profile()
             connection.securityrule = self._create_security_rule()
             connection.securityprofile().read().update(rulelist)
-            get_connection.return_value = connection
+            conn.return_value = connection
             yield connection
 
     def test_delete_security_group(self):
@@ -1023,16 +1030,40 @@ class TestNVPGetConnection(TestNVPDriver):
                                                     http_timeout=10,
                                                     retries=1,
                                                     backoff=0))
-        with mock.patch("aiclib.nvp.Connection") as (aiclib_conn):
-            yield aiclib_conn
+        with contextlib.nested(
+            mock.patch("aiclib.nvp.Connection"),
+            mock.patch("%s._next_connection" % self.d_pkg)
+        ) as (aiclib_conn, next_conn):
+            yield aiclib_conn, next_conn
         cfg.CONF.clear_override("controller_connection", "NVP")
 
     def test_get_connection(self):
-        with self._stubs(has_conn=False) as aiclib_conn:
-            self.driver.get_connection()
+        with self._stubs(has_conn=False) as (aiclib_conn, next_conn):
+            with self.driver.get_connection():
+                pass
             self.assertTrue(aiclib_conn.called)
+            self.assertFalse(next_conn.called)
 
     def test_get_connection_connection_defined(self):
-        with self._stubs(has_conn=True) as aiclib_conn:
-            self.driver.get_connection()
+        with self._stubs(has_conn=True) as (aiclib_conn, next_conn):
+            with self.driver.get_connection():
+                pass
             self.assertFalse(aiclib_conn.called)
+            self.assertFalse(next_conn.called)
+
+    def test_get_connection_iterates(self):
+        with self._stubs(has_conn=True) as (aiclib_conn, next_conn):
+            try:
+                with self.driver.get_connection():
+                    raise Exception("Failure")
+            except Exception:
+                pass
+            self.assertFalse(aiclib_conn.called)
+            self.assertTrue(next_conn.called)
+
+
+class TestNVPGetConnectionNoneDefined(TestNVPDriver):
+    def test_get_connection(self):
+        with self.assertRaises(q_exc.NoBackendConnectionsDefined):
+            with self.driver.get_connection():
+                pass

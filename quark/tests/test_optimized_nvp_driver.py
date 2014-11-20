@@ -52,13 +52,13 @@ class TestOptimizedNVPDriverDeleteNetwork(TestOptimizedNVPDriver):
     @contextlib.contextmanager
     def _stubs(self, switch_count=1):
         with contextlib.nested(
-            mock.patch("%s.get_connection" % self.d_pkg),
+            mock.patch("%s._connection" % self.d_pkg),
             mock.patch("%s._lswitch_select_by_nvp_id" % self.d_pkg),
             mock.patch("%s._lswitches_for_network" % self.d_pkg),
-        ) as (get_connection, select_switch, get_switches):
+        ) as (conn, select_switch, get_switches):
             connection = self._create_connection()
             switch = self._create_lswitch_mock()
-            get_connection.return_value = connection
+            conn.return_value = connection
             select_switch.return_value = switch
             get_switches.return_value = [switch] * switch_count
             self.context.session.delete = mock.Mock(return_value=None)
@@ -105,14 +105,14 @@ class TestOptimizedNVPDriverDeleteNetworkWithExceptions(
     @contextlib.contextmanager
     def _stubs(self, switch_count=1, error_code=500):
         with contextlib.nested(
-            mock.patch("%s.get_connection" % self.d_pkg),
+            mock.patch("%s._connection" % self.d_pkg),
             mock.patch("%s._lswitch_select_by_nvp_id" % self.d_pkg),
             mock.patch("%s._lswitches_for_network" % self.d_pkg),
             mock.patch("%s._lswitch_delete" % self.d_pkg)
-        ) as (get_connection, select_switch, get_switches, delete_switch):
+        ) as (conn, select_switch, get_switches, delete_switch):
             connection = self._create_connection()
             switch = self._create_lswitch_mock()
-            get_connection.return_value = connection
+            conn.return_value = connection
             select_switch.return_value = switch
             get_switches.return_value = [switch] * switch_count
             delete_switch.side_effect = aiclib.core.AICException(
@@ -151,17 +151,17 @@ class TestOptimizedNVPDriverDeletePortMultiSwitch(TestOptimizedNVPDriver):
     @contextlib.contextmanager
     def _stubs(self, port_count=2, exception=None):
         with contextlib.nested(
-            mock.patch("%s.get_connection" % self.d_pkg),
+            mock.patch("%s._connection" % self.d_pkg),
             mock.patch("%s._lport_select_by_id" % self.d_pkg),
             mock.patch("%s._lswitch_select_by_nvp_id" % self.d_pkg),
             mock.patch("%s._lswitches_for_network" % self.d_pkg),
             mock.patch("%s._lport_delete" % self.d_pkg),
-        ) as (get_connection, select_port, select_switch,
+        ) as (conn, select_port, select_switch,
               two_switch, port_delete):
             connection = self._create_connection()
             port = self._create_lport_mock(port_count)
             switch = self._create_lswitch_mock()
-            get_connection.return_value = connection
+            conn.return_value = connection
             select_port.return_value = port
             select_switch.return_value = switch
             two_switch.return_value = [switch, switch]
@@ -244,15 +244,15 @@ class TestOptimizedNVPDriverDeletePortSingleSwitch(TestOptimizedNVPDriver):
     @contextlib.contextmanager
     def _stubs(self, port_count=2):
         with contextlib.nested(
-            mock.patch("%s.get_connection" % self.d_pkg),
+            mock.patch("%s._connection" % self.d_pkg),
             mock.patch("%s._lport_select_by_id" % self.d_pkg),
             mock.patch("%s._lswitch_select_by_nvp_id" % self.d_pkg),
             mock.patch("%s._lswitches_for_network" % self.d_pkg),
-        ) as (get_connection, select_port, select_switch, one_switch):
+        ) as (conn, select_port, select_switch, one_switch):
             connection = self._create_connection()
             port = self._create_lport_mock(port_count)
             switch = self._create_lswitch_mock()
-            get_connection.return_value = connection
+            conn.return_value = connection
             select_port.return_value = port
             select_switch.return_value = switch
             one_switch.return_value = [switch]
@@ -274,16 +274,16 @@ class TestOptimizedNVPDriverCreatePort(TestOptimizedNVPDriver):
     @contextlib.contextmanager
     def _stubs(self, has_lswitch=True, maxed_ports=False):
         with contextlib.nested(
-            mock.patch("%s.get_connection" % self.d_pkg),
+            mock.patch("%s._connection" % self.d_pkg),
             mock.patch("%s._lswitch_select_free" % self.d_pkg),
             mock.patch("%s._lswitch_select_first" % self.d_pkg),
             mock.patch("%s._lswitch_select_by_nvp_id" % self.d_pkg),
             mock.patch("%s._lswitch_create_optimized" % self.d_pkg),
             mock.patch("%s._get_network_details" % self.d_pkg)
-        ) as (get_connection, select_free, select_first,
+        ) as (conn, select_free, select_first,
               select_by_id, create_opt, get_net_dets):
             connection = self._create_connection()
-            get_connection.return_value = connection
+            conn.return_value = connection
             if has_lswitch:
                 select_first.return_value = mock.Mock(nvp_id=self.lswitch_uuid)
             if not has_lswitch:
@@ -427,7 +427,7 @@ class TestOptimizedNVPDriverUpdatePort(TestOptimizedNVPDriver):
 
 class TestCreateSecurityGroups(TestOptimizedNVPDriver):
     def test_create_security_group(self):
-        with mock.patch("%s.get_connection" % self.d_pkg):
+        with mock.patch("%s._connection" % self.d_pkg):
             self.driver.create_security_group(self.context, "newgroup")
             self.assertTrue(self.context.session.add.called)
 
@@ -436,7 +436,7 @@ class TestDeleteSecurityGroups(TestOptimizedNVPDriver):
     def test_delete_security_group(self):
         mod_path = "quark.drivers.nvp_driver.NVPDriver"
         with contextlib.nested(
-                mock.patch("%s.get_connection" % self.d_pkg),
+                mock.patch("%s._connection" % self.d_pkg),
                 mock.patch("%s._query_security_group" % self.d_pkg),
                 mock.patch("%s.delete_security_group" % mod_path)):
 
@@ -452,10 +452,10 @@ class TestSecurityGroupRules(TestOptimizedNVPDriver):
     def _stubs(self, rules=None):
         rules = rules or []
         with contextlib.nested(
-                mock.patch("%s.get_connection" % self.d_pkg),
+                mock.patch("%s._connection" % self.d_pkg),
                 mock.patch("%s._query_security_group" % self.d_pkg),
                 mock.patch("%s._check_rule_count_per_port" % self.d_pkg),
-        ) as (get_connection, query_sec_group, rule_count):
+        ) as (conn, query_sec_group, rule_count):
             query_sec_group.return_value = (quark.drivers.optimized_nvp_driver.
                                             SecurityProfile())
             connection = self._create_connection()
@@ -464,7 +464,7 @@ class TestSecurityGroupRules(TestOptimizedNVPDriver):
             connection.securityrule = self._create_security_rule()
             connection.lswitch_port().query.return_value = (
                 self._create_lport_query(1, [self.profile_id]))
-            get_connection.return_value = connection
+            conn.return_value = connection
 
             old_query = self.context.session.query
             sec_group = quark.db.models.SecurityGroup()
