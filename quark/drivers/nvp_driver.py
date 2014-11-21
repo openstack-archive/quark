@@ -17,6 +17,8 @@
 NVP client driver for Quark
 """
 
+import contextlib
+
 import aiclib
 from neutron.extensions import securitygroup as sg_ext
 from neutron.openstack.common import log as logging
@@ -89,6 +91,7 @@ class NVPDriver(base.BaseDriver):
         # NOTE(mdietz): What does default_tz actually mean?
         #               We don't have one default.
         # NOTE(jkoelker): Transport Zone
+        # NOTE(mdietz): :-/ tz isn't the issue. default is
         default_tz = CONF.NVP.default_tz
         LOG.info("Loading NVP settings " + str(default_tz))
         connections = CONF.NVP.controller_connection
@@ -99,6 +102,7 @@ class NVPDriver(base.BaseDriver):
             'max_rules_per_group': CONF.NVP.max_rules_per_group,
             'max_rules_per_port': CONF.NVP.max_rules_per_port})
         LOG.info("Loading NVP settings " + str(connections))
+
         for conn in connections:
             (ip, port, user, pw, req_timeout,
              http_timeout, retries, redirects) = conn.split(":")
@@ -114,7 +118,11 @@ class NVPDriver(base.BaseDriver):
                                         default_tz=default_tz,
                                         backoff=backoff))
 
-    def get_connection(self):
+    def _connection(self):
+        if len(self.nvp_connections) == 0:
+            raise exceptions.NoBackendConnectionsDefined(
+                msg="No NVP connections defined cannot continue")
+
         conn = self.nvp_connections[self.conn_index]
         if "connection" not in conn:
             scheme = conn["port"] == "443" and "https" or "http"
@@ -131,6 +139,22 @@ class NVPDriver(base.BaseDriver):
                                                        retries=retries,
                                                        backoff=backoff)
         return conn["connection"]
+
+    def _next_connection(self):
+        # TODO(anyone): Do we want to drop and create new connections at some
+        #               point? What about recycling them after a certain
+        #               number of usages or time, proactively?
+        conn_len = len(self.nvp_connections)
+        if conn_len:
+            self.conn_index = (self.conn_index + 1) % conn_len
+
+    @contextlib.contextmanager
+    def get_connection(self):
+        try:
+            yield self._connection()
+        except Exception:
+            self._next_connection()
+            raise
 
     def create_network(self, context, network_name, tags=None,
                        network_id=None, **kwargs):
@@ -187,67 +211,67 @@ class NVPDriver(base.BaseDriver):
         security_groups = security_groups or []
         tenant_id = context.tenant_id
         lswitch = self._create_or_choose_lswitch(context, network_id)
-        connection = self.get_connection()
-        port = connection.lswitch_port(lswitch)
-        port.admin_status_enabled(status)
-        nvp_group_ids = self._get_security_groups_for_port(context,
-                                                           security_groups)
-        port.security_profiles(nvp_group_ids)
-        tags = [dict(tag=network_id, scope="neutron_net_id"),
-                dict(tag=port_id, scope="neutron_port_id"),
-                dict(tag=tenant_id, scope="os_tid"),
-                dict(tag=device_id, scope="vm_id")]
-        LOG.debug("Creating port on switch %s" % lswitch)
-        port.tags(tags)
-        res = port.create()
-        try:
-            """Catching odd NVP returns here will make it safe to assume that
-            NVP returned something correct."""
-            res["lswitch"] = lswitch
-        except TypeError:
-            LOG.exception("Unexpected return from NVP: %s" % res)
-            raise
-        port = connection.lswitch_port(lswitch)
-        port.uuid = res["uuid"]
-        port.attachment_vif(port_id)
-        return res
+        with self.get_connection() as connection:
+            port = connection.lswitch_port(lswitch)
+            port.admin_status_enabled(status)
+            nvp_group_ids = self._get_security_groups_for_port(context,
+                                                               security_groups)
+            port.security_profiles(nvp_group_ids)
+            tags = [dict(tag=network_id, scope="neutron_net_id"),
+                    dict(tag=port_id, scope="neutron_port_id"),
+                    dict(tag=tenant_id, scope="os_tid"),
+                    dict(tag=device_id, scope="vm_id")]
+            LOG.debug("Creating port on switch %s" % lswitch)
+            port.tags(tags)
+            res = port.create()
+            try:
+                """Catching odd NVP returns here will make it safe to assume that
+                NVP returned something correct."""
+                res["lswitch"] = lswitch
+            except TypeError:
+                LOG.exception("Unexpected return from NVP: %s" % res)
+                raise
+            port = connection.lswitch_port(lswitch)
+            port.uuid = res["uuid"]
+            port.attachment_vif(port_id)
+            return res
 
     def update_port(self, context, port_id, status=True,
                     security_groups=None, **kwargs):
         security_groups = security_groups or []
-        connection = self.get_connection()
-        lswitch_id = self._lswitch_from_port(context, port_id)
-        port = connection.lswitch_port(lswitch_id, port_id)
-        nvp_group_ids = self._get_security_groups_for_port(context,
-                                                           security_groups)
-        if nvp_group_ids:
-            port.security_profiles(nvp_group_ids)
-        port.admin_status_enabled(status)
-        return port.update()
+        with self.get_connection() as connection:
+            lswitch_id = self._lswitch_from_port(context, port_id)
+            port = connection.lswitch_port(lswitch_id, port_id)
+            nvp_group_ids = self._get_security_groups_for_port(context,
+                                                               security_groups)
+            if nvp_group_ids:
+                port.security_profiles(nvp_group_ids)
+            port.admin_status_enabled(status)
+            return port.update()
 
     def delete_port(self, context, port_id, **kwargs):
-        connection = self.get_connection()
-        lswitch_uuid = kwargs.get('lswitch_uuid', None)
-        try:
-            if not lswitch_uuid:
-                lswitch_uuid = self._lswitch_from_port(context, port_id)
-            LOG.debug("Deleting port %s from lswitch %s"
-                      % (port_id, lswitch_uuid))
-            connection.lswitch_port(lswitch_uuid, port_id).delete()
-        except aiclib.core.AICException as ae:
-            if ae.code == 404:
-                LOG.info("LSwitchPort/Port %s not found in NVP."
-                         " Ignoring explicitly. Code: %s, Message: %s"
-                         % (port_id, ae.code, ae.message))
-            else:
-                LOG.info("AICException deleting LSwitchPort/Port %s in NVP."
-                         " Ignoring explicitly. Code: %s, Message: %s"
-                         % (port_id, ae.code, ae.message))
+        with self.get_connection() as connection:
+            lswitch_uuid = kwargs.get('lswitch_uuid', None)
+            try:
+                if not lswitch_uuid:
+                    lswitch_uuid = self._lswitch_from_port(context, port_id)
+                LOG.debug("Deleting port %s from lswitch %s"
+                          % (port_id, lswitch_uuid))
+                connection.lswitch_port(lswitch_uuid, port_id).delete()
+            except aiclib.core.AICException as ae:
+                if ae.code == 404:
+                    LOG.info("LSwitchPort/Port %s not found in NVP."
+                             " Ignoring explicitly. Code: %s, Message: %s"
+                             % (port_id, ae.code, ae.message))
+                else:
+                    LOG.info("AICException deleting LSwitchPort/Port %s in "
+                             "NVP. Ignoring explicitly. Code: %s, Message: %s"
+                             % (port_id, ae.code, ae.message))
 
-        except Exception as e:
-            LOG.info("Failed to delete LSwitchPort/Port %s in NVP."
-                     " Ignoring explicitly. Message: %s"
-                     % (port_id, e.args[0]))
+            except Exception as e:
+                LOG.info("Failed to delete LSwitchPort/Port %s in NVP."
+                         " Ignoring explicitly. Message: %s"
+                         % (port_id, e.args[0]))
 
     def _collect_lport_info(self, lport, get_status):
         info = {
@@ -291,23 +315,23 @@ class NVPDriver(base.BaseDriver):
         return info
 
     def diag_port(self, context, port_id, get_status=False, **kwargs):
-        connection = self.get_connection()
-        lswitch_uuid = self._lswitch_from_port(context, port_id)
-        lswitch_port = connection.lswitch_port(lswitch_uuid, port_id)
+        with self.get_connection() as connection:
+            lswitch_uuid = self._lswitch_from_port(context, port_id)
+            lswitch_port = connection.lswitch_port(lswitch_uuid, port_id)
 
-        query = lswitch_port.query()
-        query.relations("LogicalPortAttachment")
-        results = query.results()
-        if results['result_count'] == 0:
-            return {'lport': "Logical port not found."}
+            query = lswitch_port.query()
+            query.relations("LogicalPortAttachment")
+            results = query.results()
+            if results['result_count'] == 0:
+                return {'lport': "Logical port not found."}
 
-        config = results['results'][0]
-        relations = config.pop('_relations')
-        config['attachment'] = relations['LogicalPortAttachment']['type']
-        if get_status:
-            config['status'] = lswitch_port.status()
-            config['statistics'] = lswitch_port.statistics()
-        return {'lport': self._collect_lport_info(config, get_status)}
+            config = results['results'][0]
+            relations = config.pop('_relations')
+            config['attachment'] = relations['LogicalPortAttachment']['type']
+            if get_status:
+                config['status'] = lswitch_port.status()
+                config['statistics'] = lswitch_port.statistics()
+            return {'lport': self._collect_lport_info(config, get_status)}
 
     def _get_network_details(self, context, network_id, switches):
         name, phys_net, phys_type, segment_id = None, None, None, None
@@ -326,55 +350,55 @@ class NVPDriver(base.BaseDriver):
 
     def create_security_group(self, context, group_name, **group):
         tenant_id = context.tenant_id
-        connection = self.get_connection()
-        group_id = group.get('group_id')
-        profile = connection.securityprofile()
-        if group_name:
-            profile.display_name(group_name)
-        ingress_rules = group.get('port_ingress_rules', [])
-        egress_rules = group.get('port_egress_rules', [])
+        with self.get_connection() as connection:
+            group_id = group.get('group_id')
+            profile = connection.securityprofile()
+            if group_name:
+                profile.display_name(group_name)
+            ingress_rules = group.get('port_ingress_rules', [])
+            egress_rules = group.get('port_egress_rules', [])
 
-        if (len(ingress_rules) + len(egress_rules) >
-                self.limits['max_rules_per_group']):
-            raise exceptions.DriverLimitReached(limit="rules per group")
+            if (len(ingress_rules) + len(egress_rules) >
+                    self.limits['max_rules_per_group']):
+                raise exceptions.DriverLimitReached(limit="rules per group")
 
-        if egress_rules:
-            profile.port_egress_rules(egress_rules)
-        if ingress_rules:
-            profile.port_ingress_rules(ingress_rules)
-        tags = [dict(tag=group_id, scope="neutron_group_id"),
-                dict(tag=tenant_id, scope="os_tid")]
-        LOG.debug("Creating security profile %s" % group_name)
-        profile.tags(tags)
-        return profile.create()
+            if egress_rules:
+                profile.port_egress_rules(egress_rules)
+            if ingress_rules:
+                profile.port_ingress_rules(ingress_rules)
+            tags = [dict(tag=group_id, scope="neutron_group_id"),
+                    dict(tag=tenant_id, scope="os_tid")]
+            LOG.debug("Creating security profile %s" % group_name)
+            profile.tags(tags)
+            return profile.create()
 
     def delete_security_group(self, context, group_id, **kwargs):
         guuid = self._get_security_group_id(context, group_id)
-        connection = self.get_connection()
-        LOG.debug("Deleting security profile %s" % group_id)
-        connection.securityprofile(guuid).delete()
+        with self.get_connection() as connection:
+            LOG.debug("Deleting security profile %s" % group_id)
+            connection.securityprofile(guuid).delete()
 
     def update_security_group(self, context, group_id, **group):
         query = self._get_security_group(context, group_id)
-        connection = self.get_connection()
-        profile = connection.securityprofile(query.get('uuid'))
+        with self.get_connection() as connection:
+            profile = connection.securityprofile(query.get('uuid'))
 
-        ingress_rules = group.get('port_ingress_rules',
-                                  query.get('logical_port_ingress_rules'))
-        egress_rules = group.get('port_egress_rules',
-                                 query.get('logical_port_egress_rules'))
+            ingress_rules = group.get('port_ingress_rules',
+                                      query.get('logical_port_ingress_rules'))
+            egress_rules = group.get('port_egress_rules',
+                                     query.get('logical_port_egress_rules'))
 
-        if (len(ingress_rules) + len(egress_rules) >
-                self.limits['max_rules_per_group']):
-            raise exceptions.DriverLimitReached(limit="rules per group")
+            if (len(ingress_rules) + len(egress_rules) >
+                    self.limits['max_rules_per_group']):
+                raise exceptions.DriverLimitReached(limit="rules per group")
 
-        if group.get('name', None):
-            profile.display_name(group['name'])
-        if group.get('port_ingress_rules', None) is not None:
-            profile.port_ingress_rules(ingress_rules)
-        if group.get('port_egress_rules', None) is not None:
-            profile.port_egress_rules(egress_rules)
-        return profile.update()
+            if group.get('name', None):
+                profile.display_name(group['name'])
+            if group.get('port_ingress_rules', None) is not None:
+                profile.port_ingress_rules(ingress_rules)
+            if group.get('port_egress_rules', None) is not None:
+                profile.port_egress_rules(egress_rules)
+            return profile.update()
 
     def _update_security_group_rules(self, context, group_id, rule, operation,
                                      checks):
@@ -447,9 +471,9 @@ class NVPDriver(base.BaseDriver):
         return None
 
     def _lswitch_delete(self, context, lswitch_uuid):
-        connection = self.get_connection()
-        LOG.debug("Deleting lswitch %s" % lswitch_uuid)
-        connection.lswitch(lswitch_uuid).delete()
+        with self.get_connection() as connection:
+            LOG.debug("Deleting lswitch %s" % lswitch_uuid)
+            connection.lswitch(lswitch_uuid).delete()
 
     def _config_provider_attrs(self, connection, switch, phys_net,
                                net_type, segment_id):
@@ -491,64 +515,65 @@ class NVPDriver(base.BaseDriver):
                   (context.tenant_id, network_name))
 
         tenant_id = context.tenant_id
-        connection = self.get_connection()
+        with self.get_connection() as connection:
+            switch = connection.lswitch()
+            if network_name is None:
+                network_name = network_id
+            switch.display_name(network_name[:40])
+            tags = tags or []
+            tags.append({"tag": tenant_id, "scope": "os_tid"})
+            if network_id:
+                tags.append({"tag": network_id, "scope": "neutron_net_id"})
+            switch.tags(tags)
+            pnet = phys_net or CONF.NVP.default_tz
+            ptype = phys_type or CONF.NVP.default_tz_type
+            switch.transport_zone(pnet, ptype)
+            LOG.debug("Creating lswitch for network %s" % network_id)
 
-        switch = connection.lswitch()
-        if network_name is None:
-            network_name = network_id
-        switch.display_name(network_name[:40])
-        tags = tags or []
-        tags.append({"tag": tenant_id, "scope": "os_tid"})
-        if network_id:
-            tags.append({"tag": network_id, "scope": "neutron_net_id"})
-        switch.tags(tags)
-        pnet = phys_net or CONF.NVP.default_tz
-        ptype = phys_type or CONF.NVP.default_tz_type
-        switch.transport_zone(pnet, ptype)
-        LOG.debug("Creating lswitch for network %s" % network_id)
-
-        # When connecting to public or snet, we need switches that are
-        # connected to their respective public/private transport zones
-        # using a "bridge" connector. Public uses no VLAN, whereas private
-        # uses VLAN 122 in netdev. Probably need this to be configurable
-        self._config_provider_attrs(connection, switch, phys_net, phys_type,
-                                    segment_id)
-        res = switch.create()
-        try:
-            uuid = res["uuid"]
-            return uuid
-        except TypeError:
-            LOG.exception("Unexpected return from NVP: %s" % res)
-            raise
+            # When connecting to public or snet, we need switches that are
+            # connected to their respective public/private transport zones
+            # using a "bridge" connector. Public uses no VLAN, whereas private
+            # uses VLAN 122 in netdev. Probably need this to be configurable
+            self._config_provider_attrs(connection, switch, phys_net,
+                                        phys_type, segment_id)
+            res = switch.create()
+            try:
+                uuid = res["uuid"]
+                return uuid
+            except TypeError:
+                LOG.exception("Unexpected return from NVP: %s" % res)
+                raise
 
     def _lswitches_for_network(self, context, network_id):
-        connection = self.get_connection()
-        query = connection.lswitch().query()
-        query.tagscopes(['os_tid', 'neutron_net_id'])
-        query.tags([context.tenant_id, network_id])
-        return query
+        with self.get_connection() as connection:
+            query = connection.lswitch().query()
+            query.tagscopes(['os_tid', 'neutron_net_id'])
+            query.tags([context.tenant_id, network_id])
+            return query
 
     def _lswitch_from_port(self, context, port_id):
-        connection = self.get_connection()
-        query = connection.lswitch_port("*").query()
-        query.relations("LogicalSwitchConfig")
-        query.uuid(port_id)
-        port = query.results()
-        if port['result_count'] > 1:
-            raise Exception("Could not identify lswitch for port %s" % port_id)
-        if port['result_count'] < 1:
-            raise Exception("No lswitch found for port %s" % port_id)
-        return port['results'][0]["_relations"]["LogicalSwitchConfig"]["uuid"]
+        with self.get_connection() as connection:
+            query = connection.lswitch_port("*").query()
+            query.relations("LogicalSwitchConfig")
+            query.uuid(port_id)
+            port = query.results()
+            if port['result_count'] > 1:
+                raise Exception("Could not identify lswitch for port %s" %
+                                port_id)
+            if port['result_count'] < 1:
+                raise Exception("No lswitch found for port %s" % port_id)
+            cfg = port['results'][0]["_relations"]["LogicalSwitchConfig"]
+            return cfg["uuid"]
 
     def _get_security_group(self, context, group_id):
-        connection = self.get_connection()
-        query = connection.securityprofile().query()
-        query.tagscopes(['os_tid', 'neutron_group_id'])
-        query.tags([context.tenant_id, group_id])
-        query = query.results()
-        if query['result_count'] != 1:
-            raise sg_ext.SecurityGroupNotFound(id=group_id)
-        return query['results'][0]
+        with self.get_connection() as connection:
+            query = connection.securityprofile().query()
+            query.tagscopes(['os_tid', 'neutron_group_id'])
+            query.tags([context.tenant_id, group_id])
+            query = query.results()
+            if query['result_count'] != 1:
+                raise sg_ext.SecurityGroupNotFound(id=group_id)
+            return query['results'][0]
 
     def _get_security_group_id(self, context, group_id):
         return self._get_security_group(context, group_id)['uuid']
@@ -567,24 +592,25 @@ class NVPDriver(base.BaseDriver):
             if rule.get(key):
                 rule_clone[key] = rule[key]
 
-        connection = self.get_connection()
-        secrule = connection.securityrule(ethertype, **rule_clone)
+        with self.get_connection() as connection:
+            secrule = connection.securityrule(ethertype, **rule_clone)
 
-        direction = rule.get('direction', '')
-        if direction not in ['ingress', 'egress']:
-            raise AttributeError(
-                "Direction not specified as 'ingress' or 'egress'.")
-        return (direction, secrule)
+            direction = rule.get('direction', '')
+            if direction not in ['ingress', 'egress']:
+                raise AttributeError(
+                    "Direction not specified as 'ingress' or 'egress'.")
+            return (direction, secrule)
 
     def _check_rule_count_per_port(self, context, group_id):
-        connection = self.get_connection()
-        ports = connection.lswitch_port("*").query().security_profile_uuid(
-            '=', self._get_security_group_id(
-                context, group_id)).results().get('results', [])
-        groups = (port.get('security_profiles', []) for port in ports)
-        return max([self._check_rule_count_for_groups(
-            context, (connection.securityprofile(gp).read() for gp in group))
-            for group in groups] or [0])
+        with self.get_connection() as connection:
+            ports = connection.lswitch_port("*").query().security_profile_uuid(
+                '=', self._get_security_group_id(
+                    context, group_id)).results().get('results', [])
+            groups = (port.get('security_profiles', []) for port in ports)
+            return max([self._check_rule_count_for_groups(
+                context, (connection.securityprofile(gp).read()
+                          for gp in group))
+                        for group in groups] or [0])
 
     def _check_rule_count_for_groups(self, context, groups):
         return sum(len(group['logical_port_ingress_rules']) +
