@@ -1015,13 +1015,28 @@ class TestNVPDriverLoadConfig(TestNVPDriver):
         self.assertEqual(len(self.driver.nvp_connections), 0)
 
 
+class TestNVPDriverLoadConfigRandomController(TestNVPDriver):
+    @mock.patch("random.randint")
+    def test_load_config(self, randint):
+        controllers = "192.168.221.139:443:admin:admin:30:10:2:2"
+        cfg.CONF.set_override("controller_connection", [controllers], "NVP")
+        cfg.CONF.set_override("random_initial_controller", True,
+                              "NVP")
+        randint.return_value = 0
+        self.driver.load_config()
+        randint.assert_called()
+        cfg.CONF.clear_override("controller_connection", "NVP")
+        cfg.CONF.clear_override("random_initial_controller", "NVP")
+
+
 class TestNVPGetConnection(TestNVPDriver):
     @contextlib.contextmanager
     def _stubs(self, has_conn):
         controllers = "192.168.221.139:443:admin:admin:30:10:2:2"
         cfg.CONF.set_override("controller_connection", [controllers], "NVP")
         if has_conn:
-            self.driver.nvp_connections.append(dict(connection="foo"))
+            self.driver.nvp_connections.append(dict(connection="foo",
+                                                    usages=0))
         else:
             self.driver.nvp_connections.append(dict(port="443",
                                                     ip_address="192.168.0.1",
@@ -1029,7 +1044,8 @@ class TestNVPGetConnection(TestNVPDriver):
                                                     password="admin",
                                                     http_timeout=10,
                                                     retries=1,
-                                                    backoff=0))
+                                                    backoff=0,
+                                                    usages=0))
         with contextlib.nested(
             mock.patch("aiclib.nvp.Connection"),
             mock.patch("%s._next_connection" % self.d_pkg)
@@ -1061,9 +1077,65 @@ class TestNVPGetConnection(TestNVPDriver):
             self.assertFalse(aiclib_conn.called)
             self.assertTrue(next_conn.called)
 
+    def test_get_connection_with_threshold(self):
+        cfg.CONF.set_override("connection_switching_threshold", 1, "NVP")
+        with self._stubs(has_conn=True) as (aiclib_conn, next_conn):
+            with self.driver.get_connection():
+                pass
+
+            self.assertFalse(aiclib_conn.called)
+            self.assertTrue(next_conn.called)
+        cfg.CONF.clear_override("connection_switching_threshold", "NVP")
+
+    def test_get_connection_with_threshold_next_conn_not_called(self):
+        cfg.CONF.set_override("connection_switching_threshold", 2, "NVP")
+        with self._stubs(has_conn=True) as (aiclib_conn, next_conn):
+            with self.driver.get_connection():
+                pass
+
+            self.assertFalse(aiclib_conn.called)
+            self.assertFalse(next_conn.called)
+        cfg.CONF.clear_override("connection_switching_threshold", "NVP")
+
 
 class TestNVPGetConnectionNoneDefined(TestNVPDriver):
     def test_get_connection(self):
         with self.assertRaises(q_exc.NoBackendConnectionsDefined):
             with self.driver.get_connection():
                 pass
+
+
+class TestNVPNextConnection(TestNVPDriver):
+    @contextlib.contextmanager
+    def _stubs(self, rand=False):
+        controllers = "192.168.221.139:443:admin:admin:30:10:2:2"
+        cfg.CONF.set_override("controller_connection", [controllers], "NVP")
+        if rand:
+            cfg.CONF.set_override("connection_switching_random", True, "NVP")
+        conn1 = dict(port="443", ip_address="192.168.0.1", username="admin",
+                     password="admin", http_timeout=10, retries=1, backoff=0,
+                     usages=0)
+        conn2 = conn1.copy()
+        conn2["ip_address"] = "192.168.0.2"
+
+        self.driver.nvp_connections.extend([conn1, conn2])
+        with contextlib.nested(
+            mock.patch("random.randint")
+        ) as (randint,):
+            randint.return_value = 1
+            yield randint
+        cfg.CONF.clear_override("controller_connection", "NVP")
+        if rand:
+            cfg.CONF.clear_override("connection_switching_random", "NVP")
+
+    def test_get_connection(self):
+        with self._stubs() as randint:
+            self.driver._next_connection()
+            self.assertEqual(1, self.driver.conn_index)
+            self.assertFalse(randint.called)
+
+    def test_get_connection_random(self):
+        with self._stubs(rand=True) as randint:
+            self.driver._next_connection()
+            self.assertEqual(1, self.driver.conn_index)
+            self.assertTrue(randint.called)

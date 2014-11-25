@@ -18,6 +18,7 @@ NVP client driver for Quark
 """
 
 import contextlib
+import random
 
 import aiclib
 from neutron.extensions import securitygroup as sg_ext
@@ -26,6 +27,7 @@ from oslo.config import cfg
 
 from quark.drivers import base
 from quark import exceptions
+from quark import utils
 
 LOG = logging.getLogger(__name__)
 
@@ -52,6 +54,23 @@ nvp_opts = [
     cfg.IntOpt('backoff',
                default=0,
                help=_('Base seconds for exponential backoff')),
+    cfg.BoolOpt("random_initial_controller",
+                default=False,
+                help=_("Whether or not to use a random controller or the "
+                       "first controller when neutron starts up")),
+    cfg.IntOpt("connection_switching_threshold",
+               default=0,
+               help=_("Number of times to use a connection before forcing "
+                      "the next connection in the list to be used. A value "
+                      "of 0 means only switch on Exceptions.")),
+    cfg.BoolOpt("connection_switching_random",
+                default=False,
+                help=_("Determines whether connections are switched randomly "
+                       "or using the default round-robin.")),
+    cfg.IntOpt("operation_retries",
+               default=3,
+               help=_("Number of times to attempt to perform operations in "
+                      "NVP.")),
 ]
 
 physical_net_type_map = {
@@ -116,7 +135,23 @@ class NVPDriver(base.BaseDriver):
                                         retries=int(retries),
                                         redirects=redirects,
                                         default_tz=default_tz,
-                                        backoff=backoff))
+                                        backoff=backoff,
+                                        usages=0))
+
+        if connections:
+            if CONF.NVP.random_initial_controller:
+                self.conn_index = self._new_random_index(-1, len(connections))
+
+            LOG.info("NVP Driver config loaded. Starting with controller %s" %
+                     self.nvp_connections[self.conn_index]["ip_address"])
+        else:
+            LOG.critical("No NVP connection configurations found!")
+
+    def _new_random_index(self, current, index_range):
+        new_index = current
+        while new_index == current:
+            new_index = random.randint(0, index_range - 1)
+        return new_index
 
     def _connection(self):
         if len(self.nvp_connections) == 0:
@@ -124,6 +159,15 @@ class NVPDriver(base.BaseDriver):
                 msg="No NVP connections defined cannot continue")
 
         conn = self.nvp_connections[self.conn_index]
+
+        if CONF.NVP.connection_switching_threshold > 0:
+            # NOTE(mdietz): This is racy. See get_connection below.
+            conn["usages"] += 1
+            if conn["usages"] >= CONF.NVP.connection_switching_threshold:
+                conn["usages"] = 0
+                self._next_connection()
+                conn = self.nvp_connections[self.conn_index]
+
         if "connection" not in conn:
             scheme = conn["port"] == "443" and "https" or "http"
             uri = "%s://%s:%s" % (scheme, conn["ip_address"], conn["port"])
@@ -144,15 +188,34 @@ class NVPDriver(base.BaseDriver):
         # TODO(anyone): Do we want to drop and create new connections at some
         #               point? What about recycling them after a certain
         #               number of usages or time, proactively?
+        LOG.info("Switching NVP connections...")
         conn_len = len(self.nvp_connections)
-        if conn_len:
-            self.conn_index = (self.conn_index + 1) % conn_len
+        if conn_len and conn_len > 1:
+            if CONF.NVP.connection_switching_random:
+                self.conn_index = self._new_random_index(self.conn_index,
+                                                         conn_len)
+                LOG.info("New connection chosen at random is %s" %
+                         self.nvp_connections[self.conn_index]["ip_address"])
+            else:
+                self.conn_index = (self.conn_index + 1) % conn_len
+                LOG.info("New connection chosen round-robin is %s" %
+                         self.nvp_connections[self.conn_index]["ip_address"])
+        else:
+            LOG.info("No other connections to choose from")
 
     @contextlib.contextmanager
     def get_connection(self):
         try:
             yield self._connection()
         except Exception:
+            # This is racy. A pile-up of failures could occur on one
+            # controller, causing them to rapidly switch and fail back
+            # to the original failing controller. However, we can't be in
+            # the business of implementing a load balancer inside the code.
+            # TODO(anyone): Investigate whether NVP is now giving us sequence
+            #               IDs. If so, rapid round-robining becomes plausible,
+            #               though we don't have an easy path to dropping bad
+            #               controllers.
             self._next_connection()
             raise
 
@@ -211,31 +274,36 @@ class NVPDriver(base.BaseDriver):
         security_groups = security_groups or []
         tenant_id = context.tenant_id
         lswitch = self._create_or_choose_lswitch(context, network_id)
-        with self.get_connection() as connection:
-            port = connection.lswitch_port(lswitch)
-            port.admin_status_enabled(status)
-            nvp_group_ids = self._get_security_groups_for_port(context,
-                                                               security_groups)
-            port.security_profiles(nvp_group_ids)
-            tags = [dict(tag=network_id, scope="neutron_net_id"),
-                    dict(tag=port_id, scope="neutron_port_id"),
-                    dict(tag=tenant_id, scope="os_tid"),
-                    dict(tag=device_id, scope="vm_id")]
-            LOG.debug("Creating port on switch %s" % lswitch)
-            port.tags(tags)
-            res = port.create()
-            try:
-                """Catching odd NVP returns here will make it safe to assume that
-                NVP returned something correct."""
-                res["lswitch"] = lswitch
-            except TypeError:
-                LOG.exception("Unexpected return from NVP: %s" % res)
-                raise
-            port = connection.lswitch_port(lswitch)
-            port.uuid = res["uuid"]
-            port.attachment_vif(port_id)
-            return res
 
+        @utils.retry_loop(CONF.NVP.operation_retries)
+        def _create_lswitch_port():
+            with self.get_connection() as connection:
+                port = connection.lswitch_port(lswitch)
+                port.admin_status_enabled(status)
+                nvp_group_ids = self._get_security_groups_for_port(
+                    context, security_groups)
+                port.security_profiles(nvp_group_ids)
+                tags = [dict(tag=network_id, scope="neutron_net_id"),
+                        dict(tag=port_id, scope="neutron_port_id"),
+                        dict(tag=tenant_id, scope="os_tid"),
+                        dict(tag=device_id, scope="vm_id")]
+                LOG.debug("Creating port on switch %s" % lswitch)
+                port.tags(tags)
+                res = port.create()
+                try:
+                    """Catching odd NVP returns here will make it safe to assume that
+                    NVP returned something correct."""
+                    res["lswitch"] = lswitch
+                except TypeError:
+                    LOG.exception("Unexpected return from NVP: %s" % res)
+                    raise
+                port = connection.lswitch_port(lswitch)
+                port.uuid = res["uuid"]
+                port.attachment_vif(port_id)
+                return res
+        return _create_lswitch_port()
+
+    @utils.retry_loop(CONF.NVP.operation_retries)
     def update_port(self, context, port_id, status=True,
                     security_groups=None, **kwargs):
         security_groups = security_groups or []
@@ -249,6 +317,7 @@ class NVPDriver(base.BaseDriver):
             port.admin_status_enabled(status)
             return port.update()
 
+    @utils.retry_loop(CONF.NVP.operation_retries)
     def delete_port(self, context, port_id, **kwargs):
         with self.get_connection() as connection:
             lswitch_uuid = kwargs.get('lswitch_uuid', None)
@@ -470,6 +539,7 @@ class NVPDriver(base.BaseDriver):
                     return res["uuid"]
         return None
 
+    @utils.retry_loop(CONF.NVP.operation_retries)
     def _lswitch_delete(self, context, lswitch_uuid):
         with self.get_connection() as connection:
             LOG.debug("Deleting lswitch %s" % lswitch_uuid)
@@ -503,6 +573,7 @@ class NVPDriver(base.BaseDriver):
                               transport_type=phys_type,
                               vlan_id=segment_id)
 
+    @utils.retry_loop(CONF.NVP.operation_retries)
     def _lswitch_create(self, context, network_name=None, tags=None,
                         network_id=None, phys_net=None,
                         phys_type=None, segment_id=None,
