@@ -14,8 +14,10 @@
 #    under the License.
 
 import random
+import sys
 import time
 
+from neutron.common import config
 from neutron.openstack.common import log as logging
 from oslo.config import cfg
 
@@ -88,3 +90,12 @@ def run():
         instances = new_instances
         interfaces = new_interfaces
         _sleep()
+
+
+def main():
+    config.init(sys.argv[1:])
+    if not CONF.config_file:
+        sys.exit(_("ERROR: Unable to find configuration file via the default"
+                   " search paths (~/.neutron/, ~/, /etc/neutron/, /etc/) and"
+                   " the '--config-file' option!"))
+    run()
