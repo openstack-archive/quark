@@ -16,8 +16,8 @@ from quark.plugin_modules import ip_policies
 
 from alembic import op
 from sqlalchemy.sql import column, select, table
-from neutron.openstack.common import timeutils
 from neutron.openstack.common import uuidutils
+from oslo.utils import timeutils
 import sqlalchemy as sa
 
 LOG = logging.getLogger("alembic.migration")
