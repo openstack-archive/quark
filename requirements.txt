@@ -14,8 +14,3 @@ docopt==0.6.2
 
 # agent deps
 xenapi==1.2
-
-# NOTE(jkoelker) not technically required, but something has to commit
-#                the transactions. in the future this should be the
-#                neutron wsgi service
--e git://github.com/repoze/repoze.tm2.git@2.0#egg=repoze.tm2
