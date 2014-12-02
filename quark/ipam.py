@@ -27,9 +27,9 @@ from neutron.common import exceptions
 from neutron.common import rpc as n_rpc
 from neutron.openstack.common import lockutils
 from neutron.openstack.common import log as logging
-from neutron.openstack.common import timeutils
 from oslo.config import cfg
 from oslo.db import exception as db_exception
+from oslo.utils import timeutils
 
 from quark.db import api as db_api
 from quark.db import ip_types

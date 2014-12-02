@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from neutron.openstack.common.gettextutils import _
+from neutron.i18n import _
 from oslo.config import cfg
 
 CONF = cfg.CONF

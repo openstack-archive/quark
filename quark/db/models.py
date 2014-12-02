@@ -17,7 +17,7 @@ import netaddr
 import neutron.db.model_base
 from neutron.db import models_v2 as models
 from neutron.openstack.common import log as logging
-from neutron.openstack.common import timeutils
+from oslo.utils import timeutils
 import sqlalchemy as sa
 from sqlalchemy.ext import associationproxy
 from sqlalchemy.ext import declarative

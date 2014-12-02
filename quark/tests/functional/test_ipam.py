@@ -20,8 +20,8 @@ import mock
 import netaddr
 from neutron.common import exceptions
 from neutron.common import rpc
-from neutron.openstack.common import timeutils
 from oslo.config import cfg
+from oslo.utils import timeutils
 
 from quark.db import api as db_api
 import quark.ipam

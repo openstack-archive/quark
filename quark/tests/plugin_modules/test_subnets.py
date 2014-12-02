@@ -1108,7 +1108,7 @@ class TestSubnetsQuotas(test_quark_plugin.TestQuarkPlugin):
             mock.patch("quark.db.api.subnet_create"),
             mock.patch("quark.db.api.subnet_delete"),
             mock.patch("neutron.common.rpc.get_notifier"),
-            mock.patch("neutron.openstack.common.timeutils.utcnow"),
+            mock.patch("oslo.utils.timeutils.utcnow"),
             mock.patch("quark.plugin_modules.subnets._validate_subnet_cidr")
         ) as (get_subnets, sub_find, net_find, sub_create, sub_del, notify,
               time_func, sub_validate):
@@ -1231,7 +1231,7 @@ class TestSubnetsNotification(test_quark_plugin.TestQuarkPlugin):
             mock.patch("quark.db.api.subnet_delete"),
             mock.patch("neutron.common.rpc.get_notifier"),
             mock.patch("neutron.quota.QUOTAS"),
-            mock.patch("neutron.openstack.common.timeutils.utcnow"),
+            mock.patch("oslo.utils.timeutils.utcnow"),
             mock.patch("quark.plugin_modules.subnets._validate_subnet_cidr")
         ) as (get_subnets, sub_find, net_find, sub_create, sub_del, notify,
               quota_engine, time_func, sub_validate):
