@@ -64,8 +64,8 @@ def _validate_subnet_cidr(context, network_id, new_subnet_cidr):
     new_subnet_ipset = netaddr.IPSet([new_subnet_cidr])
 
     # Using admin context here, in case we actually share networks later
-    subnet_list = db_api.subnet_find(context.elevated(),
-                                     network_id=network_id)
+    subnet_list = db_api.subnet_find(context.elevated(), None, None, None,
+                                     False, network_id=network_id)
     for subnet in subnet_list:
         if (netaddr.IPSet([subnet.cidr]) & new_subnet_ipset):
             # don't give out details of the overlapping subnet
@@ -98,7 +98,8 @@ def create_subnet(context, subnet):
     net_id = subnet["subnet"]["network_id"]
 
     with context.session.begin():
-        net = db_api.network_find(context, id=net_id, scope=db_api.ONE)
+        net = db_api.network_find(context, None, None, None, False,
+                                  id=net_id, scope=db_api.ONE)
         if not net:
             raise exceptions.NetworkNotFound(net_id=net_id)
 
@@ -239,7 +240,8 @@ def update_subnet(context, id, subnet):
              (id, context.tenant_id))
 
     with context.session.begin():
-        subnet_db = db_api.subnet_find(context, id=id, scope=db_api.ONE)
+        subnet_db = db_api.subnet_find(context, None, None, None, False, id=id,
+                                       scope=db_api.ONE)
         if not subnet_db:
             raise exceptions.SubnetNotFound(id=id)
 
@@ -332,8 +334,9 @@ def get_subnet(context, id, fields=None):
     """
     LOG.info("get_subnet %s for tenant %s with fields %s" %
              (id, context.tenant_id, fields))
-    subnet = db_api.subnet_find(context, id=id, join_dns=True,
-                                join_routes=True, scope=db_api.ONE)
+    subnet = db_api.subnet_find(context, None, None, None, False, id=id,
+                                join_dns=True, join_routes=True,
+                                scope=db_api.ONE)
     if not subnet:
         raise exceptions.SubnetNotFound(subnet_id=id)
 
@@ -345,7 +348,8 @@ def get_subnet(context, id, fields=None):
     return v._make_subnet_dict(subnet)
 
 
-def get_subnets(context, filters=None, fields=None):
+def get_subnets(context, limit=None, page_reverse=False, sorts=None,
+                marker=None, filters=None, fields=None):
     """Retrieve a list of subnets.
 
     The contents of the list depends on the identity of the user
@@ -366,8 +370,10 @@ def get_subnets(context, filters=None, fields=None):
     """
     LOG.info("get_subnets for tenant %s with filters %s fields %s" %
              (context.tenant_id, filters, fields))
-    subnets = db_api.subnet_find(context, join_dns=True, join_routes=True,
-                                 **filters)
+    subnets = db_api.subnet_find(context, limit=limit,
+                                 page_reverse=page_reverse, sorts=sorts,
+                                 marker=marker,
+                                 join_dns=True, join_routes=True, **filters)
     return v._make_subnets_list(subnets, fields=fields)
 
 

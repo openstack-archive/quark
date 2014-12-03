@@ -17,6 +17,7 @@ import datetime
 import inspect
 
 import netaddr
+from neutron.db.sqlalchemyutils import paginate_query
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import uuidutils
 from oslo.config import cfg
@@ -180,7 +181,8 @@ def scoped(f):
 
 
 @scoped
-def port_find(context, fields=None, **filters):
+def port_find(context, limit=None, sorts=None, marker_obj=None, fields=None,
+              **filters):
     query = context.session.query(models.Port).options(
         orm.joinedload(models.Port.ip_addresses))
     model_filters = _model_query(context, models.Port, filters)
@@ -200,8 +202,8 @@ def port_find(context, fields=None, **filters):
             orm.joinedload("ip_addresses.subnet.dns_nameservers"))
         query = query.options(
             orm.joinedload("ip_addresses.subnet.routes"))
-
-    return query.filter(*model_filters).order_by(asc(models.Port.created_at))
+    return paginate_query(query.filter(*model_filters), models.Port, limit,
+                          sorts, marker_obj)
 
 
 @scoped
@@ -382,7 +384,8 @@ INVERT_DEFAULTS = 'invert_defaults'
 
 
 @scoped
-def network_find(context, fields=None, **filters):
+def network_find(context, limit=None, sorts=None, marker=None,
+                 page_reverse=False, fields=None, **filters):
     ids = []
     defaults = []
     if "id" in filters:
@@ -403,10 +406,12 @@ def network_find(context, fields=None, **filters):
         else:
             defaults.insert(0, INVERT_DEFAULTS)
         filters.pop("shared")
-    return _network_find(context, fields, defaults=defaults, **filters)
+    return _network_find(context, limit, sorts, marker, page_reverse, fields,
+                         defaults=defaults, **filters)
 
 
-def _network_find(context, fields, defaults=None, **filters):
+def _network_find(context, limit, sorts, marker, page_reverse, fields,
+                  defaults=None, **filters):
     query = context.session.query(models.Network)
     model_filters = _model_query(context, models.Network, filters, query)
 
@@ -430,11 +435,7 @@ def _network_find(context, fields, defaults=None, **filters):
     if "join_subnets" in filters:
         query = query.options(orm.joinedload(models.Network.subnets))
 
-    return query
-
-
-def network_find_all(context, fields=None, **filters):
-    return network_find(context, fields, **filters).all()
+    return paginate_query(query, models.Network, limit, sorts, marker)
 
 
 def network_create(context, **network):
@@ -481,7 +482,8 @@ def subnet_find_ordered_by_most_full(context, net_id, **filters):
 
 
 @scoped
-def subnet_find(context, **filters):
+def subnet_find(context, limit=None, page_reverse=False, sorts=None,
+                marker_obj=None, **filters):
     if "shared" in filters and True in filters["shared"]:
         return []
     query = context.session.query(models.Subnet)
@@ -493,7 +495,8 @@ def subnet_find(context, **filters):
     if "join_routes" in filters:
         query = query.options(orm.joinedload(models.Subnet.routes))
 
-    return query.filter(*model_filters)
+    return paginate_query(query.filter(*model_filters), models.Subnet, limit,
+                          sorts, marker_obj)
 
 
 def subnet_count_all(context, **filters):

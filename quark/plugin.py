@@ -103,7 +103,6 @@ def sessioned(func):
     def _wrapped(self, context, *args, **kwargs):
         res = func(self, context, *args, **kwargs)
         context.session.close()
-
         # NOTE(mdietz): Forces neutron to get a fresh session
         #              if it needs it after our call
         context._session = None
@@ -254,8 +253,10 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
         return ports.update_port(context, id, port)
 
     @sessioned
-    def get_ports(self, context, filters=None, fields=None):
-        return ports.get_ports(context, filters, fields)
+    def get_ports(self, context, limit=None, page_reverse=False, sorts=None,
+                  marker=None, filters=None, fields=None):
+        return ports.get_ports(context, limit, sorts, marker, page_reverse,
+                               filters, fields)
 
     @sessioned
     def get_ports_count(self, context, filters=None):
@@ -304,8 +305,10 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
         return subnets.get_subnet(context, id, fields)
 
     @sessioned
-    def get_subnets(self, context, filters=None, fields=None):
-        return subnets.get_subnets(context, filters, fields)
+    def get_subnets(self, context, limit=None, page_reverse=False, sorts=None,
+                    marker=None, filters=None, fields=None):
+        return subnets.get_subnets(context, limit, page_reverse, sorts, marker,
+                                   filters, fields)
 
     @sessioned
     def get_subnets_count(self, context, filters=None):
@@ -333,8 +336,10 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
         return networks.get_network(context, id, fields)
 
     @sessioned
-    def get_networks(self, context, filters=None, fields=None):
-        return networks.get_networks(context, filters, fields)
+    def get_networks(self, context, limit=None, sorts=None, marker=None,
+                     page_reverse=False, filters=None, fields=None):
+        return networks.get_networks(context, limit, sorts, marker,
+                                     page_reverse, filters, fields)
 
     @sessioned
     def get_networks_count(self, context, filters=None):

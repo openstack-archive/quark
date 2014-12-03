@@ -145,15 +145,16 @@ class TestQuarkGetNetworksShared(test_quark_plugin.TestQuarkPlugin):
         net1 = dict(id=1, tenant_id=self.context.tenant_id, name="mynet",
                     status="ACTIVE", subnets=[dict(id=1)])
         with self._stubs(nets=[net0, net1]) as net_find:
-            ret = self.plugin.get_networks(self.context, {"shared": [True]})
+            ret = self.plugin.get_networks(self.context, None, None, None,
+                                           False, {"shared": [True]})
             """ Includes regression for RM8483. """
             for net in ret:
                 if net['shared']:
                     self.assertEqual(0, len(net['subnets']))
                 else:
                     self.assertEqual(1, len(net['subnets']))
-            net_find.assert_called_with(self.context, None,
-                                        join_subnets=True,
+            net_find.assert_called_with(self.context, None, None, None, False,
+                                        None, join_subnets=True,
                                         defaults=["public_network"])
 
     def test_get_networks_shared_false(self):
@@ -163,8 +164,10 @@ class TestQuarkGetNetworksShared(test_quark_plugin.TestQuarkPlugin):
                     status="ACTIVE")
         with self._stubs(nets=[net0, net1]) as net_find:
             invert = db_api.INVERT_DEFAULTS
-            self.plugin.get_networks(self.context, {"shared": [False]})
-            net_find.assert_called_with(self.context, None, join_subnets=True,
+            self.plugin.get_networks(self.context, None, None, None, False,
+                                     {"shared": [False]})
+            net_find.assert_called_with(self.context, None, None, None, False,
+                                        None, join_subnets=True,
                                         defaults=[invert, "public_network"])
 
     def test_get_networks_no_shared(self):
@@ -173,8 +176,9 @@ class TestQuarkGetNetworksShared(test_quark_plugin.TestQuarkPlugin):
         net1 = dict(id=1, tenant_id=self.context.tenant_id, name="mynet",
                     status="ACTIVE")
         with self._stubs(nets=[net0, net1]) as net_find:
-            self.plugin.get_networks(self.context, {})
-            net_find.assert_called_with(self.context, None, join_subnets=True,
+            self.plugin.get_networks(self.context, None, None, None, False)
+            net_find.assert_called_with(self.context, None, None, None,
+                                        False, None, join_subnets=True,
                                         defaults=[])
 
 

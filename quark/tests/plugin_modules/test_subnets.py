@@ -78,7 +78,8 @@ class TestQuarkGetSubnets(test_quark_plugin.TestQuarkPlugin):
                       enable_dhcp=None)
 
         with self._stubs(subnets=[subnet], routes=[route]):
-            res = self.plugin.get_subnets(self.context, {}, {})
+            res = self.plugin.get_subnets(self.context, None, None, None, {},
+                                          {})
             # Compare routes separately
             routes = res[0].pop("host_routes")
             for key in subnet.keys():
@@ -97,7 +98,8 @@ class TestQuarkGetSubnets(test_quark_plugin.TestQuarkPlugin):
                       enable_dhcp=None)
 
         with self._stubs(subnets=[subnet], routes=[route, route2]):
-            res = self.plugin.get_subnets(self.context, {}, {})
+            res = self.plugin.get_subnets(self.context, None, None, None, {},
+                                          {})
 
             # Don't want to test that LOG.info is called but we can
             # know the case is covered by checking the gateway is the one
@@ -158,7 +160,8 @@ class TestQuarkGetSubnetsHideAllocPools(test_quark_plugin.TestQuarkPlugin):
                       enable_dhcp=None)
 
         with self._stubs(subnets=[subnet]):
-            res = self.plugin.get_subnets(self.context, {}, {})
+            res = self.plugin.get_subnets(self.context, None, None, None, {},
+                                          {})
             self.assertEqual(res[0]["allocation_pools"], [])
 
 
