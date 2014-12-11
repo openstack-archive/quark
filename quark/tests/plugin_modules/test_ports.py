@@ -891,7 +891,7 @@ class TestQuarkUpdatePortSecurityGroups(test_quark_plugin.TestQuarkPlugin):
 
     def test_update_port_security_groups_on_tenant_net_raises(self):
         with self._stubs(
-            port=dict(id=1)
+            port=dict(id=1, device_id="device")
         ) as (port_find, port_update, alloc_ip, dealloc_ip, sg_find,
               driver_port_update):
             new_port = dict(port=dict(name="ourport",
@@ -902,7 +902,7 @@ class TestQuarkUpdatePortSecurityGroups(test_quark_plugin.TestQuarkPlugin):
 
     def test_update_port_security_groups(self):
         with self._stubs(
-            port=dict(id=1), parent_net=True
+            port=dict(id=1, device_id="device"), parent_net=True
         ) as (port_find, port_update, alloc_ip, dealloc_ip, sg_find,
               driver_port_update):
             new_port = dict(port=dict(name="ourport",
@@ -928,6 +928,16 @@ class TestQuarkUpdatePortSecurityGroups(test_quark_plugin.TestQuarkPlugin):
                 self.context, port_id=port_dict["backend_key"],
                 mac_address=port_dict["mac_address"],
                 device_id=port_dict["device_id"])
+
+    def test_update_port_security_groups_no_device_id_raises(self):
+        with self._stubs(
+            port=dict(id=1), parent_net=True
+        ) as (port_find, port_update, alloc_ip, dealloc_ip, sg_find,
+              driver_port_update):
+            new_port = dict(port=dict(name="ourport",
+                                      security_groups=[1]))
+            with self.assertRaises(q_exc.SecurityGroupsRequireDevice):
+                self.plugin.update_port(self.context, 1, new_port)
 
 
 class TestQuarkUpdatePortSetsIps(test_quark_plugin.TestQuarkPlugin):

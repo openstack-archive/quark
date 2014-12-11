@@ -47,10 +47,9 @@ class TestRedisSerialization(test_base.TestBase):
         mac_address = netaddr.EUI("AA:BB:CC:DD:EE:FF")
 
         redis_key = client.rule_key(device_id, mac_address.value)
-        expected = "%s.%s" % (device_id, str(mac_address))
+        expected = "%s.%s" % (device_id, "aabbccddeeff")
         self.assertEqual(expected, redis_key)
-        conn_pool.assert_called_with(connection_class=redis.Connection,
-                                     host=host, port=port)
+        conn_pool.assert_called_with(host=host, port=port)
 
     @mock.patch("uuid.uuid4")
     @mock.patch("redis.ConnectionPool")
@@ -196,25 +195,23 @@ class TestRedisSentinelConnection(test_base.TestBase):
         CONF.set_override("redis_sentinel_hosts", '', "QUARK")
         CONF.set_override("redis_sentinel_master", '', "QUARK")
 
+    @mock.patch("redis.sentinel.Sentinel")
     @mock.patch("redis.sentinel.SentinelConnectionPool")
     @mock.patch("redis.sentinel.Sentinel.master_for")
     @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
     def test_sentinel_connection(self, strict_redis, master_for,
-                                 sentinel_pool):
+                                 sentinel_pool, sentinel_mock):
         host = "127.0.0.1"
         port = 6379
         sentinels = ["%s:%s" % (host, port)]
         master_label = "master"
+        sentinel_mock.return_value = sentinels
 
         with self._stubs(True, sentinels, master_label):
             redis_client.Client(use_master=True)
-            master_for.assert_called_with(
-                master_label,
-                db=CONF.QUARK.redis_db,
-                socket_timeout=CONF.QUARK.redis_socket_timeout,
-                connection_pool=redis_client.Client.connection_pool)
-            sentinel_pool.assert_called_with(connection_class=redis.Connection,
-                                             host=host, port=port)
+            sentinel_pool.assert_called_with(master_label, sentinels,
+                                             check_connection=True,
+                                             use_master=True)
 
     @mock.patch("redis.sentinel.SentinelConnectionPool")
     @mock.patch("redis.sentinel.Sentinel.master_for")
@@ -227,50 +224,6 @@ class TestRedisSentinelConnection(test_base.TestBase):
         with self._stubs(True, sentinels, master_label):
             with self.assertRaises(TypeError):
                 redis_client.Client(use_master=True)
-
-
-class TestRedisSSHConnection(test_base.TestBase):
-    def setUp(self):
-        super(TestRedisSSHConnection, self).setUp()
-        # Forces the connection pool to be recreated on every test
-        redis_client.Client.connection_pool = None
-
-    @contextlib.contextmanager
-    def _stubs(self, use_sentinels, sentinels, master_label):
-        CONF.set_override("redis_use_ssl", True, "QUARK")
-        CONF.set_override("redis_ssl_certfile", 'my.cert', "QUARK")
-        CONF.set_override("redis_ssl_ca_certs", 'server.cert', "QUARK")
-        CONF.set_override("redis_ssl_keyfile", 'keyfile', "QUARK")
-        CONF.set_override("redis_ssl_cert_reqs", 'required', "QUARK")
-        yield
-        CONF.set_override("redis_ssl_cert_reqs", 'none', "QUARK")
-        CONF.set_override("redis_ssl_keyfile", '', "QUARK")
-        CONF.set_override("redis_ssl_ca_certs", '', "QUARK")
-        CONF.set_override("redis_ssl_certfile", '', "QUARK")
-        CONF.set_override("redis_use_ssl", False, "QUARK")
-
-    @mock.patch("redis.ConnectionPool")
-    @mock.patch("redis.sentinel.Sentinel.master_for")
-    @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
-    def test_ssl_connection(self, strict_redis, master_for, conn_pool):
-        host = "127.0.0.1"
-        port = 6379
-        sentinels = ["%s:%s" % (host, port)]
-        master_label = "master"
-
-        with self._stubs(True, sentinels, master_label):
-            redis_client.Client(use_master=True)
-            ssl_conn = redis.connection.SSLConnection
-            conn_pool.assert_called_with(ssl_certfile="my.cert",
-                                         ssl_keyfile="keyfile",
-                                         ssl_ca_certs="server.cert",
-                                         ssl_cert_reqs="required",
-                                         connection_class=ssl_conn,
-                                         host=host, port=port)
-            strict_redis.assert_called_with(
-                socket_timeout=CONF.QUARK.redis_socket_timeout,
-                db=CONF.QUARK.redis_db,
-                connection_pool=redis_client.Client.connection_pool)
 
 
 class TestRedisForAgent(test_base.TestBase):
