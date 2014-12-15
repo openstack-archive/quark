@@ -220,13 +220,12 @@ class QuarkRedisTool(object):
                                                            port["mac_address"])
                 if existing_rules:
                     overwrite_count += 1
-
-                db_len = len(rules)
-                existing_len = len(existing_rules["rules"])
-                print ("== Port ID:%s - MAC:%s - Device ID:%s - "
-                       "Redis Rules:%d - DB Rules:%d" %
-                       (port["id"], mac, port["device_id"], existing_len,
-                        db_len))
+                    db_len = len(rules)
+                    existing_len = len(existing_rules["rules"])
+                    print ("== Port ID:%s - MAC:%s - Device ID:%s - "
+                           "Redis Rules:%d - DB Rules:%d" %
+                           (port["id"], mac, port["device_id"], existing_len,
+                            db_len))
 
             if not dryrun:
                 for retry in xrange(self._retries):

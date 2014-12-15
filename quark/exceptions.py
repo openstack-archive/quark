@@ -117,6 +117,11 @@ class TenantNetworkSecurityGroupsNotImplemented(exceptions.InvalidInput):
                 "tenant networks")
 
 
+class SecurityGroupsRequireDevice(exceptions.InvalidInput):
+    message = _("Security Groups may only be applied to ports connected to "
+                "devices")
+
+
 class RedisConnectionFailure(exceptions.NeutronException):
     message = _("No connection to Redis could be made.")
 

@@ -261,6 +261,9 @@ def update_port(context, id, port):
         if not STRATEGY.is_parent_network(port_db["network_id"]):
             raise q_exc.TenantNetworkSecurityGroupsNotImplemented()
 
+    if new_security_groups and not port_db["device_id"]:
+        raise q_exc.SecurityGroupsRequireDevice()
+
     group_ids, security_group_mods = _make_security_group_list(
         context, new_security_groups)
     quota.QUOTAS.limit_check(context, context.tenant_id,

@@ -14,6 +14,7 @@
 #
 
 import json
+import string
 import uuid
 
 import netaddr
@@ -30,6 +31,8 @@ CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 SECURITY_GROUP_VERSION_UUID_KEY = "id"
 SECURITY_GROUP_RULE_KEY = "rules"
+MAC_TRANS_TABLE = string.maketrans(string.ascii_uppercase,
+                                   string.ascii_lowercase)
 
 quark_opts = [
     cfg.StrOpt('redis_security_groups_host',
@@ -51,22 +54,9 @@ quark_opts = [
     cfg.StrOpt("redis_sentinel_master",
                default='',
                help=_("The name label of the master redis sentinel")),
-    cfg.BoolOpt("redis_use_ssl",
-                default=False,
-                help=_("Configures whether or not to use SSL")),
-    cfg.StrOpt("redis_ssl_certfile",
+    cfg.StrOpt("redis_password",
                default='',
-               help=_("Path to the SSL cert")),
-    cfg.StrOpt("redis_ssl_keyfile",
-               default='',
-               help=_("Path to the SSL keyfile")),
-    cfg.StrOpt("redis_ssl_ca_certs",
-               default='',
-               help=_("Path to the SSL CA certs")),
-    cfg.StrOpt("redis_ssl_cert_reqs",
-               default='none',
-               help=_("Certificate requirements. Values are 'none', "
-                      "'optional', and 'required'")),
+               help=_("The password for authenticating with redis.")),
     cfg.StrOpt("redis_db",
                default="0",
                help=("The database number to use")),
@@ -89,77 +79,57 @@ class Client(object):
     connection_pool = None
 
     def __init__(self, use_master=False):
-        self._ensure_connection_pool_exists()
-        self._sentinel_list = None
         self._use_master = use_master
 
         try:
             if CONF.QUARK.redis_use_sentinels:
-                self._client = self._client_from_sentinel(self._use_master)
-            else:
-                self._client = self._client_from_config()
-
+                self._compile_sentinel_list()
+            self._ensure_connection_pool_exists(use_master)
+            self._client = self._client()
         except redis.ConnectionError as e:
             LOG.exception(e)
             raise q_exc.RedisConnectionFailure()
 
-    def _ensure_connection_pool_exists(self):
+    def _ensure_connection_pool_exists(self, use_master):
         if not Client.connection_pool:
             LOG.info("Creating redis connection pool for the first time...")
             host = CONF.QUARK.redis_security_groups_host
             port = CONF.QUARK.redis_security_groups_port
             LOG.info("Using redis host %s:%s" % (host, port))
 
-            connect_class = redis.Connection
-            connect_kw = {"host": host, "port": port}
+            connect_kw = {}
+            if CONF.QUARK.redis_password:
+                connect_kw["password"] = CONF.QUARK.redis_password
 
-            if CONF.QUARK.redis_use_ssl:
-                LOG.info("Communicating with redis over SSL")
-                connect_class = redis.SSLConnection
-                if CONF.QUARK.redis_ssl_certfile:
-                    cert_req = CONF.QUARK.redis_ssl_cert_reqs
-                    connect_kw["ssl_certfile"] = CONF.QUARK.redis_ssl_certfile
-                    connect_kw["ssl_cert_reqs"] = cert_req
-                    connect_kw["ssl_ca_certs"] = CONF.QUARK.redis_ssl_ca_certs
-                    connect_kw["ssl_keyfile"] = CONF.QUARK.redis_ssl_keyfile
+            connect_args = []
 
             klass = redis.ConnectionPool
             if CONF.QUARK.redis_use_sentinels:
+                connect_args.append(CONF.QUARK.redis_sentinel_master)
                 klass = redis.sentinel.SentinelConnectionPool
+                connect_args.append(
+                    redis.sentinel.Sentinel(self._sentinel_list))
+                connect_kw["check_connection"] = True
+                connect_kw["use_master"] = use_master
+            else:
+                connect_kw["host"] = host
+                connect_kw["port"] = port
 
-            Client.connection_pool = klass(connection_class=connect_class,
+            Client.connection_pool = klass(*connect_args,
                                            **connect_kw)
 
-    def _get_sentinel_list(self):
+    def _compile_sentinel_list(self):
+        self._sentinel_list = [tuple(host.split(':'))
+                               for host in CONF.QUARK.redis_sentinel_hosts]
         if not self._sentinel_list:
-            self._sentinel_list = [tuple(host.split(':'))
-                                   for host in CONF.QUARK.redis_sentinel_hosts]
-            if not self._sentinel_list:
-                raise TypeError("sentinel_list is not a properly formatted"
-                                "list of 'host:port' pairs")
+            raise TypeError("sentinel_list is not a properly formatted"
+                            "list of 'host:port' pairs")
 
-        return self._sentinel_list
-
-    def _client_from_config(self):
+    def _client(self):
         kwargs = {"connection_pool": Client.connection_pool,
                   "db": CONF.QUARK.redis_db,
                   "socket_timeout": CONF.QUARK.redis_socket_timeout}
         return redis.StrictRedis(**kwargs)
-
-    def _client_from_sentinel(self, is_master=True):
-        master = is_master and "master" or "slave"
-        LOG.info("Initializing redis connection to %s node, master label %s" %
-                 (master, CONF.QUARK.redis_sentinel_master))
-
-        sentinel = redis.sentinel.Sentinel(self._get_sentinel_list())
-        func = sentinel.slave_for
-        if is_master:
-            func = sentinel.master_for
-
-        return func(CONF.QUARK.redis_sentinel_master,
-                    db=CONF.QUARK.redis_db,
-                    socket_timeout=CONF.QUARK.redis_socket_timeout,
-                    connection_pool=Client.connection_pool)
 
     def serialize_rules(self, rules):
         """Creates a payload for the redis server."""
@@ -203,6 +173,9 @@ class Client(object):
         REDIS KEY - port_device_id.port_mac_address
         REDIS VALUE - A JSON dump of the following:
 
+        port_mac_address must be lower-cased and stripped of non-alphanumeric
+        characters
+
         {"id": "<arbitrary uuid>",
          "rules": [
            {"ethertype": <hexademical integer>,
@@ -236,11 +209,17 @@ class Client(object):
         return rules
 
     def rule_key(self, device_id, mac_address):
-        return "{0}.{1}".format(device_id, str(netaddr.EUI(mac_address)))
+        mac = str(netaddr.EUI(mac_address))
+
+        # Lower cases and strips hyphens from the mac
+        mac = mac.translate(MAC_TRANS_TABLE, ":-")
+        return "{0}.{1}".format(device_id, mac)
 
     def get_rules_for_port(self, device_id, mac_address):
-        return json.loads(self._client.get(
-            self.rule_key(device_id, mac_address)))
+        rules = self._client.get(
+            self.rule_key(device_id, mac_address))
+        if rules:
+            return json.loads(rules)
 
     def apply_rules(self, device_id, mac_address, rules):
         """Writes a series of security group rules to a redis server."""
@@ -263,7 +242,10 @@ class Client(object):
         return self._client.echo(echo_str)
 
     def vif_keys(self):
-        return self._client.keys("*.??-??-??-??-??-??")
+        keys = self._client.keys("*.????????????")
+        if isinstance(keys, str):
+            keys = [keys]
+        return [k for k in keys if k]
 
     def delete_vif_rules(self, key):
         self._client.delete(key)
