@@ -211,7 +211,7 @@ class TestRedisSentinelConnection(test_base.TestBase):
             redis_client.Client(use_master=True)
             sentinel_pool.assert_called_with(master_label, sentinels,
                                              check_connection=True,
-                                             use_master=True)
+                                             is_master=True)
 
     @mock.patch("redis.sentinel.SentinelConnectionPool")
     @mock.patch("redis.sentinel.Sentinel.master_for")
@@ -223,7 +223,7 @@ class TestRedisSentinelConnection(test_base.TestBase):
 
         with self._stubs(True, sentinels, master_label):
             with self.assertRaises(TypeError):
-                redis_client.Client(use_master=True)
+                redis_client.Client(is_master=True)
 
 
 class TestRedisForAgent(test_base.TestBase):
