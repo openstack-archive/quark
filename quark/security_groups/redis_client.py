@@ -110,7 +110,7 @@ class Client(object):
                 connect_args.append(
                     redis.sentinel.Sentinel(self._sentinel_list))
                 connect_kw["check_connection"] = True
-                connect_kw["use_master"] = use_master
+                connect_kw["is_master"] = use_master
             else:
                 connect_kw["host"] = host
                 connect_kw["port"] = port
