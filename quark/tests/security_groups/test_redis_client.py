@@ -267,10 +267,10 @@ class TestRedisForAgent(test_base.TestBase):
         new_interfaces = ([VIF(1, 2), VIF(3, 4), VIF(5, 6), VIF(7, 8)])
         group_uuids = rc.get_security_groups(new_interfaces)
         mock_pipeline.get.assert_has_calls(
-            [mock.call("1.2"),
-             mock.call("3.4"),
-             mock.call("5.6"),
-             mock.call("7.8")],
+            [mock.call("1.000000000002"),
+             mock.call("3.000000000004"),
+             mock.call("5.000000000006"),
+             mock.call("7.000000000008")],
             any_order=True)
         mock_pipeline.execute.assert_called_once_with()
         self.assertEqual(group_uuids,
