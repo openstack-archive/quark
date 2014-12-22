@@ -669,60 +669,68 @@ class QuarkIpam(object):
                                 segment_id=segment_id, subnet_ids=subnet_ids,
                                 ip_version=filters.get("ip_version"))))
 
-        subnets = db_api.subnet_find_ordered_by_most_full(
-            context, net_id, segment_id=segment_id, scope=db_api.ALL,
-            subnet_id=subnet_ids, **filters)
-
-        if not subnets:
-            LOG.info("No subnets found given the search criteria!")
-
-        for subnet, ips_in_subnet in subnets:
-            ipnet = netaddr.IPNetwork(subnet["cidr"])
-            LOG.info("Trying subnet ID: {0} - CIDR: {1}".format(
-                subnet["id"], subnet["_cidr"]))
-            if ip_address:
-                na_ip = netaddr.IPAddress(ip_address)
-                if ipnet.version == 4 and na_ip.version != 4:
-                    na_ip = na_ip.ipv4()
-                if na_ip not in ipnet:
-                    if subnet_ids is not None:
-                        LOG.info("Requested IP {0} not in subnet {1}, "
-                                 "retrying".format(str(na_ip), str(ipnet)))
-                        raise q_exc.IPAddressNotInSubnet(
-                            ip_addr=ip_address, subnet_id=subnet["id"])
-                    continue
-
-            ip_policy = None
-            if not ip_address:
-                # Policies don't prevent explicit assignment, so we only
-                # need to check if we're allocating a new IP
-                ip_policy = subnet.get("ip_policy")
-
-            policy_size = ip_policy["size"] if ip_policy else 0
-
-            if ipnet.size > (ips_in_subnet + policy_size - 1):
-                if not ip_address:
-                    ip = subnet["next_auto_assign_ip"]
-                    # If ip is somehow -1 in here don't touch it anymore
-                    if ip != -1:
-                        ip += 1
-                    # and even then if it is outside the valid range set it to
-                    # -1 to be safe
-                    if ip < subnet["first_ip"] or ip > subnet["last_ip"]:
-                        LOG.info("Marking subnet {0} as full".format(
-                            subnet["id"]))
-                        ip = -1
-                    self._set_subnet_next_auto_assign_ip(context, subnet, ip)
-                LOG.info("Subnet {0} - {1} looks viable, returning".format(
-                    subnet["id"], subnet["_cidr"]))
-                return subnet
-            else:
-                LOG.info("Marking subnet {0} as full".format(subnet["id"]))
-                self._set_subnet_next_auto_assign_ip(context, subnet, -1)
-
-    def _set_subnet_next_auto_assign_ip(self, context, subnet, ip):
         with context.session.begin():
-            db_api.subnet_update(context, subnet, next_auto_assign_ip=ip)
+            subnets = db_api.subnet_find_ordered_by_most_full(
+                context, net_id, segment_id=segment_id, scope=db_api.ALL,
+                subnet_id=subnet_ids, **filters)
+
+            if not subnets:
+                LOG.info("No subnets found given the search criteria!")
+
+            for subnet, ips_in_subnet in subnets:
+                ipnet = netaddr.IPNetwork(subnet["cidr"])
+                LOG.info("Trying subnet ID: {0} - CIDR: {1}".format(
+                    subnet["id"], subnet["_cidr"]))
+                if ip_address:
+                    na_ip = netaddr.IPAddress(ip_address)
+                    if ipnet.version == 4 and na_ip.version != 4:
+                        na_ip = na_ip.ipv4()
+                    if na_ip not in ipnet:
+                        if subnet_ids is not None:
+                            LOG.info("Requested IP {0} not in subnet {1}, "
+                                     "retrying".format(str(na_ip), str(ipnet)))
+                            raise q_exc.IPAddressNotInSubnet(
+                                ip_addr=ip_address, subnet_id=subnet["id"])
+                        continue
+
+                ip_policy = None
+                if not ip_address:
+                    # Policies don't prevent explicit assignment, so we only
+                    # need to check if we're allocating a new IP
+                    ip_policy = subnet.get("ip_policy")
+
+                policy_size = ip_policy["size"] if ip_policy else 0
+
+                if ipnet.size > (ips_in_subnet + policy_size - 1):
+                    if not ip_address:
+                        ip = subnet["next_auto_assign_ip"]
+                        # NOTE(mdietz): When atomically updated, this probably
+                        #               doesn't need the lower bounds check but
+                        #               I'm not comfortable removing it yet.
+                        if ip < subnet["first_ip"] or ip > subnet["last_ip"]:
+                            LOG.info("Marking subnet {0} as full".format(
+                                subnet["id"]))
+                            updated = db_api.subnet_update_set_full(context,
+                                                                    subnet)
+                        else:
+                            updated = db_api.subnet_update_next_auto_assign_ip(
+                                context, subnet)
+
+                        if updated:
+                            context.session.refresh(subnet)
+                        else:
+                            # This means the subnet was marked full while
+                            # we were checking out policies. Fall out and
+                            # go back to the outer retry loop.
+                            return
+
+                    LOG.info("Subnet {0} - {1} {2} looks viable, "
+                             "returning".format(subnet["id"], subnet["_cidr"],
+                                                subnet["next_auto_assign_ip"]))
+                    return subnet
+                else:
+                    LOG.info("Marking subnet {0} as full".format(subnet["id"]))
+                    db_api.subnet_update_set_full(context, subnet)
 
 
 class QuarkIpamANY(QuarkIpam):
