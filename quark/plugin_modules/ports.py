@@ -106,7 +106,7 @@ def create_port(context, port):
     # TODO(anyone): security groups are not currently supported on port create,
     #               nor on isolated networks today. Please see RM8615
     security_groups = utils.pop_param(port_attrs, "security_groups")
-    if security_groups:
+    if security_groups is not None:
         raise q_exc.SecurityGroupsNotImplemented()
 
     group_ids, security_groups = _make_security_group_list(context,
@@ -257,11 +257,11 @@ def update_port(context, id, port):
     # TODO(anyone): security groups are not currently supported on port create,
     #               nor on isolated networks today. Please see RM8615
     new_security_groups = utils.pop_param(port_dict, "security_groups")
-    if new_security_groups:
+    if new_security_groups is not None:
         if not STRATEGY.is_parent_network(port_db["network_id"]):
             raise q_exc.TenantNetworkSecurityGroupsNotImplemented()
 
-    if new_security_groups and not port_db["device_id"]:
+    if new_security_groups is not None and not port_db["device_id"]:
         raise q_exc.SecurityGroupsRequireDevice()
 
     group_ids, security_group_mods = _make_security_group_list(
@@ -342,7 +342,7 @@ def update_port(context, id, port):
     #               we're in a beta-y status, I'm going to let this sit for
     #               a future patch where we have time to solve it well.
     kwargs = {}
-    if new_security_groups:
+    if new_security_groups is not None:
         kwargs["security_groups"] = security_group_mods
     net_driver.update_port(context, port_id=port_db["backend_key"],
                            mac_address=port_db["mac_address"],
