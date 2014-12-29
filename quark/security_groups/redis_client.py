@@ -247,8 +247,14 @@ class Client(object):
             keys = [keys]
         return [k for k in keys if k]
 
-    def delete_vif_rules(self, key):
-        self._client.delete(key)
+    def delete_vif_rules(self, device_id, mac_address):
+        # Redis DEL command will ignore key safely if it doesn't exist
+        redis_key = self.rule_key(device_id, mac_address)
+        try:
+            self._client.delete(redis_key)
+        except redis.ConnectionError as e:
+            LOG.exception(e)
+            raise q_exc.RedisConnectionFailure()
 
     @utils.retry_loop(3)
     def get_security_groups(self, new_interfaces):
