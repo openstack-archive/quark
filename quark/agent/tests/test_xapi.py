@@ -92,6 +92,28 @@ class TestXapiClient(test_base.TestBase):
                       "post_live_migrate", "instance_post_live_migration",
                       expected_args_2)])
 
+    def test_update_interfaces_added_vm_removed(self):
+        instances = {}
+        interfaces = [xapi.VIF("device_id1", "00:11:22:33:44:55")]
+        location = "vm-data/networking/001122334455"
+        vm = {"xenstore_data": {location: json.dumps({"key": "value"})}}
+        self.session.xenapi.VM.get_record.return_value = vm
+
+        self.xclient.update_interfaces(instances, interfaces, [], [])
+
+        xenapi_VM = self.session.xenapi.VM
+        self.assertEqual(xenapi_VM.get_record.call_count, 0)
+        self.assertEqual(xenapi_VM.remove_from_xenstore_data.call_count, 0)
+        self.assertEqual(xenapi_VM.add_to_xenstore_data.call_count, 0)
+
+        expected_args_2 = dict(
+            host_uuid=self.session.xenapi.host.get_uuid.return_value,
+            uuid="device_id1")
+        self.session.xenapi.host.call_plugin.assert_has_calls([
+            mock.call(self.session.xenapi.session.get_this_host.return_value,
+                      "post_live_migrate", "instance_post_live_migration",
+                      expected_args_2)])
+
     def test_update_interfaces_updated(self):
         instances = {"opaque1": "device_id1"}
         interfaces = [xapi.VIF("device_id1", "00:11:22:33:44:55")]
@@ -143,6 +165,29 @@ class TestXapiClient(test_base.TestBase):
         self.session.xenapi.host.call_plugin.assert_has_calls([
             mock.call(self.session.xenapi.session.get_this_host.return_value,
                       "xenstore.py", "write_record", expected_args_1),
+            mock.call(self.session.xenapi.session.get_this_host.return_value,
+                      "post_live_migrate", "instance_post_live_migration",
+                      expected_args_2)])
+
+    def test_update_interfaces_removed_vm_removed(self):
+        instances = {}
+        interfaces = [xapi.VIF("device_id1", "00:11:22:33:44:55")]
+        location = "vm-data/networking/001122334455"
+        vm = {"xenstore_data": {location: json.dumps({
+            "failmode": "secure", "key": "value"})}}
+        self.session.xenapi.VM.get_record.return_value = vm
+
+        self.xclient.update_interfaces(instances, [], [], interfaces)
+
+        xenapi_VM = self.session.xenapi.VM
+        self.assertEqual(xenapi_VM.get_record.call_count, 0)
+        self.assertEqual(xenapi_VM.remove_from_xenstore_data.call_count, 0)
+        self.assertEqual(xenapi_VM.add_to_xenstore_data.call_count, 0)
+
+        expected_args_2 = dict(
+            host_uuid=self.session.xenapi.host.get_uuid.return_value,
+            uuid="device_id1")
+        self.session.xenapi.host.call_plugin.assert_has_calls([
             mock.call(self.session.xenapi.session.get_this_host.return_value,
                       "post_live_migrate", "instance_post_live_migration",
                       expected_args_2)])
