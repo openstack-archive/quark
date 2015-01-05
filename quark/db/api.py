@@ -467,7 +467,9 @@ def subnet_find_ordered_by_most_full(context, net_id, **filters):
     query = query.filter_by(do_not_use=False)
     query = query.outerjoin(models.Subnet.generated_ips)
     query = query.group_by(models.Subnet.id)
-    query = query.order_by(asc(size - count))
+    query = query.order_by(
+        asc(models.Subnet.ip_version),
+        asc(size - count))
 
     query = query.filter(models.Subnet.network_id == net_id)
     if "ip_version" in filters:
