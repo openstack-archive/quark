@@ -14,6 +14,7 @@
 #    under the License.
 
 from collections import defaultdict
+import datetime
 import json
 import sys
 
@@ -21,8 +22,8 @@ import netaddr
 from neutron.common import config
 from neutron.db import api as neutron_db_api
 from oslo.config import cfg
+from oslo.utils import timeutils
 from sqlalchemy import and_, or_, func
-from sqlalchemy.sql.expression import text
 
 from quark.db import models
 
@@ -70,7 +71,8 @@ def get_used_ips(session):
         query = query.group_by(models.Subnet.tenant_id)
         query = _rackspace_filter(query)
 
-        window = text('interval %s second' % cfg.CONF.QUARK.ipam_reuse_after)
+        reuse_window = timeutils.utcnow() - datetime.timedelta(
+            seconds=cfg.CONF.QUARK.ipam_reuse_after)
         # NOTE(asadoughi): This is an outer join instead of a regular join
         # to include subnets with zero IP addresses in the database.
         query = query.outerjoin(
@@ -78,8 +80,7 @@ def get_used_ips(session):
             and_(models.Subnet.id == models.IPAddress.subnet_id,
                  or_(models.IPAddress._deallocated == None,  # noqa
                      models.IPAddress._deallocated == 0,
-                     func.now() < func.date_add(
-                         models.IPAddress.deallocated_at, window))))
+                     models.IPAddress.deallocated_at > reuse_window)))
 
         query = query.outerjoin(
             models.IPPolicyCIDR,
