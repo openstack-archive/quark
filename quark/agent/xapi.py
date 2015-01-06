@@ -68,7 +68,7 @@ class VIF(object):
 
 
 class XapiClient(object):
-    SECURITY_GROUPS_KEY = "failmode"
+    SECURITY_GROUPS_KEY = "security groups"
     SECURITY_GROUPS_VALUE = "secure"
 
     def __init__(self):
