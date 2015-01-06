@@ -166,7 +166,13 @@ class XapiClient(object):
         LOG.debug("Setting security groups on %s", interfaces)
 
         for interface in interfaces:
-            vm_ref = vm_refs[interface.device_id]
+            try:
+                vm_ref = vm_refs[interface.device_id]
+            except KeyError:
+                LOG.debug("Instance with device_id %s not found",
+                          interface.device_id)
+                continue
+
             self._process_security_groups(
                 session,
                 vm_ref,
@@ -178,7 +184,13 @@ class XapiClient(object):
         LOG.debug("Unsetting security groups on %s", interfaces)
 
         for interface in interfaces:
-            vm_ref = vm_refs[interface.device_id]
+            try:
+                vm_ref = vm_refs[interface.device_id]
+            except KeyError:
+                LOG.debug("Instance with device_id %s not found",
+                          interface.device_id)
+                continue
+
             self._process_security_groups(
                 session,
                 vm_ref,
