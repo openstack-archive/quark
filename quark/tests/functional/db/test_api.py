@@ -135,3 +135,23 @@ class QuarkFindSubnetAllocationCount(QuarkIpamBaseFunctionalTest):
             self.assertEqual(subnets[1][1], 1)
             self.assertEqual(subnets[2][0].cidr, "0.0.0.0/31")
             self.assertEqual(subnets[2][1], 0)
+
+    def test_ordering_subnets_ip_version(self):
+        """Order by ip_version primarily.
+
+        Order by ip_version primarily, even when IPv4 is less full than IPv6
+        subnet.
+        """
+        cidr4 = "0.0.0.0/30"  # 2 bits
+        last4 = netaddr.IPNetwork(cidr4).last
+        cidr6 = "fffc::/127"  # 1 bits
+        last6 = netaddr.IPNetwork(cidr6).last
+        with self._fixtures([
+            self._create_models(cidr4, 4, last4),
+            self._create_models(cidr6, 6, last6)
+        ]) as net:
+            subnets = db_api.subnet_find_ordered_by_most_full(
+                self.context, net['id'], segment_id=None,
+                scope=db_api.ALL).all()
+            self.assertEqual(subnets[0][0].ip_version, 4)
+            self.assertEqual(subnets[1][0].ip_version, 6)
