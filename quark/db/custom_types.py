@@ -34,6 +34,16 @@ class INET(types.TypeDecorator):
             return value
         return long(value)
 
+    def coerce_compared_value(self, op, value):
+        # NOTE(mdietz): If left unimplemented, the column is coerced into a
+        # string every time, causing the next_auto_assign_increment to be a
+        # string concatenation rather than an addition. 'value' in the
+        # signature is the "other" value being compared for the purposes of
+        # casting.
+        if isinstance(value, int):
+            return types.Integer()
+        return self
+
 
 class MACAddress(types.TypeDecorator):
     impl = types.BigInteger
