@@ -73,7 +73,7 @@ class TestXapiClient(test_base.TestBase):
         xenapi_VM.get_record.assert_called_once_with("opaque1")
         xenapi_VM.remove_from_xenstore_data.assert_called_once_with(
             "opaque1", location)
-        new_data = json.dumps({"failmode": "secure", "key": "value"})
+        new_data = json.dumps({"security groups": "secure", "key": "value"})
         xenapi_VM.add_to_xenstore_data.assert_called_once_with(
             "opaque1", location, new_data)
 
@@ -141,7 +141,7 @@ class TestXapiClient(test_base.TestBase):
         interfaces = [xapi.VIF("device_id1", "00:11:22:33:44:55")]
         location = "vm-data/networking/001122334455"
         vm = {"xenstore_data": {location: json.dumps({
-            "failmode": "secure", "key": "value"})}}
+            "security groups": "secure", "key": "value"})}}
         self.session.xenapi.VM.get_record.return_value = vm
 
         self.xclient.update_interfaces(instances, [], [], interfaces)
@@ -174,7 +174,7 @@ class TestXapiClient(test_base.TestBase):
         interfaces = [xapi.VIF("device_id1", "00:11:22:33:44:55")]
         location = "vm-data/networking/001122334455"
         vm = {"xenstore_data": {location: json.dumps({
-            "failmode": "secure", "key": "value"})}}
+            "security groups": "secure", "key": "value"})}}
         self.session.xenapi.VM.get_record.return_value = vm
 
         self.xclient.update_interfaces(instances, [], [], interfaces)
