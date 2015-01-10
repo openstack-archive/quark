@@ -13,8 +13,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import json
-
 from neutron.openstack.common import log as logging
 from oslo.config import cfg
 import XenAPI
@@ -35,26 +33,32 @@ CONF.register_opts(agent_opts, "AGENT")
 class VIF(object):
     SEPARATOR = "."
 
-    def __init__(self, device_id, mac_address):
+    def __init__(self, device_id, mac_address, ref):
         """Constructs VIF
 
         `device_id` and `mac_address` should be strings if they will later be
         compared to decoded VIF instances (via from_string).
+
+        `ref` is the OpaqueRef string for the vif as returned from xenapi.
         """
 
         self.device_id = device_id
         self.mac_address = mac_address
+        self.ref = ref
 
     def __str__(self):
-        return "%s%s%s" % (self.device_id, self.SEPARATOR, self.mac_address)
+        return "%s%s%s%s%s" % (self.device_id, self.SEPARATOR,
+                               self.mac_address, self.SEPARATOR,
+                               self.ref)
 
     @classmethod
     def from_string(cls, s):
-        device_id, mac_address = s.split(cls.SEPARATOR)
-        return cls(device_id, mac_address)
+        device_id, mac_address, ref = s.split(cls.SEPARATOR)
+        return cls(device_id, mac_address, ref)
 
     def __repr__(self):
-        return "VIF(%r, %r)" % (self.device_id, self.mac_address)
+        return "VIF(%r, %r, %r)" % (self.device_id, self.mac_address,
+                                    self.ref)
 
     def __eq__(self, other):
         return (self.device_id == other.device_id and
@@ -68,8 +72,8 @@ class VIF(object):
 
 
 class XapiClient(object):
-    SECURITY_GROUPS_KEY = "security groups"
-    SECURITY_GROUPS_VALUE = "secure"
+    SECURITY_GROUPS_KEY = "security_groups"
+    SECURITY_GROUPS_VALUE = "enabled"
 
     def __init__(self):
         session = self._session()
@@ -122,80 +126,29 @@ class XapiClient(object):
             session.xenapi.logout()
 
         interfaces = set()
-        for rec in recs.values():
+        for vif_ref, rec in recs.iteritems():
             device_id = instances.get(rec["VM"])
             if not device_id:
                 continue
-            interfaces.add(VIF(device_id, rec["MAC"]))
+            interfaces.add(VIF(device_id, rec["MAC"], vif_ref))
         return interfaces
 
-    def _process_security_groups(self, session, vm_ref, vif, fn):
-        """Process security groups setting on VM's Xenstore for VIF.
-
-        Based on the argument function, VM Opaque Ref, and VIF, we set the
-        appropriate VM's Xenstore data to enable security groups or disable
-        security groups for the correct VIF.
-        """
-        vm = session.xenapi.VM.get_record(vm_ref)
-        location = ('vm-data/networking/%s' %
-                    vif.mac_address.replace(':', ''))
-        xsdata = json.loads(vm["xenstore_data"][location])
-
-        # Update Xenstore dict based on fn
-        fn(xsdata)
-
-        # Update param Xenstore
-        session.xenapi.VM.remove_from_xenstore_data(
-            vm_ref, location)
-        session.xenapi.VM.add_to_xenstore_data(
-            vm_ref, location, json.dumps(xsdata))
-
-        # Update running VM's Xenstore
-        args = dict(host_uuid=self._host_uuid,
-                    path=location,
-                    value=json.dumps(xsdata),
-                    dom_id=session.xenapi.VM.get_domid(vm_ref))
-        if not args["dom_id"] or args["dom_id"] == -1:
-            # If the VM is not running, no need to update the live Xenstore
-            return
-
-        session.xenapi.host.call_plugin(
-            self._host_ref, "xenstore.py", "write_record", args)
-
-    def _set_security_groups(self, session, vm_refs, interfaces):
+    def _set_security_groups(self, session, interfaces):
         LOG.debug("Setting security groups on %s", interfaces)
 
-        for interface in interfaces:
-            try:
-                vm_ref = vm_refs[interface.device_id]
-            except KeyError:
-                LOG.debug("Instance with device_id %s not found",
-                          interface.device_id)
-                continue
+        for vif in interfaces:
+            session.xenapi.VIF.add_to_other_config(
+                vif.ref,
+                self.SECURITY_GROUPS_KEY,
+                self.SECURITY_GROUPS_VALUE)
 
-            self._process_security_groups(
-                session,
-                vm_ref,
-                interface,
-                lambda d: d.update({self.SECURITY_GROUPS_KEY:
-                                    self.SECURITY_GROUPS_VALUE}))
-
-    def _unset_security_groups(self, session, vm_refs, interfaces):
+    def _unset_security_groups(self, session, interfaces):
         LOG.debug("Unsetting security groups on %s", interfaces)
 
-        for interface in interfaces:
-            try:
-                vm_ref = vm_refs[interface.device_id]
-            except KeyError:
-                LOG.debug("Instance with device_id %s not found",
-                          interface.device_id)
-                continue
-
-            self._process_security_groups(
-                session,
-                vm_ref,
-                interface,
-                lambda d: d.pop(self.SECURITY_GROUPS_KEY, None))
+        for vif in interfaces:
+            session.xenapi.VIF.remove_from_other_config(
+                vif.ref,
+                self.SECURITY_GROUPS_KEY)
 
     def _refresh_interfaces(self, session, interfaces):
         LOG.debug("Refreshing devices on %s", interfaces)
@@ -219,11 +172,10 @@ class XapiClient(object):
             return
 
         session = self._session()
-        vm_refs = dict((v, k) for k, v in instances.iteritems())
         try:
-            self._set_security_groups(session, vm_refs, added_sg)
-            self._unset_security_groups(session, vm_refs, removed_sg)
-            self._refresh_interfaces(session,
-                                     added_sg + updated_sg + removed_sg)
+            self._set_security_groups(session, added_sg)
+            self._unset_security_groups(session, removed_sg)
+            combined = added_sg + updated_sg + removed_sg
+            self._refresh_interfaces(session, combined)
         finally:
             session.xenapi.logout()

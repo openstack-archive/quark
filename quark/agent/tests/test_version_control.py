@@ -70,93 +70,93 @@ class TestVersionControl(test_base.TestBase):
         with mock.patch(o_fn) as m_open:
             m_open.return_value = StringIO("{}")
             added, updated, removed = self.version_control.diff({
-                VIF("1", "2"): "foo"})
+                VIF("1", "2", "3"): "foo"})
             m_open.assert_called_once_with(self.FILEPATH)
-            self.assertEqual(added, [VIF("1", "2")])
+            self.assertEqual(added, [VIF("1", "2", "3")])
             self.assertEqual(updated, [])
             self.assertEqual(removed, [])
 
     def test_diff_nonempty_file_added_new_security_groups(self):
         o_fn = "quark.agent.version_control._open_or_create_file_for_reading"
         with mock.patch(o_fn) as m_open:
-            m_open.return_value = StringIO('{"3.4": "bar"}')
+            m_open.return_value = StringIO('{"3.4.5": "bar"}')
             added, updated, removed = self.version_control.diff({
-                VIF("1", "2"): "baz",
-                VIF("3", "4"): "bar"
+                VIF("1", "2", "3"): "baz",
+                VIF("3", "4", "5"): "bar"
             })
             m_open.assert_called_once_with(self.FILEPATH)
-            self.assertEqual(added, [VIF("1", "2")])
+            self.assertEqual(added, [VIF("1", "2", "3")])
             self.assertEqual(updated, [])
             self.assertEqual(removed, [])
 
     def test_diff_nonempty_file_added_new_security_groups_null(self):
         o_fn = "quark.agent.version_control._open_or_create_file_for_reading"
         with mock.patch(o_fn) as m_open:
-            m_open.return_value = StringIO('{"3.4": null}')
+            m_open.return_value = StringIO('{"3.4.5": null}')
             added, updated, removed = self.version_control.diff({
-                VIF("3", "4"): "bar",
+                VIF("3", "4", "5"): "bar",
             })
             m_open.assert_called_once_with(self.FILEPATH)
-            self.assertEqual(added, [VIF("3", "4")])
+            self.assertEqual(added, [VIF("3", "4", "5")])
             self.assertEqual(updated, [])
             self.assertEqual(removed, [])
 
     def test_diff_nonempty_file_updated_new_security_groups(self):
         o_fn = "quark.agent.version_control._open_or_create_file_for_reading"
         with mock.patch(o_fn) as m_open:
-            m_open.return_value = StringIO('{"3.4": "bar"}')
+            m_open.return_value = StringIO('{"3.4.5": "bar"}')
             added, updated, removed = self.version_control.diff({
-                VIF("3", "4"): "baz"
+                VIF("3", "4", "5"): "baz"
             })
             m_open.assert_called_once_with(self.FILEPATH)
             self.assertEqual(added, [])
-            self.assertEqual(updated, [VIF("3", "4")])
+            self.assertEqual(updated, [VIF("3", "4", "5")])
             self.assertEqual(removed, [])
 
     def test_diff_nonempty_file_removed_new_security_groups(self):
         o_fn = "quark.agent.version_control._open_or_create_file_for_reading"
         with mock.patch(o_fn) as m_open:
-            m_open.return_value = StringIO('{"3.4": "bar"}')
+            m_open.return_value = StringIO('{"3.4.5": "bar"}')
             added, updated, removed = self.version_control.diff({})
             m_open.assert_called_once_with(self.FILEPATH)
             self.assertEqual(added, [])
             self.assertEqual(updated, [])
-            self.assertEqual(removed, [VIF("3", "4")])
+            self.assertEqual(removed, [VIF("3", "4", "5")])
 
     def test_diff_nonempty_file_removed_new_security_groups_null(self):
         o_fn = "quark.agent.version_control._open_or_create_file_for_reading"
         with mock.patch(o_fn) as m_open:
-            m_open.return_value = StringIO('{"3.4": "bar"}')
+            m_open.return_value = StringIO('{"3.4.5": "bar"}')
             added, updated, removed = self.version_control.diff({
-                VIF("3", "4"): None,
+                VIF("3", "4", "5"): None,
             })
             m_open.assert_called_once_with(self.FILEPATH)
             self.assertEqual(added, [])
             self.assertEqual(updated, [])
-            self.assertEqual(removed, [VIF("3", "4")])
+            self.assertEqual(removed, [VIF("3", "4", "5")])
 
     def test_diff_nonempty_file_all_kinds_new_security_groups(self):
         o_fn = "quark.agent.version_control._open_or_create_file_for_reading"
         with mock.patch(o_fn) as m_open:
-            m_open.return_value = StringIO('{"3.4": "bar", "5.6": "foo"}')
+            m_open.return_value = StringIO('{"3.4.5": "bar", "5.6.7": "foo"}')
             added, updated, removed = self.version_control.diff({
-                VIF("1", "2"): "fu",
-                VIF("5", "6"): "baz",
+                VIF("1", "2", "3"): "fu",
+                VIF("5", "6", "7"): "baz",
             })
             m_open.assert_called_once_with(self.FILEPATH)
-            self.assertEqual(added, [VIF("1", "2")])
-            self.assertEqual(updated, [VIF("5", "6")])
-            self.assertEqual(removed, [VIF("3", "4")])
+            self.assertEqual(added, [VIF("1", "2", "3")])
+            self.assertEqual(updated, [VIF("5", "6", "7")])
+            self.assertEqual(removed, [VIF("3", "4", "5")])
 
     def test_commit_without_changes(self):
         o_fn = "quark.agent.version_control._open_or_create_file_for_reading"
         with mock.patch(o_fn) as m_open:
-            read_file = StringIO('{"3.4": "bar", "5.6": "foo"}')
+            read_file = StringIO('{"3.4.5": "bar", "5.6.7": "foo"}')
             write_file = StringIO()
             m_open.side_effect = (read_file, write_file)
             self.version_control.commit({
-                VIF("3", "4"): "bar",
-                VIF("5", "6"): "foo"
+                VIF("3", "4", "5"): "bar",
+                VIF("5", "6", "7"): "foo"
             })
             m_open.assert_has_calls([mock.call(self.FILEPATH)])
 
@@ -165,13 +165,13 @@ class TestVersionControl(test_base.TestBase):
             mock.patch("__builtin__.open"),
             mock.patch("json.dump")
         ) as (m_open, jdump):
-            read_file = StringIO('{"3.4": "bar", "5.6": "foo"}')
+            read_file = StringIO('{"3.4.5": "bar", "5.6.7": "foo"}')
             write_file = StringIO()
             m_open.side_effect = (read_file, write_file)
             self.version_control.commit({
-                VIF("1", "2"): "fu",
-                VIF("5", "6"): "baz"
+                VIF("1", "2", "3"): "fu",
+                VIF("5", "6", "7"): "baz"
             })
             jdump.assert_called_once_with(
-                {"1.2": "fu", "5.6": "baz"},
+                {"1.2.3": "fu", "5.6.7": "baz"},
                 write_file)
