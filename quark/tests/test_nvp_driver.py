@@ -508,7 +508,7 @@ class TestNVPDriverCreatePort(TestNVPDriver):
                                                 {'ethertype': 'IPv6'}],
                  'logical_port_egress_rules': [{'ethertype': 'IPv4'},
                                                {'ethertype': 'IPv6'}]})
-            with self.assertRaises(sg_ext.qexception.InvalidInput):
+            with self.assertRaises(sg_ext.nexception.InvalidInput):
                 self.driver.create_port(
                     self.context, self.net_id, self.port_id,
                     security_groups=[1])
@@ -542,7 +542,7 @@ class TestNVPDriverUpdatePort(TestNVPDriver):
                                                 {'ethertype': 'IPv6'}],
                  'logical_port_egress_rules': [{'ethertype': 'IPv4'},
                                                {'ethertype': 'IPv6'}]})
-            with self.assertRaises(sg_ext.qexception.InvalidInput):
+            with self.assertRaises(sg_ext.nexception.InvalidInput):
                 self.driver.update_port(
                     self.context, self.port_id,
                     security_groups=[1])
@@ -776,7 +776,7 @@ class TestNVPDriverCreateSecurityGroup(TestNVPDriver):
                          'port_range_min': 0, 'port_range_max': 100},
                         {'ethertype': 'IPv4', 'remote_group_id': 2}]
         with self._stubs():
-            with self.assertRaises(sg_ext.qexception.InvalidInput):
+            with self.assertRaises(sg_ext.nexception.InvalidInput):
                 self.driver.create_security_group(
                     self.context, 'foo',
                     port_ingress_rules=ingress_rules,
@@ -867,7 +867,7 @@ class TestNVPDriverUpdateSecurityGroup(TestNVPDriver):
                          'port_range_min': 0, 'port_range_max': 100},
                         {'ethertype': 'IPv4', 'remote_group_id': 2}]
         with self._stubs():
-            with self.assertRaises(sg_ext.qexception.InvalidInput):
+            with self.assertRaises(sg_ext.nexception.InvalidInput):
                 self.driver.update_security_group(
                     self.context, 1,
                     port_ingress_rules=ingress_rules,
@@ -946,7 +946,7 @@ class TestNVPDriverCreateSecurityGroupRule(TestNVPDriver):
         with self._stubs() as connection:
             connection.securityprofile().read().update(
                 {'logical_port_ingress_rules': [1, 2]})
-            with self.assertRaises(sg_ext.qexception.InvalidInput):
+            with self.assertRaises(sg_ext.nexception.InvalidInput):
                 self.driver.create_security_group_rule(
                     self.context, 1,
                     {'ethertype': 'IPv4', 'direction': 'egress'})
