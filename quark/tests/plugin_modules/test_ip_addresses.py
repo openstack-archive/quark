@@ -71,8 +71,7 @@ class TestIpAddresses(test_quark_plugin.TestQuarkPlugin):
         with contextlib.nested(
             mock.patch("quark.db.api.port_find"),
             mock.patch(
-                "quark.plugin_modules.ip_addresses"
-                "._get_ipam_driver_for_network"),
+                "quark.plugin_modules.ip_addresses.ipam_driver"),
             mock.patch(
                 "quark.plugin_modules.ip_addresses.db_api"
                 ".port_associate_ip"),
@@ -81,8 +80,7 @@ class TestIpAddresses(test_quark_plugin.TestQuarkPlugin):
                 ".validate_ports_on_network_and_same_segment")
         ) as (port_find, mock_ipam, mock_port_associate_ip, validate):
             port_find.return_value = port_model
-            mock_ipam_driver = mock_ipam.return_value
-            mock_ipam_driver.allocate_ip_address.side_effect = _alloc_ip
+            mock_ipam.allocate_ip_address.side_effect = _alloc_ip
             mock_port_associate_ip.side_effect = _port_associate_stub
             yield
 
@@ -151,7 +149,7 @@ class TestIpAddresses(test_quark_plugin.TestQuarkPlugin):
 @mock.patch("quark.plugin_modules.ip_addresses.v")
 @mock.patch("quark.plugin_modules.ip_addresses"
             ".validate_ports_on_network_and_same_segment")
-@mock.patch("quark.plugin_modules.ip_addresses._get_ipam_driver_for_network")
+@mock.patch("quark.plugin_modules.ip_addresses.ipam_driver")
 @mock.patch("quark.plugin_modules.ip_addresses.db_api")
 class TestQuarkSharedIPAddressCreate(test_quark_plugin.TestQuarkPlugin):
     def _alloc_stub(self, ip_model):
@@ -170,8 +168,7 @@ class TestQuarkSharedIPAddressCreate(test_quark_plugin.TestQuarkPlugin):
         ip_model.update(ip)
 
         mock_dbapi.port_find.return_value = port_model
-        mock_ipam_driver = mock_ipam.return_value
-        mock_ipam_driver.allocate_ip_address.side_effect = (
+        mock_ipam.allocate_ip_address.side_effect = (
             self._alloc_stub(ip_model))
         ip_address = {"network_id": ip["network_id"],
                       "version": 4, 'device_ids': [2],
@@ -193,8 +190,7 @@ class TestQuarkSharedIPAddressCreate(test_quark_plugin.TestQuarkPlugin):
         ip_model = models.IPAddress()
         ip_model.update(ip)
         mock_dbapi.port_find.side_effect = port_models
-        mock_ipam_driver = mock_ipam.return_value
-        mock_ipam_driver.allocate_ip_address.side_effect = (
+        mock_ipam.allocate_ip_address.side_effect = (
             self._alloc_stub(ip_model))
 
         ip_address = {"network_id": ip["network_id"],
@@ -208,7 +204,7 @@ class TestQuarkSharedIPAddressCreate(test_quark_plugin.TestQuarkPlugin):
         # has already been mutated and it's a reference to that list that
         # we're checking. This method ought to be changed to return the new
         # IP and let the caller mutate the list, not the other way around.
-        mock_ipam_driver.allocate_ip_address.assert_called_once_with(
+        mock_ipam.allocate_ip_address.assert_called_once_with(
             self.context, [ip_model], ip['network_id'], None, 100,
             version=ip_address['version'], ip_addresses=[],
             address_type="shared")
@@ -223,8 +219,7 @@ class TestQuarkSharedIPAddressCreate(test_quark_plugin.TestQuarkPlugin):
         ip_model = models.IPAddress()
         ip_model.update(ip)
         mock_dbapi.port_find.side_effect = port_models
-        mock_ipam_driver = mock_ipam.return_value
-        mock_ipam_driver.allocate_ip_address.side_effect = (
+        mock_ipam.allocate_ip_address.side_effect = (
             self._alloc_stub(ip_model))
 
         ip_address = {"network_id": ip["network_id"],
@@ -238,7 +233,7 @@ class TestQuarkSharedIPAddressCreate(test_quark_plugin.TestQuarkPlugin):
         # has already been mutated and it's a reference to that list that
         # we're checking. This method ought to be changed to return the new
         # IP and let the caller mutate the list, not the other way around.
-        mock_ipam_driver.allocate_ip_address.assert_called_once_with(
+        mock_ipam.allocate_ip_address.assert_called_once_with(
             self.context, [ip_model], ip['network_id'], None, 100,
             version=ip_address['version'], ip_addresses=[],
             address_type="fixed")
@@ -408,16 +403,14 @@ class TestQuarkUpdateIPAddress(test_quark_plugin.TestQuarkPlugin):
             mock.patch("%s.port_disassociate_ip" % db_mod),
             mock.patch("quark.plugin_modules.ip_addresses"
                        ".validate_ports_on_network_and_same_segment"),
-            mock.patch("quark.plugin_modules.ip_addresses"
-                       "._get_ipam_driver_for_network")
+            mock.patch("quark.plugin_modules.ip_addresses.ipam_driver")
         ) as (port_find, ip_find, port_associate_ip,
               port_disassociate_ip, val, mock_ipam):
             port_find.return_value = port_models
             ip_find.return_value = addr_model
             port_associate_ip.side_effect = _port_associate_stub
             port_disassociate_ip.side_effect = _port_disassociate_stub
-            mock_ipam_driver = mock_ipam.return_value
-            mock_ipam_driver.deallocate_ip_address.side_effect = (
+            mock_ipam.deallocate_ip_address.side_effect = (
                 _ip_deallocate_stub)
             yield
 
