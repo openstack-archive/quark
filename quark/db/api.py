@@ -623,7 +623,6 @@ def ports_with_security_groups_find(context):
 def ports_with_security_groups_count(context):
     query = context.session.query(
         sql_func.count(models.port_group_association_table.c.port_id))
-    query = query.group_by(models.port_group_association_table.c.port_id)
     return query.scalar()
 
 

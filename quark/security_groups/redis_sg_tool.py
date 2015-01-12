@@ -97,8 +97,8 @@ class QuarkRedisTool(object):
         elif command == "write-groups":
             self.write_groups(self._dryrun)
         else:
-            print ("Redis security groups tool. Re-run with -h/--help for "
-                   "options")
+            print("Redis security groups tool. Re-run with -h/--help for "
+                  "options")
 
     def _get_connection(self, use_master=False, giveup=True):
         client = redis_client.Client(use_master=use_master)
@@ -107,45 +107,45 @@ class QuarkRedisTool(object):
             result = client.echo("connected")
             if result == "connected":
                 return client
-        except Exception, e:
-            print e
+        except Exception as e:
+            print(e)
             if giveup:
-                print "Giving up..."
+                print("Giving up...")
                 sys.exit(1)
 
     def test_connection(self):
         client = self._get_connection()
         if client:
-            print "Connected Successfully"
+            print("Connected Successfully")
         else:
-            print "Could not connect to Redis"
+            print("Could not connect to Redis")
 
     def vif_count(self):
         client = self._get_connection()
-        print len(client.vif_keys())
+        print(len(client.vif_keys()))
 
     def num_groups(self):
         ctx = neutron.context.get_admin_context()
-        print db_api.security_group_count(ctx)
+        print(db_api.security_group_count(ctx))
 
     def ports_with_groups(self):
         ctx = neutron.context.get_admin_context()
-        print db_api.ports_with_security_groups_count(ctx)
+        print(db_api.ports_with_security_groups_count(ctx))
 
     def purge_orphans(self, dryrun=False):
         client = self._get_connection(use_master=not dryrun)
         ctx = neutron.context.get_admin_context()
         ports_with_groups = db_api.ports_with_security_groups_find(ctx).all()
         if dryrun:
-            print
-            print ("Purging orphans in dry run mode. Existing rules in Redis "
-                   "will be checked against those in the database. If any "
-                   "are found in Redis but lack matching database rules, "
-                   "they'll be deleted from the database.\n\nTo actually "
-                   "apply the groups, re-run with the --yarly flag.")
-            print
-            print ("Found %s ports with security groups" %
-                   len(ports_with_groups))
+            print()
+            print("Purging orphans in dry run mode. Existing rules in Redis "
+                  "will be checked against those in the database. If any "
+                  "are found in Redis but lack matching database rules, "
+                  "they'll be deleted from the database.\n\nTo actually "
+                  "apply the groups, re-run with the --yarly flag.")
+            print()
+            print("Found %s ports with security groups" %
+                  len(ports_with_groups))
 
         # Pre-spin the list of orphans
         vifs = {}
@@ -153,7 +153,7 @@ class QuarkRedisTool(object):
             vifs[vif] = False
 
         if dryrun:
-            print "Found %d VIFs in Redis" % len(vifs)
+            print("Found %d VIFs in Redis" % len(vifs))
 
         # Pop off the ones we find in the database
         for port in ports_with_groups:
@@ -161,12 +161,12 @@ class QuarkRedisTool(object):
             vifs.pop(vif_key, None)
 
         if dryrun:
-            print "Found %d orphaned VIF rule sets" % len(vifs)
-            print '=' * 80
+            print("Found %d orphaned VIF rule sets" % len(vifs))
+            print('=' * 80)
 
         for orphan in vifs.keys():
             if dryrun:
-                print "VIF %s is orphaned" % orphan
+                print("VIF %s is orphaned" % orphan)
             else:
                 for retry in xrange(self._retries):
                     try:
@@ -177,33 +177,33 @@ class QuarkRedisTool(object):
                         client = self._get_connection(use_master=True,
                                                       giveup=False)
         if dryrun:
-            print '=' * 80
-            print
-            print "Re-run with --yarly to apply changes"
+            print('=' * 80)
+            print()
+            print("Re-run with --yarly to apply changes")
 
-        print "Done!"
+        print("Done!")
 
     def write_groups(self, dryrun=False):
         client = self._get_connection(use_master=not dryrun)
         ctx = neutron.context.get_admin_context()
         ports_with_groups = db_api.ports_with_security_groups_find(ctx).all()
         if dryrun:
-            print
-            print ("Writing groups in dry run mode. Existing rules in Redis "
-                   "will be checked against those in the database, with a "
-                   "running report generated of all those that will be "
-                   "overwritten.\n\nTo actually apply the groups, re-run "
-                   "with the --yarly flag.")
-            print
-            print ("Found %s ports with security groups" %
-                   len(ports_with_groups))
+            print()
+            print("Writing groups in dry run mode. Existing rules in Redis "
+                  "will be checked against those in the database, with a "
+                  "running report generated of all those that will be "
+                  "overwritten.\n\nTo actually apply the groups, re-run "
+                  "with the --yarly flag.")
+            print()
+            print("Found %s ports with security groups" %
+                  len(ports_with_groups))
 
         if dryrun:
             vifs = len(client.vif_keys())
             if vifs > 0:
-                print ("There are %d VIFs with rules in Redis, some of which "
-                       "may be overwritten!" % vifs)
-                print
+                print("There are %d VIFs with rules in Redis, some of which "
+                      "may be overwritten!" % vifs)
+                print()
 
         overwrite_count = 0
         for port in ports_with_groups:
@@ -222,10 +222,10 @@ class QuarkRedisTool(object):
                     overwrite_count += 1
                     db_len = len(rules)
                     existing_len = len(existing_rules["rules"])
-                    print ("== Port ID:%s - MAC:%s - Device ID:%s - "
-                           "Redis Rules:%d - DB Rules:%d" %
-                           (port["id"], mac, port["device_id"], existing_len,
-                            db_len))
+                    print("== Port ID:%s - MAC:%s - Device ID:%s - "
+                          "Redis Rules:%d - DB Rules:%d" %
+                          (port["id"], mac, port["device_id"], existing_len,
+                           db_len))
 
             if not dryrun:
                 for retry in xrange(self._retries):
@@ -240,26 +240,30 @@ class QuarkRedisTool(object):
                                                       giveup=False)
 
         if dryrun:
-            print
-            print ("Total number of VIFs to overwrite/were overwritten: %s" %
-                   overwrite_count)
+            print()
+            print("Total number of VIFs to overwrite/were overwritten: %s" %
+                  overwrite_count)
             diff = vifs - overwrite_count
             if diff > 0:
-                print "Orphaned VIFs in Redis:", diff
-                print "Run purge-orphans to clean then up"
+                print("Orphaned VIFs in Redis:", diff)
+                print("Run purge-orphans to clean then up")
 
         if dryrun:
-            print ("Total number of VIFs to write: %d" %
-                   len(ports_with_groups))
+            print("Total number of VIFs to write: %d" %
+                  len(ports_with_groups))
 
         if dryrun:
-            print '=' * 80
-            print "Re-run with --yarly to apply changes"
-        print "Done!"
+            print('=' * 80)
+            print("Re-run with --yarly to apply changes")
+        print("Done!")
 
 
-if __name__ == "__main__":
+def main():
     arguments = docopt.docopt(__doc__,
                               version="Quark Redis CLI %.2f" % VERSION)
     redis_tool = QuarkRedisTool(arguments)
     redis_tool.dispatch()
+
+
+if __name__ == "__main__":
+    main()
