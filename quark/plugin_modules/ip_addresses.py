@@ -27,10 +27,10 @@ from quark import plugin_views as v
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
-
-def _get_ipam_driver_for_network(context, net_id):
-    return ipam.IPAM_REGISTRY.get_strategy(db_api.network_find(
-        context, id=net_id, scope=db_api.ONE)['ipam_strategy'])
+# NOTE(thomasem): Since IP addresses are only at the subnet level, use
+# the QuarkIpamANY strategy, due to other IPAM strategies only being
+# relevant at the network level (port create).
+ipam_driver = ipam.IPAM_REGISTRY.get_strategy(ipam.QuarkIpamANY.get_name())
 
 
 def get_ip_addresses(context, **filters):
@@ -95,7 +95,6 @@ def create_ip_address(context, body):
         raise exceptions.BadRequest(resource="ip_addresses",
                                     msg="network_id is required.")
 
-    ipam_driver = _get_ipam_driver_for_network(context, network_id)
     new_addresses = []
     ports = []
     with context.session.begin():
@@ -163,7 +162,6 @@ def update_ip_address(context, id, ip_address):
             raise exceptions.NotFound(
                 message="No IP address found with id=%s" % id)
 
-        ipam_driver = _get_ipam_driver_for_network(context, address.network_id)
         reset = ip_address['ip_address'].get('reset_allocation_time', False)
         if reset and address['deallocated'] == 1:
             if context.is_admin:
