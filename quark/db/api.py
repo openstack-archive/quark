@@ -167,6 +167,9 @@ def scoped(f):
             return
         if "order_by" in kwargs:
             res = res.order_by(kwargs["order_by"])
+        # HOTPATCH(amir): RM11177
+        if "with_hint" in kwargs:
+            res = res.with_hint(*kwargs["with_hint"])
 
         if scope == ALL:
             if isinstance(res, list):
