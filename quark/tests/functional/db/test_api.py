@@ -187,3 +187,39 @@ class QuarkFindSubnetAllocationCount(QuarkIpamBaseFunctionalTest):
                 self.assertEqual(
                     netaddr.IPAddress(subnet["next_auto_assign_ip"]).ipv4(),
                     net4[1])
+
+
+class QuarkFindMacAddressRangeAllocationCount(QuarkIpamBaseFunctionalTest):
+    @contextlib.contextmanager
+    def _fixtures(self, mac_ranges):
+        self.ipam = quark.ipam.QuarkIpamANY()
+        for mar in mac_ranges:
+            with self.context.session.begin():
+                db_api.mac_address_range_create(self.context,
+                                                **mar)
+        yield
+
+    def test_mac_address_ranges(self):
+        mr1_mac = netaddr.EUI("AA:AA:AA:00:00:00")
+        mr1 = {"cidr": "AA:AA:AA/24", "do_not_use": False,
+               "first_address": mr1_mac.value,
+               "last_address": netaddr.EUI("AA:AA:AA:FF:FF:FF").value,
+               "next_auto_assign_mac": mr1_mac.value}
+        with self._fixtures([mr1]):
+            with self.context.session.begin():
+                ranges = db_api.mac_address_range_find_allocation_counts(
+                    self.context)
+                self.assertTrue(ranges[0]["cidr"], mr1["cidr"])
+
+    def test_mac_address_ranges_do_not_use_returns_nothing(self):
+        mr1_mac = netaddr.EUI("AA:AA:AA:00:00:00")
+        mr1 = {"cidr": "AA:AA:AA/24", "do_not_use": True,
+               "first_address": mr1_mac.value,
+               "last_address": netaddr.EUI("AA:AA:AA:FF:FF:FF").value,
+               "next_auto_assign_mac": mr1_mac.value}
+
+        with self._fixtures([mr1]):
+            with self.context.session.begin():
+                ranges = db_api.mac_address_range_find_allocation_counts(
+                    self.context)
+                self.assertTrue(ranges is None)
