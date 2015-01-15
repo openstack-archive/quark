@@ -47,7 +47,7 @@ class TestRedisSerialization(test_base.TestBase):
         mac_address = netaddr.EUI("AA:BB:CC:DD:EE:FF")
 
         redis_key = client.rule_key(device_id, mac_address.value)
-        expected = "%s.%s" % (device_id, "aabbccddeeff")
+        expected = "%s.%s/sg" % (device_id, "aabbccddeeff")
         self.assertEqual(expected, redis_key)
         conn_pool.assert_called_with(host=host, port=port)
 
@@ -268,10 +268,10 @@ class TestRedisForAgent(test_base.TestBase):
                            VIF(7, 8, 2)])
         group_uuids = rc.get_security_groups(new_interfaces)
         mock_pipeline.get.assert_has_calls(
-            [mock.call("1.000000000002"),
-             mock.call("3.000000000004"),
-             mock.call("5.000000000006"),
-             mock.call("7.000000000008")],
+            [mock.call("1.000000000002/sg"),
+             mock.call("3.000000000004/sg"),
+             mock.call("5.000000000006/sg"),
+             mock.call("7.000000000008/sg")],
             any_order=True)
         mock_pipeline.execute.assert_called_once_with()
         self.assertEqual(group_uuids,

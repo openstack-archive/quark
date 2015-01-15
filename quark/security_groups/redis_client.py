@@ -170,7 +170,7 @@ class Client(object):
 
         The rule schema is the following:
 
-        REDIS KEY - port_device_id.port_mac_address
+        REDIS KEY - port_device_id.port_mac_address/sg
         REDIS VALUE - A JSON dump of the following:
 
         port_mac_address must be lower-cased and stripped of non-alphanumeric
@@ -213,7 +213,7 @@ class Client(object):
 
         # Lower cases and strips hyphens from the mac
         mac = mac.translate(MAC_TRANS_TABLE, ":-")
-        return "{0}.{1}".format(device_id, mac)
+        return "{0}.{1}/sg".format(device_id, mac)
 
     def get_rules_for_port(self, device_id, mac_address):
         rules = self._client.get(
