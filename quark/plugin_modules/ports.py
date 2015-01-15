@@ -69,7 +69,8 @@ def create_port(context, port):
 
     port_id = uuidutils.generate_uuid()
 
-    net = db_api.network_find(context, id=net_id, scope=db_api.ONE)
+    net = db_api.network_find(context, None, None, None, False, id=net_id,
+                              scope=db_api.ONE)
 
     if not net:
         raise exceptions.NetworkNotFound(net_id=net_id)
@@ -436,7 +437,8 @@ def get_port(context, id, fields=None):
     return v._make_port_dict(results)
 
 
-def get_ports(context, filters=None, fields=None):
+def get_ports(context, limit=None, sorts=None, marker=None, page_reverse=False,
+              filters=None, fields=None):
     """Retrieve a list of ports.
 
     The contents of the list depends on the identity of the user
@@ -470,8 +472,9 @@ def get_ports(context, filters=None, fields=None):
         for ip in query:
             ports.extend(ip.ports)
     else:
-        ports = db_api.port_find(context, fields=fields,
-                                 join_security_groups=True, **filters)
+        ports = db_api.port_find(context, limit, sorts, marker,
+                                 fields=fields, join_security_groups=True,
+                                 **filters)
     return v._make_ports_list(ports, fields)
 
 
