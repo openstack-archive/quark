@@ -264,7 +264,8 @@ class TestRedisForAgent(test_base.TestBase):
             '{"%s": null}' % redis_client.SECURITY_GROUP_VERSION_UUID_KEY,
             '{"%s": "1-2-3"}' % redis_client.SECURITY_GROUP_VERSION_UUID_KEY]
 
-        new_interfaces = ([VIF(1, 2), VIF(3, 4), VIF(5, 6), VIF(7, 8)])
+        new_interfaces = ([VIF(1, 2, 9), VIF(3, 4, 0), VIF(5, 6, 1),
+                           VIF(7, 8, 2)])
         group_uuids = rc.get_security_groups(new_interfaces)
         mock_pipeline.get.assert_has_calls(
             [mock.call("1.000000000002"),
@@ -274,7 +275,7 @@ class TestRedisForAgent(test_base.TestBase):
             any_order=True)
         mock_pipeline.execute.assert_called_once_with()
         self.assertEqual(group_uuids,
-                         {VIF(1, 2): None,
-                          VIF(3, 4): None,
-                          VIF(5, 6): None,
-                          VIF(7, 8): "1-2-3"})
+                         {VIF(1, 2, 9): None,
+                          VIF(3, 4, 0): None,
+                          VIF(5, 6, 1): None,
+                          VIF(7, 8, 2): "1-2-3"})
