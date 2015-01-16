@@ -95,7 +95,6 @@ class Client(object):
             LOG.info("Creating redis connection pool for the first time...")
             host = CONF.QUARK.redis_security_groups_host
             port = CONF.QUARK.redis_security_groups_port
-            LOG.info("Using redis host %s:%s" % (host, port))
 
             connect_kw = {}
             if CONF.QUARK.redis_password:
@@ -111,9 +110,12 @@ class Client(object):
                     redis.sentinel.Sentinel(self._sentinel_list))
                 connect_kw["check_connection"] = True
                 connect_kw["is_master"] = use_master
+                LOG.info("Using redis sentinel connections %s" %
+                         self._sentinel_list)
             else:
                 connect_kw["host"] = host
                 connect_kw["port"] = port
+                LOG.info("Using redis host %s:%s" % (host, port))
 
             Client.connection_pool = klass(*connect_args,
                                            **connect_kw)
