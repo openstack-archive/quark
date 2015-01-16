@@ -113,6 +113,18 @@ def generate_v6(mac, port_id, cidr):
 
 
 class QuarkIpam(object):
+    def _delete_mac_if_do_not_use(self, context, mac):
+        # NOTE(mdietz): This is a HACK. Please see RM11043 for details
+        admin_ctx = context.elevated()
+        mac_range = db_api.mac_address_range_find(
+            admin_ctx, id=mac["mac_address_range_id"], scope=db_api.ONE)
+
+        if mac_range and mac_range["do_not_use"]:
+            # NOTE(mdietz): This is a HACK. Please see RM11043 for details
+            db_api.mac_address_delete(context, mac)
+            return True
+        return False
+
     @synchronized(named("allocate_mac_address"))
     def allocate_mac_address(self, context, net_id, port_id, reuse_after,
                              mac_address=None):
@@ -136,6 +148,13 @@ class QuarkIpam(object):
                         address=mac_address, order_by="address ASC")
 
                     if deallocated_mac:
+                        if self._delete_mac_if_do_not_use(context,
+                                                          deallocated_mac):
+                            LOG.debug("Found a deallocated MAC in a do_not_use"
+                                      " mac_address_range and deleted it. "
+                                      "Retrying...")
+                            continue
+
                         dealloc = netaddr.EUI(deallocated_mac["address"])
                         LOG.info("Found a suitable deallocated MAC {0}".format(
                             str(dealloc)))
@@ -655,8 +674,10 @@ class QuarkIpam(object):
         if not mac:
             raise exceptions.NotFound(
                 message="No MAC address %s found" % netaddr.EUI(address))
-        db_api.mac_address_update(context, mac, deallocated=True,
-                                  deallocated_at=timeutils.utcnow())
+
+        if not self._delete_mac_if_do_not_use(context, mac):
+            db_api.mac_address_update(context, mac, deallocated=True,
+                                      deallocated_at=timeutils.utcnow())
 
     # RM6180(roaet):
     # - removed session.begin due to deadlocks

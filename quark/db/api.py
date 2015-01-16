@@ -325,6 +325,10 @@ def mac_address_find(context, lock_mode=False, **filters):
     return query.filter(*model_filters)
 
 
+def mac_address_delete(context, mac_address):
+    context.session.delete(mac_address)
+
+
 def mac_address_range_find_allocation_counts(context, address=None):
     count = sql_func.count(models.MacAddress.address)
     query = context.session.query(models.MacAddressRange,
@@ -336,6 +340,7 @@ def mac_address_range_find_allocation_counts(context, address=None):
         query = query.filter(models.MacAddressRange.last_address >= address)
         query = query.filter(models.MacAddressRange.first_address <= address)
     query = query.filter(models.MacAddressRange.next_auto_assign_mac != -1)
+    query = query.filter(models.MacAddressRange.do_not_use == False)  # noqa
     query = query.limit(1)
     return query.first()
 
