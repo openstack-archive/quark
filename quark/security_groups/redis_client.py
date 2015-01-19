@@ -215,11 +215,11 @@ class Client(object):
 
         # Lower cases and strips hyphens from the mac
         mac = mac.translate(MAC_TRANS_TABLE, ":-")
-        return "{0}.{1}/sg".format(device_id, mac)
+        return "{0}.{1}".format(device_id, mac)
 
     def get_rules_for_port(self, device_id, mac_address):
-        rules = self._client.get(
-            self.rule_key(device_id, mac_address))
+        rules = self._client.hget(
+            self.rule_key(device_id, mac_address), "sg")
         if rules:
             return json.loads(rules)
 
@@ -235,7 +235,7 @@ class Client(object):
                      SECURITY_GROUP_RULE_KEY: rules}
         redis_key = self.rule_key(device_id, mac_address)
         try:
-            self._client.set(redis_key, json.dumps(rule_dict))
+            self._client.hset(redis_key, "sg", json.dumps(rule_dict))
         except redis.ConnectionError as e:
             LOG.exception(e)
             raise q_exc.RedisConnectionFailure()
@@ -247,13 +247,12 @@ class Client(object):
         keys = self._client.keys("*.????????????")
         if isinstance(keys, str):
             keys = [keys]
-        return [k for k in keys if k]
+        return [k for k in keys if k and self._client.hget(k, "sg")]
 
-    def delete_vif_rules(self, device_id, mac_address):
+    def delete_vif_rules(self, key):
         # Redis DEL command will ignore key safely if it doesn't exist
-        redis_key = self.rule_key(device_id, mac_address)
         try:
-            self._client.delete(redis_key)
+            self._client.hdel(key, "sg")
         except redis.ConnectionError as e:
             LOG.exception(e)
             raise q_exc.RedisConnectionFailure()
@@ -272,7 +271,7 @@ class Client(object):
         p = self._client.pipeline()
         for vif in new_interfaces:
             key = self.rule_key(vif.device_id, vif.mac_address)
-            p.get(key)
+            p.hget(key, "sg")
         security_groups = p.execute()
 
         ret = {}

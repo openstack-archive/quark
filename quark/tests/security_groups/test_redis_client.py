@@ -47,7 +47,7 @@ class TestRedisSerialization(test_base.TestBase):
         mac_address = netaddr.EUI("AA:BB:CC:DD:EE:FF")
 
         redis_key = client.rule_key(device_id, mac_address.value)
-        expected = "%s.%s/sg" % (device_id, "aabbccddeeff")
+        expected = "%s.%s" % (device_id, "aabbccddeeff")
         self.assertEqual(expected, redis_key)
         conn_pool.assert_called_with(host=host, port=port)
 
@@ -61,13 +61,13 @@ class TestRedisSerialization(test_base.TestBase):
 
         mac_address = netaddr.EUI("AA:BB:CC:DD:EE:FF")
         client.apply_rules(device_id, mac_address.value, [])
-        self.assertTrue(client._client.set.called)
+        self.assertTrue(client._client.hset.called)
 
         redis_key = client.rule_key(device_id, mac_address.value)
 
         rule_dict = {"rules": [], "id": "uuid"}
-        client._client.set.assert_called_with(
-            redis_key, json.dumps(rule_dict))
+        client._client.hset.assert_called_with(
+            redis_key, "sg", json.dumps(rule_dict))
 
     @mock.patch("redis.ConnectionPool")
     @mock.patch("quark.security_groups.redis_client.Client.rule_key")
@@ -98,7 +98,7 @@ class TestRedisSerialization(test_base.TestBase):
             redis_mock.return_value = mocked_redis_cli
 
             client = redis_client.Client(use_master=True)
-            mocked_redis_cli.set.side_effect = conn_err
+            mocked_redis_cli.hset.side_effect = conn_err
             with self.assertRaises(q_exc.RedisConnectionFailure):
                 client.apply_rules(port_id, mac_address.value, [])
 
@@ -267,11 +267,11 @@ class TestRedisForAgent(test_base.TestBase):
         new_interfaces = ([VIF(1, 2, 9), VIF(3, 4, 0), VIF(5, 6, 1),
                            VIF(7, 8, 2)])
         group_uuids = rc.get_security_groups(new_interfaces)
-        mock_pipeline.get.assert_has_calls(
-            [mock.call("1.000000000002/sg"),
-             mock.call("3.000000000004/sg"),
-             mock.call("5.000000000006/sg"),
-             mock.call("7.000000000008/sg")],
+        mock_pipeline.hget.assert_has_calls(
+            [mock.call("1.000000000002", "sg"),
+             mock.call("3.000000000004", "sg"),
+             mock.call("5.000000000006", "sg"),
+             mock.call("7.000000000008", "sg")],
             any_order=True)
         mock_pipeline.execute.assert_called_once_with()
         self.assertEqual(group_uuids,
