@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from neutron.i18n import _
-from oslo.config import cfg
+from oslo_config import cfg
 
 CONF = cfg.CONF
 
