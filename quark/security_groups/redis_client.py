@@ -24,6 +24,7 @@ import redis
 import redis.sentinel
 
 from quark import exceptions as q_exc
+from quark import protocols
 from quark import utils
 
 
@@ -156,15 +157,24 @@ class Client(object):
                         rule["remote_ip_prefix"])
                     destination = str(destination.ipv6())
 
-            serialized.append(
-                {"ethertype": rule["ethertype"],
-                 "protocol": rule["protocol"],
-                 "port start": rule["port_range_min"],
-                 "port end": rule["port_range_max"],
-                 "source network": source,
-                 "destination network": destination,
-                 "action": "allow",
-                 "direction": "ingress"})
+            optional_fields = {}
+
+            # NOTE(mdietz): this will expand as we add more protocols
+            if rule["protocol"] == protocols.PROTOCOLS["icmp"]:
+                optional_fields["icmp type"] = rule["port_range_min"]
+                optional_fields["icmp code"] = rule["port_range_max"]
+            else:
+                optional_fields["port start"] = rule["port_range_min"]
+                optional_fields["port end"] = rule["port_range_max"]
+
+            payload = {"ethertype": rule["ethertype"],
+                       "protocol": rule["protocol"],
+                       "source network": source,
+                       "destination network": destination,
+                       "action": "allow",
+                       "direction": "ingress"}
+            payload.update(optional_fields)
+            serialized.append(payload)
         return serialized
 
     def serialize_groups(self, groups):
@@ -182,8 +192,10 @@ class Client(object):
          "rules": [
            {"ethertype": <hexademical integer>,
             "protocol": <integer>,
-            "port start": <integer>,
-            "port end": <integer>,
+            "port start": <integer>,  # optional
+            "port end": <integer>,    # optional
+            "icmp type": <integer>,   # optional
+            "icmp code": <integer>,   # optional
             "source network": <string>,
             "destination network": <string>,
             "action": <string>,
@@ -204,6 +216,8 @@ class Client(object):
             "direction": "ingress"},
           ]
         }
+
+        port start/end and icmp type/code are mutually exclusive pairs.
         """
         rules = []
         for group in groups:
