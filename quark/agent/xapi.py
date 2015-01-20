@@ -13,6 +13,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from collections import namedtuple
+
 from neutron.openstack.common import log as logging
 from oslo.config import cfg
 import XenAPI
@@ -71,6 +73,9 @@ class VIF(object):
         return hash((self.device_id, self.mac_address))
 
 
+VM = namedtuple('VM', ['ref', 'uuid', 'vifs', 'dom_id'])
+
+
 class XapiClient(object):
     SECURITY_GROUPS_KEY = "security_groups"
     SECURITY_GROUPS_VALUE = "enabled"
@@ -93,7 +98,7 @@ class XapiClient(object):
         return session
 
     def get_instances(self):
-        """Returns a dict of `VM OpaqueRef` (str) -> `device_id` (str)."""
+        """Returns a dict of `VM OpaqueRef` (str) -> `xapi.VM`."""
         LOG.debug("Getting instances from Xapi")
 
         session = self._session()
@@ -112,7 +117,10 @@ class XapiClient(object):
         for vm_ref, rec in recs.iteritems():
             if not is_inst(rec):
                 continue
-            instances[vm_ref] = rec["other_config"]["nova_uuid"]
+            instances[vm_ref] = VM(ref=vm_ref,
+                                   uuid=rec["other_config"]["nova_uuid"],
+                                   vifs=rec["VIFs"],
+                                   dom_id=rec["domid"])
         return instances
 
     def get_interfaces(self, instances):
@@ -127,9 +135,10 @@ class XapiClient(object):
 
         interfaces = set()
         for vif_ref, rec in recs.iteritems():
-            device_id = instances.get(rec["VM"])
-            if not device_id:
+            vm = instances.get(rec["VM"])
+            if not vm:
                 continue
+            device_id = vm.uuid
             interfaces.add(VIF(device_id, rec["MAC"], vif_ref))
         return interfaces
 
@@ -150,16 +159,25 @@ class XapiClient(object):
                 vif.ref,
                 self.SECURITY_GROUPS_KEY)
 
-    def _refresh_interfaces(self, session, interfaces):
+    def _refresh_interfaces(self, session, instances, interfaces):
         LOG.debug("Refreshing devices on %s", interfaces)
 
-        device_ids = set([vif.device_id for vif in interfaces])
-        for device_id in device_ids:
-            args = {"host_uuid": self._host_uuid, "uuid": device_id}
+        vif_ref_to_vm = dict()
+        for vm in instances.values():
+            for i, vif_ref in enumerate(vm.vifs):
+                vif_ref_to_vm[vif_ref] = i, vm
+
+        for vif in interfaces:
+            try:
+                vif_index, vm_vif = vif_ref_to_vm[vif.ref]
+            except KeyError:
+                LOG.info("vif ref %s (%r) not found on any VM", vif.ref, vif)
+                continue
+            args = {"dom_id": vm_vif.dom_id, "vif_index": "%d" % vif_index}
             session.xenapi.host.call_plugin(
                 self._host_ref,
-                "post_live_migrate",
-                "instance_post_live_migration",
+                "neutron_vif_flow",
+                "online_instance_flows",
                 args)
 
     def update_interfaces(self, instances, added_sg, updated_sg, removed_sg):
@@ -176,6 +194,6 @@ class XapiClient(object):
             self._set_security_groups(session, added_sg)
             self._unset_security_groups(session, removed_sg)
             combined = added_sg + updated_sg + removed_sg
-            self._refresh_interfaces(session, combined)
+            self._refresh_interfaces(session, instances, combined)
         finally:
             session.xenapi.logout()

@@ -61,7 +61,7 @@ def run():
             _sleep()
             continue
 
-        new_instances_set = set(new_instances.values())
+        new_instances_set = set([vm.uuid for vm in new_instances.values()])
         added_instances = new_instances_set - instances
         removed_instances = instances - new_instances_set
         if added_instances or removed_instances:
