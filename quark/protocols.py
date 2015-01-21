@@ -31,27 +31,21 @@ ETHERTYPES = {
     "IPv6": 0x86DD
 }
 
+PROTOCOLS = {"icmp": 1, "tcp": 6, "udp": 17}
+
 # Neutron only officially supports TCP, ICMP and UDP,
 # with ethertypes IPv4 and IPv6
-PROTOCOLS = {
-    ETHERTYPES["IPv4"]: {
-        "icmp": 1,
-        "tcp": 6,
-        "udp": 17,
-    },
-    ETHERTYPES["IPv6"]: {
-        "icmp": 1,
-        "tcp": 6,
-        "udp": 17
-    }
+PROTOCOL_MAP = {
+    ETHERTYPES["IPv4"]: PROTOCOLS,
+    ETHERTYPES["IPv6"]: PROTOCOLS
 }
 
 
 ALLOWED_PROTOCOLS = None
-ALLOWED_WITH_RANGE = [6, 17]
+ALLOWED_WITH_RANGE = [1, 6, 17]
 MIN_PROTOCOL = 0
 MAX_PROTOCOL = 255
-REVERSE_PROTOCOLS = {}
+REVERSE_PROTOCOL_MAP = {}
 REVERSE_ETHERTYPES = {}
 MIN_PORT = 0
 MAX_PORT = 65535
@@ -63,8 +57,8 @@ def _is_allowed(protocol, ethertype):
     if not (MIN_PROTOCOL <= protocol <= MAX_PROTOCOL):
         return False
 
-    return (protocol in PROTOCOLS[ethertype] or
-            protocol in REVERSE_PROTOCOLS)
+    return (protocol in PROTOCOL_MAP[ethertype] or
+            protocol in REVERSE_PROTOCOL_MAP)
 
 
 def translate_ethertype(ethertype):
@@ -79,11 +73,11 @@ def translate_protocol(protocol, ethertype):
         proto = int(protocol)
     except ValueError:
         proto = str(protocol).lower()
-        proto = PROTOCOLS[ether].get(proto, -1)
+        proto = PROTOCOL_MAP[ether].get(proto, -1)
 
     if not _is_allowed(proto, ether):
         # TODO(mdietz) This will change as neutron supports new protocols
-        value_list = PROTOCOLS[ETHERTYPES["IPv4"]].keys()
+        value_list = PROTOCOL_MAP[ETHERTYPES["IPv4"]].keys()
         raise sg_ext.SecurityGroupRuleInvalidProtocol(
             protocol=protocol, values=value_list)
     return proto
@@ -97,7 +91,7 @@ def human_readable_protocol(protocol, ethertype):
     if protocol is None:
         return
     proto = translate_protocol(protocol, ethertype)
-    return REVERSE_PROTOCOLS[proto]
+    return REVERSE_PROTOCOL_MAP[proto]
 
 
 def validate_remote_ip_prefix(ethertype, prefix):
@@ -115,35 +109,54 @@ def validate_remote_ip_prefix(ethertype, prefix):
 def validate_protocol_with_port_ranges(protocol, port_range_min,
                                        port_range_max):
     if protocol in ALLOWED_WITH_RANGE:
-        # TODO(anyone): what exactly is a TCP or UDP rule without ports?
-        if (port_range_min is None) != (port_range_max is None):
-            raise exceptions.InvalidInput(
-                error_message="For TCP/UDP rules, port_range_min and"
-                              "port_range_max must either both be supplied, "
-                              "or neither of them")
+        if protocol == PROTOCOLS["icmp"]:
+            if port_range_min is None and port_range_max is not None:
+                raise sg_ext.SecurityGroupMissingIcmpType()
+            elif port_range_min is not None:
+                attr = None
+                field = None
+                value = None
+                if port_range_min < 0 or port_range_min > 255:
+                    field = "port_range_min"
+                    attr = "type"
+                    value = port_range_min
+                elif (port_range_max is not None and
+                      port_range_max < 0 or port_range_max > 255):
+                    field = "port_range_max"
+                    attr = "code"
+                    value = port_range_max
 
-        if port_range_min is not None and port_range_max is not None:
-            if port_range_min > port_range_max:
-                raise sg_ext.SecurityGroupInvalidPortRange()
+                if attr and field and value:
+                    raise sg_ext.SecurityGroupInvalidIcmpValue(
+                        field=field, attr=attr, value=value)
 
-            if port_range_min < MIN_PORT or port_range_max > MAX_PORT:
+        else:
+            if (port_range_min is None) != (port_range_max is None):
+                # TODO(anyone): what exactly is a TCP or UDP rule withouts
+                #               ports?
                 raise exceptions.InvalidInput(
-                    error_message="port_range_min and port_range_max must be "
-                                  ">= %s and <= %s" % (MIN_PORT, MAX_PORT))
-    else:
-        if port_range_min or port_range_max:
-            raise exceptions.InvalidInput(
-                error_message=("You may not supply ports for the requested "
-                               "protocol"))
+                    error_message="For TCP/UDP rules, port_range_min and"
+                                  "port_range_max must either both be supplied"
+                                  ", or neither of them")
+
+            if port_range_min is not None and port_range_max is not None:
+                if port_range_min > port_range_max:
+                    raise sg_ext.SecurityGroupInvalidPortRange()
+
+                if port_range_min < MIN_PORT or port_range_max > MAX_PORT:
+                    raise exceptions.InvalidInput(
+                        error_message="port_range_min and port_range_max must "
+                                      "be >= %s and <= %s" % (MIN_PORT,
+                                                              MAX_PORT))
 
 
 def _init_protocols():
-    if not REVERSE_PROTOCOLS:
+    if not REVERSE_PROTOCOL_MAP:
         # Protocols don't change between ethertypes, but we want to get
         # them all, from all ethertypes
         for ether_str, ethertype in ETHERTYPES.iteritems():
-            for proto, proto_int in PROTOCOLS[ethertype].iteritems():
-                REVERSE_PROTOCOLS[proto_int] = proto.upper()
+            for proto, proto_int in PROTOCOL_MAP[ethertype].iteritems():
+                REVERSE_PROTOCOL_MAP[proto_int] = proto.upper()
 
     if not REVERSE_ETHERTYPES:
         for ether_str, ethertype in ETHERTYPES.iteritems():

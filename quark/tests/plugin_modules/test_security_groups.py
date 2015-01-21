@@ -311,6 +311,40 @@ class TestQuarkCreateSecurityGroupRule(test_quark_plugin.TestQuarkPlugin):
     def test_create_security_rule_TCP(self):
         self._test_create_security_rule(protocol=6)
 
+    def test_create_security_rule_ICMP(self):
+        self._test_create_security_rule(protocol=1)
+
+    def test_create_security_rule_ICMP_with_type(self):
+        self._test_create_security_rule(protocol=1, port_range_min=1)
+
+    def test_create_security_rule_ICMP_with_type_and_code(self):
+        self._test_create_security_rule(protocol=1, port_range_min=1,
+                                        port_range_max=2)
+
+    def test_create_security_rule_ICMP_code_no_type_raises(self):
+        with self.assertRaises(sg_ext.SecurityGroupMissingIcmpType):
+            self._test_create_security_rule(protocol=1, port_range_max=2)
+
+    def test_create_security_rule_ICMP_type_under_range_raises(self):
+        with self.assertRaises(sg_ext.SecurityGroupInvalidIcmpValue):
+            self._test_create_security_rule(protocol=1, port_range_min=-1,
+                                            port_range_max=1)
+
+    def test_create_security_rule_ICMP_type_over_range_raises(self):
+        with self.assertRaises(sg_ext.SecurityGroupInvalidIcmpValue):
+            self._test_create_security_rule(protocol=1, port_range_min=256,
+                                            port_range_max=1)
+
+    def test_create_security_rule_ICMP_code_under_range_raises(self):
+        with self.assertRaises(sg_ext.SecurityGroupInvalidIcmpValue):
+            self._test_create_security_rule(protocol=1, port_range_min=1,
+                                            port_range_max=-1)
+
+    def test_create_security_rule_ICMP_code_over_range_raises(self):
+        with self.assertRaises(sg_ext.SecurityGroupInvalidIcmpValue):
+            self._test_create_security_rule(protocol=1, port_range_min=1,
+                                            port_range_max=256)
+
     def test_create_security_rule_remote_ip(self):
         self._test_create_security_rule(remote_ip_prefix='192.168.0.1')
 

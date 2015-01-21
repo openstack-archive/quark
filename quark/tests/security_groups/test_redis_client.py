@@ -149,8 +149,8 @@ class TestRedisSerialization(test_base.TestBase):
         rule = payload[0]
         self.assertEqual(0x800, rule["ethertype"])
         self.assertEqual(1, rule["protocol"])
-        self.assertEqual(None, rule["port start"])
-        self.assertEqual(None, rule["port end"])
+        self.assertEqual(None, rule["icmp type"])
+        self.assertEqual(None, rule["icmp code"])
         self.assertEqual("allow", rule["action"])
         self.assertEqual("ingress", rule["direction"])
         self.assertEqual("::ffff:192.168.0.0/120", rule["source network"])
@@ -172,8 +172,8 @@ class TestRedisSerialization(test_base.TestBase):
         rule = payload[0]
         self.assertEqual(0x800, rule["ethertype"])
         self.assertEqual(1, rule["protocol"])
-        self.assertEqual(None, rule["port start"])
-        self.assertEqual(None, rule["port end"])
+        self.assertEqual(None, rule["icmp type"])
+        self.assertEqual(None, rule["icmp code"])
         self.assertEqual("allow", rule["action"])
         self.assertEqual("ingress", rule["direction"])
         self.assertEqual("::ffff:192.168.0.0/120", rule["destination network"])
