@@ -31,6 +31,7 @@ CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 SECURITY_GROUP_VERSION_UUID_KEY = "id"
 SECURITY_GROUP_RULE_KEY = "rules"
+SECURITY_GROUP_HASH_ATTR = "security group rules"
 MAC_TRANS_TABLE = string.maketrans(string.ascii_uppercase,
                                    string.ascii_lowercase)
 
@@ -219,7 +220,7 @@ class Client(object):
 
     def get_rules_for_port(self, device_id, mac_address):
         rules = self._client.hget(
-            self.rule_key(device_id, mac_address), "sg")
+            self.rule_key(device_id, mac_address), SECURITY_GROUP_HASH_ATTR)
         if rules:
             return json.loads(rules)
 
@@ -235,7 +236,8 @@ class Client(object):
                      SECURITY_GROUP_RULE_KEY: rules}
         redis_key = self.rule_key(device_id, mac_address)
         try:
-            self._client.hset(redis_key, "sg", json.dumps(rule_dict))
+            self._client.hset(redis_key, SECURITY_GROUP_HASH_ATTR,
+                              json.dumps(rule_dict))
         except redis.ConnectionError as e:
             LOG.exception(e)
             raise q_exc.RedisConnectionFailure()
@@ -247,12 +249,13 @@ class Client(object):
         keys = self._client.keys("*.????????????")
         if isinstance(keys, str):
             keys = [keys]
-        return [k for k in keys if k and self._client.hget(k, "sg")]
+        return [k for k in keys if k and
+                self._client.hget(k, SECURITY_GROUP_HASH_ATTR)]
 
     def delete_vif_rules(self, key):
         # Redis DEL command will ignore key safely if it doesn't exist
         try:
-            self._client.hdel(key, "sg")
+            self._client.hdel(key, SECURITY_GROUP_HASH_ATTR)
         except redis.ConnectionError as e:
             LOG.exception(e)
             raise q_exc.RedisConnectionFailure()
@@ -271,7 +274,7 @@ class Client(object):
         p = self._client.pipeline()
         for vif in new_interfaces:
             key = self.rule_key(vif.device_id, vif.mac_address)
-            p.hget(key, "sg")
+            p.hget(key, SECURITY_GROUP_HASH_ATTR)
         security_groups = p.execute()
 
         ret = {}
