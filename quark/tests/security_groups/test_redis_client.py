@@ -67,7 +67,8 @@ class TestRedisSerialization(test_base.TestBase):
 
         rule_dict = {"rules": [], "id": "uuid"}
         client._client.hset.assert_called_with(
-            redis_key, "sg", json.dumps(rule_dict))
+            redis_key, redis_client.SECURITY_GROUP_HASH_ATTR,
+            json.dumps(rule_dict))
 
     @mock.patch("redis.ConnectionPool")
     @mock.patch("quark.security_groups.redis_client.Client.rule_key")
@@ -268,10 +269,14 @@ class TestRedisForAgent(test_base.TestBase):
                            VIF(7, 8, 2)])
         group_uuids = rc.get_security_groups(new_interfaces)
         mock_pipeline.hget.assert_has_calls(
-            [mock.call("1.000000000002", "sg"),
-             mock.call("3.000000000004", "sg"),
-             mock.call("5.000000000006", "sg"),
-             mock.call("7.000000000008", "sg")],
+            [mock.call("1.000000000002",
+                       redis_client.SECURITY_GROUP_HASH_ATTR),
+             mock.call("3.000000000004",
+                       redis_client.SECURITY_GROUP_HASH_ATTR),
+             mock.call("5.000000000006",
+                       redis_client.SECURITY_GROUP_HASH_ATTR),
+             mock.call("7.000000000008",
+                       redis_client.SECURITY_GROUP_HASH_ATTR)],
             any_order=True)
         mock_pipeline.execute.assert_called_once_with()
         self.assertEqual(group_uuids,
