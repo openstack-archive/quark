@@ -13,9 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #
 
-import contextlib
 import json
-import uuid
 
 import mock
 import netaddr
@@ -23,39 +21,26 @@ from oslo.config import cfg
 import redis
 
 from quark.agent.xapi import VIF
+from quark.cache import security_groups_client as sg_client
 from quark.db import models
 from quark import exceptions as q_exc
-from quark.security_groups import redis_client
 from quark.tests import test_base
 
 CONF = cfg.CONF
 
 
-class TestRedisSerialization(test_base.TestBase):
+class TestRedisSecurityGroupsClient(test_base.TestBase):
+
     def setUp(self):
-        super(TestRedisSerialization, self).setUp()
+        super(TestRedisSecurityGroupsClient, self).setUp()
         # Forces the connection pool to be recreated on every test
-        redis_client.Client.connection_pool = None
-
-    @mock.patch("redis.ConnectionPool")
-    @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
-    def test_redis_key(self, strict_redis, conn_pool):
-        host = "127.0.0.1"
-        port = 6379
-        client = redis_client.Client()
-        device_id = str(uuid.uuid4())
-        mac_address = netaddr.EUI("AA:BB:CC:DD:EE:FF")
-
-        redis_key = client.rule_key(device_id, mac_address.value)
-        expected = "%s.%s" % (device_id, "aabbccddeeff")
-        self.assertEqual(expected, redis_key)
-        conn_pool.assert_called_with(host=host, port=port)
+        sg_client.SecurityGroupsClient.connection_pool = None
 
     @mock.patch("uuid.uuid4")
     @mock.patch("redis.ConnectionPool")
-    @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
+    @mock.patch("quark.cache.redis_base.redis.StrictRedis")
     def test_apply_rules(self, strict_redis, conn_pool, uuid4):
-        client = redis_client.Client(use_master=True)
+        client = sg_client.SecurityGroupsClient(use_master=True)
         device_id = "device"
         uuid4.return_value = "uuid"
 
@@ -63,31 +48,25 @@ class TestRedisSerialization(test_base.TestBase):
         client.apply_rules(device_id, mac_address.value, [])
         self.assertTrue(client._client.hset.called)
 
-        redis_key = client.rule_key(device_id, mac_address.value)
+        redis_key = client.vif_key(device_id, mac_address.value)
 
         rule_dict = {"rules": [], "id": "uuid"}
         client._client.hset.assert_called_with(
-            redis_key, redis_client.SECURITY_GROUP_HASH_ATTR,
+            redis_key, sg_client.SECURITY_GROUP_HASH_ATTR,
             json.dumps(rule_dict))
 
     @mock.patch("redis.ConnectionPool")
-    @mock.patch("quark.security_groups.redis_client.Client.rule_key")
-    @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
-    def test_apply_rules_with_slave_fails(self, strict_redis, rule_key,
+    @mock.patch(
+        "quark.cache.security_groups_client.SecurityGroupsClient.vif_key")
+    @mock.patch(
+        "quark.cache.security_groups_client.redis_base.redis.StrictRedis")
+    def test_apply_rules_with_slave_fails(self, strict_redis, vif_key,
                                           conn_pool):
-        client = redis_client.Client()
+        client = sg_client.SecurityGroupsClient()
         port_id = 1
         mac_address = netaddr.EUI("AA:BB:CC:DD:EE:FF")
         with self.assertRaises(q_exc.RedisSlaveWritesForbidden):
             client.apply_rules(port_id, mac_address.value, [])
-
-    @mock.patch("redis.ConnectionPool")
-    def test_client_connection_fails_gracefully(self, conn_pool):
-        conn_err = redis.ConnectionError
-        with mock.patch("redis.StrictRedis") as redis_mock:
-            redis_mock.side_effect = conn_err
-            with self.assertRaises(q_exc.RedisConnectionFailure):
-                redis_client.Client(use_master=True)
 
     @mock.patch("redis.ConnectionPool")
     def test_apply_rules_set_fails_gracefully(self, conn_pool):
@@ -98,25 +77,27 @@ class TestRedisSerialization(test_base.TestBase):
             mocked_redis_cli = mock.MagicMock()
             redis_mock.return_value = mocked_redis_cli
 
-            client = redis_client.Client(use_master=True)
+            client = sg_client.SecurityGroupsClient(use_master=True)
             mocked_redis_cli.hset.side_effect = conn_err
             with self.assertRaises(q_exc.RedisConnectionFailure):
                 client.apply_rules(port_id, mac_address.value, [])
 
     @mock.patch("redis.ConnectionPool")
-    @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
+    @mock.patch(
+        "quark.cache.security_groups_client.redis_base.redis.StrictRedis")
     def test_serialize_group_no_rules(self, strict_redis, conn_pool):
-        client = redis_client.Client()
+        client = sg_client.SecurityGroupsClient()
         group = models.SecurityGroup()
         payload = client.serialize_groups([group])
         self.assertEqual([], payload)
 
     @mock.patch("redis.ConnectionPool")
-    @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
+    @mock.patch(
+        "quark.cache.security_groups_client.redis_base.redis.StrictRedis")
     def test_serialize_group_with_rules(self, strict_redis, conn_pool):
         rule_dict = {"ethertype": 0x800, "protocol": 6, "port_range_min": 80,
                      "port_range_max": 443, "direction": "ingress"}
-        client = redis_client.Client()
+        client = sg_client.SecurityGroupsClient()
         group = models.SecurityGroup()
         rule = models.SecurityGroupRule()
         rule.update(rule_dict)
@@ -134,12 +115,13 @@ class TestRedisSerialization(test_base.TestBase):
         self.assertEqual("", rule["destination network"])
 
     @mock.patch("redis.ConnectionPool")
-    @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
+    @mock.patch(
+        "quark.cache.security_groups_client.redis_base.redis.StrictRedis")
     def test_serialize_group_with_rules_and_remote_network(self, strict_redis,
                                                            conn_pool):
         rule_dict = {"ethertype": 0x800, "protocol": 1, "direction": "ingress",
                      "remote_ip_prefix": "192.168.0.0/24"}
-        client = redis_client.Client()
+        client = sg_client.SecurityGroupsClient()
         group = models.SecurityGroup()
         rule = models.SecurityGroupRule()
         rule.update(rule_dict)
@@ -157,12 +139,13 @@ class TestRedisSerialization(test_base.TestBase):
         self.assertEqual("", rule["destination network"])
 
     @mock.patch("redis.ConnectionPool")
-    @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
+    @mock.patch(
+        "quark.cache.security_groups_client.redis_base.redis.StrictRedis")
     def test_serialize_group_egress_rules(self, strict_redis, conn_pool):
         rule_dict = {"ethertype": 0x800, "protocol": 1,
                      "direction": "egress",
                      "remote_ip_prefix": "192.168.0.0/24"}
-        client = redis_client.Client()
+        client = sg_client.SecurityGroupsClient()
         group = models.SecurityGroup()
         rule = models.SecurityGroupRule()
         rule.update(rule_dict)
@@ -180,105 +163,50 @@ class TestRedisSerialization(test_base.TestBase):
         self.assertEqual("", rule["source network"])
 
 
-class TestRedisSentinelConnection(test_base.TestBase):
-    def setUp(self):
-        super(TestRedisSentinelConnection, self).setUp()
-        # Forces the connection pool to be recreated on every test
-        redis_client.Client.connection_pool = None
-
-    @contextlib.contextmanager
-    def _stubs(self, use_sentinels, sentinels, master_label):
-        CONF.set_override("redis_use_sentinels", True, "QUARK")
-        CONF.set_override("redis_sentinel_hosts", sentinels, "QUARK")
-        CONF.set_override("redis_sentinel_master", master_label, "QUARK")
-        yield
-        CONF.set_override("redis_use_sentinels", False, "QUARK")
-        CONF.set_override("redis_sentinel_hosts", '', "QUARK")
-        CONF.set_override("redis_sentinel_master", '', "QUARK")
-
-    @mock.patch("redis.sentinel.Sentinel")
-    @mock.patch("redis.sentinel.SentinelConnectionPool")
-    @mock.patch("redis.sentinel.Sentinel.master_for")
-    @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
-    def test_sentinel_connection(self, strict_redis, master_for,
-                                 sentinel_pool, sentinel_mock):
-        host = "127.0.0.1"
-        port = 6379
-        sentinels = ["%s:%s" % (host, port)]
-        master_label = "master"
-        sentinel_mock.return_value = sentinels
-
-        with self._stubs(True, sentinels, master_label):
-            redis_client.Client(use_master=True)
-            sentinel_pool.assert_called_with(master_label, sentinels,
-                                             check_connection=True,
-                                             is_master=True)
-
-    @mock.patch("redis.sentinel.SentinelConnectionPool")
-    @mock.patch("redis.sentinel.Sentinel.master_for")
-    @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
-    def test_sentinel_connection_bad_format_raises(self, strict_redis,
-                                                   master_for, sentinel_pool):
-        sentinels = ""
-        master_label = "master"
-
-        with self._stubs(True, sentinels, master_label):
-            with self.assertRaises(TypeError):
-                redis_client.Client(is_master=True)
-
-
 class TestRedisForAgent(test_base.TestBase):
     def setUp(self):
         super(TestRedisForAgent, self).setUp()
 
-        patch = mock.patch("quark.security_groups.redis_client."
+        patch = mock.patch("quark.cache.security_groups_client.redis_base."
                            "redis.StrictRedis")
         self.MockSentinel = patch.start()
         self.addCleanup(patch.stop)
 
-    @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
+    @mock.patch(
+        "quark.cache.security_groups_client.redis_base.redis.StrictRedis")
     def test_get_security_groups_empty(self, strict_redis):
         mock_redis = mock.MagicMock()
         mock_pipeline = mock.MagicMock()
         strict_redis.return_value = mock_redis
         mock_redis.pipeline.return_value = mock_pipeline
 
-        rc = redis_client.Client()
+        rc = sg_client.SecurityGroupsClient()
         group_uuids = rc.get_security_groups(set())
         mock_redis.pipeline.assert_called_once_with()
         self.assertEqual(mock_pipeline.get.call_count, 0)
         mock_pipeline.execute.assert_called_once_with()
         self.assertEqual(group_uuids, {})
 
-    @mock.patch("quark.security_groups.redis_client.redis.StrictRedis")
-    def test_get_security_groups_nonempty(self, strict_redis):
-        mock_redis = mock.MagicMock()
-        mock_pipeline = mock.MagicMock()
-        strict_redis.return_value = mock_redis
-        mock_redis.pipeline.return_value = mock_pipeline
+    @mock.patch(
+        "quark.cache.security_groups_client.SecurityGroupsClient.get_fields")
+    def test_get_security_groups_nonempty(self, mock_get_fields):
+        rc = sg_client.SecurityGroupsClient()
 
-        rc = redis_client.Client()
-
-        mock_pipeline.execute.return_value = [
+        mock_get_fields.return_value = [
             None,
             '{}',
-            '{"%s": null}' % redis_client.SECURITY_GROUP_VERSION_UUID_KEY,
-            '{"%s": "1-2-3"}' % redis_client.SECURITY_GROUP_VERSION_UUID_KEY]
+            '{"%s": null}' % sg_client.SECURITY_GROUP_VERSION_UUID_KEY,
+            '{"%s": "1-2-3"}' % sg_client.SECURITY_GROUP_VERSION_UUID_KEY]
 
         new_interfaces = ([VIF(1, 2, 9), VIF(3, 4, 0), VIF(5, 6, 1),
                            VIF(7, 8, 2)])
+
         group_uuids = rc.get_security_groups(new_interfaces)
-        mock_pipeline.hget.assert_has_calls(
-            [mock.call("1.000000000002",
-                       redis_client.SECURITY_GROUP_HASH_ATTR),
-             mock.call("3.000000000004",
-                       redis_client.SECURITY_GROUP_HASH_ATTR),
-             mock.call("5.000000000006",
-                       redis_client.SECURITY_GROUP_HASH_ATTR),
-             mock.call("7.000000000008",
-                       redis_client.SECURITY_GROUP_HASH_ATTR)],
-            any_order=True)
-        mock_pipeline.execute.assert_called_once_with()
+
+        mock_get_fields.assert_called_once_with(
+            ["1.000000000002", "3.000000000004", "5.000000000006",
+             "7.000000000008"], sg_client.SECURITY_GROUP_HASH_ATTR)
+
         self.assertEqual(group_uuids,
                          {VIF(1, 2, 9): None,
                           VIF(3, 4, 0): None,

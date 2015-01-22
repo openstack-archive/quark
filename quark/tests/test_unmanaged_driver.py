@@ -64,7 +64,7 @@ class TestUnmanagedDriver(test_base.TestBase):
         self.driver.update_port(context=self.context,
                                 network_id="public_network", port_id=2)
 
-    @mock.patch("quark.security_groups.redis_client.Client")
+    @mock.patch("quark.cache.security_groups_client.SecurityGroupsClient")
     def test_update_port_with_security_groups_removal(self, redis_cli):
         mock_client = mock.MagicMock()
         redis_cli.return_value = mock_client
@@ -81,7 +81,7 @@ class TestUnmanagedDriver(test_base.TestBase):
         mock_client.delete_vif_rules.assert_called_once_with(
             device_id, mac_address)
 
-    @mock.patch("quark.security_groups.redis_client.Client")
+    @mock.patch("quark.cache.security_groups_client.SecurityGroupsClient")
     def test_update_port_with_security_groups(self, redis_cli):
         mock_client = mock.MagicMock()
         redis_cli.return_value = mock_client
