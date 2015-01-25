@@ -24,7 +24,7 @@ from oslo.config import cfg
 
 from quark.agent import version_control
 from quark.agent import xapi
-from quark.security_groups import redis_client as redis
+from quark.cache import security_groups_client as sg_cli
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ agent_opts = [
     cfg.IntOpt("polling_interval",
                default=10,
                help=_("Number of seconds to wait between poll iterations of "
-                      "XAPI and Redis."))
+                      "XAPI and the configured security groups registry."))
 ]
 
 CONF.register_opts(agent_opts, "AGENT")
@@ -41,12 +41,12 @@ CONF.register_opts(agent_opts, "AGENT")
 
 def _sleep():
     # NOTE(amir): add randomness to polling so all machines don't slam
-    #             Redis at once
+    #             the security groups registry at once
     time.sleep(CONF.AGENT.polling_interval + random.random() * 2)
 
 
 def run():
-    redis_client = redis.Client()
+    groups_client = sg_cli.SecurityGroupsClient()
     xapi_client = xapi.XapiClient()
     vc = version_control.VersionControl()
 
@@ -75,14 +75,14 @@ def run():
                       added_interfaces, removed_interfaces)
 
         try:
-            new_security_groups = redis_client.get_security_groups(
+            new_security_groups = groups_client.get_security_groups(
                 new_interfaces)
             added_sg, updated_sg, removed_sg = vc.diff(new_security_groups)
             xapi_client.update_interfaces(new_instances,
                                           added_sg, updated_sg, removed_sg)
         except Exception:
-            LOG.exception("Unable to get security groups from Redis and apply"
-                          " them to xapi")
+            LOG.exception("Unable to get security groups from registry and "
+                          "apply them to xapi")
             _sleep()
             continue
 

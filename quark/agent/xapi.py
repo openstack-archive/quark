@@ -142,19 +142,37 @@ class XapiClient(object):
             interfaces.add(VIF(device_id, rec["MAC"], vif_ref))
         return interfaces
 
+    def does_record_exist(self, session, vif_ref):
+        vif_rec = session.xenapi.VIF.get_record(vif_ref)
+        if vif_rec["other_config"].get(self.SECURITY_GROUPS_KEY):
+            LOG.debug("VIF %s already enabled for security groups!" %
+                      vif_rec["uuid"])
+            return True
+        return False
+
     def _set_security_groups(self, session, interfaces):
         LOG.debug("Setting security groups on %s", interfaces)
 
         for vif in interfaces:
-            session.xenapi.VIF.add_to_other_config(
-                vif.ref,
-                self.SECURITY_GROUPS_KEY,
-                self.SECURITY_GROUPS_VALUE)
+            try:
+                if not self.does_record_exist(session, vif.ref):
+                    session.xenapi.VIF.add_to_other_config(
+                        vif.ref, self.SECURITY_GROUPS_KEY,
+                        self.SECURITY_GROUPS_VALUE)
+            except XenAPI.Failure:
+                # We shouldn't lose all of them because one failed
+                # An example of a continuable failure is the VIF was deleted
+                # in the (albeit very small) window between the initial fetch
+                # and here.
+                LOG.exception("Failed to disable security groups for VIF "
+                              "with MAC %s" % vif.mac_address)
+                continue
 
     def _unset_security_groups(self, session, interfaces):
         LOG.debug("Unsetting security groups on %s", interfaces)
 
         for vif in interfaces:
+            # NOTE(mdietz): Remove is idempotent, add_to_other_config isn't
             session.xenapi.VIF.remove_from_other_config(
                 vif.ref,
                 self.SECURITY_GROUPS_KEY)
