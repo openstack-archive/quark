@@ -51,9 +51,9 @@ from neutron.common import config
 import neutron.context
 from oslo.config import cfg
 
+from quark.cache import security_groups_client as sg_client
 from quark.db import api as db_api
 from quark import exceptions as q_exc
-from quark.security_groups import redis_client
 
 
 class QuarkRedisTool(object):
@@ -101,7 +101,7 @@ class QuarkRedisTool(object):
                   "options")
 
     def _get_connection(self, use_master=False, giveup=True):
-        client = redis_client.Client(use_master=use_master)
+        client = sg_client.SecurityGroupsClient(use_master=use_master)
         try:
             # You have to use the connection determine it's functional
             result = client.echo("connected")
@@ -122,7 +122,7 @@ class QuarkRedisTool(object):
 
     def vif_count(self):
         client = self._get_connection()
-        print(len(client.vif_keys()))
+        print(len(client.vif_keys(field=sg_client.SECURITY_GROUP_HASH_ATTR)))
 
     def num_groups(self):
         ctx = neutron.context.get_admin_context()
@@ -157,7 +157,7 @@ class QuarkRedisTool(object):
 
         # Pop off the ones we find in the database
         for port in ports_with_groups:
-            vif_key = client.rule_key(port["device_id"], port["mac_address"])
+            vif_key = client.vif_key(port["device_id"], port["mac_address"])
             vifs.pop(vif_key, None)
 
         if dryrun:

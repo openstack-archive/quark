@@ -15,8 +15,8 @@
 
 from neutron.openstack.common import log as logging
 
+from quark.cache import security_groups_client as sg_client
 from quark import network_strategy
-from quark.security_groups import redis_client
 
 
 STRATEGY = network_strategy.STRATEGY
@@ -63,7 +63,7 @@ class UnmanagedDriver(object):
         LOG.info("update_port %s %s" % (context.tenant_id, port_id))
 
         if "security_groups" in kwargs:
-            client = redis_client.Client(use_master=True)
+            client = sg_client.SecurityGroupsClient(use_master=True)
             if kwargs["security_groups"]:
                 payload = client.serialize_groups(kwargs["security_groups"])
                 client.apply_rules(kwargs["device_id"], kwargs["mac_address"],
