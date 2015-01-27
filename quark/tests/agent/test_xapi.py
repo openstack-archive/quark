@@ -1,3 +1,5 @@
+import XenAPI
+
 from quark.agent import xapi
 from quark.tests import test_base
 
@@ -70,7 +72,9 @@ class TestXapiClient(test_base.TestBase):
                          set([xapi.VIF("device_id1", "00:11:22:33:44:55",
                                        "opaque_vif1")]))
 
-    def test_update_interfaces_added(self):
+    @mock.patch("quark.agent.xapi.XapiClient.does_record_exist")
+    def test_update_interfaces_added(self, record_exist):
+        record_exist.return_value = False
         instances = {"opaque1": xapi.VM(uuid="device_id1",
                                         ref="opaque1",
                                         vifs=["opaque_vif1"],
@@ -91,7 +95,54 @@ class TestXapiClient(test_base.TestBase):
             "neutron_vif_flow", "online_instance_flows",
             expected_args)
 
-    def test_update_interfaces_added_vm_removed(self):
+    @mock.patch("quark.agent.xapi.XapiClient.does_record_exist")
+    def test_update_interface_sg_flag_set(self, record_exist):
+        record_exist.return_value = True
+        instances = {"opaque1": xapi.VM(uuid="device_id1",
+                                        ref="opaque1",
+                                        vifs=["opaque_vif1"],
+                                        dom_id="1")}
+        interfaces = [xapi.VIF("device_id1", "00:11:22:33:44:55",
+                               "opaque_vif1")]
+
+        self.xclient.update_interfaces(instances, interfaces, [], [])
+
+        xenapi_VIF = self.session.xenapi.VIF
+        self.assertEqual(xenapi_VIF.add_to_other_config.call_count, 0)
+        self.assertEqual(xenapi_VIF.remove_from_other_config.call_count, 0)
+
+        expected_args = dict(dom_id="1", vif_index="0")
+        self.session.xenapi.host.call_plugin.assert_called_once_with(
+            self.session.xenapi.session.get_this_host.return_value,
+            "neutron_vif_flow", "online_instance_flows",
+            expected_args)
+
+    @mock.patch("quark.agent.xapi.XapiClient.does_record_exist")
+    def test_update_interface_record_check_raises(self, record_exist):
+        record_exist.side_effect = XenAPI.Failure("HANDLE_INVALID")
+
+        instances = {"opaque1": xapi.VM(uuid="device_id1",
+                                        ref="opaque1",
+                                        vifs=["opaque_vif1"],
+                                        dom_id="1")}
+        interfaces = [xapi.VIF("device_id1", "00:11:22:33:44:55",
+                               "opaque_vif1")]
+
+        self.xclient.update_interfaces(instances, interfaces, [], [])
+
+        xenapi_VIF = self.session.xenapi.VIF
+        self.assertEqual(xenapi_VIF.add_to_other_config.call_count, 0)
+        self.assertEqual(xenapi_VIF.remove_from_other_config.call_count, 0)
+
+        expected_args = dict(dom_id="1", vif_index="0")
+        self.session.xenapi.host.call_plugin.assert_called_once_with(
+            self.session.xenapi.session.get_this_host.return_value,
+            "neutron_vif_flow", "online_instance_flows",
+            expected_args)
+
+    @mock.patch("quark.agent.xapi.XapiClient.does_record_exist")
+    def test_update_interfaces_added_vm_removed(self, record_exist):
+        record_exist.return_value = False
         instances = {}
         interfaces = [xapi.VIF("device_id1", "00:11:22:33:44:55",
                                "opaque_vif1")]
@@ -170,3 +221,17 @@ class TestXapiClient(test_base.TestBase):
         self.assertEqual(xenapi_VIF.add_to_other_config.call_count, 0)
 
         self.assertEqual(self.session.xenapi.host.call_plugin.call_count, 0)
+
+    def test_does_record_exist_record_doesnt_exist(self):
+        self.session.xenapi.VIF.get_record.return_value = {
+            'other_config': {},
+            'uuid': '2d865be2-f626-d89f-6c91-7bd8fb521a3a'
+        }
+        self.assertFalse(self.xclient.does_record_exist(self.session, "vif"))
+
+    def test_does_record_exist_record(self):
+        self.session.xenapi.VIF.get_record.return_value = {
+            'other_config': {"security_groups": {"enabled": True}},
+            'uuid': '2d865be2-f626-d89f-6c91-7bd8fb521a3a'
+        }
+        self.assertTrue(self.xclient.does_record_exist(self.session, "vif"))
