@@ -74,7 +74,8 @@ class TestXapiClient(test_base.TestBase):
 
     @mock.patch("quark.agent.xapi.XapiClient.does_record_exist")
     def test_update_interfaces_added(self, record_exist):
-        record_exist.return_value = False
+        record_exist.side_effect = [False, True]
+
         instances = {"opaque1": xapi.VM(uuid="device_id1",
                                         ref="opaque1",
                                         vifs=["opaque_vif1"],
@@ -82,6 +83,15 @@ class TestXapiClient(test_base.TestBase):
         interfaces = [xapi.VIF("device_id1", "00:11:22:33:44:55",
                                "opaque_vif1")]
 
+        dom_id = "1"
+        vif_index = "0"
+
+        vif_rec = {"device": vif_index, "VM": "opaqueref"}
+        vm_rec = {"domid": dom_id}
+
+        expected_args = dict(dom_id=dom_id, vif_index=vif_index)
+        self.session.xenapi.VIF.get_record.return_value = vif_rec
+        self.session.xenapi.VM.get_record.return_value = vm_rec
         self.xclient.update_interfaces(instances, interfaces, [], [])
 
         xenapi_VIF = self.session.xenapi.VIF
@@ -89,7 +99,6 @@ class TestXapiClient(test_base.TestBase):
             "opaque_vif1", "security_groups", "enabled")
         self.assertEqual(xenapi_VIF.remove_from_other_config.call_count, 0)
 
-        expected_args = dict(dom_id="1", vif_index="0")
         self.session.xenapi.host.call_plugin.assert_called_once_with(
             self.session.xenapi.session.get_this_host.return_value,
             "neutron_vif_flow", "online_instance_flows",
@@ -104,6 +113,15 @@ class TestXapiClient(test_base.TestBase):
                                         dom_id="1")}
         interfaces = [xapi.VIF("device_id1", "00:11:22:33:44:55",
                                "opaque_vif1")]
+        dom_id = "1"
+        vif_index = "0"
+
+        vif_rec = {"device": vif_index, "VM": "opaqueref"}
+        vm_rec = {"domid": dom_id}
+
+        expected_args = dict(dom_id=dom_id, vif_index=vif_index)
+        self.session.xenapi.VIF.get_record.return_value = vif_rec
+        self.session.xenapi.VM.get_record.return_value = vm_rec
 
         self.xclient.update_interfaces(instances, interfaces, [], [])
 
@@ -111,7 +129,6 @@ class TestXapiClient(test_base.TestBase):
         self.assertEqual(xenapi_VIF.add_to_other_config.call_count, 0)
         self.assertEqual(xenapi_VIF.remove_from_other_config.call_count, 0)
 
-        expected_args = dict(dom_id="1", vif_index="0")
         self.session.xenapi.host.call_plugin.assert_called_once_with(
             self.session.xenapi.session.get_this_host.return_value,
             "neutron_vif_flow", "online_instance_flows",
@@ -128,13 +145,22 @@ class TestXapiClient(test_base.TestBase):
         interfaces = [xapi.VIF("device_id1", "00:11:22:33:44:55",
                                "opaque_vif1")]
 
+        dom_id = "1"
+        vif_index = "0"
+
+        vif_rec = {"device": vif_index, "VM": "opaqueref"}
+        vm_rec = {"domid": dom_id}
+
+        expected_args = dict(dom_id=dom_id, vif_index=vif_index)
+        self.session.xenapi.VIF.get_record.return_value = vif_rec
+        self.session.xenapi.VM.get_record.return_value = vm_rec
+
         self.xclient.update_interfaces(instances, interfaces, [], [])
 
         xenapi_VIF = self.session.xenapi.VIF
         self.assertEqual(xenapi_VIF.add_to_other_config.call_count, 0)
         self.assertEqual(xenapi_VIF.remove_from_other_config.call_count, 0)
 
-        expected_args = dict(dom_id="1", vif_index="0")
         self.session.xenapi.host.call_plugin.assert_called_once_with(
             self.session.xenapi.session.get_this_host.return_value,
             "neutron_vif_flow", "online_instance_flows",
@@ -142,10 +168,17 @@ class TestXapiClient(test_base.TestBase):
 
     @mock.patch("quark.agent.xapi.XapiClient.does_record_exist")
     def test_update_interfaces_added_vm_removed(self, record_exist):
-        record_exist.return_value = False
+        record_exist.side_effect = [False, True]
         instances = {}
         interfaces = [xapi.VIF("device_id1", "00:11:22:33:44:55",
                                "opaque_vif1")]
+        vif_index = "0"
+
+        vif_rec = {"device": vif_index, "VM": "opaqueref"}
+
+        self.session.xenapi.VIF.get_record.return_value = vif_rec
+        self.session.xenapi.VM.get_record.side_effect = XenAPI.Failure(
+            "HANDLE_INVALID")
 
         self.xclient.update_interfaces(instances, interfaces, [], [])
 
@@ -163,6 +196,16 @@ class TestXapiClient(test_base.TestBase):
                                         dom_id="1")}
         interfaces = [xapi.VIF("device_id1", "00:11:22:33:44:55",
                                "opaque_vif1")]
+
+        dom_id = "1"
+        vif_index = "0"
+
+        vif_rec = {"device": vif_index, "VM": "opaqueref"}
+        vm_rec = {"domid": dom_id}
+
+        expected_args = dict(dom_id=dom_id, vif_index=vif_index)
+        self.session.xenapi.VIF.get_record.return_value = vif_rec
+        self.session.xenapi.VM.get_record.return_value = vm_rec
 
         self.xclient.update_interfaces(instances, [], interfaces, [])
 
@@ -184,6 +227,15 @@ class TestXapiClient(test_base.TestBase):
         interfaces = [xapi.VIF("device_id1", "00:11:22:33:44:55",
                                "opaque_vif1")]
 
+        dom_id = "1"
+        vif_index = "0"
+
+        vif_rec = {"device": vif_index, "VM": "opaqueref"}
+        vm_rec = {"domid": dom_id}
+
+        expected_args = dict(dom_id=dom_id, vif_index=vif_index)
+        self.session.xenapi.VIF.get_record.return_value = vif_rec
+        self.session.xenapi.VM.get_record.return_value = vm_rec
         self.xclient.update_interfaces(instances, [], [], interfaces)
 
         xenapi_VIF = self.session.xenapi.VIF
@@ -191,7 +243,6 @@ class TestXapiClient(test_base.TestBase):
         xenapi_VIF.remove_from_other_config.assert_called_once_with(
             "opaque_vif1", "security_groups")
 
-        expected_args = dict(dom_id="1", vif_index="0")
         self.session.xenapi.host.call_plugin.assert_called_once_with(
             self.session.xenapi.session.get_this_host.return_value,
             "neutron_vif_flow", "online_instance_flows",
@@ -202,6 +253,10 @@ class TestXapiClient(test_base.TestBase):
         interfaces = [xapi.VIF("device_id1", "00:11:22:33:44:55",
                                "opaque_vif1")]
 
+        self.session.xenapi.VIF.get_record.side_effect = XenAPI.Failure(
+            "HANDLE_INVALID")
+        self.session.xenapi.VM.get_record.return_value = XenAPI.Failure(
+            "HANDLE_INVALID")
         self.xclient.update_interfaces(instances, [], [], interfaces)
 
         xenapi_VIF = self.session.xenapi.VIF
