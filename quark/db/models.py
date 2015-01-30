@@ -160,8 +160,7 @@ class IPAddress(BASEV2, models.HasId):
     address_type = sa.Column(sa.Enum(ip_types.FIXED, ip_types.FLOATING,
                                      ip_types.SHARED,
                              name="quark_ip_address_types"))
-    associations = orm.relationship(PortIpAssociation, backref="ip_address",
-                                    lazy='subquery')
+    associations = orm.relationship(PortIpAssociation, backref="ip_address")
 
     def enabled_for_port(self, port):
         for assoc in self["associations"]:
