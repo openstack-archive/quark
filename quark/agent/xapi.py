@@ -26,6 +26,7 @@ CONF = cfg.CONF
 agent_opts = [
     cfg.StrOpt("xapi_connection_url"),
     cfg.StrOpt("xapi_connection_username", default="root"),
+    cfg.IntOpt("xapi_enable_groups_retries", default=5),
     cfg.StrOpt("xapi_connection_password")
 ]
 
@@ -150,15 +151,18 @@ class XapiClient(object):
             return True
         return False
 
+    def _apply_and_wait_for_security_groups(self, session, vif):
+        if not self.does_record_exist(session, vif.ref):
+            session.xenapi.VIF.add_to_other_config(
+                vif.ref, self.SECURITY_GROUPS_KEY,
+                self.SECURITY_GROUPS_VALUE)
+
     def _set_security_groups(self, session, interfaces):
         LOG.debug("Setting security groups on %s", interfaces)
 
         for vif in interfaces:
             try:
-                if not self.does_record_exist(session, vif.ref):
-                    session.xenapi.VIF.add_to_other_config(
-                        vif.ref, self.SECURITY_GROUPS_KEY,
-                        self.SECURITY_GROUPS_VALUE)
+                self._apply_and_wait_for_security_groups(session, vif)
             except XenAPI.Failure:
                 # We shouldn't lose all of them because one failed
                 # An example of a continuable failure is the VIF was deleted
@@ -180,18 +184,17 @@ class XapiClient(object):
     def _refresh_interfaces(self, session, instances, interfaces):
         LOG.debug("Refreshing devices on %s", interfaces)
 
-        vif_ref_to_vm = dict()
-        for vm in instances.values():
-            for i, vif_ref in enumerate(vm.vifs):
-                vif_ref_to_vm[vif_ref] = i, vm
-
         for vif in interfaces:
             try:
-                vif_index, vm_vif = vif_ref_to_vm[vif.ref]
-            except KeyError:
-                LOG.info("vif ref %s (%r) not found on any VM", vif.ref, vif)
+                vif_rec = session.xenapi.VIF.get_record(vif.ref)
+                vm_rec = session.xenapi.VM.get_record(vif_rec["VM"])
+                vif_index = vif_rec["device"]
+                dom_id = vm_rec["domid"]
+            except XenAPI.Failure:
+                LOG.exception("Failure when looking up VMs or VIFs")
                 continue
-            args = {"dom_id": vm_vif.dom_id, "vif_index": "%d" % vif_index}
+
+            args = {"dom_id": dom_id, "vif_index": vif_index}
             session.xenapi.host.call_plugin(
                 self._host_ref,
                 "neutron_vif_flow",

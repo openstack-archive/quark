@@ -154,18 +154,26 @@ class CommandManager(object):
 
 
 class retry_loop(object):
-    def __init__(self, retry_times):
+    def __init__(self, retry_times, delay=0, backoff=1):
         self._retry_times = retry_times
+        self._delay = delay
+        self._backoff = backoff
 
     def __call__(self, f):
         def wrapped_f(*args, **kwargs):
             level = self._retry_times
+            current_delay = self._delay
             while level > 0:
                 try:
                     return f(*args, **kwargs)
                 except Exception:
                     level = level - 1
                     if level > 0:
+                        if current_delay > 0:
+                            time.sleep(current_delay)
+                            if self._backoff > 0:
+                                current_delay *= self._backoff
+
                         LOG.debug("Retrying `%s` %d more times...",
                                   f.func_name, level)
                     else:
