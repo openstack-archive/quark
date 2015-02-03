@@ -291,9 +291,7 @@ class QuarkIpam(object):
             "network_id": net_id, "reuse_after": reuse_after,
             "deallocated": True, "scope": db_api.ONE,
             "ip_address": ip_address, "lock_mode": True,
-            "version": version, "order_by": "address",
-            "with_hint": (models.IPAddress,
-                          "IGNORE INDEX(ix_quark_ip_addresses_address)")}
+            "version": version, "order_by": "address"}
 
         if sub_ids:
             ip_kwargs["subnet_id"] = sub_ids
