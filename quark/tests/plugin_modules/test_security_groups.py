@@ -493,3 +493,68 @@ class TestQuarkProtocolHandling(test_quark_plugin.TestQuarkPlugin):
     def test_validate_remote_ip_prefix_ethertype_remote_net_conflict(self):
         with self.assertRaises(exceptions.InvalidInput):
             protocols.validate_remote_ip_prefix(0x86DD, "192.168.0.0/24")
+
+
+class TestSecurityGroupExceptions(test_quark_plugin.TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, finds_rule=True):
+        with contextlib.nested(
+            mock.patch("quark.db.api.security_group_find"),
+            mock.patch("quark.db.api.security_group_rule_find"),
+            mock.patch("neutron.extensions.securitygroup."
+                       "SecurityGroupNotFound.__init__"),
+            mock.patch("neutron.extensions.securitygroup."
+                       "SecurityGroupRuleNotFound.__init__"),
+            mock.patch("quark.plugin_modules.security_groups."
+                       "_validate_security_group_rule")
+        ) as (group_find, rule_find, group_exc, rule_exc, validate):
+            group_find.return_value = None
+            rule_find.return_value = None
+            if finds_rule:
+                rule_find.return_value = models.SecurityGroupRule()
+            group_exc.return_value = None
+            rule_exc.return_value = None
+            yield group_exc, rule_exc
+
+    def test_delete_group_not_found(self):
+        rule = {'id': 1, 'security_group_id': 1, 'ethertype': 'IPv4'}
+        with self._stubs() as (group_exc, rule_exc):
+            with self.assertRaises(sg_ext.SecurityGroupNotFound):
+                self.plugin.delete_security_group(self.context, 1)
+                group_exc.assertCalledWith(id=rule["security_group_id"])
+
+    def test_delete_rule_group_not_found(self):
+        rule = {'id': 1, 'security_group_id': 1, 'ethertype': 'IPv4'}
+        with self._stubs() as (group_exc, rule_exc):
+            with self.assertRaises(sg_ext.SecurityGroupNotFound):
+                self.plugin.delete_security_group_rule(self.context, 1)
+                group_exc.assertCalledWith(id=rule["security_group_id"])
+
+    def test_delete_rule_and_rule_not_found(self):
+        rule = {'id': 1, 'security_group_id': 1, 'ethertype': 'IPv4'}
+        with self._stubs(False) as (group_exc, rule_exc):
+            with self.assertRaises(sg_ext.SecurityGroupRuleNotFound):
+                self.plugin.delete_security_group_rule(self.context, 1)
+                rule_exc.assertCalledWith(id=rule["id"])
+
+    def test_get_rule_not_found(self):
+        rule = {'id': 1, 'security_group_id': 1, 'ethertype': 'IPv4'}
+        with self._stubs(False) as (group_exc, rule_exc):
+            with self.assertRaises(sg_ext.SecurityGroupRuleNotFound):
+                self.plugin.get_security_group_rule(self.context, 1)
+                rule_exc.assertCalledWith(id=rule["id"])
+
+    def test_get_group_not_found(self):
+        rule = {'id': 1, 'security_group_id': 1, 'ethertype': 'IPv4'}
+        with self._stubs() as (group_exc, rule_exc):
+            with self.assertRaises(sg_ext.SecurityGroupNotFound):
+                self.plugin.get_security_group(self.context, 1)
+                rule_exc.assertCalledWith(id=rule["security_group_id"])
+
+    def test_create_rule_group_not_found(self):
+        rule = {'id': 1, 'security_group_id': 1, 'ethertype': 'IPv4'}
+        with self._stubs() as (group_exc, rule_exc):
+            with self.assertRaises(sg_ext.SecurityGroupNotFound):
+                self.plugin.create_security_group_rule(
+                    self.context, {"security_group_rule": rule})
+                rule_exc.assertCalledWith(id=rule["security_group_id"])
