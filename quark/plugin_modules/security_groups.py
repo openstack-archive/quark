@@ -91,7 +91,7 @@ def create_security_group_rule(context, security_group_rule):
         group = db_api.security_group_find(context, id=group_id,
                                            scope=db_api.ONE)
         if not group:
-            raise sg_ext.SecurityGroupNotFound(group_id=group_id)
+            raise sg_ext.SecurityGroupNotFound(id=group_id)
 
         quota.QUOTAS.limit_check(
             context, context.tenant_id,
@@ -110,7 +110,7 @@ def delete_security_group(context, id):
 
         # TODO(anyone): name and ports are lazy-loaded. Could be good op later
         if not group:
-            raise sg_ext.SecurityGroupNotFound(group_id=id)
+            raise sg_ext.SecurityGroupNotFound(id=id)
         if id == DEFAULT_SG_UUID or group.name == "default":
             raise sg_ext.SecurityGroupCannotRemoveDefault()
         if group.ports:
@@ -125,7 +125,7 @@ def delete_security_group_rule(context, id):
         rule = db_api.security_group_rule_find(context, id=id,
                                                scope=db_api.ONE)
         if not rule:
-            raise sg_ext.SecurityGroupRuleNotFound(group_id=id)
+            raise sg_ext.SecurityGroupRuleNotFound(id=id)
 
         group = db_api.security_group_find(context, id=rule["group_id"],
                                            scope=db_api.ONE)
@@ -141,7 +141,7 @@ def get_security_group(context, id, fields=None):
              (id, context.tenant_id))
     group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
     if not group:
-        raise sg_ext.SecurityGroupNotFound(group_id=id)
+        raise sg_ext.SecurityGroupNotFound(id=id)
     return v._make_security_group_dict(group, fields)
 
 
@@ -151,7 +151,7 @@ def get_security_group_rule(context, id, fields=None):
     rule = db_api.security_group_rule_find(context, id=id,
                                            scope=db_api.ONE)
     if not rule:
-        raise sg_ext.SecurityGroupRuleNotFound(rule_id=id)
+        raise sg_ext.SecurityGroupRuleNotFound(id=id)
     return v._make_security_group_rule_dict(rule, fields)
 
 
