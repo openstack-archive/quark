@@ -55,6 +55,19 @@ class TestRedisSecurityGroupsClient(test_base.TestBase):
             redis_key, sg_client.SECURITY_GROUP_HASH_ATTR,
             json.dumps(rule_dict))
 
+    @mock.patch("uuid.uuid4")
+    @mock.patch("redis.ConnectionPool")
+    @mock.patch("quark.cache.redis_base.redis.StrictRedis")
+    def test_delete_vif(self, strict_redis, conn_pool, uuid4):
+        client = sg_client.SecurityGroupsClient(use_master=True)
+        device_id = "device"
+        uuid4.return_value = "uuid"
+        mac_address = netaddr.EUI("AA:BB:CC:DD:EE:FF")
+
+        redis_key = client.vif_key(device_id, mac_address.value)
+        client.delete_vif(device_id, mac_address)
+        client._client.delete.assert_called_with(redis_key)
+
     @mock.patch("redis.ConnectionPool")
     @mock.patch(
         "quark.cache.security_groups_client.SecurityGroupsClient.vif_key")

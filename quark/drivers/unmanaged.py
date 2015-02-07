@@ -77,6 +77,12 @@ class UnmanagedDriver(object):
     def delete_port(self, context, port_id, **kwargs):
         LOG.info("delete_port %s %s" % (context.tenant_id, port_id))
 
+        # Contacting redis is cheaper than hitting the database to find out
+        # if we have rules to delete, and deleting an absence of rules is a
+        # NOOP, so this is a safe operation
+        client = sg_client.SecurityGroupsClient(use_master=True)
+        client.delete_vif(kwargs["device_id"], kwargs["mac_address"])
+
     def diag_port(self, context, network_id, **kwargs):
         LOG.info("diag_port %s" % network_id)
         return {}

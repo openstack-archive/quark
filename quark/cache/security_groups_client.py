@@ -142,9 +142,13 @@ class SecurityGroupsClient(redis_base.ClientBase):
         self.set_field(redis_key, SECURITY_GROUP_HASH_ATTR, rule_dict)
 
     def delete_vif_rules(self, device_id, mac_address):
-        # Redis DEL command will ignore key safely if it doesn't exist
+        # Redis HDEL command will ignore key safely if it doesn't exist
         self.delete_field(self.vif_key(device_id, mac_address),
                           SECURITY_GROUP_HASH_ATTR)
+
+    def delete_vif(self, device_id, mac_address):
+        # Redis DEL command will ignore key safely if it doesn't exist
+        self.delete_key(self.vif_key(device_id, mac_address))
 
     @utils.retry_loop(3)
     def get_security_groups(self, new_interfaces):

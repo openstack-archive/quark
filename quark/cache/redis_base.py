@@ -181,6 +181,10 @@ class ClientBase(object):
         return self._client.hdel(key, field)
 
     @handle_connection_error
+    def delete_key(self, key):
+        return self._client.delete(key)
+
+    @handle_connection_error
     def get_fields(self, keys, field):
         p = self._client.pipeline()
         for key in keys:

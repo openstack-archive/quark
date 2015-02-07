@@ -1248,7 +1248,9 @@ class TestQuarkDeletePort(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(port=port["port"]) as (db_port_del, driver_port_del):
             self.plugin.delete_port(self.context, 1)
             self.assertTrue(db_port_del.called)
-            driver_port_del.assert_called_with(self.context, "foo")
+            driver_port_del.assert_called_with(
+                self.context, "foo", mac_address=port["port"]["mac_address"],
+                device_id=port["port"]["device_id"])
 
     def test_port_delete_port_not_found_fails(self):
         with self._stubs(port=None) as (db_port_del, driver_port_del):
