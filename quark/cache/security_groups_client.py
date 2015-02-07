@@ -30,8 +30,20 @@ SECURITY_GROUP_VERSION_UUID_KEY = "id"
 SECURITY_GROUP_RULE_KEY = "rules"
 SECURITY_GROUP_HASH_ATTR = "security group rules"
 
+ALL_V4 = netaddr.IPNetwork("::ffff:0.0.0.0/96")
+ALL_V6 = netaddr.IPNetwork("::/0")
+
 
 class SecurityGroupsClient(redis_base.ClientBase):
+    def _convert_remote_network(self, remote_ip_prefix):
+        # NOTE(mdietz): RM11364 - While a /0 is valid and should be supported,
+        #               it breaks OVS to apply a /0 as the source or
+        #               destination network.
+        net = netaddr.IPNetwork(remote_ip_prefix).ipv6()
+        if net.cidr == ALL_V4 or net.cidr == ALL_V6:
+            return ''
+        return str(net)
+
     def serialize_rules(self, rules):
         """Creates a payload for the redis server."""
         # TODO(mdietz): If/when we support other rule types, this comment
@@ -46,14 +58,12 @@ class SecurityGroupsClient(redis_base.ClientBase):
             direction = rule["direction"]
             source = ''
             destination = ''
-            if rule["remote_ip_prefix"]:
+            if rule.get("remote_ip_prefix"):
+                prefix = rule["remote_ip_prefix"]
                 if direction == "ingress":
-                    source = netaddr.IPNetwork(rule["remote_ip_prefix"])
-                    source = str(source.ipv6())
+                    source = self._convert_remote_network(prefix)
                 else:
-                    destination = netaddr.IPNetwork(
-                        rule["remote_ip_prefix"])
-                    destination = str(destination.ipv6())
+                    destination = self._convert_remote_network(prefix)
 
             optional_fields = {}
 

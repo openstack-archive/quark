@@ -162,6 +162,100 @@ class TestRedisSecurityGroupsClient(test_base.TestBase):
         self.assertEqual("::ffff:192.168.0.0/120", rule["destination network"])
         self.assertEqual("", rule["source network"])
 
+    @mock.patch("redis.ConnectionPool")
+    @mock.patch(
+        "quark.cache.security_groups_client.redis_base.redis.StrictRedis")
+    def test_serialize_filters_source_v4_net(self, strict_redis, conn_pool):
+        rule_dict = {"ethertype": 0x800, "protocol": 1, "direction": "ingress",
+                     "remote_ip_prefix": "192.168.0.0/0"}
+        client = sg_client.SecurityGroupsClient()
+        group = models.SecurityGroup()
+        rule = models.SecurityGroupRule()
+        rule.update(rule_dict)
+        group.rules.append(rule)
+
+        payload = client.serialize_groups([group])
+        rule = payload[0]
+        self.assertEqual(0x800, rule["ethertype"])
+        self.assertEqual(1, rule["protocol"])
+        self.assertEqual(None, rule["icmp type"])
+        self.assertEqual(None, rule["icmp code"])
+        self.assertEqual("allow", rule["action"])
+        self.assertEqual("ingress", rule["direction"])
+        self.assertEqual("", rule["source network"])
+        self.assertEqual("", rule["destination network"])
+
+    @mock.patch("redis.ConnectionPool")
+    @mock.patch(
+        "quark.cache.security_groups_client.redis_base.redis.StrictRedis")
+    def test_serialize_filters_source_v6_net(self, strict_redis, conn_pool):
+        rule_dict = {"ethertype": 0x86DD, "protocol": 1,
+                     "direction": "ingress",
+                     "remote_ip_prefix": "feed::/0"}
+        client = sg_client.SecurityGroupsClient()
+        group = models.SecurityGroup()
+        rule = models.SecurityGroupRule()
+        rule.update(rule_dict)
+        group.rules.append(rule)
+
+        payload = client.serialize_groups([group])
+        rule = payload[0]
+        self.assertEqual(0x86DD, rule["ethertype"])
+        self.assertEqual(1, rule["protocol"])
+        self.assertEqual(None, rule["icmp type"])
+        self.assertEqual(None, rule["icmp code"])
+        self.assertEqual("allow", rule["action"])
+        self.assertEqual("ingress", rule["direction"])
+        self.assertEqual("", rule["source network"])
+        self.assertEqual("", rule["destination network"])
+
+    @mock.patch("redis.ConnectionPool")
+    @mock.patch(
+        "quark.cache.security_groups_client.redis_base.redis.StrictRedis")
+    def test_serialize_filters_dest_v4_net(self, strict_redis, conn_pool):
+        rule_dict = {"ethertype": 0x800, "protocol": 1, "direction": "egress",
+                     "remote_ip_prefix": "192.168.0.0/0"}
+        client = sg_client.SecurityGroupsClient()
+        group = models.SecurityGroup()
+        rule = models.SecurityGroupRule()
+        rule.update(rule_dict)
+        group.rules.append(rule)
+
+        payload = client.serialize_groups([group])
+        rule = payload[0]
+        self.assertEqual(0x800, rule["ethertype"])
+        self.assertEqual(1, rule["protocol"])
+        self.assertEqual(None, rule["icmp type"])
+        self.assertEqual(None, rule["icmp code"])
+        self.assertEqual("allow", rule["action"])
+        self.assertEqual("ingress", rule["direction"])
+        self.assertEqual("", rule["source network"])
+        self.assertEqual("", rule["destination network"])
+
+    @mock.patch("redis.ConnectionPool")
+    @mock.patch(
+        "quark.cache.security_groups_client.redis_base.redis.StrictRedis")
+    def test_serialize_filters_dest_v6_net(self, strict_redis, conn_pool):
+        rule_dict = {"ethertype": 0x86DD, "protocol": 1,
+                     "direction": "egress",
+                     "remote_ip_prefix": "feed::/0"}
+        client = sg_client.SecurityGroupsClient()
+        group = models.SecurityGroup()
+        rule = models.SecurityGroupRule()
+        rule.update(rule_dict)
+        group.rules.append(rule)
+
+        payload = client.serialize_groups([group])
+        rule = payload[0]
+        self.assertEqual(0x86DD, rule["ethertype"])
+        self.assertEqual(1, rule["protocol"])
+        self.assertEqual(None, rule["icmp type"])
+        self.assertEqual(None, rule["icmp code"])
+        self.assertEqual("allow", rule["action"])
+        self.assertEqual("ingress", rule["direction"])
+        self.assertEqual("", rule["source network"])
+        self.assertEqual("", rule["destination network"])
+
 
 class TestRedisForAgent(test_base.TestBase):
     def setUp(self):
