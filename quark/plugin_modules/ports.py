@@ -523,7 +523,8 @@ def delete_port(context, id):
 
     net_driver = registry.DRIVER_REGISTRY.get_driver(
         port.network["network_plugin"])
-    net_driver.delete_port(context, backend_key)
+    net_driver.delete_port(context, backend_key, device_id=port["device_id"],
+                           mac_address=port["mac_address"])
 
     with context.session.begin():
         db_api.port_delete(context, port)
