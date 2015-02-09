@@ -78,7 +78,7 @@ class QuarkIpamBaseTest(test_base.TestBase):
     def setUp(self):
         super(QuarkIpamBaseTest, self).setUp()
 
-        patcher = mock.patch("neutron.common.rpc.messaging")
+        patcher = mock.patch("neutron.common.rpc.oslo_messaging")
         patcher.start()
         self.addCleanup(patcher.stop)
         rpc.init(mock.MagicMock())
