@@ -170,7 +170,7 @@ class QuarkRedisTool(object):
             else:
                 for retry in xrange(self._retries):
                     try:
-                        client.delete_vif_rules(orphan)
+                        client.delete_key(orphan)
                         break
                     except q_exc.RedisConnectionFailure:
                         time.sleep(self._retry_delay)
