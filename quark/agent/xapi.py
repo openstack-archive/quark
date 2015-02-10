@@ -168,18 +168,25 @@ class XapiClient(object):
                 # An example of a continuable failure is the VIF was deleted
                 # in the (albeit very small) window between the initial fetch
                 # and here.
-                LOG.exception("Failed to disable security groups for VIF "
+                LOG.exception("Failed to enable security groups for VIF "
                               "with MAC %s" % vif.mac_address)
-                continue
 
     def _unset_security_groups(self, session, interfaces):
         LOG.debug("Unsetting security groups on %s", interfaces)
 
         for vif in interfaces:
-            # NOTE(mdietz): Remove is idempotent, add_to_other_config isn't
-            session.xenapi.VIF.remove_from_other_config(
-                vif.ref,
-                self.SECURITY_GROUPS_KEY)
+            try:
+                session.xenapi.VIF.remove_from_other_config(
+                    vif.ref,
+                    self.SECURITY_GROUPS_KEY)
+            except XenAPI.Failure:
+                # NOTE(mdietz): RM11399 - removing a parameter that doesn't
+                #               exist is idempotent. Trying to remove it
+                #               from a VIF that doesn't exist raises :-( This
+                #               may be a consequence of bad data, but we should
+                #               try to cover ourselves here and continue.
+                LOG.exception("Failed to disable security groups for VIF "
+                              "with MAC %s" % vif.mac_address)
 
     def _refresh_interfaces(self, session, instances, interfaces):
         LOG.debug("Refreshing devices on %s", interfaces)

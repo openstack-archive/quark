@@ -290,3 +290,37 @@ class TestXapiClient(test_base.TestBase):
             'uuid': '2d865be2-f626-d89f-6c91-7bd8fb521a3a'
         }
         self.assertTrue(self.xclient.does_record_exist(self.session, "vif"))
+
+    def test_update_interfaces_removed_raises(self):
+        instances = {"opaque1": xapi.VM(uuid="device_id1",
+                                        ref="opaque1",
+                                        vifs=["opaque_vif1"],
+                                        dom_id="1")}
+        interfaces = [xapi.VIF("device_id1", "00:11:22:33:44:55",
+                               "opaque_vif1")]
+
+        dom_id = "1"
+        vif_index = "0"
+
+        vif_rec = {"device": vif_index, "VM": "opaqueref"}
+        vm_rec = {"domid": dom_id}
+
+        expected_args = dict(dom_id=dom_id, vif_index=vif_index)
+        self.session.xenapi.VIF.get_record.return_value = vif_rec
+        self.session.xenapi.VM.get_record.return_value = vm_rec
+        xenapi_VIF = self.session.xenapi.VIF
+
+        # Without the try/except in _unset, this raises and the test fails
+        xenapi_VIF.remove_from_other_config.side_effect = XenAPI.Failure(
+            "HANDLE_INVALID")
+
+        self.xclient.update_interfaces(instances, [], [], interfaces)
+
+        self.assertEqual(xenapi_VIF.add_to_other_config.call_count, 0)
+        xenapi_VIF.remove_from_other_config.assert_called_once_with(
+            "opaque_vif1", "security_groups")
+
+        self.session.xenapi.host.call_plugin.assert_called_once_with(
+            self.session.xenapi.session.get_this_host.return_value,
+            "neutron_vif_flow", "online_instance_flows",
+            expected_args)
