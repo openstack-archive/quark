@@ -34,7 +34,7 @@ class TestQuarkGetSecurityGroups(test_quark_plugin.TestQuarkPlugin):
             rule_mods = []
             for rule in rules:
                 r = models.SecurityGroupRule()
-                r.update(dict(id=rule))
+                r.update(rule)
                 rule_mods.append(r)
             return rule_mods
 
@@ -49,8 +49,10 @@ class TestQuarkGetSecurityGroups(test_quark_plugin.TestQuarkPlugin):
             yield
 
     def test_get_security_groups_list(self):
+        rule = {"ethertype": protocols.ETHERTYPES["IPv4"],
+                "protocol": protocols.PROTOCOLS["tcp"]}
         group = {"name": "foo", "description": "bar",
-                 "tenant_id": self.context.tenant_id, "rules": [1]}
+                 "tenant_id": self.context.tenant_id, "rules": [rule]}
         with self._stubs([group]):
             result = self.plugin.get_security_groups(self.context, {})
             group = result[0]
@@ -58,18 +60,23 @@ class TestQuarkGetSecurityGroups(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual("foo", group["name"])
             self.assertEqual("bar", group["description"])
             rule = group["security_group_rules"][0]
-            self.assertEqual(1, rule)
+            self.assertEqual("IPv4", rule["ethertype"])
+            self.assertEqual("TCP", rule["protocol"])
 
     def test_get_security_group(self):
+        rule = {"ethertype": protocols.ETHERTYPES["IPv4"],
+                "protocol": protocols.PROTOCOLS["tcp"]}
+
         group = {"name": "foo", "description": "bar",
-                 "tenant_id": self.context.tenant_id, "rules": [1]}
+                 "tenant_id": self.context.tenant_id, "rules": [rule]}
         with self._stubs(group):
             result = self.plugin.get_security_group(self.context, 1)
             self.assertEqual("fake", result["tenant_id"])
             self.assertEqual("foo", result["name"])
             self.assertEqual("bar", result["description"])
             rule = result["security_group_rules"][0]
-            self.assertEqual(1, rule)
+            self.assertEqual("IPv4", rule["ethertype"])
+            self.assertEqual("TCP", rule["protocol"])
 
     def test_get_security_group_group_not_found_fails(self):
         with self._stubs(security_groups=None):
@@ -133,8 +140,10 @@ class TestQuarkGetSecurityGroupRules(test_quark_plugin.TestQuarkPlugin):
 
 class TestQuarkUpdateSecurityGroup(test_quark_plugin.TestQuarkPlugin):
     def test_update_security_group(self):
+        rule_dict = {"ethertype": protocols.ETHERTYPES["IPv4"],
+                     "protocol": protocols.PROTOCOLS["tcp"]}
         rule = models.SecurityGroupRule()
-        rule.update(dict(id=1))
+        rule.update(rule_dict)
         group = {"name": "foo", "description": "bar",
                  "tenant_id": self.context.tenant_id, "rules": [rule]}
         updated_group = group.copy()

@@ -156,7 +156,7 @@ def _make_security_group_dict(security_group, fields=None):
            "name": security_group.get("name"),
            "tenant_id": security_group.get("tenant_id")}
     res["security_group_rules"] = [
-        r.id for r in security_group["rules"]]
+        _make_security_group_rule_dict(r) for r in security_group["rules"]]
     return res
 
 
