@@ -117,8 +117,10 @@ class QuarkRedisTool(object):
         client = self._get_connection()
         if client:
             print("Connected Successfully")
+            return True
         else:
             print("Could not connect to Redis")
+            return False
 
     def vif_count(self):
         client = self._get_connection()
