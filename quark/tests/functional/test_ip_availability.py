@@ -42,7 +42,7 @@ class QuarkIpAvailBaseFunctionalTest(BaseFunctionalTest):
                        id=0,
                        network_id="00000000-0000-0000-0000-000000000000",
                        cidr="0.0.0.0/24",
-                       tenant_id="rackspace",
+                       segment_id="region-cell",
                        ip_policy_id=0,
                        ip_version=4):
         self.connection.execute(
@@ -51,7 +51,7 @@ class QuarkIpAvailBaseFunctionalTest(BaseFunctionalTest):
                  _cidr=cidr,
                  network_id=network_id,
                  ip_version=ip_version,
-                 tenant_id=tenant_id,
+                 segment_id=segment_id,
                  id=id,
                  ip_policy_id=ip_policy_id))
 
@@ -109,16 +109,10 @@ class QuarkIpAvailBaseFunctionalTest(BaseFunctionalTest):
             address=address,
             address_readable=str(netaddr.IPAddress(address)))
 
-    def _tenant_id_like_percent_dash_percent(self):
+    def _segment_id_None(self):
         self._insert_ip_policy()
         self._insert_network()
-        self._insert_subnet(tenant_id="foo-bar")
-        self._insert_ip_address()
-
-    def _tenant_id_None(self):
-        self._insert_ip_policy()
-        self._insert_network()
-        self._insert_subnet(tenant_id=None)
+        self._insert_subnet(segment_id=None)
         self._insert_ip_address()
 
     def _no_ip_addresses(self):
@@ -196,12 +190,12 @@ class QuarkIpAvailGetUsedIpsTest(QuarkIpAvailBaseFunctionalTest):
     def test_default(self):
         self._default()
         used_ips = ip_avail.get_used_ips(neutron_db_api.get_session())
-        self.assertEqual(used_ips, dict(rackspace=1))
+        self.assertEqual(used_ips, {"region-cell": 1})
 
     def test_do_not_use_None(self):
         self._do_not_use_None()
         used_ips = ip_avail.get_used_ips(neutron_db_api.get_session())
-        self.assertEqual(used_ips, dict(rackspace=1))
+        self.assertEqual(used_ips, {"region-cell": 1})
 
     def test_do_not_use_1(self):
         self._do_not_use_1()
@@ -223,37 +217,32 @@ class QuarkIpAvailGetUsedIpsTest(QuarkIpAvailBaseFunctionalTest):
         used_ips = ip_avail.get_used_ips(neutron_db_api.get_session())
         self.assertEqual(used_ips, dict())
 
-    def test_tenant_id_like_percent_dash_percent(self):
-        self._tenant_id_like_percent_dash_percent()
+    def test_segment_id_None(self):
+        self._segment_id_None()
         used_ips = ip_avail.get_used_ips(neutron_db_api.get_session())
-        self.assertEqual(used_ips, {"foo-bar": 1})
-
-    def test_tenant_id_None(self):
-        self._tenant_id_None()
-        used_ips = ip_avail.get_used_ips(neutron_db_api.get_session())
-        self.assertEqual(used_ips, dict())
+        self.assertEqual(used_ips, {None: 1})
 
     def test_no_ip_addresses(self):
         self._no_ip_addresses()
         used_ips = ip_avail.get_used_ips(neutron_db_api.get_session())
-        self.assertEqual(used_ips, dict(rackspace=0))
+        self.assertEqual(used_ips, {"region-cell": 0})
 
     def test_no_ip_addresses_no_ip_policy(self):
         self._no_ip_addresses_no_ip_policy()
         used_ips = ip_avail.get_used_ips(neutron_db_api.get_session())
-        self.assertEqual(used_ips, dict(rackspace=0))
+        self.assertEqual(used_ips, {"region-cell": 0})
 
     @mock.patch("quark.ip_availability.timeutils.utcnow")
     def test_no_ip_policy(self, utcnow_patch):
         self._no_ip_policy(utcnow_patch)
         used_ips = ip_avail.get_used_ips(neutron_db_api.get_session())
-        self.assertEqual(used_ips, dict(rackspace=27))
+        self.assertEqual(used_ips, {"region-cell": 27})
 
     @mock.patch("quark.ip_availability.timeutils.utcnow")
     def test_with_ip_policy(self, utcnow_patch):
         self._with_ip_policy(utcnow_patch)
         used_ips = ip_avail.get_used_ips(neutron_db_api.get_session())
-        self.assertEqual(used_ips, dict(rackspace=25))
+        self.assertEqual(used_ips, {"region-cell": 25})
 
 
 class QuarkIpAvailGetUnusedIpsTest(QuarkIpAvailBaseFunctionalTest):
@@ -265,17 +254,17 @@ class QuarkIpAvailGetUnusedIpsTest(QuarkIpAvailBaseFunctionalTest):
 
     def test_default(self):
         self._default()
-        used_ips = dict(rackspace=1)
+        used_ips = {"region-cell": 1}
         unused_ips = ip_avail.get_unused_ips(neutron_db_api.get_session(),
                                              used_ips)
-        self.assertEqual(unused_ips, dict(rackspace=253))
+        self.assertEqual(unused_ips, {"region-cell": 253})
 
     def test_do_not_use_None(self):
         self._do_not_use_None()
-        used_ips = dict(rackspace=1)
+        used_ips = {"region-cell": 1}
         unused_ips = ip_avail.get_unused_ips(neutron_db_api.get_session(),
                                              used_ips)
-        self.assertEqual(unused_ips, dict(rackspace=253))
+        self.assertEqual(unused_ips, {"region-cell": 253})
 
     def test_do_not_use_1(self):
         self._do_not_use_1()
@@ -305,46 +294,39 @@ class QuarkIpAvailGetUnusedIpsTest(QuarkIpAvailBaseFunctionalTest):
                                              used_ips)
         self.assertEqual(unused_ips, dict())
 
-    def test_tenant_id_like_percent_dash_percent(self):
-        self._tenant_id_like_percent_dash_percent()
-        used_ips = {"foo-bar": 1}
+    def test_segment_id_None(self):
+        self._segment_id_None()
+        used_ips = {None: 1}
         unused_ips = ip_avail.get_unused_ips(neutron_db_api.get_session(),
                                              used_ips)
-        self.assertEqual(unused_ips, {"foo-bar": 253})
-
-    def test_tenant_id_None(self):
-        self._tenant_id_None()
-        used_ips = dict()
-        unused_ips = ip_avail.get_unused_ips(neutron_db_api.get_session(),
-                                             used_ips)
-        self.assertEqual(unused_ips, dict())
+        self.assertEqual(unused_ips, {None: 253})
 
     def test_no_ip_addresses(self):
         self._no_ip_addresses()
-        used_ips = dict(rackspace=0)
+        used_ips = {"region-cell": 0}
         unused_ips = ip_avail.get_unused_ips(neutron_db_api.get_session(),
                                              used_ips)
-        self.assertEqual(unused_ips, dict(rackspace=254))
+        self.assertEqual(unused_ips, {"region-cell": 254})
 
     def test_no_ip_addresses_no_ip_policy(self):
         self._no_ip_addresses_no_ip_policy()
-        used_ips = dict(rackspace=0)
+        used_ips = {"region-cell": 0}
         unused_ips = ip_avail.get_unused_ips(neutron_db_api.get_session(),
                                              used_ips)
-        self.assertEqual(unused_ips, dict(rackspace=256))
+        self.assertEqual(unused_ips, {"region-cell": 256})
 
     @mock.patch("quark.ip_availability.timeutils.utcnow")
     def test_no_ip_policy(self, utcnow_patch):
         self._no_ip_policy(utcnow_patch)
-        used_ips = dict(rackspace=27)
+        used_ips = {"region-cell": 27}
         unused_ips = ip_avail.get_unused_ips(neutron_db_api.get_session(),
                                              used_ips)
-        self.assertEqual(unused_ips, dict(rackspace=256 * 36 - 27))
+        self.assertEqual(unused_ips, {"region-cell": 256 * 36 - 27})
 
     @mock.patch("quark.ip_availability.timeutils.utcnow")
     def test_with_ip_policy(self, utcnow_patch):
         self._with_ip_policy(utcnow_patch)
-        used_ips = dict(rackspace=25)
+        used_ips = {"region-cell": 25}
         unused_ips = ip_avail.get_unused_ips(neutron_db_api.get_session(),
                                              used_ips)
-        self.assertEqual(unused_ips, dict(rackspace=254 * 36 - 25))
+        self.assertEqual(unused_ips, {"region-cell": 254 * 36 - 25})
