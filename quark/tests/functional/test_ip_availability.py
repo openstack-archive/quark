@@ -10,9 +10,9 @@ from quark import ip_availability as ip_avail
 from quark.tests.functional.base import BaseFunctionalTest
 
 
-class QuarkIpAvailBaseFunctionalTest(BaseFunctionalTest):
+class QuarkIpAvailabilityBaseFunctionalTest(BaseFunctionalTest):
     def setUp(self):
-        super(QuarkIpAvailBaseFunctionalTest, self).setUp()
+        super(QuarkIpAvailabilityBaseFunctionalTest, self).setUp()
         self.connection = neutron_db_api.get_engine().connect()
         self.networks = models.BASEV2.metadata.tables["quark_networks"]
         self.subnets = models.BASEV2.metadata.tables["quark_subnets"]
@@ -22,6 +22,9 @@ class QuarkIpAvailBaseFunctionalTest(BaseFunctionalTest):
             "quark_ip_policy_cidrs"]
         self.ip_addresses = models.BASEV2.metadata.tables[
             "quark_ip_addresses"]
+        self.default_kwargs = {
+            "network_id": "00000000-0000-0000-0000-000000000000",
+            "ip_version": 4}
 
     def _insert_ip_policy(self, id=0, excludes=None):
         if not excludes:
@@ -85,34 +88,6 @@ class QuarkIpAvailBaseFunctionalTest(BaseFunctionalTest):
         self._insert_ip_policy()
         self._insert_network()
         self._insert_subnet(do_not_use=1)
-        self._insert_ip_address()
-
-    def _network_id_not_publicnet(self):
-        self._insert_ip_policy()
-        self._insert_network(id="foo")
-        self._insert_subnet(network_id="foo")
-        self._insert_ip_address()
-
-    def _ip_version_None(self):
-        self._insert_ip_policy()
-        self._insert_network()
-        self._insert_subnet(ip_version=None)
-        self._insert_ip_address()
-
-    def _ip_version_6(self):
-        net6 = netaddr.IPNetwork('::ffff:0.0.0.0/120')
-        self._insert_ip_policy(excludes=(net6.first, net6.last))
-        self._insert_network()
-        self._insert_subnet(cidr=str(net6.cidr), ip_version=6)
-        address = net6.first + 1
-        self._insert_ip_address(
-            address=address,
-            address_readable=str(netaddr.IPAddress(address)))
-
-    def _segment_id_None(self):
-        self._insert_ip_policy()
-        self._insert_network()
-        self._insert_subnet(segment_id=None)
         self._insert_ip_address()
 
     def _no_ip_addresses(self):
@@ -182,151 +157,149 @@ class QuarkIpAvailBaseFunctionalTest(BaseFunctionalTest):
                     subnet_id += 1
 
 
-class QuarkIpAvailGetUsedIpsTest(QuarkIpAvailBaseFunctionalTest):
-    def test_get_used_ips_empty(self):
-        used_ips = ip_avail.get_used_ips(neutron_db_api.get_session())
-        self.assertEqual(used_ips, {})
+class QuarkIpAvailabilityFunctionalTest(QuarkIpAvailabilityBaseFunctionalTest):
+    def test_empty(self):
+        output = ip_avail.get_ip_availability(**self.default_kwargs)
+        self.assertEqual(output["used"], {})
+        self.assertEqual(output["unused"], {})
 
     def test_default(self):
         self._default()
-        used_ips = ip_avail.get_used_ips(neutron_db_api.get_session())
-        self.assertEqual(used_ips, {"region-cell": 1})
+        output = ip_avail.get_ip_availability(**self.default_kwargs)
+        self.assertEqual(output["used"], {"region-cell": 1})
+        self.assertEqual(output["unused"], {"region-cell": 253})
 
     def test_do_not_use_None(self):
         self._do_not_use_None()
-        used_ips = ip_avail.get_used_ips(neutron_db_api.get_session())
-        self.assertEqual(used_ips, {"region-cell": 1})
+        output = ip_avail.get_ip_availability(**self.default_kwargs)
+        self.assertEqual(output["used"], {"region-cell": 1})
+        self.assertEqual(output["unused"], {"region-cell": 253})
 
     def test_do_not_use_1(self):
         self._do_not_use_1()
-        used_ips = ip_avail.get_used_ips(neutron_db_api.get_session())
-        self.assertEqual(used_ips, dict())
-
-    def test_network_id_not_publicnet(self):
-        self._network_id_not_publicnet()
-        used_ips = ip_avail.get_used_ips(neutron_db_api.get_session())
-        self.assertEqual(used_ips, dict())
-
-    def test_ip_version_None(self):
-        self._ip_version_None()
-        used_ips = ip_avail.get_used_ips(neutron_db_api.get_session())
-        self.assertEqual(used_ips, dict())
-
-    def test_ip_version_6(self):
-        self._ip_version_6()
-        used_ips = ip_avail.get_used_ips(neutron_db_api.get_session())
-        self.assertEqual(used_ips, dict())
-
-    def test_segment_id_None(self):
-        self._segment_id_None()
-        used_ips = ip_avail.get_used_ips(neutron_db_api.get_session())
-        self.assertEqual(used_ips, {None: 1})
+        output = ip_avail.get_ip_availability(**self.default_kwargs)
+        self.assertEqual(output["used"], dict())
+        self.assertEqual(output["unused"], dict())
 
     def test_no_ip_addresses(self):
         self._no_ip_addresses()
-        used_ips = ip_avail.get_used_ips(neutron_db_api.get_session())
-        self.assertEqual(used_ips, {"region-cell": 0})
+        output = ip_avail.get_ip_availability(**self.default_kwargs)
+        self.assertEqual(output["used"], {"region-cell": 0})
+        self.assertEqual(output["unused"], {"region-cell": 254})
 
     def test_no_ip_addresses_no_ip_policy(self):
         self._no_ip_addresses_no_ip_policy()
-        used_ips = ip_avail.get_used_ips(neutron_db_api.get_session())
-        self.assertEqual(used_ips, {"region-cell": 0})
+        output = ip_avail.get_ip_availability(**self.default_kwargs)
+        self.assertEqual(output["used"], {"region-cell": 0})
+        self.assertEqual(output["unused"], {"region-cell": 256})
 
     @mock.patch("quark.ip_availability.timeutils.utcnow")
     def test_no_ip_policy(self, utcnow_patch):
         self._no_ip_policy(utcnow_patch)
-        used_ips = ip_avail.get_used_ips(neutron_db_api.get_session())
-        self.assertEqual(used_ips, {"region-cell": 27})
+        output = ip_avail.get_ip_availability(**self.default_kwargs)
+        self.assertEqual(output["used"], {"region-cell": 27})
+        self.assertEqual(output["unused"], {"region-cell": 256 * 36 - 27})
 
     @mock.patch("quark.ip_availability.timeutils.utcnow")
     def test_with_ip_policy(self, utcnow_patch):
         self._with_ip_policy(utcnow_patch)
-        used_ips = ip_avail.get_used_ips(neutron_db_api.get_session())
-        self.assertEqual(used_ips, {"region-cell": 25})
+        output = ip_avail.get_ip_availability(**self.default_kwargs)
+        self.assertEqual(output["used"], {"region-cell": 25})
+        self.assertEqual(output["unused"], {"region-cell": 254 * 36 - 25})
 
 
-class QuarkIpAvailGetUnusedIpsTest(QuarkIpAvailBaseFunctionalTest):
-    def test_get_unused_ips_empty(self):
-        used_ips = {}
-        unused_ips = ip_avail.get_unused_ips(neutron_db_api.get_session(),
-                                             used_ips)
-        self.assertEqual(unused_ips, {})
+class QuarkIpAvailabilityFilterTest(QuarkIpAvailabilityBaseFunctionalTest):
+    def setUp(self):
+        super(QuarkIpAvailabilityFilterTest, self).setUp()
 
-    def test_default(self):
-        self._default()
-        used_ips = {"region-cell": 1}
-        unused_ips = ip_avail.get_unused_ips(neutron_db_api.get_session(),
-                                             used_ips)
-        self.assertEqual(unused_ips, {"region-cell": 253})
+        subnet_id = 0
+        for network_id in (0, 1):
+            self._insert_network(id=network_id)
+            for segment_id in (0, 1):
+                for ip_version in (4, 6):
+                    ip_policy_id = subnet_id
+                    if ip_version == 6:
+                        net6 = netaddr.IPNetwork('::ffff:0.0.0.0/120')
+                        excludes = (net6.first, net6.last)
+                        cidr = str(net6.cidr)
+                        address = net6.first + 1
+                    else:
+                        cidr = "0.0.0.0/24"
+                        address = 1
+                        excludes = (0, 255)
 
-    def test_do_not_use_None(self):
-        self._do_not_use_None()
-        used_ips = {"region-cell": 1}
-        unused_ips = ip_avail.get_unused_ips(neutron_db_api.get_session(),
-                                             used_ips)
-        self.assertEqual(unused_ips, {"region-cell": 253})
+                    self._insert_ip_policy(
+                        id=ip_policy_id,
+                        excludes=excludes)
+                    self._insert_subnet(
+                        id=subnet_id,
+                        network_id=network_id,
+                        segment_id=segment_id,
+                        ip_policy_id=ip_policy_id,
+                        cidr=cidr,
+                        ip_version=ip_version)
+                    self._insert_ip_address(
+                        subnet_id=subnet_id,
+                        address=address,
+                        address_readable=str(netaddr.IPAddress(address)))
+                    subnet_id += 1
 
-    def test_do_not_use_1(self):
-        self._do_not_use_1()
-        used_ips = dict()
-        unused_ips = ip_avail.get_unused_ips(neutron_db_api.get_session(),
-                                             used_ips)
-        self.assertEqual(unused_ips, dict())
+    def test_all_None(self):
+        kwargs = {}
+        output = ip_avail.get_ip_availability(**kwargs)
+        self.assertEqual(output["used"], {"0": 4, "1": 4})
+        self.assertEqual(output["unused"], {"0": 253 * 4, "1": 253 * 4})
 
-    def test_network_id_not_publicnet(self):
-        self._network_id_not_publicnet()
-        used_ips = dict()
-        unused_ips = ip_avail.get_unused_ips(neutron_db_api.get_session(),
-                                             used_ips)
-        self.assertEqual(unused_ips, dict())
+    def test_network_id_specific(self):
+        kwargs = {"network_id": 0}
+        output = ip_avail.get_ip_availability(**kwargs)
+        self.assertEqual(output["used"], {"0": 2, "1": 2})
+        self.assertEqual(output["unused"], {"0": 253 * 2, "1": 253 * 2})
 
-    def test_ip_version_None(self):
-        self._ip_version_None()
-        used_ips = dict()
-        unused_ips = ip_avail.get_unused_ips(neutron_db_api.get_session(),
-                                             used_ips)
-        self.assertEqual(unused_ips, dict())
+    def test_network_id_many(self):
+        kwargs = {"network_id": [0, 1]}
+        output = ip_avail.get_ip_availability(**kwargs)
+        self.assertEqual(output["used"], {"0": 4, "1": 4})
+        self.assertEqual(output["unused"], {"0": 253 * 4, "1": 253 * 4})
+
+    def test_segment_id_specific(self):
+        kwargs = {"segment_id": 0}
+        output = ip_avail.get_ip_availability(**kwargs)
+        self.assertEqual(output["used"], {"0": 4})
+        self.assertEqual(output["unused"], {"0": 253 * 4})
+
+    def test_segment_id_many(self):
+        kwargs = {"segment_id": [0, 1]}
+        output = ip_avail.get_ip_availability(**kwargs)
+        self.assertEqual(output["used"], {"0": 4, "1": 4})
+        self.assertEqual(output["unused"], {"0": 253 * 4, "1": 253 * 4})
+
+    def test_ip_version_4(self):
+        kwargs = {"ip_version": 4}
+        output = ip_avail.get_ip_availability(**kwargs)
+        self.assertEqual(output["used"], {"0": 2, "1": 2})
+        self.assertEqual(output["unused"], {"0": 253 * 2, "1": 253 * 2})
 
     def test_ip_version_6(self):
-        self._ip_version_6()
-        used_ips = dict()
-        unused_ips = ip_avail.get_unused_ips(neutron_db_api.get_session(),
-                                             used_ips)
-        self.assertEqual(unused_ips, dict())
+        kwargs = {"ip_version": 6}
+        output = ip_avail.get_ip_availability(**kwargs)
+        self.assertEqual(output["used"], {"0": 2, "1": 2})
+        self.assertEqual(output["unused"], {"0": 253 * 2, "1": 253 * 2})
 
-    def test_segment_id_None(self):
-        self._segment_id_None()
-        used_ips = {None: 1}
-        unused_ips = ip_avail.get_unused_ips(neutron_db_api.get_session(),
-                                             used_ips)
-        self.assertEqual(unused_ips, {None: 253})
+    def test_ip_version_many(self):
+        kwargs = {"ip_version": [4, 6]}
+        output = ip_avail.get_ip_availability(**kwargs)
+        self.assertEqual(output["used"], {"0": 4, "1": 4})
+        self.assertEqual(output["unused"], {"0": 253 * 4, "1": 253 * 4})
 
-    def test_no_ip_addresses(self):
-        self._no_ip_addresses()
-        used_ips = {"region-cell": 0}
-        unused_ips = ip_avail.get_unused_ips(neutron_db_api.get_session(),
-                                             used_ips)
-        self.assertEqual(unused_ips, {"region-cell": 254})
+    def test_subnet_id_specific(self):
+        kwargs = {"subnet_id": 3}
+        output = ip_avail.get_ip_availability(**kwargs)
+        self.assertEqual(output["used"], {"1": 1})
+        self.assertEqual(output["unused"], {"1": 253})
 
-    def test_no_ip_addresses_no_ip_policy(self):
-        self._no_ip_addresses_no_ip_policy()
-        used_ips = {"region-cell": 0}
-        unused_ips = ip_avail.get_unused_ips(neutron_db_api.get_session(),
-                                             used_ips)
-        self.assertEqual(unused_ips, {"region-cell": 256})
-
-    @mock.patch("quark.ip_availability.timeutils.utcnow")
-    def test_no_ip_policy(self, utcnow_patch):
-        self._no_ip_policy(utcnow_patch)
-        used_ips = {"region-cell": 27}
-        unused_ips = ip_avail.get_unused_ips(neutron_db_api.get_session(),
-                                             used_ips)
-        self.assertEqual(unused_ips, {"region-cell": 256 * 36 - 27})
-
-    @mock.patch("quark.ip_availability.timeutils.utcnow")
-    def test_with_ip_policy(self, utcnow_patch):
-        self._with_ip_policy(utcnow_patch)
-        used_ips = {"region-cell": 25}
-        unused_ips = ip_avail.get_unused_ips(neutron_db_api.get_session(),
-                                             used_ips)
-        self.assertEqual(unused_ips, {"region-cell": 254 * 36 - 25})
+    def test_subnet_id_many(self):
+        kwargs = {"subnet_id": [3, 4, 5]}
+        output = ip_avail.get_ip_availability(**kwargs)
+        self.assertEqual(output["used"], {"0": 2, "1": 1})
+        self.assertEqual(output["unused"], {"0": 253 * 2, "1": 253})
