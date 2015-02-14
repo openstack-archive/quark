@@ -21,11 +21,14 @@ import sys
 import netaddr
 from neutron.common import config
 from neutron.db import api as neutron_db_api
+from neutron.openstack.common import log as logging
 from oslo.config import cfg
 from oslo.utils import timeutils
 from sqlalchemy import and_, or_, func
 
 from quark.db import models
+
+LOG = logging.getLogger(__name__)
 
 
 def main():
@@ -34,10 +37,13 @@ def main():
         sys.exit(_("ERROR: Unable to find configuration file via the default"
                    " search paths (~/.neutron/, ~/, /etc/neutron/, /etc/) and"
                    " the '--config-file' option!"))
+    config.setup_logging()
 
     models.BASEV2.metadata.create_all(neutron_db_api.get_engine())
+    LOG.debug("Begin querying")
     used_ips = get_used_ips(neutron_db_api.get_session())
     unused_ips = get_unused_ips(neutron_db_api.get_session(), used_ips)
+    LOG.debug("End querying")
     print(json.dumps(dict(used=used_ips, unused=unused_ips)))
 
 
@@ -64,6 +70,7 @@ def get_used_ips(session):
     are not checked nor deleted on IP policy creation, thus deallocated IPs
     that don't fit the current IP policy can exist in the neutron database).
     """
+    LOG.debug("Getting used IPs...")
     with session.begin():
         query = session.query(
             models.Subnet.tenant_id,
@@ -108,6 +115,7 @@ def get_unused_ips(session, used_ips_counts):
     - subtracting IP policy exclusions on subnet
     - subtracting used ips per tenant
     """
+    LOG.debug("Getting unused IPs...")
     with session.begin():
         query = session.query(
             models.Subnet.tenant_id,
