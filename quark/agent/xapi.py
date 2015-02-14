@@ -14,6 +14,7 @@
 #    under the License.
 
 from collections import namedtuple
+import contextlib
 
 from neutron.openstack.common import log as logging
 from oslo.config import cfg
@@ -82,13 +83,10 @@ class XapiClient(object):
     SECURITY_GROUPS_VALUE = "enabled"
 
     def __init__(self):
-        session = self._session()
-        try:
+        with self.sessioned() as session:
             self._host_ref = session.xenapi.session.get_this_host(
                 session.handle)
             self._host_uuid = session.xenapi.host.get_uuid(self._host_ref)
-        finally:
-            session.xenapi.logout()
 
     def _session(self):
         LOG.debug("Created new Xapi session")
@@ -98,15 +96,19 @@ class XapiClient(object):
                                     CONF.AGENT.xapi_connection_password)
         return session
 
-    def get_instances(self):
+    @contextlib.contextmanager
+    def sessioned(self):
+        try:
+            session = self._session()
+            yield session
+        finally:
+            session.logout()
+
+    def get_instances(self, session):
         """Returns a dict of `VM OpaqueRef` (str) -> `xapi.VM`."""
         LOG.debug("Getting instances from Xapi")
 
-        session = self._session()
-        try:
-            recs = session.xenapi.VM.get_all_records()
-        finally:
-            session.xenapi.logout()
+        recs = session.xenapi.VM.get_all_records()
 
         # NOTE(asadoughi): Copied from xen-networking-scripts/utils.py
         is_inst = lambda r: (r['power_state'].lower() == 'running' and
@@ -124,15 +126,13 @@ class XapiClient(object):
                                    dom_id=rec["domid"])
         return instances
 
-    def get_interfaces(self, instances):
+    def get_interfaces(self):
         """Returns a set of VIFs from `get_instances` return value."""
         LOG.debug("Getting interfaces from Xapi")
 
-        session = self._session()
-        try:
+        with self.sessioned() as session:
+            instances = self.get_instances(session)
             recs = session.xenapi.VIF.get_all_records()
-        finally:
-            session.xenapi.logout()
 
         interfaces = set()
         for vif_ref, rec in recs.iteritems():
@@ -143,26 +143,30 @@ class XapiClient(object):
             interfaces.add(VIF(device_id, rec["MAC"], vif_ref))
         return interfaces
 
-    def does_record_exist(self, session, vif_ref):
-        vif_rec = session.xenapi.VIF.get_record(vif_ref)
-        if vif_rec["other_config"].get(self.SECURITY_GROUPS_KEY):
-            LOG.debug("VIF %s already enabled for security groups!" %
-                      vif_rec["uuid"])
-            return True
-        return False
-
-    def _apply_and_wait_for_security_groups(self, session, vif):
-        if not self.does_record_exist(session, vif.ref):
-            session.xenapi.VIF.add_to_other_config(
-                vif.ref, self.SECURITY_GROUPS_KEY,
-                self.SECURITY_GROUPS_VALUE)
+    def is_vif_tagged(self, session, vif):
+        try:
+            vif_rec = session.xenapi.VIF.get_record(vif)
+            if vif_rec["other_config"].get(self.SECURITY_GROUPS_KEY):
+                LOG.debug("VIF %s enabled for security groups" %
+                          vif_rec["uuid"])
+                return True
+            return False
+        except XenAPI.Failure:
+            # We shouldn't lose all of them because one failed
+            # An example of a continuable failure is the VIF was deleted
+            # in the (albeit very small) window between the initial fetch
+            # and here.
+            LOG.exception("Failed to enable security groups for VIF "
+                          "with MAC %s" % vif.mac_address)
 
     def _set_security_groups(self, session, interfaces):
         LOG.debug("Setting security groups on %s", interfaces)
 
         for vif in interfaces:
             try:
-                self._apply_and_wait_for_security_groups(session, vif)
+                session.xenapi.VIF.add_to_other_config(
+                    vif.ref, self.SECURITY_GROUPS_KEY,
+                    self.SECURITY_GROUPS_VALUE)
             except XenAPI.Failure:
                 # We shouldn't lose all of them because one failed
                 # An example of a continuable failure is the VIF was deleted
@@ -188,7 +192,7 @@ class XapiClient(object):
                 LOG.exception("Failed to disable security groups for VIF "
                               "with MAC %s" % vif.mac_address)
 
-    def _refresh_interfaces(self, session, instances, interfaces):
+    def _refresh_interfaces(self, session, interfaces):
         LOG.debug("Refreshing devices on %s", interfaces)
 
         for vif in interfaces:
@@ -208,7 +212,7 @@ class XapiClient(object):
                 "online_instance_flows",
                 args)
 
-    def update_interfaces(self, instances, added_sg, updated_sg, removed_sg):
+    def update_interfaces(self, added_sg, updated_sg, removed_sg):
         """Handles changes to interfaces' security groups
 
         Calls refresh_interfaces on argument VIFs. Set security groups on
@@ -218,10 +222,8 @@ class XapiClient(object):
             return
 
         session = self._session()
-        try:
+        with self.sessioned() as session:
             self._set_security_groups(session, added_sg)
             self._unset_security_groups(session, removed_sg)
             combined = added_sg + updated_sg + removed_sg
-            self._refresh_interfaces(session, instances, combined)
-        finally:
-            session.xenapi.logout()
+            self._refresh_interfaces(session, combined)

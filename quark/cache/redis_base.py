@@ -84,7 +84,8 @@ def handle_connection_error(fn):
 
 
 class ClientBase(object):
-    connection_pool = None
+    read_connection_pool = None
+    write_connection_pool = None
 
     def __init__(self, use_master=False):
         self._use_master = use_master
@@ -92,41 +93,48 @@ class ClientBase(object):
         try:
             if CONF.QUARK.redis_use_sentinels:
                 self._compile_sentinel_list()
-            self._ensure_connection_pool_exists(use_master)
+            self._ensure_connection_pool_exists()
             self._client = self._client()
         except redis.ConnectionError as e:
             LOG.exception(e)
             raise q_exc.RedisConnectionFailure()
 
-    def _ensure_connection_pool_exists(self, use_master):
-        if not ClientBase.connection_pool:
-            LOG.info("Creating redis connection pool for the first time...")
-            host = CONF.QUARK.redis_host
-            port = CONF.QUARK.redis_port
+    def _prepare_pool_connection(self):
+        LOG.info("Creating redis connection pool for the first time...")
+        host = CONF.QUARK.redis_host
+        port = CONF.QUARK.redis_port
 
-            connect_kw = {}
-            if CONF.QUARK.redis_password:
-                connect_kw["password"] = CONF.QUARK.redis_password
+        connect_kw = {}
+        if CONF.QUARK.redis_password:
+            connect_kw["password"] = CONF.QUARK.redis_password
 
-            connect_args = []
+        connect_args = []
 
-            klass = redis.ConnectionPool
-            if CONF.QUARK.redis_use_sentinels:
-                connect_args.append(CONF.QUARK.redis_sentinel_master)
-                klass = redis.sentinel.SentinelConnectionPool
-                connect_args.append(
-                    redis.sentinel.Sentinel(self._sentinel_list))
-                connect_kw["check_connection"] = True
-                connect_kw["is_master"] = use_master
-                LOG.info("Using redis sentinel connections %s" %
-                         self._sentinel_list)
-            else:
-                connect_kw["host"] = host
-                connect_kw["port"] = port
-                LOG.info("Using redis host %s:%s" % (host, port))
+        klass = redis.ConnectionPool
+        if CONF.QUARK.redis_use_sentinels:
+            connect_args.append(CONF.QUARK.redis_sentinel_master)
+            klass = redis.sentinel.SentinelConnectionPool
+            connect_args.append(
+                redis.sentinel.Sentinel(self._sentinel_list))
+            connect_kw["check_connection"] = True
+            connect_kw["is_master"] = self._use_master
+            LOG.info("Using redis sentinel connections %s" %
+                     self._sentinel_list)
+        else:
+            connect_kw["host"] = host
+            connect_kw["port"] = port
+            LOG.info("Using redis host %s:%s" % (host, port))
+        return klass, connect_args, connect_kw
 
-            ClientBase.connection_pool = klass(*connect_args,
-                                               **connect_kw)
+    def _ensure_connection_pool_exists(self):
+        if not self._use_master and not ClientBase.read_connection_pool:
+            klass, connect_args, connect_kw = self._prepare_pool_connection()
+            ClientBase.read_connection_pool = klass(*connect_args,
+                                                    **connect_kw)
+        elif self._use_master and not ClientBase.write_connection_pool:
+            klass, connect_args, connect_kw = self._prepare_pool_connection()
+            ClientBase.write_connection_pool = klass(*connect_args,
+                                                     **connect_kw)
 
     def _compile_sentinel_list(self):
         self._sentinel_list = [tuple(host.split(':'))
@@ -136,7 +144,12 @@ class ClientBase(object):
                             "list of 'host:port' pairs")
 
     def _client(self):
-        kwargs = {"connection_pool": ClientBase.connection_pool,
+        if self._use_master:
+            pool = ClientBase.write_connection_pool
+        else:
+            pool = ClientBase.read_connection_pool
+
+        kwargs = {"connection_pool": pool,
                   "db": CONF.QUARK.redis_db,
                   "socket_timeout": CONF.QUARK.redis_socket_timeout}
         return redis.StrictRedis(**kwargs)
@@ -170,7 +183,11 @@ class ClientBase(object):
 
     @handle_connection_error
     def set_field(self, key, field, data):
-        return self._client.hset(key, field, json.dumps(data))
+        return self.set_field_raw(key, field, json.dumps(data))
+
+    @handle_connection_error
+    def set_field_raw(self, key, field, data):
+        return self._client.hset(key, field, data)
 
     @handle_connection_error
     def get_field(self, key, field):
@@ -189,4 +206,11 @@ class ClientBase(object):
         p = self._client.pipeline()
         for key in keys:
             p.hget(key, field)
+        return p.execute()
+
+    @handle_connection_error
+    def set_fields(self, keys, field, value):
+        p = self._client.pipeline()
+        for key in keys:
+            p.hset(key, field, value)
         return p.execute()

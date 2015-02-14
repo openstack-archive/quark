@@ -34,7 +34,8 @@ class TestClientBase(test_base.TestBase):
     def setUp(self):
         super(TestClientBase, self).setUp()
         # Forces the connection pool to be recreated on every test
-        redis_base.ClientBase.connection_pool = None
+        redis_base.ClientBase.read_connection_pool = None
+        redis_base.ClientBase.write_connection_pool = None
 
     @mock.patch("quark.cache.redis_base.redis")
     def test_vif_key(self, *args, **kwargs):
@@ -53,6 +54,31 @@ class TestClientBase(test_base.TestBase):
         port = 6379
         redis_base.ClientBase()
         conn_pool.assert_called_with(host=host, port=port)
+        self.assertIsNotNone(redis_base.ClientBase.read_connection_pool)
+        self.assertIsNone(redis_base.ClientBase.write_connection_pool)
+
+    @mock.patch("redis.ConnectionPool")
+    @mock.patch("quark.cache.redis_base.redis.StrictRedis")
+    def test_init_master(self, strict_redis, conn_pool):
+        host = "127.0.0.1"
+        port = 6379
+        redis_base.ClientBase(use_master=True)
+        conn_pool.assert_called_with(host=host, port=port)
+        self.assertIsNone(redis_base.ClientBase.read_connection_pool)
+        self.assertIsNotNone(redis_base.ClientBase.write_connection_pool)
+
+    @mock.patch("redis.ConnectionPool")
+    @mock.patch("quark.cache.redis_base.redis.StrictRedis")
+    def test_init_both(self, strict_redis, conn_pool):
+        host = "127.0.0.1"
+        port = 6379
+        redis_base.ClientBase()
+        redis_base.ClientBase(use_master=True)
+
+        conn_pool.assert_called_with(host=host, port=port)
+
+        self.assertIsNotNone(redis_base.ClientBase.read_connection_pool)
+        self.assertIsNotNone(redis_base.ClientBase.write_connection_pool)
 
     @mock.patch("redis.ConnectionPool")
     def test_client_connection_fails_gracefully(self, conn_pool):
@@ -169,7 +195,7 @@ class TestClientBase(test_base.TestBase):
     @mock.patch(
         "quark.cache.redis_base.redis.StrictRedis")
     def test_set_field(self, strict_redis):
-        rc = redis_base.ClientBase()
+        rc = redis_base.ClientBase(use_master=True)
         mock_client = rc._client = mock.MagicMock()
         dummy_data = {"dummy_data": "foo"}
 
@@ -182,7 +208,7 @@ class TestClientBase(test_base.TestBase):
     @mock.patch(
         "quark.cache.redis_base.redis.StrictRedis")
     def test_delete_field(self, strict_redis):
-        rc = redis_base.ClientBase()
+        rc = redis_base.ClientBase(use_master=True)
         mock_client = rc._client = mock.MagicMock()
         rc.delete_field("1.000000000002", "test_field_name")
 
@@ -218,7 +244,8 @@ class TestRedisSentinelConnection(test_base.TestBase):
     def setUp(self):
         super(TestRedisSentinelConnection, self).setUp()
         # Forces the connection pool to be recreated on every test
-        redis_base.ClientBase.connection_pool = None
+        redis_base.ClientBase.read_connection_pool = None
+        redis_base.ClientBase.write_connection_pool = None
 
     @contextlib.contextmanager
     def _stubs(self, use_sentinels, sentinels, master_label):

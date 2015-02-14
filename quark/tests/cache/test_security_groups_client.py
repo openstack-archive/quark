@@ -50,10 +50,14 @@ class TestRedisSecurityGroupsClient(test_base.TestBase):
 
         redis_key = client.vif_key(device_id, mac_address.value)
 
-        rule_dict = {"rules": [], "id": "uuid"}
-        client._client.hset.assert_called_with(
+        rule_dict = {"rules": []}
+
+        client._client.hset.assert_any_call(
             redis_key, sg_client.SECURITY_GROUP_HASH_ATTR,
             json.dumps(rule_dict))
+
+        client._client.hset.assert_any_call(
+            redis_key, sg_client.SECURITY_GROUP_ACK, False)
 
     @mock.patch("uuid.uuid4")
     @mock.patch("redis.ConnectionPool")
@@ -281,14 +285,14 @@ class TestRedisForAgent(test_base.TestBase):
 
     @mock.patch(
         "quark.cache.security_groups_client.redis_base.redis.StrictRedis")
-    def test_get_security_groups_empty(self, strict_redis):
+    def test_get_security_group_states_empty(self, strict_redis):
         mock_redis = mock.MagicMock()
         mock_pipeline = mock.MagicMock()
         strict_redis.return_value = mock_redis
         mock_redis.pipeline.return_value = mock_pipeline
 
         rc = sg_client.SecurityGroupsClient()
-        group_uuids = rc.get_security_groups(set())
+        group_uuids = rc.get_security_group_states(set())
         mock_redis.pipeline.assert_called_once_with()
         self.assertEqual(mock_pipeline.get.call_count, 0)
         mock_pipeline.execute.assert_called_once_with()
@@ -296,26 +300,24 @@ class TestRedisForAgent(test_base.TestBase):
 
     @mock.patch(
         "quark.cache.security_groups_client.SecurityGroupsClient.get_fields")
-    def test_get_security_groups_nonempty(self, mock_get_fields):
+    def test_get_security_group_states_nonempty(self, mock_get_fields):
         rc = sg_client.SecurityGroupsClient()
 
         mock_get_fields.return_value = [
             None,
             '{}',
-            '{"%s": null}' % sg_client.SECURITY_GROUP_VERSION_UUID_KEY,
-            '{"%s": "1-2-3"}' % sg_client.SECURITY_GROUP_VERSION_UUID_KEY]
+            '{"%s": False}' % sg_client.SECURITY_GROUP_ACK,
+            '{"%s": True}' % sg_client.SECURITY_GROUP_ACK,
+            '{"%s": "1-2-3"}' % sg_client.SECURITY_GROUP_ACK]
 
         new_interfaces = ([VIF(1, 2, 9), VIF(3, 4, 0), VIF(5, 6, 1),
-                           VIF(7, 8, 2)])
+                           VIF(7, 8, 2), VIF(9, 0, 3)])
 
-        group_uuids = rc.get_security_groups(new_interfaces)
+        group_states = rc.get_security_group_states(new_interfaces)
 
         mock_get_fields.assert_called_once_with(
             ["1.000000000002", "3.000000000004", "5.000000000006",
-             "7.000000000008"], sg_client.SECURITY_GROUP_HASH_ATTR)
-
-        self.assertEqual(group_uuids,
-                         {VIF(1, 2, 9): None,
-                          VIF(3, 4, 0): None,
-                          VIF(5, 6, 1): None,
-                          VIF(7, 8, 2): "1-2-3"})
+             "7.000000000008", "9.000000000000"],
+            sg_client.SECURITY_GROUP_ACK)
+        self.assertEqual(group_states, {VIF(5, 6, 1): False,
+                                        VIF(7, 8, 2): True})
