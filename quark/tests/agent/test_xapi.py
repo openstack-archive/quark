@@ -8,27 +8,28 @@ import mock
 
 class TestVIF(test_base.TestBase):
     def test_str(self):
-        self.assertEqual(str(xapi.VIF("1", "2", "3")), "1.2.3")
+        rec = {"MAC": 2}
+        self.assertEqual(str(xapi.VIF("1", rec, "3")), "1.2.3")
 
     def test_repr(self):
-        self.assertEqual(repr(xapi.VIF("1", "2", "3")), "VIF('1', '2', '3')")
+        rec = {"MAC": '2'}
+        self.assertEqual(repr(xapi.VIF("1", rec, "3")), "VIF('1', '2', '3')")
 
     def test_eq(self):
-        self.assertEqual(xapi.VIF("1", "2", "3"), xapi.VIF("1", "2", "3"))
+        rec = {"MAC": '2'}
+        self.assertEqual(xapi.VIF("1", rec, "3"), xapi.VIF("1", rec, "3"))
 
     def test_ne(self):
-        self.assertNotEqual(xapi.VIF("1", "2", "4"), xapi.VIF("1", "3", "4"))
-        self.assertNotEqual(xapi.VIF("1", "2", "4"), xapi.VIF("3", "2", "4"))
-        self.assertNotEqual(xapi.VIF("1", "2", "4"), xapi.VIF("3", "4", "4"))
+        rec1 = {"MAC": '2'}
+        rec2 = {"MAC": '3'}
+        vif1 = xapi.VIF("1", rec1, "4")
+        vif2 = xapi.VIF("1", rec2, "4")
+        vif3 = xapi.VIF("3", rec1, "4")
+        vif4 = xapi.VIF("3", rec2, "4")
 
-    def test_hashable(self):
-        self.assertEqual(
-            tuple(set([xapi.VIF("1", "2", "3"), xapi.VIF("1", "2", "3")])),
-            (xapi.VIF("1", "2", "3"),))
-
-    def test_from_string(self):
-        self.assertEqual(xapi.VIF.from_string("1.2.3"),
-                         xapi.VIF("1", "2", "3"))
+        self.assertNotEqual(vif1, vif2)
+        self.assertNotEqual(vif1, vif3)
+        self.assertNotEqual(vif1, vif4)
 
 
 class TestXapiClient(test_base.TestBase):
@@ -70,21 +71,19 @@ class TestXapiClient(test_base.TestBase):
             "opaque_vif2": {"VM": "opaque2", "MAC": "55:44:33:22:11:00"},
         }
         interfaces = self.xclient.get_interfaces()
-        self.assertEqual(interfaces,
-                         set([xapi.VIF("device_id1", "00:11:22:33:44:55",
-                                       "opaque_vif1")]))
+        rec = {"MAC": "00:11:22:33:44:55", "VM": "opaque1"}
+        expected = set([xapi.VIF("device_id1", rec, "opaque_vif1")])
+        self.assertEqual(interfaces, expected)
 
     @mock.patch("quark.agent.xapi.XapiClient.get_instances")
-    @mock.patch("quark.agent.xapi.XapiClient.is_vif_tagged")
-    def test_update_interfaces_added(self, record_exist, get_instances):
-        record_exist.side_effect = [False, True]
-
+    def test_update_interfaces_added(self, get_instances):
         instances = {"opaque1": xapi.VM(uuid="device_id1",
                                         ref="opaque1",
                                         vifs=["opaque_vif1"],
                                         dom_id="1")}
         get_instances.return_value = instances
-        interfaces = [xapi.VIF("device_id1", "00:11:22:33:44:55",
+        rec = {"MAC": "00:11:22:33:44:55"}
+        interfaces = [xapi.VIF("device_id1", rec,
                                "opaque_vif1")]
 
         dom_id = "1"
@@ -108,10 +107,9 @@ class TestXapiClient(test_base.TestBase):
             "neutron_vif_flow", "online_instance_flows",
             expected_args)
 
-    @mock.patch("quark.agent.xapi.XapiClient.is_vif_tagged")
-    def test_update_interfaces_added_vm_removed(self, record_exist):
-        record_exist.side_effect = [False, True]
-        interfaces = [xapi.VIF("device_id1", "00:11:22:33:44:55",
+    def test_update_interfaces_added_vm_removed(self):
+        rec = {"MAC": "00:11:22:33:44:55"}
+        interfaces = [xapi.VIF("device_id1", rec,
                                "opaque_vif1")]
         vif_index = "0"
 
@@ -131,7 +129,8 @@ class TestXapiClient(test_base.TestBase):
         self.assertEqual(self.session.xenapi.host.call_plugin.call_count, 0)
 
     def test_update_interfaces_updated(self):
-        interfaces = [xapi.VIF("device_id1", "00:11:22:33:44:55",
+        rec = {"MAC": "00:11:22:33:44:55"}
+        interfaces = [xapi.VIF("device_id1", rec,
                                "opaque_vif1")]
 
         dom_id = "1"
@@ -157,7 +156,8 @@ class TestXapiClient(test_base.TestBase):
             expected_args)
 
     def test_update_interfaces_removed(self):
-        interfaces = [xapi.VIF("device_id1", "00:11:22:33:44:55",
+        rec = {"MAC": "00:11:22:33:44:55"}
+        interfaces = [xapi.VIF("device_id1", rec,
                                "opaque_vif1")]
 
         dom_id = "1"
@@ -182,7 +182,8 @@ class TestXapiClient(test_base.TestBase):
             expected_args)
 
     def test_update_interfaces_removed_vm_removed(self):
-        interfaces = [xapi.VIF("device_id1", "00:11:22:33:44:55",
+        rec = {"MAC": "00:11:22:33:44:55"}
+        interfaces = [xapi.VIF("device_id1", rec,
                                "opaque_vif1")]
 
         self.session.xenapi.VIF.get_record.side_effect = XenAPI.Failure(
@@ -207,22 +208,9 @@ class TestXapiClient(test_base.TestBase):
 
         self.assertEqual(self.session.xenapi.host.call_plugin.call_count, 0)
 
-    def test_is_vif_tagged(self):
-        self.session.xenapi.VIF.get_record.return_value = {
-            'other_config': {},
-            'uuid': '2d865be2-f626-d89f-6c91-7bd8fb521a3a'
-        }
-        self.assertFalse(self.xclient.is_vif_tagged(self.session, "vif"))
-
-    def test_is_vif_tagged_record(self):
-        self.session.xenapi.VIF.get_record.return_value = {
-            'other_config': {"security_groups": {"enabled": True}},
-            'uuid': '2d865be2-f626-d89f-6c91-7bd8fb521a3a'
-        }
-        self.assertTrue(self.xclient.is_vif_tagged(self.session, "vif"))
-
     def test_update_interfaces_removed_raises(self):
-        interfaces = [xapi.VIF("device_id1", "00:11:22:33:44:55",
+        rec = {"MAC": "00:11:22:33:44:55"}
+        interfaces = [xapi.VIF("device_id1", rec,
                                "opaque_vif1")]
 
         dom_id = "1"

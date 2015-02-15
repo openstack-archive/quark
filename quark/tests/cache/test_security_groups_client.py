@@ -310,8 +310,10 @@ class TestRedisForAgent(test_base.TestBase):
             '{"%s": True}' % sg_client.SECURITY_GROUP_ACK,
             '{"%s": "1-2-3"}' % sg_client.SECURITY_GROUP_ACK]
 
-        new_interfaces = ([VIF(1, 2, 9), VIF(3, 4, 0), VIF(5, 6, 1),
-                           VIF(7, 8, 2), VIF(9, 0, 3)])
+        recs = [{"MAC": 2}, {"MAC": 4}, {"MAC": 6}, {"MAC": 8}, {"MAC": 0}]
+        new_interfaces = ([VIF(1, recs[0], 9), VIF(3, recs[1], 0),
+                           VIF(5, recs[2], 1), VIF(7, recs[3], 2),
+                           VIF(9, recs[4], 3)])
 
         group_states = rc.get_security_group_states(new_interfaces)
 
@@ -319,5 +321,6 @@ class TestRedisForAgent(test_base.TestBase):
             ["1.000000000002", "3.000000000004", "5.000000000006",
              "7.000000000008", "9.000000000000"],
             sg_client.SECURITY_GROUP_ACK)
-        self.assertEqual(group_states, {VIF(5, 6, 1): False,
-                                        VIF(7, 8, 2): True})
+
+        self.assertEqual(group_states, {new_interfaces[2]: False,
+                                        new_interfaces[3]: True})

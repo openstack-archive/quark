@@ -89,52 +89,49 @@ class ClientBase(object):
 
     def __init__(self, use_master=False):
         self._use_master = use_master
-
         try:
             if CONF.QUARK.redis_use_sentinels:
                 self._compile_sentinel_list()
-            self._ensure_connection_pool_exists()
+            self._ensure_connection_pools_exist()
             self._client = self._client()
         except redis.ConnectionError as e:
             LOG.exception(e)
             raise q_exc.RedisConnectionFailure()
 
-    def _prepare_pool_connection(self):
+    def _prepare_pool_connection(self, master):
         LOG.info("Creating redis connection pool for the first time...")
         host = CONF.QUARK.redis_host
         port = CONF.QUARK.redis_port
 
+        connect_args = []
         connect_kw = {}
         if CONF.QUARK.redis_password:
             connect_kw["password"] = CONF.QUARK.redis_password
 
-        connect_args = []
-
-        klass = redis.ConnectionPool
         if CONF.QUARK.redis_use_sentinels:
-            connect_args.append(CONF.QUARK.redis_sentinel_master)
-            klass = redis.sentinel.SentinelConnectionPool
-            connect_args.append(
-                redis.sentinel.Sentinel(self._sentinel_list))
-            connect_kw["check_connection"] = True
-            connect_kw["is_master"] = self._use_master
             LOG.info("Using redis sentinel connections %s" %
                      self._sentinel_list)
+            klass = redis.sentinel.SentinelConnectionPool
+            connect_args.append(CONF.QUARK.redis_sentinel_master)
+            connect_args.append(redis.sentinel.Sentinel(self._sentinel_list))
+            connect_kw["check_connection"] = True
+            connect_kw["is_master"] = master
         else:
+            LOG.info("Using redis host %s:%s" % (host, port))
+            klass = redis.ConnectionPool
             connect_kw["host"] = host
             connect_kw["port"] = port
-            LOG.info("Using redis host %s:%s" % (host, port))
+
         return klass, connect_args, connect_kw
 
-    def _ensure_connection_pool_exists(self):
-        if not self._use_master and not ClientBase.read_connection_pool:
-            klass, connect_args, connect_kw = self._prepare_pool_connection()
-            ClientBase.read_connection_pool = klass(*connect_args,
-                                                    **connect_kw)
-        elif self._use_master and not ClientBase.write_connection_pool:
-            klass, connect_args, connect_kw = self._prepare_pool_connection()
-            ClientBase.write_connection_pool = klass(*connect_args,
-                                                     **connect_kw)
+    def _ensure_connection_pools_exist(self):
+        if not (ClientBase.write_connection_pool or
+                ClientBase.read_connection_pool):
+            klass, args, kwargs = self._prepare_pool_connection(master=False)
+            ClientBase.read_connection_pool = klass(*args, **kwargs)
+
+            klass, args, kwargs = self._prepare_pool_connection(master=True)
+            ClientBase.write_connection_pool = klass(*args, **kwargs)
 
     def _compile_sentinel_list(self):
         self._sentinel_list = [tuple(host.split(':'))
@@ -144,10 +141,9 @@ class ClientBase(object):
                             "list of 'host:port' pairs")
 
     def _client(self):
+        pool = ClientBase.read_connection_pool
         if self._use_master:
             pool = ClientBase.write_connection_pool
-        else:
-            pool = ClientBase.read_connection_pool
 
         kwargs = {"connection_pool": pool,
                   "db": CONF.QUARK.redis_db,
