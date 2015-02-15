@@ -24,6 +24,7 @@ from neutron import quota
 from oslo.config import cfg
 
 from quark.api import extensions
+from quark import ip_availability
 from quark.plugin_modules import ip_addresses
 from quark.plugin_modules import ip_policies
 from quark.plugin_modules import mac_address_ranges
@@ -117,7 +118,8 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
                                    "security-group", "diagnostics",
                                    "subnets_quark", "provider",
                                    "ip_policies", "quotas",
-                                   "networks_quark", "router"]
+                                   "networks_quark", "router",
+                                   "ip_availabilities"]
 
     def __init__(self):
         LOG.info("Starting quark plugin")
@@ -400,3 +402,6 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
     def get_floatingips_count(self, context, filters=None):
         raise NotImplementedError()
+
+    def get_ip_availability(self, **kwargs):
+        return ip_availability.get_ip_availability(**kwargs)
