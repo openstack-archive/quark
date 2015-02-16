@@ -118,10 +118,8 @@ def get_unused_ips(session, used_ips_counts):
         ret = defaultdict(int)
         for tenant_id, subnet in query.all():
             net_size = netaddr.IPNetwork(subnet._cidr).size
-            policy_size = (subnet["ip_policy"].size
-                           if "ip_policy" in subnet
-                           else 0)
-            ret[tenant_id] += net_size - policy_size
+            ip_policy = subnet["ip_policy"] or {"size": 0}
+            ret[tenant_id] += net_size - ip_policy["size"]
 
         for tenant_id in used_ips_counts:
             ret[tenant_id] -= used_ips_counts[tenant_id]
