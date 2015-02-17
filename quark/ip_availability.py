@@ -49,7 +49,7 @@ def main():
 
 def _rackspace_filter(query):
     # NOTE(asadoughi): should be moved to config?
-    query = query.filter(or_(models.Subnet.do_not_use == None,  # noqa
+    query = query.filter(or_(models.Subnet.do_not_use.is_(None),
                              models.Subnet.do_not_use == 0))
     public_network_id = "00000000-0000-0000-0000-000000000000"
     query = query.filter(models.Subnet.network_id == public_network_id)
@@ -83,7 +83,7 @@ def get_used_ips(session):
         query = query.outerjoin(
             models.IPAddress,
             and_(models.Subnet.id == models.IPAddress.subnet_id,
-                 or_(models.IPAddress._deallocated == None,  # noqa
+                 or_(models.IPAddress._deallocated.is_(None),
                      models.IPAddress._deallocated == 0,
                      models.IPAddress.deallocated_at > reuse_window)))
 
@@ -96,9 +96,9 @@ def get_used_ips(session):
         # NOTE(asadoughi): (address is allocated) OR
         # (address is deallocated and not inside subnet's IP policy)
         query = query.filter(or_(
-            models.IPAddress._deallocated == None,  # noqa
+            models.IPAddress._deallocated.is_(None),
             models.IPAddress._deallocated == 0,
-            models.IPPolicyCIDR.id == None))
+            models.IPPolicyCIDR.id.is_(None)))
 
         ret = ((segment_id, address_count)
                for segment_id, address_count in query.all())
