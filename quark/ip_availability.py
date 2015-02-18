@@ -39,25 +39,49 @@ def main():
                    " the '--config-file' option!"))
     config.setup_logging()
 
-    models.BASEV2.metadata.create_all(neutron_db_api.get_engine())
+    public_network_id = "00000000-0000-0000-0000-000000000000"
+    ip_availability = get_ip_availability(network_id=public_network_id,
+                                          ip_version=4)
+    print(json.dumps(ip_availability))
+
+
+def get_ip_availability(**kwargs):
     LOG.debug("Begin querying")
-    used_ips = get_used_ips(neutron_db_api.get_session())
-    unused_ips = get_unused_ips(neutron_db_api.get_session(), used_ips)
+    used_ips = get_used_ips(neutron_db_api.get_session(), **kwargs)
+    unused_ips = get_unused_ips(neutron_db_api.get_session(), used_ips,
+                                **kwargs)
     LOG.debug("End querying")
-    print(json.dumps(dict(used=used_ips, unused=unused_ips)))
+    return dict(used=used_ips, unused=unused_ips)
 
 
-def _rackspace_filter(query):
-    # NOTE(asadoughi): should be moved to config?
+def _convert_kwargs_values_into_tuples(f):
+    def wrapped(*args, **kwargs):
+        for key, value in kwargs.iteritems():
+            if value is None:
+                continue
+            if not isinstance(value, list) and not isinstance(value, tuple):
+                kwargs[key] = (value,)
+        return f(*args, **kwargs)
+    return wrapped
+
+
+@_convert_kwargs_values_into_tuples
+def _filter(query,
+            network_id=None, segment_id=None, ip_version=None, subnet_id=None):
     query = query.filter(or_(models.Subnet.do_not_use.is_(None),
                              models.Subnet.do_not_use == 0))
-    public_network_id = "00000000-0000-0000-0000-000000000000"
-    query = query.filter(models.Subnet.network_id == public_network_id)
-    query = query.filter(models.Subnet.ip_version == 4)
+    if network_id is not None:
+        query = query.filter(models.Subnet.network_id.in_(network_id))
+    if segment_id is not None:
+        query = query.filter(models.Subnet.segment_id.in_(segment_id))
+    if ip_version is not None:
+        query = query.filter(models.Subnet.ip_version.in_(ip_version))
+    if subnet_id is not None:
+        query = query.filter(models.Subnet.id.in_(subnet_id))
     return query
 
 
-def get_used_ips(session):
+def get_used_ips(session, **kwargs):
     """Returns dictionary with keys segment_id and value used IPs count.
 
     Used IP address count is determined by:
@@ -74,7 +98,7 @@ def get_used_ips(session):
             models.Subnet.segment_id,
             func.count(models.IPAddress.address))
         query = query.group_by(models.Subnet.segment_id)
-        query = _rackspace_filter(query)
+        query = _filter(query, **kwargs)
 
         reuse_window = timeutils.utcnow() - datetime.timedelta(
             seconds=cfg.CONF.QUARK.ipam_reuse_after)
@@ -105,7 +129,7 @@ def get_used_ips(session):
         return dict(ret)
 
 
-def get_unused_ips(session, used_ips_counts):
+def get_unused_ips(session, used_ips_counts, **kwargs):
     """Returns dictionary with key segment_id, and value unused IPs count.
 
     Unused IP address count is determined by:
@@ -118,7 +142,7 @@ def get_unused_ips(session, used_ips_counts):
         query = session.query(
             models.Subnet.segment_id,
             models.Subnet)
-        query = _rackspace_filter(query)
+        query = _filter(query, **kwargs)
         query = query.group_by(models.Subnet.segment_id, models.Subnet.id)
 
         ret = defaultdict(int)
