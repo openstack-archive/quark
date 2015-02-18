@@ -221,7 +221,6 @@ class XapiClient(object):
         if not (added_sg or updated_sg or removed_sg):
             return
 
-        session = self._session()
         with self.sessioned() as session:
             self._set_security_groups(session, added_sg)
             self._unset_security_groups(session, removed_sg)
