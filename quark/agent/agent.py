@@ -22,7 +22,6 @@ from neutron.common import utils as n_utils
 from neutron.openstack.common import log as logging
 from oslo.config import cfg
 
-from quark.agent import version_control
 from quark.agent import xapi
 from quark.cache import security_groups_client as sg_cli
 
@@ -45,51 +44,95 @@ def _sleep():
     time.sleep(CONF.AGENT.polling_interval + random.random() * 2)
 
 
+def partition_vifs(xapi_client, interfaces, security_group_states):
+    """Splits VIFs into three explicit categories and one implicit
+
+    Added - Groups exist in Redis that have not been ack'd and the VIF
+            is not tagged.
+            Action: Tag the VIF and apply flows
+    Updated - Groups exist in Redis that have not been ack'd and the VIF
+              is already tagged
+              Action: Do not tag the VIF, do apply flows
+    Removed - Groups do NOT exist in Redis but the VIF is tagged
+              Action: Untag the VIF, apply default flows
+    Self-Heal - Groups are ack'd in Redis but the VIF is untagged. We treat
+                this case as if it were an "added" group.
+                Action: Tag the VIF and apply flows
+    NOOP - The VIF is not tagged and there are no matching groups in Redis.
+           This is our implicit category
+           Action: Do nothing
+    """
+    added = []
+    updated = []
+    removed = []
+
+    with xapi_client.sessioned() as session:
+        for vif in interfaces:
+            vif_tagged = xapi_client.is_vif_tagged(session, vif.ref)
+            if vif_tagged is None:
+                # Couldn't get this VIF, it likely disappeared on us
+                continue
+
+            vif_has_groups = vif in security_group_states
+            if vif_tagged and vif_has_groups and security_group_states[vif]:
+                # Already ack'd these groups and VIF is tagged, reapply.
+                # If it's not tagged, fall through and have it self-heal
+                continue
+
+            if vif_tagged:
+                if vif_has_groups:
+                    updated.append(vif)
+                else:
+                    removed.append(vif)
+            else:
+                if vif_has_groups:
+                    added.append(vif)
+                # if not tagged and no groups, skip
+
+    return added, updated, removed
+
+
+def ack_groups(groups):
+    if len(groups) > 0:
+        write_groups_client = sg_cli.SecurityGroupsClient(use_master=True)
+        write_groups_client.update_group_states_for_vifs(groups, True)
+
+
 def run():
+    """Fetches changes and applies them to VIFs periodically
+
+    Process as of RM11449:
+    * Get all groups from redis
+    * Fetch ALL VIFs from Xen
+    * Walk ALL VIFs and partition them into added, updated and removed
+    * Walk the final "modified" VIFs list and apply flows to each
+    """
     groups_client = sg_cli.SecurityGroupsClient()
     xapi_client = xapi.XapiClient()
-    vc = version_control.VersionControl()
 
-    instances = set()
     interfaces = set()
     while True:
         try:
-            new_instances = xapi_client.get_instances()
-            new_interfaces = xapi_client.get_interfaces(new_instances)
+            interfaces = xapi_client.get_interfaces()
         except Exception:
             LOG.exception("Unable to get instances/interfaces from xapi")
             _sleep()
             continue
 
-        new_instances_set = set([vm.uuid for vm in new_instances.values()])
-        added_instances = new_instances_set - instances
-        removed_instances = instances - new_instances_set
-        if added_instances or removed_instances:
-            LOG.debug("instances: added %s removed %s",
-                      added_instances, removed_instances)
-
-        added_interfaces = new_interfaces - interfaces
-        removed_interfaces = interfaces - new_interfaces
-        if added_interfaces or removed_interfaces:
-            LOG.debug("interfaces: added %s removed %s",
-                      added_interfaces, removed_interfaces)
-
         try:
-            new_security_groups = groups_client.get_security_groups(
-                new_interfaces)
-            added_sg, updated_sg, removed_sg = vc.diff(new_security_groups)
-            xapi_client.update_interfaces(new_instances,
-                                          added_sg, updated_sg, removed_sg)
+            sg_states = groups_client.get_security_group_states(interfaces)
+            new_sg, updated_sg, removed_sg = partition_vifs(xapi_client,
+                                                            interfaces,
+                                                            sg_states)
+            xapi_client.update_interfaces(new_sg, updated_sg, removed_sg)
+            ack_groups(new_sg + updated_sg)
+
         except Exception:
             LOG.exception("Unable to get security groups from registry and "
                           "apply them to xapi")
             _sleep()
             continue
 
-        vc.commit(new_security_groups)
-
-        instances = new_instances_set
-        interfaces = new_interfaces
         _sleep()
 
 

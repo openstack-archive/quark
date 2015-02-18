@@ -14,7 +14,6 @@
 #
 
 import json
-import uuid
 
 import netaddr
 from neutron.openstack.common import log as logging
@@ -26,9 +25,9 @@ from quark import utils
 
 
 LOG = logging.getLogger(__name__)
-SECURITY_GROUP_VERSION_UUID_KEY = "id"
 SECURITY_GROUP_RULE_KEY = "rules"
 SECURITY_GROUP_HASH_ATTR = "security group rules"
+SECURITY_GROUP_ACK = "security group ack"
 
 ALL_V4 = netaddr.IPNetwork("::ffff:0.0.0.0/96")
 ALL_V6 = netaddr.IPNetwork("::/0")
@@ -97,18 +96,19 @@ class SecurityGroupsClient(redis_base.ClientBase):
         characters
 
         {"id": "<arbitrary uuid>",
-         "rules": [
-           {"ethertype": <hexademical integer>,
-            "protocol": <integer>,
-            "port start": <integer>,  # optional
-            "port end": <integer>,    # optional
-            "icmp type": <integer>,   # optional
-            "icmp code": <integer>,   # optional
-            "source network": <string>,
-            "destination network": <string>,
-            "action": <string>,
-            "direction": <string>},
-          ]
+          "rules": [
+            {"ethertype": <hexademical integer>,
+             "protocol": <integer>,
+             "port start": <integer>,  # optional
+             "port end": <integer>,    # optional
+             "icmp type": <integer>,   # optional
+             "icmp code": <integer>,   # optional
+             "source network": <string>,
+             "destination network": <string>,
+             "action": <string>,
+             "direction": <string>},
+          ],
+          "security groups ack": <boolean>
         }
 
         Example:
@@ -122,7 +122,8 @@ class SecurityGroupsClient(redis_base.ClientBase):
             "destination network": "",
             "action": "allow",
             "direction": "ingress"},
-          ]
+          ],
+          "security groups ack": "true"
         }
 
         port start/end and icmp type/code are mutually exclusive pairs.
@@ -145,40 +146,56 @@ class SecurityGroupsClient(redis_base.ClientBase):
         if not self._use_master:
             raise q_exc.RedisSlaveWritesForbidden()
 
-        ruleset_uuid = str(uuid.uuid4())
-        rule_dict = {SECURITY_GROUP_VERSION_UUID_KEY: ruleset_uuid,
-                     SECURITY_GROUP_RULE_KEY: rules}
+        rule_dict = {SECURITY_GROUP_RULE_KEY: rules}
         redis_key = self.vif_key(device_id, mac_address)
+        # TODO(mdietz): Pipeline these. Requires some rewriting
         self.set_field(redis_key, SECURITY_GROUP_HASH_ATTR, rule_dict)
+        self.set_field_raw(redis_key, SECURITY_GROUP_ACK, False)
 
     def delete_vif_rules(self, device_id, mac_address):
         # Redis HDEL command will ignore key safely if it doesn't exist
         self.delete_field(self.vif_key(device_id, mac_address),
                           SECURITY_GROUP_HASH_ATTR)
+        self.delete_field(self.vif_key(device_id, mac_address),
+                          SECURITY_GROUP_ACK)
 
     def delete_vif(self, device_id, mac_address):
         # Redis DEL command will ignore key safely if it doesn't exist
         self.delete_key(self.vif_key(device_id, mac_address))
 
     @utils.retry_loop(3)
-    def get_security_groups(self, new_interfaces):
+    def get_security_group_states(self, interfaces):
         """Gets security groups for interfaces from Redis
 
-        Returns a dictionary of xapi.VIFs mapped to security group version
-        UUIDs from a set of xapi.VIF.
+        Returns a dictionary of xapi.VIFs with values of the current
+        acknowledged status in Redis.
         """
         LOG.debug("Getting security groups from Redis for {0}".format(
-            new_interfaces))
-        new_interfaces = tuple(new_interfaces)
+            interfaces))
+        interfaces = tuple(interfaces)
         vif_keys = [self.vif_key(vif.device_id, vif.mac_address)
-                    for vif in new_interfaces]
-        security_groups = self.get_fields(vif_keys, SECURITY_GROUP_HASH_ATTR)
+                    for vif in interfaces]
+
+        security_groups = self.get_fields(vif_keys, SECURITY_GROUP_ACK)
 
         ret = {}
-        for vif, security_group in zip(new_interfaces, security_groups):
-            security_group_uuid = None
+        for vif, security_group in zip(interfaces, security_groups):
             if security_group:
-                security_group_uuid = json.loads(security_group).get(
-                    SECURITY_GROUP_VERSION_UUID_KEY)
-            ret[vif] = security_group_uuid
+                security_group = security_group.lower()
+                if "true" in security_group:
+                    ret[vif] = True
+                elif "false" in security_group:
+                    ret[vif] = False
+                else:
+                    LOG.debug("Skipping bad ack value %s" % security_group)
         return ret
+
+    @utils.retry_loop(3)
+    def update_group_states_for_vifs(self, vifs, ack):
+        """Updates security groups by setting the ack field"""
+        if not self._use_master:
+            raise q_exc.RedisSlaveWritesForbidden()
+
+        vif_keys = [self.vif_key(vif.device_id, vif.mac_address)
+                    for vif in vifs]
+        self.set_fields(vif_keys, SECURITY_GROUP_ACK, ack)
