@@ -19,6 +19,7 @@ import mock
 import netaddr
 from neutron.common import exceptions
 
+from quark.db import api as db_api
 from quark import exceptions as quark_exceptions
 from quark.plugin_modules import mac_address_ranges
 from quark.tests import test_quark_plugin
@@ -125,6 +126,16 @@ class TestQuarkCreateMacAddressRanges(test_quark_plugin.TestQuarkPlugin):
     def test_to_mac_prefix_is_garbage_fails(self):
         with self.assertRaises(quark_exceptions.InvalidMacAddressRange):
             cidr, first, last = mac_address_ranges._to_mac_range("F0-0-BAR")
+
+    def test_create_range_with_do_not_use(self):
+        mar = dict(mac_address_range=dict(id=1, cidr="AA:BB:CC/24",
+                                          do_not_use=True))
+        admin_ctxt = self.context.elevated()
+        res = self.plugin.create_mac_address_range(admin_ctxt, mar)
+        self.assertEqual(res["cidr"], "AA:BB:CC:00:00:00/24")
+        mac_range = db_api.mac_address_range_find(admin_ctxt,
+                                                  id=res["id"]).first()
+        self.assertTrue(mac_range["do_not_use"])
 
 
 class TestQuarkDeleteMacAddressRanges(test_quark_plugin.TestQuarkPlugin):

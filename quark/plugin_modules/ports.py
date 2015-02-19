@@ -55,11 +55,14 @@ def create_port(context, port):
     LOG.info("create_port for tenant %s" % context.tenant_id)
     port_attrs = port["port"]
 
-    admin_only = ["mac_address", "device_owner", "bridge", "admin_state_up"]
+    admin_only = ["mac_address", "device_owner", "bridge", "admin_state_up",
+                  "use_forbidden_mac_range"]
     utils.filter_body(context, port_attrs, admin_only=admin_only)
 
     port_attrs = port["port"]
     mac_address = utils.pop_param(port_attrs, "mac_address", None)
+    use_forbidden_mac_range = utils.pop_param(port_attrs,
+                                              "use_forbidden_mac_range", False)
     segment_id = utils.pop_param(port_attrs, "segment_id")
     fixed_ips = utils.pop_param(port_attrs, "fixed_ips")
     if "device_id" not in port_attrs:
@@ -161,10 +164,12 @@ def create_port(context, port):
                         LOG.exception("Couldn't release IP %s" % address)
 
         @cmd_mgr.do
-        def _allocate_mac(net, port_id, mac_address):
+        def _allocate_mac(net, port_id, mac_address,
+                          use_forbidden_mac_range=False):
             mac = ipam_driver.allocate_mac_address(
                 context, net["id"], port_id, CONF.QUARK.ipam_reuse_after,
-                mac_address=mac_address)
+                mac_address=mac_address,
+                use_forbidden_mac_range=use_forbidden_mac_range)
             return mac
 
         @cmd_mgr.undo
@@ -223,7 +228,8 @@ def create_port(context, port):
                     "Couldn't rollback db port %s" % backend_port)
 
         # addresses, mac, backend_port, new_port
-        mac = _allocate_mac(net, port_id, mac_address)
+        mac = _allocate_mac(net, port_id, mac_address,
+                            use_forbidden_mac_range=use_forbidden_mac_range)
         _allocate_ips(fixed_ips, net, port_id, segment_id, mac)
         backend_port = _allocate_backend_port(mac, addresses, net, port_id)
         new_port = _allocate_db_port(port_attrs, backend_port, addresses, mac)
