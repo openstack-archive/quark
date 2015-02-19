@@ -55,29 +55,6 @@ class TestClientBase(test_base.TestBase):
         redis_base.ClientBase()
         conn_pool.assert_called_with(host=host, port=port)
         self.assertIsNotNone(redis_base.ClientBase.read_connection_pool)
-        self.assertIsNone(redis_base.ClientBase.write_connection_pool)
-
-    @mock.patch("redis.ConnectionPool")
-    @mock.patch("quark.cache.redis_base.redis.StrictRedis")
-    def test_init_master(self, strict_redis, conn_pool):
-        host = "127.0.0.1"
-        port = 6379
-        redis_base.ClientBase(use_master=True)
-        conn_pool.assert_called_with(host=host, port=port)
-        self.assertIsNone(redis_base.ClientBase.read_connection_pool)
-        self.assertIsNotNone(redis_base.ClientBase.write_connection_pool)
-
-    @mock.patch("redis.ConnectionPool")
-    @mock.patch("quark.cache.redis_base.redis.StrictRedis")
-    def test_init_both(self, strict_redis, conn_pool):
-        host = "127.0.0.1"
-        port = 6379
-        redis_base.ClientBase()
-        redis_base.ClientBase(use_master=True)
-
-        conn_pool.assert_called_with(host=host, port=port)
-
-        self.assertIsNotNone(redis_base.ClientBase.read_connection_pool)
         self.assertIsNotNone(redis_base.ClientBase.write_connection_pool)
 
     @mock.patch("redis.ConnectionPool")

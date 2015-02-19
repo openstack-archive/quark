@@ -66,28 +66,22 @@ def partition_vifs(xapi_client, interfaces, security_group_states):
     updated = []
     removed = []
 
-    with xapi_client.sessioned() as session:
-        for vif in interfaces:
-            vif_tagged = xapi_client.is_vif_tagged(session, vif.ref)
-            if vif_tagged is None:
-                # Couldn't get this VIF, it likely disappeared on us
-                continue
+    for vif in interfaces:
+        vif_has_groups = vif in security_group_states
+        if vif.tagged and vif_has_groups and security_group_states[vif]:
+            # Already ack'd these groups and VIF is tagged, reapply.
+            # If it's not tagged, fall through and have it self-heal
+            continue
 
-            vif_has_groups = vif in security_group_states
-            if vif_tagged and vif_has_groups and security_group_states[vif]:
-                # Already ack'd these groups and VIF is tagged, reapply.
-                # If it's not tagged, fall through and have it self-heal
-                continue
-
-            if vif_tagged:
-                if vif_has_groups:
-                    updated.append(vif)
-                else:
-                    removed.append(vif)
+        if vif.tagged:
+            if vif_has_groups:
+                updated.append(vif)
             else:
-                if vif_has_groups:
-                    added.append(vif)
-                # if not tagged and no groups, skip
+                removed.append(vif)
+        else:
+            if vif_has_groups:
+                added.append(vif)
+            # if not tagged and no groups, skip
 
     return added, updated, removed
 
@@ -125,7 +119,8 @@ def run():
                                                             interfaces,
                                                             sg_states)
             xapi_client.update_interfaces(new_sg, updated_sg, removed_sg)
-            ack_groups(new_sg + updated_sg)
+            groups_to_ack = [v for v in new_sg + updated_sg if v.success]
+            ack_groups(groups_to_ack)
 
         except Exception:
             LOG.exception("Unable to get security groups from registry and "

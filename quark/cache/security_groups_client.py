@@ -169,6 +169,12 @@ class SecurityGroupsClient(redis_base.ClientBase):
 
         Returns a dictionary of xapi.VIFs with values of the current
         acknowledged status in Redis.
+
+        States not explicitly handled:
+        * ack key, no rules - This is the same as just tagging the VIF,
+          the instance will be inaccessible
+        * rules key, no ack - Nothing will happen, the VIF will
+          not be tagged.
         """
         LOG.debug("Getting security groups from Redis for {0}".format(
             interfaces))
@@ -179,15 +185,15 @@ class SecurityGroupsClient(redis_base.ClientBase):
         security_groups = self.get_fields(vif_keys, SECURITY_GROUP_ACK)
 
         ret = {}
-        for vif, security_group in zip(interfaces, security_groups):
-            if security_group:
-                security_group = security_group.lower()
-                if "true" in security_group:
+        for vif, security_group_ack in zip(interfaces, security_groups):
+            if security_group_ack:
+                security_group_ack = security_group_ack.lower()
+                if "true" in security_group_ack:
                     ret[vif] = True
-                elif "false" in security_group:
+                elif "false" in security_group_ack:
                     ret[vif] = False
                 else:
-                    LOG.debug("Skipping bad ack value %s" % security_group)
+                    LOG.debug("Skipping bad ack value %s" % security_group_ack)
         return ret
 
     @utils.retry_loop(3)

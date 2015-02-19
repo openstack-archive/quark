@@ -22,26 +22,31 @@ from quark.tests import test_base
 
 class TestAgentPartitionVifs(test_base.TestBase):
     @mock.patch("quark.agent.xapi.XapiClient._session")
-    @mock.patch("quark.agent.xapi.XapiClient.is_vif_tagged")
-    def test_partition_vifs(self, is_vif_tagged, sess):
-        interfaces = [xapi.VIF("added", 1, "added_ref"),
-                      xapi.VIF("updated", 2, "updated_ref"),
-                      xapi.VIF("removed", 3, "removed_ref"),
-                      xapi.VIF("no groups", 4, "no groups ref"),
-                      xapi.VIF("not found", 5, "not found ref"),
-                      xapi.VIF("self heal", 6, "self heal ref")]
+    def test_partition_vifs(self, sess):
+        def _vif_rec(mac, tagged):
+            rec = {"MAC": mac, "other_config": {}}
+            if tagged:
+                rec["other_config"] = {"security_groups": "enabled"}
+            return rec
+
+        vif_recs = [_vif_rec(1, False), _vif_rec(2, True), _vif_rec(3, True),
+                    _vif_rec(4, False), _vif_rec(5, False)]
+
+        interfaces = [xapi.VIF("added", vif_recs[0], "added_ref"),
+                      xapi.VIF("updated", vif_recs[1], "updated_ref"),
+                      xapi.VIF("removed", vif_recs[2], "removed_ref"),
+                      xapi.VIF("no groups", vif_recs[3], "no groups ref"),
+                      xapi.VIF("self heal", vif_recs[4], "self heal ref")]
 
         sg_states = {interfaces[0]: False, interfaces[1]: False,
-                     interfaces[5]: True}
+                     interfaces[4]: True}
 
         xapi_client = xapi.XapiClient()
-        is_vif_tagged.side_effect = [False, True, True, False, None,
-                                     False]
 
         added, updated, removed = agent.partition_vifs(xapi_client,
                                                        interfaces,
                                                        sg_states)
 
-        self.assertEqual(added, [interfaces[0], interfaces[5]])
+        self.assertEqual(added, [interfaces[0], interfaces[4]])
         self.assertEqual(updated, [interfaces[1]])
         self.assertEqual(removed, [interfaces[2]])
