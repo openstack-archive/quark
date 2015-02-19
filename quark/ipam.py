@@ -293,6 +293,9 @@ class QuarkIpam(object):
             "ip_address": ip_address, "lock_mode": True,
             "version": version, "order_by": "address"}
 
+        if ip_address:
+            del ip_kwargs["deallocated"]
+
         if sub_ids:
             ip_kwargs["subnet_id"] = sub_ids
 
