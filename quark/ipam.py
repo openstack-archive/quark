@@ -127,12 +127,14 @@ class QuarkIpam(object):
 
     @synchronized(named("allocate_mac_address"))
     def allocate_mac_address(self, context, net_id, port_id, reuse_after,
-                             mac_address=None):
+                             mac_address=None,
+                             use_forbidden_mac_range=False):
         if mac_address:
             mac_address = netaddr.EUI(mac_address).value
 
         kwargs = {"network_id": net_id, "port_id": port_id,
-                  "mac_address": mac_address}
+                  "mac_address": mac_address,
+                  "use_forbidden_mac_range": use_forbidden_mac_range}
         LOG.info(("Attempting to allocate a new MAC address "
                   "[{0}]").format(utils.pretty_kwargs(**kwargs)))
 
@@ -185,7 +187,9 @@ class QuarkIpam(object):
             with context.session.begin():
                 try:
                     fn = db_api.mac_address_range_find_allocation_counts
-                    mac_range = fn(context, address=mac_address)
+                    mac_range = \
+                        fn(context, address=mac_address,
+                           use_forbidden_mac_range=use_forbidden_mac_range)
 
                     if not mac_range:
                         LOG.info("No MAC ranges could be found given "

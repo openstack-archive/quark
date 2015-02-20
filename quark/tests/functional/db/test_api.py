@@ -192,3 +192,16 @@ class QuarkFindMacAddressRangeAllocationCount(QuarkIpamBaseFunctionalTest):
                 ranges = db_api.mac_address_range_find_allocation_counts(
                     self.context)
                 self.assertTrue(ranges is None)
+
+    def test_mac_address_ranges_do_not_use_returns_on_use_forbidden_rage(self):
+        mr1_mac = netaddr.EUI("AA:AA:AA:00:00:00")
+        mr1 = {"cidr": "AA:AA:AA/24", "do_not_use": True,
+               "first_address": mr1_mac.value,
+               "last_address": netaddr.EUI("AA:AA:AA:FF:FF:FF").value,
+               "next_auto_assign_mac": mr1_mac.value}
+
+        with self._fixtures([mr1]):
+            with self.context.session.begin():
+                ranges = db_api.mac_address_range_find_allocation_counts(
+                    self.context, use_forbidden_mac_range=True)
+                self.assertTrue(ranges[0]["cidr"], mr1["cidr"])

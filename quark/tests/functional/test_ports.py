@@ -238,6 +238,66 @@ class QuarkCreatePortWithIpNotMandatory(BaseFunctionalTest):
                 self.assertTrue(ip in port_ips)
 
 
+class QuarkCreatePortWithForbiddenMacRange(BaseFunctionalTest):
+    @contextlib.contextmanager
+    def _stubs(self, network_info, subnet_v4_infos, subnet_v6_info=None):
+        with contextlib.nested(
+                mock.patch("neutron.common.rpc.get_notifier"),
+                mock.patch("neutron.quota.QUOTAS.limit_check")):
+            self.context.is_admin = True
+            net = network_api.create_network(self.context, network_info)
+            mac = {'mac_address_range': dict(cidr="AA:BB:CC", do_not_use=True)}
+            macrng_api.create_mac_address_range(self.context, mac)
+            self.context.is_admin = False
+            sub_v4s = []
+            for sub_info in subnet_v4_infos:
+                sub_info['subnet']['network_id'] = net['id']
+                sub_v4s.append(subnet_api.create_subnet(self.context,
+                                                        sub_info))
+            sub_v6 = None
+            if subnet_v6_info:
+                subnet_v6_info['subnet']['network_id'] = net['id']
+                sub_v6 = subnet_api.create_subnet(self.context, subnet_v6_info)
+
+            yield net, sub_v4s, sub_v6
+
+    def test_port_created_with_forbidden_mac_range(self):
+        cidr = "192.168.1.0/24"
+        ip_network = netaddr.IPNetwork(cidr)
+        network = dict(id=1, name="public", tenant_id="make",
+                       network_plugin="BASE",
+                       ipam_strategy="ANY")
+        network = {"network": network}
+        subnet_v4 = dict(id=1, ip_version=4, next_auto_assign_ip=2,
+                         cidr=cidr, first_ip=ip_network.first,
+                         last_ip=ip_network.last, ip_policy=None,
+                         tenant_id="fake")
+        subnet_v4_info = {"subnet": subnet_v4}
+
+        def _make_body(use_forbidden_mac_range=False):
+            fix_ipv4 = dict(subnet_id=sub_v4s[0]['id'])
+            port_info = \
+                {"port": dict(
+                    fixed_ips=[fix_ipv4], network_id=net['id'],
+                    use_forbidden_mac_range=use_forbidden_mac_range
+                )}
+            return port_info
+
+        with self._stubs(network, [subnet_v4_info]) as (
+                net, sub_v4s, sub_v6):
+            admin_ctxt = self.context.elevated()
+
+            port = port_api.create_port(
+                admin_ctxt, _make_body(use_forbidden_mac_range=True))
+            port_mac = port["mac_address"]
+
+            self.assertTrue(port_mac.startswith("AA:BB:CC"))
+
+            with self.assertRaises(q_exc.MacAddressGenerationFailure):
+                port_api.create_port(admin_ctxt,
+                                     _make_body())
+
+
 class QuarkUpdatePorts(BaseFunctionalTest):
     @contextlib.contextmanager
     def _stubs(self, network_info, subnet_info, port_info):

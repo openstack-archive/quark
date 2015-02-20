@@ -1442,7 +1442,7 @@ class TestQuarkPortCreateFiltering(test_quark_plugin.TestQuarkPlugin):
             alloc_mac.assert_called_once_with(
                 self.context, network["id"], 1,
                 cfg.CONF.QUARK.ipam_reuse_after,
-                mac_address=None)
+                mac_address=None, use_forbidden_mac_range=False)
             port_create.assert_called_once_with(
                 self.context, addresses=[], network_id=network["id"],
                 tenant_id="fake", uuid=1, name="foobar",
@@ -1480,7 +1480,7 @@ class TestQuarkPortCreateFiltering(test_quark_plugin.TestQuarkPlugin):
             alloc_mac.assert_called_once_with(
                 admin_ctx, network["id"], 1,
                 cfg.CONF.QUARK.ipam_reuse_after,
-                mac_address=expected_mac)
+                mac_address=expected_mac, use_forbidden_mac_range=False)
 
             port_create.assert_called_once_with(
                 admin_ctx, bridge=expected_bridge, uuid=1, name="foobar",

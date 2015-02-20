@@ -91,11 +91,13 @@ def create_mac_address_range(context, mac_range):
         raise exceptions.NotAuthorized()
 
     cidr = mac_range["mac_address_range"]["cidr"]
+    do_not_use = mac_range["mac_address_range"].get("do_not_use", "0")
     cidr, first_address, last_address = _to_mac_range(cidr)
     with context.session.begin():
         new_range = db_api.mac_address_range_create(
             context, cidr=cidr, first_address=first_address,
-            last_address=last_address, next_auto_assign_mac=first_address)
+            last_address=last_address, next_auto_assign_mac=first_address,
+            do_not_use=do_not_use)
     return v._make_mac_range_dict(new_range)
 
 
