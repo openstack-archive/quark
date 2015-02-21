@@ -206,7 +206,7 @@ class TestRedisSecurityGroupsClient(test_base.TestBase):
     @mock.patch(
         "quark.cache.security_groups_client.redis_base.redis.StrictRedis")
     def test_serialize_filters_source_v6_net(self, strict_redis, conn_pool):
-        rule_dict = {"ethertype": 0x86DD, "protocol": 1,
+        rule_dict = {"ethertype": 0x86DD, "protocol": 58,
                      "direction": "ingress",
                      "remote_ip_prefix": "feed::/0"}
         client = sg_client.SecurityGroupsClient()
@@ -218,7 +218,7 @@ class TestRedisSecurityGroupsClient(test_base.TestBase):
         payload = client.serialize_groups([group])
         rule = payload[0]
         self.assertEqual(0x86DD, rule["ethertype"])
-        self.assertEqual(1, rule["protocol"])
+        self.assertEqual(58, rule["protocol"])
         self.assertEqual(None, rule["icmp type"])
         self.assertEqual(None, rule["icmp code"])
         self.assertEqual("allow", rule["action"])
@@ -253,7 +253,7 @@ class TestRedisSecurityGroupsClient(test_base.TestBase):
     @mock.patch(
         "quark.cache.security_groups_client.redis_base.redis.StrictRedis")
     def test_serialize_filters_dest_v6_net(self, strict_redis, conn_pool):
-        rule_dict = {"ethertype": 0x86DD, "protocol": 1,
+        rule_dict = {"ethertype": 0x86DD, "protocol": 58,
                      "direction": "egress",
                      "remote_ip_prefix": "feed::/0"}
         client = sg_client.SecurityGroupsClient()
@@ -265,7 +265,7 @@ class TestRedisSecurityGroupsClient(test_base.TestBase):
         payload = client.serialize_groups([group])
         rule = payload[0]
         self.assertEqual(0x86DD, rule["ethertype"])
-        self.assertEqual(1, rule["protocol"])
+        self.assertEqual(58, rule["protocol"])
         self.assertEqual(None, rule["icmp type"])
         self.assertEqual(None, rule["icmp code"])
         self.assertEqual("allow", rule["action"])

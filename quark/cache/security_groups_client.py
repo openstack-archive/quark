@@ -67,7 +67,8 @@ class SecurityGroupsClient(redis_base.ClientBase):
             optional_fields = {}
 
             # NOTE(mdietz): this will expand as we add more protocols
-            if rule["protocol"] == protocols.PROTOCOLS["icmp"]:
+            protocol_map = protocols.PROTOCOL_MAP[rule["ethertype"]]
+            if rule["protocol"] == protocol_map["icmp"]:
                 optional_fields["icmp type"] = rule["port_range_min"]
                 optional_fields["icmp code"] = rule["port_range_max"]
             else:
