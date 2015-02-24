@@ -49,8 +49,9 @@ class TestQuarkGetSecurityGroups(test_quark_plugin.TestQuarkPlugin):
             yield
 
     def test_get_security_groups_list(self):
-        rule = {"ethertype": protocols.ETHERTYPES["IPv4"],
-                "protocol": protocols.PROTOCOLS["tcp"]}
+        v4_ethertype = protocols.ETHERTYPES["IPv4"]
+        rule = {"ethertype": v4_ethertype,
+                "protocol": protocols.PROTOCOL_MAP[v4_ethertype]["tcp"]}
         group = {"name": "foo", "description": "bar",
                  "tenant_id": self.context.tenant_id, "rules": [rule]}
         with self._stubs([group]):
@@ -64,8 +65,9 @@ class TestQuarkGetSecurityGroups(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual("TCP", rule["protocol"])
 
     def test_get_security_group(self):
-        rule = {"ethertype": protocols.ETHERTYPES["IPv4"],
-                "protocol": protocols.PROTOCOLS["tcp"]}
+        v4_ethertype = protocols.ETHERTYPES["IPv4"]
+        rule = {"ethertype": v4_ethertype,
+                "protocol": protocols.PROTOCOL_MAP[v4_ethertype]["tcp"]}
 
         group = {"name": "foo", "description": "bar",
                  "tenant_id": self.context.tenant_id, "rules": [rule]}
@@ -140,8 +142,9 @@ class TestQuarkGetSecurityGroupRules(test_quark_plugin.TestQuarkPlugin):
 
 class TestQuarkUpdateSecurityGroup(test_quark_plugin.TestQuarkPlugin):
     def test_update_security_group(self):
-        rule_dict = {"ethertype": protocols.ETHERTYPES["IPv4"],
-                     "protocol": protocols.PROTOCOLS["tcp"]}
+        v4_ethertype = protocols.ETHERTYPES["IPv4"]
+        rule_dict = {"ethertype": v4_ethertype,
+                     "protocol": protocols.PROTOCOL_MAP[v4_ethertype]["tcp"]}
         rule = models.SecurityGroupRule()
         rule.update(rule_dict)
         group = {"name": "foo", "description": "bar",
@@ -449,7 +452,8 @@ class TestQuarkProtocolHandling(test_quark_plugin.TestQuarkPlugin):
     def test_create_security_rule_min_greater_than_max_fails(self):
         with self.assertRaises(sg_ext.SecurityGroupInvalidPortRange):
             protocols.validate_protocol_with_port_ranges(
-                protocol=6, port_range_min=10, port_range_max=9)
+                ethertype=0x800, protocol=6, port_range_min=10,
+                port_range_max=9)
 
     def test_translate_protocol_string(self):
         proto = protocols.translate_protocol("udp", "IPv4")
@@ -459,6 +463,14 @@ class TestQuarkProtocolHandling(test_quark_plugin.TestQuarkPlugin):
         proto = protocols.translate_protocol(17, "IPv4")
         self.assertEqual(proto, 17)
 
+    def test_translate_protocol_icmpv4(self):
+        proto = protocols.translate_protocol("icmp", "IPv4")
+        self.assertEqual(proto, 1)
+
+    def test_translate_protocol_icmpv6(self):
+        proto = protocols.translate_protocol("icmp", "IPv6")
+        self.assertEqual(proto, 58)
+
     def test_human_readable_protocol_string(self):
         proto = protocols.human_readable_protocol("UDP", "IPv4")
         self.assertEqual(proto, "UDP")
@@ -466,6 +478,14 @@ class TestQuarkProtocolHandling(test_quark_plugin.TestQuarkPlugin):
     def test_human_readable_protocol_int(self):
         proto = protocols.human_readable_protocol(17, "IPv4")
         self.assertEqual(proto, "UDP")
+
+    def test_human_readable_protocol_icmpv4(self):
+        proto = protocols.human_readable_protocol(1, "IPv4")
+        self.assertEqual(proto, "ICMP")
+
+    def test_human_readable_protocol_icmpv6(self):
+        proto = protocols.human_readable_protocol(58, "IPv6")
+        self.assertEqual(proto, "ICMP")
 
     def test_human_readable_protocol_string_as_int(self):
         proto = protocols.human_readable_protocol("17", "IPv4")

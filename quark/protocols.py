@@ -31,18 +31,19 @@ ETHERTYPES = {
     "IPv6": 0x86DD
 }
 
-PROTOCOLS = {"icmp": 1, "tcp": 6, "udp": 17}
+PROTOCOLS_V4 = {"icmp": 1, "tcp": 6, "udp": 17}
+PROTOCOLS_V6 = {"tcp": 6, "udp": 17, "icmp": 58}
 
 # Neutron only officially supports TCP, ICMP and UDP,
 # with ethertypes IPv4 and IPv6
 PROTOCOL_MAP = {
-    ETHERTYPES["IPv4"]: PROTOCOLS,
-    ETHERTYPES["IPv6"]: PROTOCOLS
+    ETHERTYPES["IPv4"]: PROTOCOLS_V4,
+    ETHERTYPES["IPv6"]: PROTOCOLS_V6
 }
 
 
 ALLOWED_PROTOCOLS = None
-ALLOWED_WITH_RANGE = [1, 6, 17]
+ALLOWED_WITH_RANGE = [1, 6, 17, 58]
 MIN_PROTOCOL = 0
 MAX_PROTOCOL = 255
 REVERSE_PROTOCOL_MAP = {}
@@ -106,10 +107,10 @@ def validate_remote_ip_prefix(ethertype, prefix):
                               (human_ether, net.version))
 
 
-def validate_protocol_with_port_ranges(protocol, port_range_min,
+def validate_protocol_with_port_ranges(ethertype, protocol, port_range_min,
                                        port_range_max):
     if protocol in ALLOWED_WITH_RANGE:
-        if protocol == PROTOCOLS["icmp"]:
+        if protocol == PROTOCOL_MAP[ethertype]["icmp"]:
             if port_range_min is None and port_range_max is not None:
                 raise sg_ext.SecurityGroupMissingIcmpType()
             elif port_range_min is not None:
@@ -152,8 +153,6 @@ def validate_protocol_with_port_ranges(protocol, port_range_min,
 
 def _init_protocols():
     if not REVERSE_PROTOCOL_MAP:
-        # Protocols don't change between ethertypes, but we want to get
-        # them all, from all ethertypes
         for ether_str, ethertype in ETHERTYPES.iteritems():
             for proto, proto_int in PROTOCOL_MAP[ethertype].iteritems():
                 REVERSE_PROTOCOL_MAP[proto_int] = proto.upper()

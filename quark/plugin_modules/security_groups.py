@@ -42,10 +42,12 @@ def _validate_security_group_rule(context, rule):
     protocol = rule.pop('protocol')
     port_range_min = rule['port_range_min']
     port_range_max = rule['port_range_max']
+    ethertype = protocols.translate_ethertype(rule["ethertype"])
 
     if protocol:
         protocol = protocols.translate_protocol(protocol, rule["ethertype"])
-        protocols.validate_protocol_with_port_ranges(protocol,
+        protocols.validate_protocol_with_port_ranges(ethertype,
+                                                     protocol,
                                                      port_range_min,
                                                      port_range_max)
         rule['protocol'] = protocol
@@ -53,7 +55,6 @@ def _validate_security_group_rule(context, rule):
         if port_range_min is not None or port_range_max is not None:
             raise sg_ext.SecurityGroupProtocolRequiredWithPorts()
 
-    ethertype = protocols.translate_ethertype(rule["ethertype"])
     rule["ethertype"] = ethertype
 
     protocols.validate_remote_ip_prefix(ethertype,
