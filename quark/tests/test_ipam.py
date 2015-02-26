@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import contextlib
+import time
 
 import mock
 import netaddr
@@ -1878,7 +1879,7 @@ class QuarkIPAddressAllocationNotifications(QuarkIpamBaseTest):
             mock.patch("neutron.common.rpc.get_notifier"),
             mock.patch("oslo.utils.timeutils.utcnow"),
         ) as (addr_find, addr_create, subnet_find, subnet_update, refresh,
-              notify, time):
+              notify, timeutils):
             addrs_found = []
             for a in addresses:
                 if a:
@@ -1895,7 +1896,7 @@ class QuarkIPAddressAllocationNotifications(QuarkIpamBaseTest):
             subnet_find.return_value = sub_mods
             subnet_update.return_value = 1
             refresh.return_value = sub_mods
-            time.return_value = deleted_at
+            timeutils.return_value = deleted_at
             yield notify
 
     def test_allocation_notification(self):
@@ -2077,3 +2078,91 @@ class QuarkIpamTestSelectSubnet(QuarkIpamBaseTest):
             self.assertEqual(None, s)
             self.assertFalse(refresh.called)
             self.assertEqual(subnets[0][0]["next_auto_assign_ip"], -1)
+
+
+class QuarkIpamTestLog(test_base.TestBase):
+    def test_ipam_log_entry_success_flagging(self):
+        log = quark.ipam.QuarkIPAMLog()
+        entry1 = log.make_entry("test1")
+        entry2 = log.make_entry("test1")
+        entry3 = log.make_entry("test2")
+        entry4 = log.make_entry("test2")
+        entry1.failed()
+        self.assertFalse(entry1.success)
+        entry2.failed()
+        self.assertFalse(entry2.success)
+        entry3.failed()
+        self.assertFalse(entry3.success)
+        self.assertTrue(entry4.success)
+
+    def test_ipam_log_entry_timing(self):
+        log = quark.ipam.QuarkIPAMLog()
+        entry1 = log.make_entry("test1")
+        w = 10 / 1000.0
+        t = 0.005
+        time.sleep(w)
+        entry1.end()
+        time_taken = entry1.get_time()
+        self.assertTrue(time_taken < w + t and time_taken > w - t)
+
+    def test_ipam_main_log_success(self):
+        log = quark.ipam.QuarkIPAMLog()
+        self.assertTrue(log.success)
+        log.failed()
+        self.assertFalse(log.success)
+
+    def test_ipam_main_log_cumulative(self):
+        patcher = mock.patch("quark.ipam.QuarkIPAMLog._output")
+        output = patcher.start()
+        self.addCleanup(patcher.stop)
+
+        log = quark.ipam.QuarkIPAMLog()
+        entry1 = log.make_entry("test1")
+        w = 10 / 1000.0
+        time.sleep(w)
+        entry1.end()
+        time.sleep(w)
+        entry2 = log.make_entry("test1")
+        entry2.end()
+        log.end()
+        tot = entry1.get_time() + entry2.get_time()
+        output.assert_called_with(True, tot, 0, 2)
+
+    def test_ipam_main_log_outputs_at_end(self):
+        patcher = mock.patch("quark.ipam.QuarkIPAMLog._output")
+        output = patcher.start()
+        self.addCleanup(patcher.stop)
+
+        log = quark.ipam.QuarkIPAMLog()
+        entry1 = log.make_entry("test1")
+        entry1.end()
+        entry2 = log.make_entry("test1")
+        entry2.end()
+        self.assertFalse(output.called)
+        log.end()
+        self.assertTrue(output.called)
+
+    def test_ipam_logged_decorator(self):
+        patcher = mock.patch("quark.ipam.QuarkIPAMLog._output")
+        output = patcher.start()
+        self.addCleanup(patcher.stop)
+
+        def ok(not_self, **kwargs):
+            self.assertIn('ipam_log', kwargs)
+            return
+
+        def fail(not_self, **kwargs):
+            log = kwargs.get('ipam_log')
+            log.failed()
+            raise Exception("Catch me!")
+
+        quark.ipam.ipam_logged(ok)(None)
+        self.assertTrue(output.called)
+        output.assert_called_with(True, 0, 0, 0)
+        output.reset_mock()
+
+        try:
+            quark.ipam.ipam_logged(fail)(None)
+        except Exception:
+            self.assertTrue(output.called)
+            output.assert_called_with(False, 0, 0, 0)
