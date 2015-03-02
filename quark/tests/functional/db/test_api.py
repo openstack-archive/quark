@@ -157,6 +157,37 @@ class QuarkFindSubnetAllocationCount(QuarkIpamBaseFunctionalTest):
             self.assertEqual(subnets[0][0].ip_version, 4)
             self.assertEqual(subnets[1][0].ip_version, 6)
 
+    def test_subnet_set_full(self):
+        cidr4 = "0.0.0.0/30"  # 2 bits
+        net4 = netaddr.IPNetwork(cidr4)
+        with self._fixtures([
+            self._create_models(cidr4, 4, net4[0])
+        ]) as net:
+            subnet = db_api.subnet_find(self.context, network_id=net['id'],
+                                        scope=db_api.ALL)[0]
+            with self.context.session.begin():
+                updated = db_api.subnet_update_set_full(self.context, subnet)
+                self.context.session.refresh(subnet)
+                self.assertTrue(updated)
+                self.assertEqual(subnet["next_auto_assign_ip"], -1)
+
+    def test_subnet_update_next_auto_assign_ip(self):
+        cidr4 = "0.0.0.0/30"  # 2 bits
+        net4 = netaddr.IPNetwork(cidr4)
+        with self._fixtures([
+            self._create_models(cidr4, 4, net4[0])
+        ]) as net:
+            subnet = db_api.subnet_find(self.context, network_id=net['id'],
+                                        scope=db_api.ALL)[0]
+            with self.context.session.begin():
+                updated = db_api.subnet_update_next_auto_assign_ip(
+                    self.context, subnet)
+                self.context.session.refresh(subnet)
+                self.assertTrue(updated)
+                self.assertEqual(
+                    netaddr.IPAddress(subnet["next_auto_assign_ip"]).ipv4(),
+                    net4[1])
+
 
 class QuarkFindMacAddressRangeAllocationCount(QuarkIpamBaseFunctionalTest):
     @contextlib.contextmanager
