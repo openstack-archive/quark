@@ -111,9 +111,12 @@ class QuarkMacAddressAllocateDeallocated(QuarkIpamBaseTest):
             mock.patch("quark.db.api.mac_address_update"),
             mock.patch("quark.db.api.mac_address_create"),
             mock.patch("quark.db.api.mac_address_range_find"),
-            mock.patch("quark.db.api.mac_address_delete")
+            mock.patch("quark.db.api.mac_address_delete"),
+            mock.patch("quark.db.api.mac_range_update_next_auto_assign_mac"),
+            mock.patch("quark.db.api.mac_range_update_set_full"),
+            mock.patch("sqlalchemy.orm.session.Session.refresh")
         ) as (addr_find, mac_range_count, mac_update, mac_create,
-              range_find, mac_delete):
+              range_find, mac_delete, mac_auto_assign, set_full, refresh):
             address_mod = models.MacAddress(**address)
             range_mod = models.MacAddressRange(**mac_range)
             if mac_find:
@@ -123,21 +126,36 @@ class QuarkMacAddressAllocateDeallocated(QuarkIpamBaseTest):
             mac_range_count.return_value = (range_mod, 0)
             mac_create.return_value = address_mod
             range_find.return_value = range_mod
-            yield mac_update, mac_create, mac_delete
+
+            def refresh_mock(mar):
+                if mar["next_auto_assign_mac"] >= 0:
+                    mar["next_auto_assign_mac"] += 1
+
+            def set_full_mock(context, mar):
+                mar["next_auto_assign_mac"] = -1
+                return 1
+
+            refresh.side_effect = refresh_mock
+            set_full.side_effect = set_full_mock
+            yield mac_update, mac_create, mac_delete, mac_auto_assign
 
     def test_allocate_mac_address_find_deallocated(self):
-        with self._stubs(True) as (mac_update, mac_create, mac_delete):
+        with self._stubs(True) as (mac_update, mac_create, mac_delete,
+                                   mac_auto_assign):
             self.ipam.allocate_mac_address(self.context, 0, 0, 0)
             self.assertTrue(mac_update.called)
             self.assertFalse(mac_create.called)
             self.assertFalse(mac_delete.called)
+            self.assertFalse(mac_auto_assign.called)
 
     def test_allocate_mac_address_creates_new_mac(self):
-        with self._stubs(False) as (mac_update, mac_create, mac_delete):
+        with self._stubs(False) as (mac_update, mac_create, mac_delete,
+                                    mac_auto_assign):
             self.ipam.allocate_mac_address(self.context, 0, 0, 0)
             self.assertFalse(mac_update.called)
             self.assertTrue(mac_create.called)
             self.assertFalse(mac_delete.called)
+            self.assertTrue(mac_auto_assign.called)
 
 
 class QuarkMacAddressAllocateDeallocatedDoNotUse(QuarkIpamBaseTest):
@@ -193,11 +211,27 @@ class QuarkNewMacAddressAllocation(QuarkIpamBaseTest):
             mock.patch("quark.db.api.mac_address_find"),
             mock.patch("quark.db.api."
                        "mac_address_range_find_allocation_counts"),
-        ) as (mac_find, mac_range_count):
+            mock.patch("quark.db.api.mac_range_update_next_auto_assign_mac"),
+            mock.patch("quark.db.api.mac_range_update_set_full"),
+            mock.patch("sqlalchemy.orm.session.Session.refresh")
+        ) as (mac_find, mac_range_count, mac_auto, mac_set_full, refresh):
             address_mod = [mac_helper(a) for a in addresses]
             range_mod = (range_helper(ranges[0]), ranges[1])
             mac_find.side_effect = address_mod
             mac_range_count.return_value = range_mod
+
+            def refresh_mock(mar):
+                if mar["next_auto_assign_mac"] >= 0:
+                    mar["next_auto_assign_mac"] += 1
+
+            def set_full_mock(context, mar):
+                mar["next_auto_assign_mac"] = -1
+                return 1
+
+            refresh.side_effect = refresh_mock
+            mac_set_full.side_effect = set_full_mock
+            refresh.side_effect = refresh_mock
+
             yield range_mod
 
     def test_allocate_new_mac_address_specific(self):
@@ -233,8 +267,16 @@ class QuarkNewMacAddressAllocation(QuarkIpamBaseTest):
             with self.assertRaises(exceptions.MacAddressGenerationFailure):
                 self.ipam.allocate_mac_address(self.context, 0, 0, 0)
 
+    def test_allocate_mac_next_to_last_in_range(self):
+        mar = dict(id=1, first_address=0, last_address=2,
+                   next_auto_assign_mac=1)
+        with self._stubs(ranges=(mar, 0), addresses=[None, None]) as mr:
+            address = self.ipam.allocate_mac_address(self.context, 0, 0, 0)
+            self.assertEqual(address["address"], 1)
+            self.assertEqual(mr[0]["next_auto_assign_mac"], 2)
+
     def test_allocate_mac_last_mac_in_range_closes_range(self):
-        mar = dict(id=1, first_address=0, last_address=1,
+        mar = dict(id=1, first_address=0, last_address=0,
                    next_auto_assign_mac=1)
         with self._stubs(ranges=(mar, 0), addresses=[None, None]) as mr:
             address = self.ipam.allocate_mac_address(self.context, 0, 0, 0)
