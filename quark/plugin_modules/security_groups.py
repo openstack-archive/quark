@@ -27,6 +27,8 @@ from quark import protocols
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 DEFAULT_SG_UUID = "00000000-0000-0000-0000-000000000000"
+GROUP_NAME_MAX_LENGTH = 255
+GROUP_DESCRIPTION_MAX_LENGTH = 255
 
 
 def _validate_security_group_rule(context, rule):
@@ -63,13 +65,28 @@ def _validate_security_group_rule(context, rule):
     return rule
 
 
+def _validate_security_group(security_group):
+    if "name" in security_group:
+        if len(security_group["name"]) > GROUP_NAME_MAX_LENGTH:
+            raise exceptions.InvalidInput(msg="Group name must be 255 "
+                                              "characters or less")
+
+        if security_group["name"] == "default":
+            raise sg_ext.SecurityGroupDefaultAlreadyExists()
+
+    if ("description" in security_group and
+            len(security_group["description"]) > GROUP_DESCRIPTION_MAX_LENGTH):
+        raise exceptions.InvalidInput(msg="Group description must be 255 "
+                                          "characters or less")
+
+
 def create_security_group(context, security_group):
     LOG.info("create_security_group for tenant %s" %
              (context.tenant_id))
     group = security_group["security_group"]
+    _validate_security_group(group)
+
     group_name = group.get('name', '')
-    if group_name == "default":
-        raise sg_ext.SecurityGroupDefaultAlreadyExists()
     group_id = uuidutils.generate_uuid()
 
     with context.session.begin():
@@ -178,6 +195,8 @@ def update_security_group(context, id, security_group):
     if id == DEFAULT_SG_UUID:
         raise sg_ext.SecurityGroupCannotUpdateDefault()
     new_group = security_group["security_group"]
+    _validate_security_group(new_group)
+
     with context.session.begin():
         group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
         db_group = db_api.security_group_update(context, group, **new_group)
