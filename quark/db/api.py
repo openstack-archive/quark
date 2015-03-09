@@ -371,6 +371,37 @@ def mac_address_range_update(context, mac_range, **kwargs):
     return mac_range
 
 
+def mac_range_update_next_auto_assign_mac(context, mac_range):
+    query = context.session.query(models.MacAddressRange)
+    query = query.filter(models.MacAddressRange.id == mac_range["id"])
+    query = query.filter(models.MacAddressRange.next_auto_assign_mac != -1)
+
+    # For details on synchronize_session, see:
+    # http://docs.sqlalchemy.org/en/rel_0_8/orm/query.html
+    query = query.update(
+        {"next_auto_assign_mac":
+         models.MacAddressRange.next_auto_assign_mac + 1},
+        synchronize_session=False)
+
+    # Returns a count of the rows matched in the update
+    return query
+
+
+def mac_range_update_set_full(context, mac_range):
+    query = context.session.query(models.MacAddressRange)
+    query = query.filter_by(id=mac_range["id"])
+    query = query.filter(models.MacAddressRange.next_auto_assign_mac != -1)
+
+    # For details on synchronize_session, see:
+    # http://docs.sqlalchemy.org/en/rel_0_8/orm/query.html
+    query = query.update(
+        {"next_auto_assign_mac": -1},
+        synchronize_session=False)
+
+    # Returns a count of the rows matched in the update
+    return query
+
+
 def mac_address_update(context, mac, **kwargs):
     mac.update(kwargs)
     context.session.add(mac)

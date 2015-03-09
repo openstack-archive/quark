@@ -213,8 +213,7 @@ class QuarkIpam(object):
                         # knowing, so set the next_auto_assign to be -1
                         # so we never try to create new ones
                         # in this range
-                        rng["next_auto_assign_mac"] = -1
-                        context.session.add(rng)
+                        db_api.mac_range_update_set_full(context, rng)
                         LOG.info("MAC range {0} is full".format(rng["cidr"]))
                         continue
 
@@ -222,12 +221,12 @@ class QuarkIpam(object):
                         next_address = mac_address
                     else:
                         next_address = rng["next_auto_assign_mac"]
-                        next_auto = next_address + 1
-                        if next_auto > last:
-                            next_auto = -1
-                        db_api.mac_address_range_update(
-                            context, rng, next_auto_assign_mac=next_auto)
-
+                        if next_address + 1 > rng["last_address"]:
+                            db_api.mac_range_update_set_full(context, rng)
+                        else:
+                            db_api.mac_range_update_next_auto_assign_mac(
+                                context, rng)
+                        context.session.refresh(rng)
                 except Exception:
                     LOG.exception("Error in updating mac range")
                     continue
