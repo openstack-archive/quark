@@ -209,6 +209,22 @@ class TestQuarkCreateSecurityGroup(test_quark_plugin.TestQuarkPlugin):
                     self.context, {'security_group': group})
                 self.assertTrue(group_create.called)
 
+    def test_create_security_group_name_too_long(self):
+        group = {'name': 'a' * 256, 'description': 'bar',
+                 'tenant_id': self.context.tenant_id}
+        with self._stubs(group):
+            with self.assertRaises(exceptions.InvalidInput):
+                self.plugin.create_security_group(
+                    self.context, {'security_group': group})
+
+    def test_create_security_group_description(self):
+        group = {'name': 'foo', 'description': 'b' * 256,
+                 'tenant_id': self.context.tenant_id}
+        with self._stubs(group):
+            with self.assertRaises(exceptions.InvalidInput):
+                self.plugin.create_security_group(
+                    self.context, {'security_group': group})
+
 
 class TestQuarkDeleteSecurityGroup(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
