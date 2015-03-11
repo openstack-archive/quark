@@ -4,7 +4,6 @@ import sys
 from gunicorn.app import base
 from gunicorn import config as gconfig
 from neutron.common import config
-from neutron.common import legacy
 from neutron.common import utils
 from neutron.openstack.common import log as logging
 from neutron import service  # noqa  For api_workers config value
@@ -78,8 +77,7 @@ def main():
                    " search paths (~/.neutron/, ~/, /etc/neutron/, /etc/) and"
                    " the '--config-file' option!"))
 
-    config.setup_logging(cfg.CONF)
-    legacy.modernize_quantum_config(cfg.CONF)
+    config.setup_logging()
     utils.log_opt_values(LOG)
 
     neutron_api = Neutron(prog='neutron')
