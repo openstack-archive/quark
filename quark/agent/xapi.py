@@ -108,11 +108,16 @@ class XapiClient(object):
 
     @contextlib.contextmanager
     def sessioned(self):
+        session = None
         try:
             session = self._session()
             yield session
+        except Exception:
+            LOG.exception("Failed to create a XAPI session")
+            raise
         finally:
-            session.logout()
+            if session:
+                session.logout()
 
     def get_instances(self, session):
         """Returns a dict of `VM OpaqueRef` (str) -> `xapi.VM`."""

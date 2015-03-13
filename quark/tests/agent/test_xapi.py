@@ -238,3 +238,17 @@ class TestXapiClient(test_base.TestBase):
             self.session.xenapi.session.get_this_host.return_value,
             "neutron_vif_flow", "online_instance_flows",
             expected_args)
+
+
+class TestXapiSession(test_base.TestBase):
+    def setUp(self):
+        patcher = mock.patch("quark.agent.xapi.XenAPI.Session")
+        self.addCleanup(patcher.stop)
+        self.session = patcher.start().return_value
+
+    @mock.patch("quark.agent.xapi.XapiClient._session")
+    def test_sessioned_exception_handling(self, xapi_session):
+        xapi_session.side_effect = XenAPI.Failure("HANDLE_INVALID")
+        with self.assertRaises(XenAPI.Failure):
+            xapi.XapiClient()
+            self.session.logout.assert_called_once()
