@@ -91,6 +91,11 @@ def create_port(context, port):
                 resource="port", msg="This device is already connected to the "
                 "requested network via another port")
 
+    # Try to fail early on quotas and save ourselves some db overhead
+    if fixed_ips:
+        quota.QUOTAS.limit_check(context, context.tenant_id,
+                                 fixed_ips_per_port=len(fixed_ips))
+
     if not STRATEGY.is_parent_network(net_id):
         # We don't honor segmented networks when they aren't "shared"
         segment_id = None
@@ -260,6 +265,13 @@ def update_port(context, id, port):
     always_filter = ["network_id", "backend_key"]
     utils.filter_body(context, port_dict, admin_only=admin_only,
                       always_filter=always_filter)
+
+    # Pre-check the requested fixed_ips before making too many db trips.
+    # Note that this is the only check we need, since this call replaces
+    # the entirety of the IP addresses document if fixed_ips are provided.
+    if fixed_ips:
+        quota.QUOTAS.limit_check(context, context.tenant_id,
+                                 fixed_ips_per_port=len(fixed_ips))
 
     # TODO(anyone): security groups are not currently supported on port create,
     #               nor on isolated networks today. Please see RM8615

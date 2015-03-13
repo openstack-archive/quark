@@ -146,6 +146,45 @@ class TestIpAddresses(test_quark_plugin.TestQuarkPlugin):
                 self.plugin.create_ip_address(self.context, ip_address)
 
 
+class TestCreateIpAddressQuotaCheck(test_quark_plugin.TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, port, addresses):
+        port_model = models.Port()
+        port_model.update(port)
+
+        for addr in addresses:
+            addr_model = models.IPAddress()
+            addr_model.update(addr)
+            port_model["ip_addresses"].append(addr_model)
+
+        with contextlib.nested(
+            mock.patch("quark.db.api.port_find"),
+            mock.patch("quark.plugin_modules.ip_addresses.ipam_driver"),
+            mock.patch("quark.plugin_modules.ip_addresses.db_api"
+                       ".port_associate_ip"),
+            mock.patch("quark.plugin_modules.ip_addresses"
+                       ".validate_ports_on_network_and_same_segment")
+        ) as (port_find, mock_ipam, mock_port_associate_ip, validate):
+            port_find.return_value = port_model
+            yield
+
+    def test_create_ip_address_with_port_over_quota(self):
+        addresses = [{"id": ip, "address": ip} for ip in xrange(5)]
+        port = dict(id=1, network_id=2, ip_addresses=[])
+
+        ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
+                  subnet_id=1, network_id=2, version=4)
+
+        with self._stubs(port=port, addresses=addresses):
+            ip_address = dict(port_ids=[port["id"]])
+            ip_address['version'] = 4
+            ip_address['network_id'] = 2
+
+            with self.assertRaises(exceptions.OverQuota):
+                self.plugin.create_ip_address(
+                    self.context, dict(ip_address=ip_address))
+
+
 @mock.patch("quark.plugin_modules.ip_addresses.v")
 @mock.patch("quark.plugin_modules.ip_addresses"
             ".validate_ports_on_network_and_same_segment")
@@ -512,6 +551,55 @@ class TestQuarkUpdateIPAddress(test_quark_plugin.TestQuarkPlugin):
                                                      ip['id'],
                                                      ip_address)
             self.assertEqual(response['port_ids'], [])
+
+
+class TestQuarkUpdateIPAddressQuotaCheck(test_quark_plugin.TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, port, addresses):
+        port_models = []
+        addr_model = None
+
+        port_model = models.Port()
+        port_model.update(port)
+        port_models.append(port_model)
+
+        for addr in addresses:
+            addr_model = models.IPAddress()
+            addr_model.update(addr)
+            port_model["ip_addresses"].append(addr_model)
+
+        db_mod = "quark.db.api"
+        with contextlib.nested(
+            mock.patch("%s.port_find" % db_mod),
+            mock.patch("%s.ip_address_find" % db_mod),
+            mock.patch("%s.port_associate_ip" % db_mod),
+            mock.patch("%s.port_disassociate_ip" % db_mod),
+            mock.patch("quark.plugin_modules.ip_addresses"
+                       ".validate_ports_on_network_and_same_segment"),
+            mock.patch("quark.plugin_modules.ip_addresses.ipam_driver")
+        ) as (port_find, ip_find, port_associate_ip, port_disassociate_ip, val,
+              mock_ipam):
+            port_find.return_value = port_models
+            ip_find.return_value = addr_model
+            port_associate_ip.side_effect = _port_associate_stub
+            port_disassociate_ip.side_effect = _port_disassociate_stub
+            mock_ipam.deallocate_ip_address.side_effect = (
+                _ip_deallocate_stub)
+            yield
+
+    def test_update_ip_address_port_over_quota(self):
+        addresses = [{"id": ip, "address": ip} for ip in xrange(5)]
+
+        port = dict(id=1, network_id=2)
+        ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
+                  subnet_id=1, network_id=2, version=4, deallocated=1,
+                  deallocated_at='2020-01-01 00:00:00')
+
+        with self._stubs(port=port, addresses=addresses):
+            ip_address = {'ip_address': {"port_ids": [port]}}
+            with self.assertRaises(exceptions.OverQuota):
+                self.plugin.update_ip_address(self.admin_context, ip['id'],
+                                              ip_address)
 
 
 class TestQuarkGetIpAddress(test_quark_plugin.TestQuarkPlugin):
