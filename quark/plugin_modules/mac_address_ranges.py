@@ -15,7 +15,7 @@
 
 import netaddr
 from neutron.common import exceptions
-from neutron.openstack.common import log as logging
+from oslo_log import log as logging
 
 from quark.db import api as db_api
 from quark import exceptions as quark_exceptions

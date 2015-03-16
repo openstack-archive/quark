@@ -18,7 +18,7 @@ Optimized NVP client for Quark
 """
 
 import aiclib
-from neutron.openstack.common import log as logging
+from oslo_log import log as logging
 
 from quark.db import models
 from quark.drivers.nvp_driver import NVPDriver

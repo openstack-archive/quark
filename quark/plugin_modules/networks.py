@@ -17,11 +17,11 @@ import netaddr
 from neutron.common import exceptions
 from neutron.db import quota_db as qdb
 from neutron.extensions import providernet as pnet
-from neutron.openstack.common import log as logging
 from neutron.openstack.common import uuidutils
 from neutron import quota
 from oslo.config import cfg
 from oslo.utils import importutils
+from oslo_log import log as logging
 
 from quark.db import api as db_api
 from quark.drivers import registry

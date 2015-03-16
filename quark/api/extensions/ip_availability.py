@@ -16,8 +16,8 @@
 from neutron.api import extensions
 from neutron.common import exceptions
 from neutron import manager
-from neutron.openstack.common import log as logging
 from neutron import wsgi
+from oslo_log import log as logging
 
 RESOURCE_NAME = "ip_availability"
 RESOURCE_COLLECTION = "ip_availabilities"

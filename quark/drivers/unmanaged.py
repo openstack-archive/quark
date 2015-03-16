@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #
 
-from neutron.openstack.common import log as logging
+from oslo_log import log as logging
 
 from quark.cache import security_groups_client as sg_client
 from quark import environment as env

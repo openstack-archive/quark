@@ -18,11 +18,11 @@ from neutron.common import config as neutron_cfg
 from neutron.common import exceptions
 from neutron.common import rpc as n_rpc
 from neutron.db import quota_db as qdb
-from neutron.openstack.common import log as logging
 from neutron import quota
 from oslo.config import cfg
 from oslo.utils import importutils
 from oslo.utils import timeutils
+from oslo_log import log as logging
 
 from quark import allocation_pool
 from quark.db import api as db_api

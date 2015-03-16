@@ -19,8 +19,8 @@ import time
 
 from neutron.common import config
 from neutron.common import utils as n_utils
-from neutron.openstack.common import log as logging
 from oslo.config import cfg
+from oslo_log import log as logging
 
 from quark.agent import xapi
 from quark.cache import security_groups_client as sg_cli

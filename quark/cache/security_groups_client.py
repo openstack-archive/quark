@@ -16,7 +16,7 @@
 import json
 
 import netaddr
-from neutron.openstack.common import log as logging
+from oslo_log import log as logging
 
 from quark.cache import redis_base
 from quark import exceptions as q_exc

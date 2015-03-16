@@ -16,8 +16,8 @@
 from collections import namedtuple
 import contextlib
 
-from neutron.openstack.common import log as logging
 from oslo.config import cfg
+from oslo_log import log as logging
 import XenAPI
 
 
