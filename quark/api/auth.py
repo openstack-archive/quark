@@ -14,8 +14,8 @@
 # limitations under the License.
 
 from neutron import context
-from neutron.openstack.common import log as logging
 from neutron import wsgi
+from oslo_log import log as logging
 import webob.dec
 import webob.exc
 

@@ -15,8 +15,8 @@
 
 from neutron.api import extensions
 from neutron import manager
-from neutron.openstack.common import log as logging
 from neutron import wsgi
+from oslo_log import log as logging
 import webob
 
 RESOURCE_NAME = 'mac_address_range'

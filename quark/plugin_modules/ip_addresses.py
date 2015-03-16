@@ -14,8 +14,8 @@
 #    under the License.
 
 from neutron.common import exceptions
-from neutron.openstack.common import log as logging
 from oslo.config import cfg
+from oslo_log import log as logging
 import webob
 
 from quark.db import api as db_api

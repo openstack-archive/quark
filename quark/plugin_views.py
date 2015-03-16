@@ -18,8 +18,8 @@ View Helpers for Quark Plugin
 """
 
 import netaddr
-from neutron.openstack.common import log as logging
 from oslo.config import cfg
+from oslo_log import log as logging
 
 from quark.db import models
 from quark import network_strategy
