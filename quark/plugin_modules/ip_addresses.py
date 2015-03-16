@@ -14,6 +14,7 @@
 #    under the License.
 
 from neutron.common import exceptions
+from neutron import quota
 from oslo.config import cfg
 from oslo_log import log as logging
 import webob
@@ -63,6 +64,13 @@ def validate_ports_on_network_and_same_segment(ports, network_id):
             if segment_id != first_segment:
                 raise exceptions.BadRequest(resource="ip_addresses",
                                             msg="Segment id's do not match.")
+
+
+def validate_port_ip_quotas(context, ports):
+    for port in ports:
+        addresses = port.get("ip_addresses", [])
+        quota.QUOTAS.limit_check(context, context.tenant_id,
+                                 fixed_ips_per_port=len(addresses) + 1)
 
 
 def _shared_ip_request(ip_address):
@@ -117,6 +125,7 @@ def create_ip_address(context, body):
                                           net_id=network_id)
 
     validate_ports_on_network_and_same_segment(ports, network_id)
+    validate_port_ip_quotas(context, ports)
 
     # Shared Ips are only new IPs. Two use cases: if we got device_id
     # or if we got port_ids. We should check the case where we got port_ids
@@ -185,6 +194,7 @@ def update_ip_address(context, id, ip_address):
 
             validate_ports_on_network_and_same_segment(ports,
                                                        address["network_id"])
+            validate_port_ip_quotas(context, ports)
 
             LOG.info("Updating IP address, %s, to only be used by the"
                      "following ports:  %s" % (address.address_readable,
