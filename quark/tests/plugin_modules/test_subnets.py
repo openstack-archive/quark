@@ -225,17 +225,29 @@ class TestQuarkCreateSubnetAllocationPools(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, subnet):
         s = models.Subnet(network=models.Network(id=1, subnets=[]))
+        allocation_pools = subnet.pop("allocation_pools", None)
         s.update(subnet)
+        if allocation_pools is not None:
+            subnet["allocation_pools"] = allocation_pools
+
+        def _allocation_pools_mock():
+            if allocation_pools is not None:
+                return mock.patch.object(models.Subnet, "allocation_pools")
+            return mock.MagicMock()
 
         with contextlib.nested(
             mock.patch("quark.db.api.network_find"),
             mock.patch("quark.db.api.subnet_find"),
             mock.patch("quark.db.api.subnet_create"),
             mock.patch("neutron.common.rpc.get_notifier"),
-        ) as (net_find, subnet_find, subnet_create, get_notifier):
+            _allocation_pools_mock(),
+        ) as (net_find, subnet_find, subnet_create, get_notifier,
+              alloc_pools_method):
             net_find.return_value = s["network"]
             subnet_find.return_value = []
             subnet_create.return_value = s
+            alloc_pools_method.__get__ = mock.Mock(
+                return_value=allocation_pools)
             yield subnet_create
 
     def setUp(self):
@@ -370,14 +382,21 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
             network=models.Network(id=1) if network else None)
         dns_ips = subnet.pop("dns_nameservers", [])
         host_routes = subnet.pop("host_routes", [])
+        allocation_pools = subnet.pop("allocation_pools", None)
         subnet_mod.update(subnet)
 
         subnet["dns_nameservers"] = dns_ips
         subnet["host_routes"] = host_routes
+        if allocation_pools is not None:
+            subnet["allocation_pools"] = allocation_pools
         dns = [{"ip": x} for x in dns]
         route_models = [models.Route(**r) for r in routes]
         dns_models = [models.DNSNameserver(**d) for d in dns]
 
+        def _allocation_pools_mock():
+            if allocation_pools is not None:
+                return mock.patch.object(models.Subnet, "allocation_pools")
+            return mock.MagicMock()
         with contextlib.nested(
             mock.patch("quark.db.api.subnet_create"),
             mock.patch("quark.db.api.network_find"),
@@ -385,12 +404,15 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
             mock.patch("quark.db.api.route_create"),
             mock.patch("quark.db.api.subnet_find"),
             mock.patch("neutron.common.rpc.get_notifier"),
+            _allocation_pools_mock()
         ) as (subnet_create, net_find, dns_create, route_create, subnet_find,
-              get_notifier):
+              get_notifier, alloc_pools_method):
             subnet_create.return_value = subnet_mod
             net_find.return_value = network
             route_create.side_effect = route_models
             dns_create.side_effect = dns_models
+            alloc_pools_method.__get__ = mock.Mock(
+                return_value=allocation_pools)
             yield subnet_create, dns_create, route_create
 
     def test_create_subnet(self):
@@ -769,6 +791,110 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(subnet=subnet.get("subnet"), dns=nameservers):
             with self.assertRaises(exceptions.OverQuota):
                 self.plugin.create_subnet(self.context, subnet)
+
+
+class TestQuarkAllocationPoolCache(test_quark_plugin.TestQuarkPlugin):
+
+    @contextlib.contextmanager
+    def _stubs(self, has_subnet=True, host_routes=None, new_routes=None,
+               find_routes=True, new_dns_servers=None, new_ip_policy=None,
+               ip_version=4):
+        if host_routes is None:
+            host_routes = []
+        if new_routes:
+            new_routes = [models.Route(cidr=r["destination"],
+                                       gateway=r["nexthop"],
+                                       subnet_id=1)
+                          for r in new_routes]
+        if new_dns_servers:
+            new_dns_servers = [models.DNSNameserver(
+                ip=ip,
+                subnet_id=1) for ip in new_dns_servers]
+        if new_ip_policy:
+            exc = [models.IPPolicyCIDR(cidr=excluded_cidr)
+                   for excluded_cidr in new_ip_policy]
+            new_ip_policy = models.IPPolicy(exclude=exc)
+
+        if ip_version == 4:
+            cidr = "172.16.0.0/24"
+        else:
+            cidr = "2607:f0d0:1002:51::0/64"
+
+        subnet_mod = None
+        if has_subnet:
+            subnet = dict(
+                id=0,
+                network_id=1,
+                tenant_id=self.context.tenant_id,
+                ip_version=ip_version,
+                cidr=cidr,
+                host_routes=host_routes,
+                dns_nameservers=["4.2.2.1", "4.2.2.2"],
+                enable_dhcp=None,
+                _allocation_pool_cache=None)
+
+            dns_ips = subnet.pop("dns_nameservers", [])
+            host_routes = subnet.pop("host_routes", [])
+            exclude = [models.IPPolicyCIDR(cidr="172.16.0.0/32"),
+                       models.IPPolicyCIDR(cidr="172.16.0.255/32")]
+            subnet_mod = models.Subnet(
+                ip_policy=models.IPPolicy(exclude=exclude),
+                network=models.Network(id=1)
+            )
+            subnet_mod.update(subnet)
+
+            subnet_mod["dns_nameservers"] = [models.DNSNameserver(ip=ip)
+                                             for ip in dns_ips]
+            subnet_mod["routes"] = [models.Route(cidr=r["destination"],
+                                                 gateway=r["nexthop"],
+                                                 subnet_id=subnet_mod["id"])
+                                    for r in host_routes]
+        with contextlib.nested(
+            mock.patch("quark.db.api.subnet_find"),
+            mock.patch("quark.db.api.subnet_update"),
+            mock.patch("quark.db.api.dns_create"),
+            mock.patch("quark.db.api.route_find"),
+            mock.patch("quark.db.api.route_update"),
+            mock.patch("quark.db.api.route_create"),
+        ) as (subnet_find, subnet_update,
+              dns_create, route_find, route_update, route_create):
+            subnet_find.return_value = subnet_mod
+            if has_subnet:
+                route_find.return_value = (subnet_mod["routes"][0] if
+                                           subnet_mod["routes"] and
+                                           find_routes else None)
+                new_subnet_mod = models.Subnet()
+                new_subnet_mod.update(subnet_mod)
+                new_subnet_mod.update(dict(id=1))
+                if new_routes:
+                    new_subnet_mod["routes"] = new_routes
+                if new_dns_servers:
+                    new_subnet_mod["dns_nameservers"] = new_dns_servers
+                if new_ip_policy:
+                    new_subnet_mod["ip_policy"] = new_ip_policy
+                subnet_update.return_value = new_subnet_mod
+            yield subnet_mod
+
+    @mock.patch("quark.db.api.subnet_update_set_alloc_pool_cache")
+    def test_update_subnet_allocation_pools_invalidate_cache(self, set_cache):
+        og = cfg.CONF.QUARK.allow_allocation_pool_update
+        cfg.CONF.set_override('allow_allocation_pool_update', True, 'QUARK')
+        with self._stubs() as subnet_found:
+            pools = [dict(start="172.16.0.1", end="172.16.0.12")]
+            s = dict(subnet=dict(allocation_pools=pools))
+            self.plugin.update_subnet(self.context, 1, s)
+            self.assertEqual(set_cache.call_count, 1)
+            set_cache.assert_called_with(self.context, subnet_found)
+        cfg.CONF.set_override('allow_allocation_pool_update', og, 'QUARK')
+
+    @mock.patch("quark.db.api.subnet_update_set_alloc_pool_cache")
+    def test_get_subnet_set_alloc_cache_if_cache_is_none(self, set_cache):
+        with self._stubs() as subnet_found:
+            self.plugin.get_subnet(self.context, 1)
+            self.assertEqual(set_cache.call_count, 1)
+            set_cache.assert_called_with(self.context, subnet_found,
+                                         [dict(start="172.16.0.1",
+                                               end="172.16.0.254")])
 
 
 class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):

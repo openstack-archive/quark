@@ -222,7 +222,6 @@ def create_subnet(context, subnet):
         dict(tenant_id=subnet_dict["tenant_id"],
              ip_block_id=subnet_dict["id"],
              created_at=new_subnet["created_at"]))
-
     return subnet_dict
 
 
@@ -272,7 +271,6 @@ def update_subnet(context, id, subnet):
             context,
             context.tenant_id,
             alloc_pools_per_subnet=len(alloc_pools))
-
         if gateway_ip:
             alloc_pools.validate_gateway_excluded(gateway_ip)
             default_route = None
@@ -318,6 +316,8 @@ def update_subnet(context, id, subnet):
                 ip_policies.ensure_default_policy(cidrs, [subnet_db])
                 subnet_db["ip_policy"] = db_api.ip_policy_update(
                     context, subnet_db["ip_policy"], exclude=cidrs)
+                # invalidate the cache
+                db_api.subnet_update_set_alloc_pool_cache(context, subnet_db)
         subnet = db_api.subnet_update(context, subnet_db, **s)
     return v._make_subnet_dict(subnet)
 
@@ -345,6 +345,10 @@ def get_subnet(context, id, fields=None):
     net_id = STRATEGY.get_parent_network(net_id)
     subnet["network_id"] = net_id
 
+    cache = subnet.get("_allocation_pool_cache")
+    if not cache:
+        new_cache = subnet.allocation_pools
+        db_api.subnet_update_set_alloc_pool_cache(context, subnet, new_cache)
     return v._make_subnet_dict(subnet)
 
 
@@ -374,6 +378,11 @@ def get_subnets(context, limit=None, page_reverse=False, sorts=None,
                                  page_reverse=page_reverse, sorts=sorts,
                                  marker=marker,
                                  join_dns=True, join_routes=True, **filters)
+    for subnet in subnets:
+        cache = subnet.get("_allocation_pool_cache")
+        if not cache:
+            db_api.subnet_update_set_alloc_pool_cache(
+                context, subnet, subnet.allocation_pools)
     return v._make_subnets_list(subnets, fields=fields)
 
 

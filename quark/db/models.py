@@ -13,6 +13,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import json
+
 import netaddr
 import neutron.db.model_base
 from neutron.db import models_v2 as models
@@ -208,6 +210,28 @@ class DNSNameserver(BASEV2, models.HasTenant, models.HasId, IsHazTags):
                                                        ondelete="CASCADE"))
 
 
+def _pools_from_cidr(cidr):
+    cidrs = cidr.iter_cidrs()
+    if len(cidrs) == 0:
+        return []
+    if len(cidrs) == 1:
+        return [dict(start=str(cidrs[0][0]),
+                     end=str(cidrs[0][-1]))]
+
+    pool_start = cidrs[0][0]
+    prev_cidr_end = cidrs[0][-1]
+    pools = []
+    for cidr in cidrs[1:]:
+        cidr_start = cidr[0]
+        if prev_cidr_end + 1 != cidr_start:
+            pools.append(dict(start=str(pool_start),
+                              end=str(prev_cidr_end)))
+            pool_start = cidr_start
+        prev_cidr_end = cidr[-1]
+    pools.append(dict(start=str(pool_start), end=str(prev_cidr_end)))
+    return pools
+
+
 class Subnet(BASEV2, models.HasId, IsHazTags):
     """Upstream model for IPs.
 
@@ -227,12 +251,26 @@ class Subnet(BASEV2, models.HasId, IsHazTags):
     name = sa.Column(sa.String(255))
     network_id = sa.Column(sa.String(36), sa.ForeignKey('quark_networks.id'))
     _cidr = sa.Column(sa.String(64), nullable=False)
+    _allocation_pool_cache = sa.Column(sa.Text(), nullable=True)
     tenant_id = sa.Column(sa.String(255), index=True)
     segment_id = sa.Column(sa.String(255), index=True)
 
     @hybrid.hybrid_property
     def cidr(self):
         return self._cidr
+
+    @hybrid.hybrid_property
+    def allocation_pools(self):
+        _cache = self.get("_allocation_pool_cache")
+        if _cache:
+            pools = json.loads(_cache)
+            return pools
+        else:
+            ip_policy_cidrs = IPPolicy.get_ip_policy_cidrs(self)
+            cidr = netaddr.IPSet([netaddr.IPNetwork(self["cidr"])])
+            allocatable = cidr - ip_policy_cidrs
+            pools = _pools_from_cidr(allocatable)
+            return pools
 
     @cidr.setter
     def cidr(self, val):
