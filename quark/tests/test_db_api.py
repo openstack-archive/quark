@@ -15,10 +15,13 @@
 
 import mock
 import netaddr
+from oslo_log import log as logging
 
 from quark.db import api as db_api
 from quark.db import models
 from quark.tests.functional.base import BaseFunctionalTest
+
+LOG = logging.getLogger(__name__)
 
 
 class TestDBAPI(BaseFunctionalTest):
@@ -129,6 +132,70 @@ class TestDBAPI(BaseFunctionalTest):
                                    scope=db_api.ONE)
         except Exception as e:
             self.fail("Expected no exceptions: %s" % e)
+
+    def test_model_query_with_IPAddress(self):
+        # NOTE: tenant_id filter will always be added
+        test_model = models.IPAddress
+        good_filter = {"network_id": [2]}
+        result = db_api._model_query(self.context, test_model, good_filter)
+        self.assertEqual(len(result), 2)
+        bad_filter = {"ethertype": "IPv4"}
+        result = db_api._model_query(self.context, test_model, bad_filter)
+        self.assertEqual(len(result), 1)
+
+    def test_model_query_with_MacAddress(self):
+        test_model = models.MacAddress
+        good_filter = {"deallocated": True}
+        result = db_api._model_query(self.context, test_model, good_filter)
+        self.assertEqual(len(result), 2)
+        bad_filter = {"protocol": "ICMP"}
+        result = db_api._model_query(self.context, test_model, bad_filter)
+        self.assertEqual(len(result), 1)
+
+    def test_model_query_with_Network(self):
+        test_model = models.Network
+        good_filter = {"name": ["BOB"]}
+        result = db_api._model_query(self.context, test_model, good_filter)
+        self.assertEqual(len(result), 2)
+        bad_filter = {"deallocated": True}
+        result = db_api._model_query(self.context, test_model, bad_filter)
+        self.assertEqual(len(result), 1)
+
+    def test_model_query_with_Port(self):
+        test_model = models.Port
+        good_filter = {"device_id": [123]}
+        result = db_api._model_query(self.context, test_model, good_filter)
+        self.assertEqual(len(result), 2)
+        bad_filter = {"not_real": "BANANAS"}
+        result = db_api._model_query(self.context, test_model, bad_filter)
+        self.assertEqual(len(result), 1)
+
+    def test_model_query_with_SecurityGroup(self):
+        test_model = models.SecurityGroup
+        good_filter = {"name": ["Abraham Lincoln"]}
+        result = db_api._model_query(self.context, test_model, good_filter)
+        self.assertEqual(len(result), 2)
+        bad_filter = {"segment_id": [123]}
+        result = db_api._model_query(self.context, test_model, bad_filter)
+        self.assertEqual(len(result), 1)
+
+    def test_model_query_with_SecurityGroupRule(self):
+        test_model = models.SecurityGroupRule
+        good_filter = {"ethertype": ["IPv4"]}
+        result = db_api._model_query(self.context, test_model, good_filter)
+        self.assertEqual(len(result), 2)
+        bad_filter = {"made_up": "Moon Landing"}
+        result = db_api._model_query(self.context, test_model, bad_filter)
+        self.assertEqual(len(result), 1)
+
+    def test_model_query_with_Subnet(self):
+        test_model = models.Subnet
+        good_filter = {"network_id": [42]}
+        result = db_api._model_query(self.context, test_model, good_filter)
+        self.assertEqual(len(result), 2)
+        bad_filter = {"subnet_id": [123]}
+        result = db_api._model_query(self.context, test_model, bad_filter)
+        self.assertEqual(len(result), 1)
 
     def test_port_associate_ip(self):
         self.context.session.add = mock.Mock()
