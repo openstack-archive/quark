@@ -1,0 +1,90 @@
+import contextlib
+import datetime
+
+import mock
+import netaddr
+from neutron.common import exceptions
+from neutron.common import rpc
+from oslo.config import cfg
+from oslo.utils import timeutils
+
+from quark.db import api as db_api
+import quark.ipam
+from quark.tests.functional.mysql.base import MySqlBaseFunctionalTest
+
+
+class QuarkIpamBaseFunctionalTest(MySqlBaseFunctionalTest):
+    def setUp(self):
+        super(QuarkIpamBaseFunctionalTest, self).setUp()
+
+        patcher = mock.patch("neutron.common.rpc.oslo_messaging")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        rpc.init(mock.MagicMock())
+
+
+class QuarkIPAddressReallocate(QuarkIpamBaseFunctionalTest):
+    @contextlib.contextmanager
+    def _stubs(self, network, subnet, address):
+        self.ipam = quark.ipam.QuarkIpamANY()
+        with self.context.session.begin():
+            next_ip = subnet.pop("next_auto_assign_ip", 0)
+            net_mod = db_api.network_create(self.context, **network)
+            subnet["network"] = net_mod
+            sub_mod = db_api.subnet_create(self.context, **subnet)
+
+            address["network_id"] = net_mod["id"]
+            address["subnet_id"] = sub_mod["id"]
+            ip = db_api.ip_address_create(self.context, **address)
+            address.pop("address")
+            db_api.ip_address_update(self.context, ip, **address)
+
+            # NOTE(asadoughi): update after cidr constructor has been invoked
+            db_api.subnet_update(self.context,
+                                 sub_mod,
+                                 next_auto_assign_ip=next_ip)
+        yield net_mod
+
+    def test_allocate_finds_ip_reallocates(self):
+        network = dict(name="public", tenant_id="fake")
+        ipnet = netaddr.IPNetwork("0.0.0.0/24")
+        next_ip = ipnet.ipv6().first + 10
+        subnet = dict(cidr="0.0.0.0/24", next_auto_assign_ip=next_ip,
+                      ip_policy=None, tenant_id="fake", do_not_use=False)
+
+        addr = netaddr.IPAddress("0.0.0.2")
+
+        after_reuse_after = cfg.CONF.QUARK.ipam_reuse_after + 1
+        reusable_after = datetime.timedelta(seconds=after_reuse_after)
+        deallocated_at = timeutils.utcnow() - reusable_after
+        ip_address = dict(address=addr, version=4, _deallocated=True,
+                          deallocated_at=deallocated_at)
+
+        with self._stubs(network, subnet, ip_address) as net:
+            ipaddress = []
+            self.ipam.allocate_ip_address(self.context, ipaddress,
+                                          net["id"], 0, 0)
+            self.assertIsNotNone(ipaddress[0]['id'])
+            expected = netaddr.IPAddress("0.0.0.2").ipv6().value
+            self.assertEqual(ipaddress[0]['address'], expected)
+            self.assertEqual(ipaddress[0]['version'], 4)
+            self.assertEqual(ipaddress[0]['used_by_tenant_id'], "fake")
+
+    def test_allocate_finds_ip_in_do_not_use_subnet_raises(self):
+        network = dict(name="public", tenant_id="fake")
+        ipnet = netaddr.IPNetwork("0.0.0.0/24")
+        next_ip = ipnet.ipv6().first + 3
+        subnet = dict(cidr="0.0.0.0/24", next_auto_assign_ip=next_ip,
+                      ip_policy=None, tenant_id="fake", do_not_use=True)
+
+        addr = netaddr.IPAddress("0.0.0.2")
+        after_reuse_after = cfg.CONF.QUARK.ipam_reuse_after + 1
+        reusable_after = datetime.timedelta(seconds=after_reuse_after)
+        deallocated_at = timeutils.utcnow() - reusable_after
+        ip_address = dict(address=addr, version=4, _deallocated=True,
+                          deallocated_at=deallocated_at)
+
+        with self._stubs(network, subnet, ip_address) as net:
+            with self.assertRaises(exceptions.IpAddressGenerationFailure):
+                self.ipam.allocate_ip_address(self.context, [], net["id"],
+                                              0, 0)
