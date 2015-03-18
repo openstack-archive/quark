@@ -4,9 +4,9 @@ python:
 before_install:
   - "export NO_EVENTLET=1"
 install:
-  - pip install -r requirements.txt -r test-requirements.txt . --use-mirrors
+  - pip install tox --use-mirrors
 before_script:
-  - "flake8 --show-source --builtins=_ quark"
+  - mysql -e 'create database quark_functional_tests;'
 script:
-  - nosetests --with-coverage --cover-package=quark --cover-erase --cover-html --cover-html-dir=.cover-report --cover-min-percentage=90
+  - tox
 sudo: false

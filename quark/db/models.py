@@ -163,6 +163,9 @@ class IPAddress(BASEV2, models.HasId):
                                      ip_types.SHARED,
                              name="quark_ip_address_types"))
     associations = orm.relationship(PortIpAssociation, backref="ip_address")
+    transaction_id = sa.Column(sa.Integer(),
+                               sa.ForeignKey("quark_transactions.id"),
+                               nullable=True)
 
     def enabled_for_port(self, port):
         for assoc in self["associations"]:
@@ -467,3 +470,8 @@ class Network(BASEV2, models.HasId):
     network_plugin = sa.Column(sa.String(36))
     ipam_strategy = sa.Column(sa.String(255))
     tenant_id = sa.Column(sa.String(255), index=True)
+
+
+class Transaction(BASEV2):
+    __tablename__ = "quark_transactions"
+    id = sa.Column(sa.Integer, primary_key=True)
