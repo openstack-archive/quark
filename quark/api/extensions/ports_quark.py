@@ -14,7 +14,6 @@
 # limitations under the License.
 
 from neutron.api import extensions
-from neutron.api.v2 import attributes
 from neutron import manager
 from neutron import wsgi
 
@@ -36,22 +35,11 @@ class QuarkPortsUpdateHandler(object):
         self._plugin = plugin
 
     def handle(self, request, response):
-        xml_deserializer = wsgi.XMLDeserializer(attributes.get_attr_metadata())
-        deserializers = {'application/xml': xml_deserializer,
-                         'application/json': wsgi.JSONDeserializer()}
-        xml_serializer = wsgi.XMLDictSerializer(attributes.get_attr_metadata())
-        serializers = {'application/xml': xml_serializer,
-                       'application/json': wsgi.JSONDictSerializer()}
-        format_types = {'xml': 'application/xml',
-                        'json': 'application/json'}
+        deserializer = wsgi.JSONDeserializer()
+        serializer = wsgi.JSONDictSerializer()
 
         path = [part for part in request.path_url.split("/") if part]
         id = path[-1].split('.')[0]
-
-        content_type = format_types.get(None,
-                                        request.best_match_content_type())
-        deserializer = deserializers.get(content_type)
-        serializer = serializers.get(content_type)
 
         body = None
         if request.body:
