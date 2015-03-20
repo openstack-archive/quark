@@ -68,16 +68,16 @@ def _validate_security_group_rule(context, rule):
 def _validate_security_group(security_group):
     if "name" in security_group:
         if len(security_group["name"]) > GROUP_NAME_MAX_LENGTH:
-            raise exceptions.InvalidInput(msg="Group name must be 255 "
-                                              "characters or less")
+            raise exceptions.InvalidInput(
+                error_message="Group name must be 255 characters or less")
 
         if security_group["name"] == "default":
             raise sg_ext.SecurityGroupDefaultAlreadyExists()
 
     if ("description" in security_group and
             len(security_group["description"]) > GROUP_DESCRIPTION_MAX_LENGTH):
-        raise exceptions.InvalidInput(msg="Group description must be 255 "
-                                          "characters or less")
+        raise exceptions.InvalidInput(
+            error_message="Group description must be 255 characters or less")
 
 
 def create_security_group(context, security_group):
