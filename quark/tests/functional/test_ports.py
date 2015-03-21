@@ -75,15 +75,15 @@ class QuarkCreatePortSatisfyIpam(BaseFunctionalTest):
         cidr_v6 = "2001:db8::/32"
         ip_network = netaddr.IPNetwork(cidr)
         ipv6_network = netaddr.IPNetwork(cidr_v6)
-        network = dict(id=1, name="public", tenant_id="make",
+        network = dict(id='1', name="public", tenant_id="make",
                        network_plugin="BASE",
                        ipam_strategy="BOTH_REQUIRED")
         network = {"network": network}
-        subnet_v4 = dict(id=1, ip_version=4, next_auto_assign_ip=2,
+        subnet_v4 = dict(id='1', ip_version=4, next_auto_assign_ip=2,
                          cidr=cidr, first_ip=ip_network.first,
                          last_ip=ip_network.last, ip_policy=None,
                          tenant_id="fake")
-        subnet_v6 = dict(id=2, ip_version=6, next_auto_assign_ip=2,
+        subnet_v6 = dict(id='2', ip_version=6, next_auto_assign_ip=2,
                          cidr=cidr_v6, first_ip=ipv6_network.first,
                          last_ip=ipv6_network.last, ip_policy=None,
                          tenant_id="fake")
@@ -111,11 +111,11 @@ class QuarkCreatePortSatisfyIpam(BaseFunctionalTest):
     def test_port_created_doesnt_satisfy_ipam_strategy_raises(self):
         cidr = "192.168.1.0/24"
         ip_network = netaddr.IPNetwork(cidr)
-        network = dict(id=1, name="public", tenant_id="make",
+        network = dict(id='1', name="public", tenant_id="make",
                        network_plugin="BASE",
                        ipam_strategy="BOTH_REQUIRED")
         network = {"network": network}
-        subnet_v4 = dict(id=1, ip_version=4, next_auto_assign_ip=2,
+        subnet_v4 = dict(id='1', ip_version=4, next_auto_assign_ip=2,
                          cidr=cidr, first_ip=ip_network.first,
                          last_ip=ip_network.last, ip_policy=None,
                          tenant_id="fake")
@@ -160,11 +160,11 @@ class QuarkCreatePortWithIpNotMandatory(BaseFunctionalTest):
     def test_port_created_with_only_subnet(self):
         cidr = "192.168.1.0/24"
         ip_network = netaddr.IPNetwork(cidr)
-        network = dict(id=1, name="public", tenant_id="make",
+        network = dict(id='1', name="public", tenant_id="make",
                        network_plugin="BASE",
                        ipam_strategy="ANY")
         network = {"network": network}
-        subnet_v4 = dict(id=1, ip_version=4, next_auto_assign_ip=2,
+        subnet_v4 = dict(id='1', ip_version=4, next_auto_assign_ip=2,
                          cidr=cidr, first_ip=ip_network.first,
                          last_ip=ip_network.last, ip_policy=None,
                          tenant_id="fake")
@@ -192,20 +192,20 @@ class QuarkCreatePortWithIpNotMandatory(BaseFunctionalTest):
         ip_network = netaddr.IPNetwork(cidr)
         another_ip_network = netaddr.IPNetwork(another_cidr)
         ipv6_network = netaddr.IPNetwork(cidr_v6)
-        network = dict(id=1, name="public", tenant_id="make",
+        network = dict(id='1', name="public", tenant_id="make",
                        network_plugin="BASE",
                        ipam_strategy="BOTH_REQUIRED")
         network = {"network": network}
-        subnet_v4 = dict(id=1, ip_version=4, next_auto_assign_ip=2,
+        subnet_v4 = dict(id='1', ip_version=4, next_auto_assign_ip=2,
                          cidr=cidr, first_ip=ip_network.first,
                          last_ip=ip_network.last, ip_policy=None,
                          tenant_id="fake")
-        another_subnet_v4 = dict(id=2, ip_version=4, next_auto_assign_ip=2,
+        another_subnet_v4 = dict(id='2', ip_version=4, next_auto_assign_ip=2,
                                  cidr=another_cidr,
                                  first_ip=another_ip_network.first,
                                  last_ip=another_ip_network.last,
                                  ip_policy=None, tenant_id="fake")
-        subnet_v6 = dict(id=3, ip_version=6, next_auto_assign_ip=2,
+        subnet_v6 = dict(id='3', ip_version=6, next_auto_assign_ip=2,
                          cidr=cidr_v6, first_ip=ipv6_network.first,
                          last_ip=ipv6_network.last, ip_policy=None,
                          tenant_id="fake")
@@ -261,11 +261,11 @@ class QuarkCreatePortWithForbiddenMacRange(BaseFunctionalTest):
     def test_port_created_with_forbidden_mac_range(self):
         cidr = "192.168.1.0/24"
         ip_network = netaddr.IPNetwork(cidr)
-        network = dict(id=1, name="public", tenant_id="make",
+        network = dict(id='1', name="public", tenant_id="make",
                        network_plugin="BASE",
                        ipam_strategy="ANY")
         network = {"network": network}
-        subnet_v4 = dict(id=1, ip_version=4, next_auto_assign_ip=2,
+        subnet_v4 = dict(id='1', ip_version=4, next_auto_assign_ip=2,
                          cidr=cidr, first_ip=ip_network.first,
                          last_ip=ip_network.last, ip_policy=None,
                          tenant_id="fake")

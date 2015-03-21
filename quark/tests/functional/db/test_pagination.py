@@ -95,12 +95,12 @@ class QuarkPortsPaginationFunctionalTest(BaseFunctionalTest):
 
         ip_network = netaddr.IPNetwork(cidr)
 
-        network = dict(id=1, name="public", tenant_id="make",
+        network = dict(id="1", name="public", tenant_id="make",
                        network_plugin="BASE",
                        ipam_strategy="ANY")
         network = {"network": network}
 
-        subnet = dict(id=1, ip_version=4, next_auto_assign_ip=2,
+        subnet = dict(id="1", ip_version=4, next_auto_assign_ip=2,
                       cidr=cidr, first_ip=ip_network.first,
                       last_ip=ip_network.last, ip_policy=None,
                       tenant_id="fake")
