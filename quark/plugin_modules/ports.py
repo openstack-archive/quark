@@ -42,6 +42,39 @@ def _raise_if_unauthorized(tenant_id, net):
         raise exceptions.NotAuthorized()
 
 
+def split_and_validate_requested_subnets(context, net_id, segment_id,
+                                         fixed_ips):
+    subnets = []
+    ip_addresses = {}
+    for fixed_ip in fixed_ips:
+        subnet_id = fixed_ip.get("subnet_id")
+        ip_address = fixed_ip.get("ip_address")
+        if not subnet_id:
+            raise exceptions.BadRequest(resource="fixed_ips",
+                                        msg="subnet_id required")
+        if ip_address:
+            ip_addresses[ip_address] = subnet_id
+        else:
+            subnets.append(subnet_id)
+
+    subnets = ip_addresses.values() + subnets
+
+    sub_models = db_api.subnet_find(context, id=subnets, scope=db_api.ALL)
+    if len(sub_models) == 0:
+        raise exceptions.NotFound(msg="Requested subnet(s) not found")
+
+    for s in sub_models:
+        if s["network_id"] != net_id:
+            raise exceptions.InvalidInput(
+                error_message="Requested subnet doesn't belong to requested "
+                              "network")
+
+        if segment_id and segment_id != s["segment_id"]:
+            raise q_exc.AmbiguousNetworkId(net_id=net_id)
+
+    return ip_addresses, subnets
+
+
 def create_port(context, port):
     """Create a port
 
@@ -128,34 +161,22 @@ def create_port(context, port):
     with utils.CommandManager().execute() as cmd_mgr:
         @cmd_mgr.do
         def _allocate_ips(fixed_ips, net, port_id, segment_id, mac):
-            subnets = []
-            ip_addresses = {}
+            fixed_ip_kwargs = {}
             if fixed_ips:
-                for fixed_ip in fixed_ips:
-                    subnet_id = fixed_ip.get("subnet_id")
-                    ip_address = fixed_ip.get("ip_address")
-                    if not subnet_id:
-                        raise exceptions.BadRequest(
-                            resource="fixed_ips",
-                            msg="subnet_id required")
-                    if ip_address:
-                        ip_addresses[ip_address] = subnet_id
-                    else:
-                        subnets.append(subnet_id)
+                if STRATEGY.is_parent_network(net_id) and not context.is_admin:
+                    raise exceptions.NotAuthorized()
 
-                ips = ip_addresses.keys()
-                subnets = ip_addresses.values() + subnets
+                ips, subnets = split_and_validate_requested_subnets(context,
+                                                                    net_id,
+                                                                    segment_id,
+                                                                    fixed_ips)
+                fixed_ip_kwargs["ip_addresses"] = ips
+                fixed_ip_kwargs["subnets"] = subnets
 
-                ipam_driver.allocate_ip_address(
-                    context, addresses, net["id"], port_id,
-                    CONF.QUARK.ipam_reuse_after, segment_id=segment_id,
-                    ip_addresses=ips, subnets=subnets,
-                    mac_address=mac)
-            else:
-                ipam_driver.allocate_ip_address(
-                    context, addresses, net["id"], port_id,
-                    CONF.QUARK.ipam_reuse_after, segment_id=segment_id,
-                    mac_address=mac)
+            ipam_driver.allocate_ip_address(
+                context, addresses, net["id"], port_id,
+                CONF.QUARK.ipam_reuse_after, segment_id=segment_id,
+                mac_address=mac, **fixed_ip_kwargs)
 
         @cmd_mgr.undo
         def _allocate_ips_undo(addr):

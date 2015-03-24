@@ -497,7 +497,13 @@ class TestQuarkCreatePortRM9305(test_quark_plugin.TestQuarkPlugin):
 class TestQuarkCreatePortsSameDevBadRequest(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, port=None, network=None, addr=None, mac=None,
-               limit_checks=None):
+               limit_checks=None, subnet=None):
+        subnet_model = None
+
+        if subnet:
+            subnet_model = models.Subnet()
+            subnet_model.update(subnet)
+
         if network:
             network["network_plugin"] = "BASE"
             network["ipam_strategy"] = "ANY"
@@ -520,13 +526,16 @@ class TestQuarkCreatePortsSameDevBadRequest(test_quark_plugin.TestQuarkPlugin):
             mock.patch("quark.ipam.QuarkIpam.allocate_ip_address"),
             mock.patch("quark.ipam.QuarkIpam.allocate_mac_address"),
             mock.patch("quark.db.api.port_count_all"),
-            mock.patch("neutron.quota.QuotaEngine.limit_check")
+            mock.patch("neutron.quota.QuotaEngine.limit_check"),
+            mock.patch("quark.db.api.subnet_find"),
         ) as (port_create, net_find, alloc_ip, alloc_mac, port_count,
-              limit_check):
+              limit_check, subnet_find):
             port_create.side_effect = _create_db_port
             net_find.return_value = network
             alloc_ip.side_effect = _alloc_ip
             alloc_mac.return_value = mac
+            if subnet:
+                subnet_find.return_value = [subnet_model]
             port_count.return_value = 0
             if limit_checks:
                 limit_check.side_effect = limit_checks
@@ -604,15 +613,16 @@ class TestQuarkCreatePortsSameDevBadRequest(test_quark_plugin.TestQuarkPlugin):
                 self.assertEqual(result[key], expected[key])
 
     def test_create_port_fixed_ip(self):
-        network = dict(id=1, tenant_id=self.context.tenant_id)
+        network = dict(id='1', tenant_id=self.context.tenant_id)
         mac = dict(address="AA:BB:CC:DD:EE:FF")
+        subnet = dict(id=1, network_id=network["id"])
         ip = mock.MagicMock()
         ip.get = lambda x, *y: 1 if x == "subnet_id" else None
         ip.formatted = lambda: "192.168.10.45"
         ip.enabled_for_port = lambda x: True
         fixed_ips = [dict(subnet_id=1, enabled=True,
                      ip_address="192.168.10.45")]
-        port = dict(port=dict(mac_address=mac["address"], network_id=1,
+        port = dict(port=dict(mac_address=mac["address"], network_id='1',
                               tenant_id=self.context.tenant_id, device_id=2,
                               fixed_ips=fixed_ips, ip_addresses=[ip]))
 
@@ -625,11 +635,95 @@ class TestQuarkCreatePortsSameDevBadRequest(test_quark_plugin.TestQuarkPlugin):
                     'fixed_ips': fixed_ips,
                     'device_id': 2}
         with self._stubs(port=port["port"], network=network, addr=ip,
-                         mac=mac) as port_create:
+                         mac=mac, subnet=subnet) as port_create:
             result = self.plugin.create_port(self.context, port)
             self.assertTrue(port_create.called)
             for key in expected.keys():
                 self.assertEqual(result[key], expected[key])
+
+    @mock.patch("quark.network_strategy.JSONStrategy.is_parent_network")
+    def test_create_providernet_port_fixed_ip_not_authorized(self, is_parent):
+        is_parent.return_value = True
+        network = dict(id='1', tenant_id=self.context.tenant_id)
+        subnet = dict(id=1, network_id=network["id"])
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
+        ip = mock.MagicMock()
+        ip.get = lambda x, *y: 1 if x == "subnet_id" else None
+        ip.formatted = lambda: "192.168.10.45"
+        ip.enabled_for_port = lambda x: True
+        fixed_ips = [dict(subnet_id=1, enabled=True,
+                     ip_address="192.168.10.45")]
+        port = dict(port=dict(mac_address=mac["address"], network_id='1',
+                              tenant_id=self.context.tenant_id, device_id=2,
+                              fixed_ips=fixed_ips, ip_addresses=[ip],
+                              segment_id="provider_segment"))
+
+        with self._stubs(port=port["port"], network=network, addr=ip,
+                         mac=mac, subnet=subnet):
+            with self.assertRaises(exceptions.NotAuthorized):
+                self.plugin.create_port(self.context, port)
+
+    @mock.patch("quark.network_strategy.JSONStrategy.is_parent_network")
+    def test_create_providernet_port_fixed_ip_wrong_segment(self, is_parent):
+        is_parent.return_value = True
+        network = dict(id='1', tenant_id=self.context.tenant_id)
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
+        subnet = dict(id=1, network_id=network["id"])
+        ip = mock.MagicMock()
+        ip.get = lambda x, *y: 1 if x == "subnet_id" else None
+        ip.formatted = lambda: "192.168.10.45"
+        ip.enabled_for_port = lambda x: True
+        fixed_ips = [dict(subnet_id=1, enabled=True,
+                     ip_address="192.168.10.45")]
+        port = dict(port=dict(mac_address=mac["address"], network_id='1',
+                              tenant_id=self.context.tenant_id, device_id=2,
+                              fixed_ips=fixed_ips, ip_addresses=[ip],
+                              segment_id="provider_segment"))
+
+        with self._stubs(port=port["port"], network=network, addr=ip,
+                         mac=mac, subnet=subnet):
+            with self.assertRaises(q_exc.AmbiguousNetworkId):
+                self.plugin.create_port(self.context.elevated(), port)
+
+    def test_create_port_fixed_ip_subnet_not_found(self):
+        network = dict(id='1', tenant_id=self.context.tenant_id)
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
+        ip = mock.MagicMock()
+        ip.get = lambda x, *y: 1 if x == "subnet_id" else None
+        ip.formatted = lambda: "192.168.10.45"
+        ip.enabled_for_port = lambda x: True
+        fixed_ips = [dict(subnet_id=1, enabled=True,
+                     ip_address="192.168.10.45")]
+        port = dict(port=dict(mac_address=mac["address"], network_id='1',
+                              tenant_id=self.context.tenant_id, device_id=2,
+                              fixed_ips=fixed_ips, ip_addresses=[ip],
+                              segment_id="provider_segment"))
+
+        with self._stubs(port=port["port"], network=network, addr=ip,
+                         mac=mac):
+            with self.assertRaises(exceptions.NotFound):
+                self.plugin.create_port(self.context.elevated(), port)
+
+    def test_create_port_fixed_ip_subnet_not_in_network(self):
+        network = dict(id='1', tenant_id=self.context.tenant_id)
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
+        subnet = dict(id=1, network_id='2')
+
+        ip = mock.MagicMock()
+        ip.get = lambda x, *y: 1 if x == "subnet_id" else None
+        ip.formatted = lambda: "192.168.10.45"
+        ip.enabled_for_port = lambda x: True
+        fixed_ips = [dict(subnet_id=1, enabled=True,
+                     ip_address="192.168.10.45")]
+        port = dict(port=dict(mac_address=mac["address"], network_id='1',
+                              tenant_id=self.context.tenant_id, device_id=2,
+                              fixed_ips=fixed_ips, ip_addresses=[ip],
+                              segment_id="provider_segment"))
+
+        with self._stubs(port=port["port"], network=network, addr=ip,
+                         mac=mac, subnet=subnet):
+            with self.assertRaises(exceptions.InvalidInput):
+                self.plugin.create_port(self.context.elevated(), port)
 
     def test_create_port_fixed_ips_bad_request(self):
         network = dict(id=1, tenant_id=self.context.tenant_id)
