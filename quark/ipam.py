@@ -20,6 +20,7 @@ Quark Pluggable IPAM
 import functools
 import itertools
 import random
+import time
 import uuid
 
 import netaddr
@@ -117,6 +118,72 @@ def generate_v6(mac, port_id, cidr):
 
     for addr in rfc3041_ip(port_id, cidr):
         yield addr
+
+
+def ipam_logged(fx):
+    def wrap(self, *args, **kwargs):
+        log = QuarkIPAMLog()
+        kwargs['ipam_log'] = log
+        try:
+            return fx(self, *args, **kwargs)
+        finally:
+            log.end()
+    return wrap
+
+
+class QuarkIPAMLog(object):
+    def __init__(self):
+        self.entries = {}
+        self.success = True
+
+    def make_entry(self, fx_name):
+        if fx_name not in self.entries:
+            self.entries[fx_name] = []
+        entry = QuarkIPAMLogEntry(self, fx_name)
+        self.entries[fx_name].append(entry)
+        return entry
+
+    def _output(self, status, time_total, fails, successes):
+        status = "SUCCESS"
+        if not self.success:
+            status = "FAILED"
+        LOG.debug("STATUS:%s TIME:%f ATTEMPTS:%d PASS:%d FAIL:%d" %
+                  (status, time_total, fails + successes, successes, fails))
+
+    def end(self):
+        total = 0
+        fails = 0
+        successes = 0
+        for fx, entries in self.entries.items():
+            for entry in entries:
+                total += entry.get_time()
+                if entry.success:
+                    successes += 1
+                else:
+                    fails += 1
+        self._output(self.success, total, fails, successes)
+
+    def failed(self):
+        self.success = False
+
+
+class QuarkIPAMLogEntry(object):
+    def __init__(self, log, name):
+        self.name = name
+        self.log = log
+        self.start_time = time.time()
+        self.success = True
+
+    def failed(self):
+        self.success = False
+
+    def end(self):
+        self.end_time = time.time()
+
+    def get_time(self):
+        if not hasattr(self, 'end_time'):
+            return 0
+        return self.end_time - self.start_time
 
 
 class QuarkIpam(object):
@@ -308,11 +375,15 @@ class QuarkIpam(object):
 
         if sub_ids:
             ip_kwargs["subnet_id"] = sub_ids
+        ipam_log = kwargs.get('ipam_log', None)
 
         # We never want to take the chance of an infinite loop here. Instead,
         # we'll clean up multiple bad IPs if we find them (assuming something
         # is really wrong)
         for retry in xrange(CONF.QUARK.ip_address_retry_max):
+            attempt = None
+            if ipam_log:
+                attempt = ipam_log.make_entry("attempt_to_reallocate_ip")
             LOG.info("Attempt {0} of {1}".format(
                 retry + 1, CONF.QUARK.ip_address_retry_max))
             get_policy = models.IPPolicy.get_ip_policy_cidrs
@@ -344,6 +415,8 @@ class QuarkIpam(object):
                                 addr = addr.ipv6()
 
                             if policy is not None and addr in policy:
+                                if attempt:
+                                    attempt.failed()
                                 LOG.info("Deleting Address {0} due to policy "
                                          "violation".format(
                                              address["address_readable"]))
@@ -364,17 +437,26 @@ class QuarkIpam(object):
                                                             ip_types.FIXED))
                                 return [updated_address]
                             else:
+                                if attempt:
+                                    attempt.failed()
                                 # Make sure we never find it again
                                 LOG.info("Address {0} isn't in the subnet "
                                          "it claims to be in".format(
                                              address["address_readable"]))
                                 context.session.delete(address)
                     else:
+                        if attempt:
+                            attempt.failed()
                         LOG.info("Couldn't find any reallocatable addresses "
                                  "given the criteria")
                         break
             except Exception:
+                if attempt:
+                    attempt.failed()
                 LOG.exception("Error in reallocate ip...")
+            finally:
+                if attempt:
+                    attempt.end()
         return []
 
     def is_strategy_satisfied(self, ip_addresses, allocate_complete=False):
@@ -562,6 +644,7 @@ class QuarkIpam(object):
                                                "ip_block.address.create",
                                                payload)
 
+    @ipam_logged
     def allocate_ip_address(self, context, new_addresses, net_id, port_id,
                             reuse_after, segment_id=None, version=None,
                             ip_addresses=None, subnets=None, **kwargs):
@@ -569,6 +652,7 @@ class QuarkIpam(object):
         subnets = subnets or []
         ip_addresses = ip_addresses or []
 
+        ipam_log = kwargs.get('ipam_log', None)
         LOG.info("Starting a new IP address(es) allocation. Strategy "
                  "is {0} - [{1}]".format(
                      self.get_name(),
@@ -579,14 +663,17 @@ class QuarkIpam(object):
                                          segment_id=segment_id,
                                          version=version)))
 
-        def _try_reallocate_ip_address(ip_addr=None):
+        def _try_reallocate_ip_address(ipam_log, ip_addr=None):
             new_addresses.extend(self.attempt_to_reallocate_ip(
                 context, net_id, port_id, reuse_after, version=None,
                 ip_address=ip_addr, segment_id=segment_id, subnets=subnets,
                 **kwargs))
 
-        def _try_allocate_ip_address(ip_addr=None, sub=None):
+        def _try_allocate_ip_address(ipam_log, ip_addr=None, sub=None):
             for retry in xrange(CONF.QUARK.ip_address_retry_max):
+                attempt = None
+                if ipam_log:
+                    attempt = ipam_log.make_entry("_try_allocate_ip_address")
                 LOG.info("Allocating new IP attempt {0} of {1}".format(
                     retry + 1, CONF.QUARK.ip_address_retry_max))
                 if not sub:
@@ -609,6 +696,9 @@ class QuarkIpam(object):
                                                     ip_addr, **kwargs)
                 except q_exc.IPAddressRetryableFailure:
                     LOG.exception("Error in allocating IP")
+                    if attempt:
+                        LOG.debug("ATTEMPT FAILED")
+                        attempt.failed()
                     remaining = CONF.QUARK.ip_address_retry_max - retry - 1
                     if remaining > 0:
                         LOG.info("{0} retries remain, retrying...".format(
@@ -616,6 +706,9 @@ class QuarkIpam(object):
                     else:
                         LOG.info("No retries remaing, bailing")
                     continue
+                finally:
+                    if attempt:
+                        attempt.end()
 
                 break
 
@@ -624,9 +717,9 @@ class QuarkIpam(object):
 
         if ip_addresses:
             for ip_address in ip_addresses:
-                _try_reallocate_ip_address(ip_address)
+                _try_reallocate_ip_address(ipam_log, ip_address)
         else:
-            _try_reallocate_ip_address()
+            _try_reallocate_ip_address(ipam_log)
 
         if self.is_strategy_satisfied(new_addresses):
             return
@@ -638,9 +731,9 @@ class QuarkIpam(object):
         if ip_addresses or subnets:
             for ip_address, subnet in itertools.izip_longest(ip_addresses,
                                                              subnets):
-                _try_allocate_ip_address(ip_address, subnet)
+                _try_allocate_ip_address(ipam_log, ip_address, subnet)
         else:
-            _try_allocate_ip_address()
+            _try_allocate_ip_address(ipam_log)
 
         if self.is_strategy_satisfied(new_addresses, allocate_complete=True):
             self._notify_new_addresses(context, new_addresses)
@@ -649,6 +742,7 @@ class QuarkIpam(object):
                                   [a["address_readable"]
                                    for a in new_addresses]))
             return
+        ipam_log.failed()
 
         raise exceptions.IpAddressGenerationFailure(net_id=net_id)
 
