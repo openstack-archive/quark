@@ -119,10 +119,9 @@ def sessioned(func):
 class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
              sg_ext.SecurityGroupPluginBase):
     supported_extension_aliases = ["mac_address_ranges", "routes",
-                                   "ip_addresses", "ports_quark",
-                                   "security-group", "diagnostics",
-                                   "subnets_quark", "provider",
-                                   "ip_policies", "quotas",
+                                   "ip_addresses", "security-group",
+                                   "diagnostics", "subnets_quark",
+                                   "provider", "ip_policies", "quotas",
                                    "networks_quark", "router",
                                    "ip_availabilities"]
 
@@ -133,7 +132,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
         """Will add the tenant_id to the context from body.
 
         It is assumed that the body must have a tenant_id because neutron
-        core would have never got here in such a situation.
+        core could never have gotten here otherwise.
         """
         if context.tenant_id is None:
             context.tenant_id = resource["tenant_id"]
@@ -246,10 +245,6 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
     def create_port(self, context, port):
         self._fix_missing_tenant_id(context, port["port"])
         return ports.create_port(context, port)
-
-    @sessioned
-    def post_update_port(self, context, id, port):
-        return ports.post_update_port(context, id, port)
 
     @sessioned
     def get_port(self, context, id, fields=None):
