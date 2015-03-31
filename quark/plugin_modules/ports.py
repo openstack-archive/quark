@@ -37,8 +37,8 @@ STRATEGY = network_strategy.STRATEGY
 # HACK(amir): RM9305: do not allow a tenant to associate a network to a port
 # that does not belong to them unless it is publicnet or servicenet
 def _raise_if_unauthorized(tenant_id, net):
-    if (not STRATEGY.is_parent_network(net["id"])
-            and net["tenant_id"] != tenant_id):
+    if (not STRATEGY.is_parent_network(net["id"]) and
+            net["tenant_id"] != tenant_id):
         raise exceptions.NotAuthorized()
 
 
@@ -400,58 +400,6 @@ def update_port(context, id, port):
         context.session.expunge(port_db)
     port_db = db_api.port_find(context, id=id, scope=db_api.ONE)
 
-    return v._make_port_dict(port_db)
-
-
-def post_update_port(context, id, port):
-    LOG.info("post_update_port %s for tenant %s" % (id, context.tenant_id))
-    if not port.get("port"):
-        raise exceptions.BadRequest(resource="ports",
-                                    msg="Port body required")
-
-    port_db = db_api.port_find(context, id=id, scope=db_api.ONE)
-    if not port_db:
-        raise exceptions.PortNotFound(port_id=id, net_id="")
-
-    port = port["port"]
-    if "fixed_ips" in port and port["fixed_ips"]:
-        for ip in port["fixed_ips"]:
-            address = None
-            ipam_driver = ipam.IPAM_REGISTRY.get_strategy(
-                port_db["network"]["ipam_strategy"])
-            if ip:
-                if "ip_id" in ip:
-                    ip_id = ip["ip_id"]
-                    address = db_api.ip_address_find(
-                        context, id=ip_id, tenant_id=context.tenant_id,
-                        scope=db_api.ONE)
-                elif "ip_address" in ip:
-                    ip_address = ip["ip_address"]
-                    net_address = netaddr.IPAddress(ip_address)
-                    address = db_api.ip_address_find(
-                        context, ip_address=net_address,
-                        network_id=port_db["network_id"],
-                        tenant_id=context.tenant_id, scope=db_api.ONE)
-                    if not address:
-                        address = ipam_driver.allocate_ip_address(
-                            context, port_db["network_id"], id,
-                            CONF.QUARK.ipam_reuse_after,
-                            ip_addresses=[ip_address])
-            else:
-                address = ipam_driver.allocate_ip_address(
-                    context, port_db["network_id"], id,
-                    CONF.QUARK.ipam_reuse_after)
-
-        address["deallocated"] = 0
-
-        already_contained = False
-        for port_address in port_db["ip_addresses"]:
-            if address["id"] == port_address["id"]:
-                already_contained = True
-                break
-
-        if not already_contained:
-            port_db["ip_addresses"].append(address)
     return v._make_port_dict(port_db)
 
 
