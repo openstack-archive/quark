@@ -1,3 +1,5 @@
+import os
+
 from neutron import context
 from neutron.db import api as neutron_db_api
 from oslo.config import cfg
@@ -11,9 +13,11 @@ from quark.tests import test_base
 class MySqlBaseFunctionalTest(test_base.TestBase):
     @classmethod
     def setUpClass(cls):
+        default = 'mysql://root@localhost/quark_functional_tests'
+        sql_string = os.getenv('QUARK_MYSQL_TESTS_URL', default)
         cfg.CONF.set_override(
             'connection',
-            'mysql://root@localhost/quark_functional_tests',
+            sql_string,
             'database')
         cfg.CONF.set_override(
             'connection_debug',
