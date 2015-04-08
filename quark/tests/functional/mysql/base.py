@@ -15,6 +15,10 @@ class MySqlBaseFunctionalTest(test_base.TestBase):
             'connection',
             'mysql://root@localhost/quark_functional_tests',
             'database')
+        cfg.CONF.set_override(
+            'connection_debug',
+            '100',
+            'database')
 
     def setUp(self):
         super(MySqlBaseFunctionalTest, self).setUp()
