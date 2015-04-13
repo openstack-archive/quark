@@ -112,7 +112,7 @@ def validate_protocol_with_port_ranges(ethertype, protocol, port_range_min,
     if protocol in ALLOWED_WITH_RANGE:
         if protocol == PROTOCOL_MAP[ethertype]["icmp"]:
             if port_range_min is None and port_range_max is not None:
-                raise sg_ext.SecurityGroupMissingIcmpType()
+                raise sg_ext.SecurityGroupMissingIcmpType(value=port_range_max)
             elif port_range_min is not None:
                 attr = None
                 field = None
