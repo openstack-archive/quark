@@ -187,18 +187,6 @@ class QuarkIPAMLogEntry(object):
 
 
 class QuarkIpam(object):
-    def _delete_mac_if_do_not_use(self, context, mac):
-        # NOTE(mdietz): This is a HACK. Please see RM11043 for details
-        admin_ctx = context.elevated()
-        mac_range = db_api.mac_address_range_find(
-            admin_ctx, id=mac["mac_address_range_id"], scope=db_api.ONE)
-
-        if mac_range and mac_range["do_not_use"]:
-            # NOTE(mdietz): This is a HACK. Please see RM11043 for details
-            db_api.mac_address_delete(context, mac)
-            return True
-        return False
-
     @synchronized(named("allocate_mac_address"))
     def allocate_mac_address(self, context, net_id, port_id, reuse_after,
                              mac_address=None,
@@ -218,31 +206,32 @@ class QuarkIpam(object):
                          retry + 1, CONF.QUARK.mac_address_retry_max))
             try:
                 with context.session.begin():
-                    deallocated_mac = db_api.mac_address_find(
-                        context, lock_mode=True, reuse_after=reuse_after,
-                        deallocated=True, scope=db_api.ONE,
-                        address=mac_address, order_by="address ASC")
-
-                    if deallocated_mac:
-                        if self._delete_mac_if_do_not_use(context,
-                                                          deallocated_mac):
-                            LOG.debug("Found a deallocated MAC in a do_not_use"
-                                      " mac_address_range and deleted it. "
-                                      "Retrying...")
-                            continue
-
-                        dealloc = netaddr.EUI(deallocated_mac["address"])
-                        LOG.info("Found a suitable deallocated MAC {0}".format(
-                            str(dealloc)))
-
-                        address = db_api.mac_address_update(
-                            context, deallocated_mac, deallocated=False,
-                            deallocated_at=None)
-
-                        LOG.info("MAC assignment for port ID {0} completed "
-                                 "with address {1}".format(port_id, dealloc))
-                        return address
+                    transaction = db_api.transaction_create(context)
+                update_kwargs = {
+                    "deallocated": False,
+                    "deallocated_at": None,
+                    "transaction_id": transaction.id
+                }
+                filter_kwargs = {
+                    "reuse_after": reuse_after,
+                    "deallocated": True,
+                    "address": mac_address
+                }
+                elevated = context.elevated()
+                result = db_api.mac_address_reallocate(
+                    elevated, update_kwargs, **filter_kwargs)
+                if not result:
                     break
+
+                reallocated_mac = db_api.mac_address_reallocate_find(
+                    elevated, transaction.id)
+                if reallocated_mac:
+                    dealloc = netaddr.EUI(reallocated_mac["address"])
+                    LOG.info("Found a suitable deallocated MAC {0}".format(
+                        str(dealloc)))
+                    LOG.info("MAC assignment for port ID {0} completed "
+                             "with address {1}".format(port_id, dealloc))
+                    return reallocated_mac
             except Exception:
                 LOG.exception("Error in mac reallocate...")
                 continue
@@ -747,7 +736,9 @@ class QuarkIpam(object):
             raise exceptions.NotFound(
                 message="No MAC address %s found" % netaddr.EUI(address))
 
-        if not self._delete_mac_if_do_not_use(context, mac):
+        if mac["mac_address_range"]["do_not_use"]:
+            db_api.mac_address_delete(context, mac)
+        else:
             db_api.mac_address_update(context, mac, deallocated=True,
                                       deallocated_at=timeutils.utcnow())
 

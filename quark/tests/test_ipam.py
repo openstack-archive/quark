@@ -106,24 +106,27 @@ class QuarkMacAddressAllocateDeallocated(QuarkIpamBaseTest):
                          next_auto_assign_mac=0, do_not_use=do_not_use,
                          cidr="AA:BB:CC/24")
         with contextlib.nested(
-            mock.patch("quark.db.api.mac_address_find"),
+            mock.patch("quark.db.api.mac_address_reallocate"),
+            mock.patch("quark.db.api.mac_address_reallocate_find"),
             mock.patch("quark.db.api."
                        "mac_address_range_find_allocation_counts"),
-            mock.patch("quark.db.api.mac_address_update"),
             mock.patch("quark.db.api.mac_address_create"),
             mock.patch("quark.db.api.mac_address_range_find"),
             mock.patch("quark.db.api.mac_address_delete"),
             mock.patch("quark.db.api.mac_range_update_next_auto_assign_mac"),
             mock.patch("quark.db.api.mac_range_update_set_full"),
             mock.patch("sqlalchemy.orm.session.Session.refresh")
-        ) as (addr_find, mac_range_count, mac_update, mac_create,
-              range_find, mac_delete, mac_auto_assign, set_full, refresh):
+        ) as (addr_realloc, addr_realloc_find, mac_range_count,
+              mac_create, range_find, mac_delete, mac_auto_assign, set_full,
+              refresh):
             address_mod = models.MacAddress(**address)
             range_mod = models.MacAddressRange(**mac_range)
             if mac_find:
-                addr_find.return_value = address_mod
+                addr_realloc.return_value = True
+                addr_realloc_find.return_value = address_mod
             else:
-                addr_find.side_effect = [None, None]
+                addr_realloc.return_value = False
+                addr_realloc_find.side_effect = [None, None]
             mac_range_count.return_value = (range_mod, 0)
             mac_create.return_value = address_mod
             range_find.return_value = range_mod
@@ -138,69 +141,25 @@ class QuarkMacAddressAllocateDeallocated(QuarkIpamBaseTest):
 
             refresh.side_effect = refresh_mock
             set_full.side_effect = set_full_mock
-            yield mac_update, mac_create, mac_delete, mac_auto_assign
+            yield addr_realloc_find, mac_create, mac_delete, mac_auto_assign
 
     def test_allocate_mac_address_find_deallocated(self):
-        with self._stubs(True) as (mac_update, mac_create, mac_delete,
+        with self._stubs(True) as (addr_realloc_find, mac_create, mac_delete,
                                    mac_auto_assign):
             self.ipam.allocate_mac_address(self.context, 0, 0, 0)
-            self.assertTrue(mac_update.called)
+            self.assertTrue(addr_realloc_find.called)
             self.assertFalse(mac_create.called)
             self.assertFalse(mac_delete.called)
             self.assertFalse(mac_auto_assign.called)
 
     def test_allocate_mac_address_creates_new_mac(self):
-        with self._stubs(False) as (mac_update, mac_create, mac_delete,
+        with self._stubs(False) as (addr_realloc_find, mac_create, mac_delete,
                                     mac_auto_assign):
             self.ipam.allocate_mac_address(self.context, 0, 0, 0)
-            self.assertFalse(mac_update.called)
+            self.assertFalse(addr_realloc_find.called)
             self.assertTrue(mac_create.called)
             self.assertFalse(mac_delete.called)
             self.assertTrue(mac_auto_assign.called)
-
-
-class QuarkMacAddressAllocateDeallocatedDoNotUse(QuarkIpamBaseTest):
-    @contextlib.contextmanager
-    def _stubs(self, address, address2, mac_range, mac_range2):
-
-        with contextlib.nested(
-            mock.patch("quark.db.api.mac_address_find"),
-            mock.patch("quark.db.api."
-                       "mac_address_range_find_allocation_counts"),
-            mock.patch("quark.db.api.mac_address_update"),
-            mock.patch("quark.db.api.mac_address_create"),
-            mock.patch("quark.db.api.mac_address_range_find"),
-            mock.patch("quark.db.api.mac_address_delete")
-        ) as (addr_find, mac_range_count, mac_update, mac_create,
-              range_find, mac_delete):
-            address_mod = models.MacAddress(**address)
-            address_mod2 = models.MacAddress(**address2)
-            range_mod = models.MacAddressRange(**mac_range)
-            range_mod2 = models.MacAddressRange(**mac_range2)
-
-            addr_find.side_effect = [address_mod, address_mod2]
-            mac_range_count.return_value = (range_mod, 0)
-            mac_create.return_value = address_mod
-            range_find.side_effect = [range_mod, range_mod2]
-            mac_update.return_value = address2
-            yield mac_update, mac_create, mac_delete
-
-    def test_allocate_deallocated_do_not_use_range_deletes(self):
-        address = dict(address=0)
-        mac_range = dict(id=1, first_address=0, last_address=255,
-                         next_auto_assign_mac=0, do_not_use=True,
-                         cidr="AA:BB:CC/24")
-        address2 = dict(address=1)
-        mac_range2 = dict(id=1, first_address=0, last_address=255,
-                          next_auto_assign_mac=0, do_not_use=False,
-                          cidr="AA:BB:CC/24")
-        with self._stubs(address, address2, mac_range, mac_range2) as (
-                mac_update, mac_create, mac_delete):
-            addr = self.ipam.allocate_mac_address(self.context, 0, 0, 0)
-            self.assertTrue(mac_update.called)
-            self.assertFalse(mac_create.called)
-            self.assertTrue(mac_delete.called)
-            self.assertEqual(addr["address"], 1)
 
 
 class QuarkNewMacAddressAllocation(QuarkIpamBaseTest):
@@ -330,26 +289,26 @@ class QuarkNewMacAddressReallocationDeadlocks(QuarkIpamBaseTest):
         old_override = cfg.CONF.QUARK.mac_address_retry_max
         cfg.CONF.set_override('mac_address_retry_max', 1, 'QUARK')
         with contextlib.nested(
-            mock.patch("quark.db.api.mac_address_find"),
+            mock.patch("quark.db.api.mac_address_reallocate"),
             mock.patch("quark.db.api.mac_address_create"),
             mock.patch("quark.db.api."
                        "mac_address_range_find_allocation_counts"),
-        ) as (mac_find, mac_create, mac_range_count):
-            mac_find.side_effect = [Exception, None]
+        ) as (mac_realloc, mac_create, mac_range_count):
+            mac_realloc.side_effect = [Exception, None]
             mac_create.side_effect = addresses
             mac_range_count.return_value = ranges
-            yield mac_find
+            yield mac_realloc
         cfg.CONF.set_override('mac_address_retry_max', old_override, 'QUARK')
 
-    def test_reallocate_mac_deadlock_raises_retry(self):
+    def test_reallocate_mac_exception_raises_retry(self):
         mar = dict(id=1, first_address=0, last_address=255,
                    next_auto_assign_mac=0)
         mac = dict(id=1, address=254)
         with self._stubs(ranges=(mar, 0), addresses=[Exception, mac]) as (
-                mac_find):
+                mac_realloc):
             with self.assertRaises(exceptions.MacAddressGenerationFailure):
                 self.ipam.allocate_mac_address(self.context, 0, 0, 0)
-            self.assertEqual(mac_find.call_count, 1)
+            self.assertEqual(mac_realloc.call_count, 1)
 
 
 class QuarkMacAddressDeallocation(QuarkIpamBaseTest):
@@ -368,7 +327,8 @@ class QuarkMacAddressDeallocation(QuarkIpamBaseTest):
 
     def test_deallocate_mac(self):
         mac_range = dict(id=2, do_not_use=False)
-        mac = dict(id=1, address=1, mac_address_range_id=mac_range["id"])
+        mac = dict(id=1, address=1, mac_address_range_id=mac_range["id"],
+                   mac_address_range=mac_range)
         with self._stubs(mac=mac, mac_range=mac_range) as (mac_update,
                                                            mac_delete):
             self.ipam.deallocate_mac_address(self.context, mac["address"])
@@ -376,7 +336,8 @@ class QuarkMacAddressDeallocation(QuarkIpamBaseTest):
 
     def test_deallocate_mac_do_not_use_range_deletes_mac(self):
         mac_range = dict(id=2, do_not_use=True)
-        mac = dict(id=1, address=1, mac_address_range_id=mac_range["id"])
+        mac = dict(id=1, address=1, mac_address_range_id=mac_range["id"],
+                   mac_address_range=mac_range)
         with self._stubs(mac=mac, mac_range=mac_range) as (mac_update,
                                                            mac_delete):
             self.ipam.deallocate_mac_address(self.context, mac["address"])

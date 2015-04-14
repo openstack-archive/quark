@@ -88,3 +88,41 @@ class QuarkIPAddressReallocate(QuarkIpamBaseFunctionalTest):
             with self.assertRaises(exceptions.IpAddressGenerationFailure):
                 self.ipam.allocate_ip_address(self.context, [], net["id"],
                                               0, 0)
+
+
+class MacAddressReallocate(QuarkIpamBaseFunctionalTest):
+    @contextlib.contextmanager
+    def _stubs(self, do_not_use):
+        self.ipam = quark.ipam.QuarkIpamANY()
+        mar = db_api.mac_address_range_create(
+            self.context,
+            cidr="00:00:00:00:00:00/40",
+            first_address=0, last_address=255,
+            next_auto_assign_mac=6,
+            do_not_use=do_not_use)
+        mac = db_api.mac_address_create(
+            self.context,
+            address=1,
+            mac_address_range=mar)
+        db_api.mac_address_update(
+            self.context, mac,
+            deallocated=True,
+            deallocated_at=datetime.datetime(1970, 1, 1))
+        self.context.session.flush()
+        yield mar
+
+    def test_reallocate_mac(self):
+        with self._stubs(do_not_use=False):
+            realloc_mac = self.ipam.allocate_mac_address(self.context, 0, 0, 0)
+            self.assertEqual(realloc_mac["address"], 1)
+
+    def test_delete_mac_with_mac_range_do_not_use(self):
+        macs = lambda mar: db_api.mac_address_find(
+            self.context,
+            mac_address_range_id=mar["id"],
+            scope=db_api.ALL)
+        with self._stubs(do_not_use=True) as mar:
+            self.assertEqual(len(macs(mar)), 1)
+            with self.assertRaises(exceptions.MacAddressGenerationFailure):
+                self.ipam.allocate_mac_address(self.context, 0, 0, 0)
+            self.assertEqual(len(macs(mar)), 0)
