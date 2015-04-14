@@ -597,10 +597,13 @@ def network_delete(context, network):
     context.session.delete(network)
 
 
-def subnet_find_ordered_by_most_full(context, net_id, **filters):
+def subnet_find_ordered_by_most_full(context, net_id, lock_subnets=True,
+                                     **filters):
     count = sql_func.count(models.IPAddress.address).label("count")
     size = (models.Subnet.last_ip - models.Subnet.first_ip)
-    query = context.session.query(models.Subnet, count).with_lockmode('update')
+    query = context.session.query(models.Subnet, count)
+    if lock_subnets:
+        query = query.with_lockmode("update")
     query = query.filter_by(do_not_use=False)
     query = query.outerjoin(models.Subnet.generated_ips)
     query = query.group_by(models.Subnet.id)

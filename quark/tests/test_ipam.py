@@ -2073,6 +2073,64 @@ class QuarkIpamTestSelectSubnet(QuarkIpamBaseTest):
             self.assertEqual(subnets[0][0]["next_auto_assign_ip"], -1)
 
 
+class QuarkIpamTestSelectSubnetLocking(QuarkIpamBaseTest):
+    @contextlib.contextmanager
+    def _stubs(self, subnet, count, increments=True, marks_full=True):
+        with contextlib.nested(
+            mock.patch("quark.db.api.subnet_find_ordered_by_most_full"),
+            mock.patch("quark.db.api.subnet_update_next_auto_assign_ip"),
+            mock.patch("quark.db.api.subnet_update_set_full"),
+            mock.patch("sqlalchemy.orm.session.Session.refresh"),
+        ) as (subnet_find, subnet_incr, subnet_set_full, refresh):
+            sub_mods = []
+            sub_mods.append((subnet_helper(subnet), count))
+
+            def subnet_increment(context, sub):
+                if increments:
+                    sub["next_auto_assign_ip"] += 1
+                    return True
+                return False
+
+            def set_full_mock(context, sub):
+                if marks_full:
+                    sub["next_auto_assign_ip"] = -1
+                    return True
+                return False
+
+            subnet_find.return_value = sub_mods
+            subnet_incr.side_effect = subnet_increment
+            subnet_set_full.side_effect = set_full_mock
+            cfg.CONF.set_override('ipam_select_subnet_v6_locking', False,
+                                  'QUARK')
+            yield subnet_find
+            cfg.CONF.set_override('ipam_select_subnet_v6_locking', True,
+                                  'QUARK')
+
+    def test_select_subnet_v6_does_not_lock(self):
+        subnet = dict(id=1, first_ip=0, last_ip=18446744073709551615L,
+                      cidr="::0/64", ip_version=6,
+                      next_auto_assign_ip=1,
+                      ip_policy=None, network_id=1)
+        with self._stubs(subnet, 1) as subnet_find:
+            self.ipam.select_subnet(self.context, subnet["network_id"],
+                                    None, None, ip_version=6)
+            subnet_find.assert_called_with(self.context, 1, lock_subnets=False,
+                                           subnet_id=None, scope="all",
+                                           segment_id=None, ip_version=6)
+
+    def test_select_subnet_v4_locks(self):
+        subnet = dict(id=1, first_ip=0, last_ip=255,
+                      cidr="0.0.0.0/24", ip_version=4,
+                      next_auto_assign_ip=1,
+                      ip_policy=None, network_id=1)
+        with self._stubs(subnet, 1) as subnet_find:
+            self.ipam.select_subnet(self.context, subnet["network_id"],
+                                    None, None, ip_version=4)
+            subnet_find.assert_called_with(self.context, 1, lock_subnets=True,
+                                           subnet_id=None, scope="all",
+                                           segment_id=None, ip_version=4)
+
+
 class QuarkIpamTestLog(test_base.TestBase):
     def test_ipam_log_entry_success_flagging(self):
         log = quark.ipam.QuarkIPAMLog()
