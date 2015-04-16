@@ -86,7 +86,7 @@ def _model_query(context, model, filters, fields=None):
     filters = filters or {}
     model_filters = []
     eq_filters = ["address", "cidr", "deallocated", "ip_version",
-                  "mac_address_range_id"]
+                  "mac_address_range_id", "transaction_id"]
     in_filters = ["device_id", "device_owner", "group_id", "id", "mac_address",
                   "name", "network_id", "segment_id", "subnet_id",
                   "used_by_tenant_id", "version"]
@@ -316,10 +316,6 @@ def ip_address_find(context, lock_mode=False, **filters):
         model_filters.append(
             models.IPAddress.address_type == filters['address_type'])
 
-    if filters.get("transaction_id"):
-        model_filters.append(
-            models.IPAddress.transaction_id == filters['transaction_id'])
-
     return query.filter(*model_filters)
 
 
@@ -392,6 +388,37 @@ def mac_address_find(context, lock_mode=False, **filters):
 
 def mac_address_delete(context, mac_address):
     context.session.delete(mac_address)
+
+
+@scoped
+def mac_address_reallocate(context, update_kwargs, **filters):
+    LOG.debug("mac_address_reallocate %s", filters)
+    query = context.session.query(models.MacAddress)
+    model_filters = _model_query(context, models.MacAddress, filters)
+    query = query.filter(*model_filters)
+    row_count = quark_sa.update(
+        query, update_kwargs,
+        update_args={"mysql_limit": 1})
+    return row_count == 1
+
+
+def mac_address_reallocate_find(context, transaction_id):
+    mac = mac_address_find(context, transaction_id=transaction_id,
+                           scope=ONE)
+    if not mac:
+        LOG.warn("Couldn't find MAC address with transaction_id %s",
+                 transaction_id)
+        return
+
+    # NOTE(mdietz): This is a HACK. Please see RM11043 for details
+    if mac["mac_address_range"] and mac["mac_address_range"]["do_not_use"]:
+        mac_address_delete(context, mac)
+        LOG.debug("Found a deallocated MAC in a do_not_use"
+                  " mac_address_range and deleted it. "
+                  "Retrying...")
+        return
+
+    return mac
 
 
 def mac_address_range_find_allocation_counts(context, address=None,
