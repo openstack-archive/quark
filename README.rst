@@ -70,6 +70,12 @@ Install with DevStack and Neutron
     # Tempest
     ENABLED_SERVICES+=,tempest
 
+- Remove Python's six packge::
+
+  sudo rm -f /usr/lib/python2.7/dist-packages/six.py /usr/lib/python2.7/dist-packages/six.pyc
+  # Old version of six package in /usr/lib/python2.7/dist-packages/ crashes
+  # quark server 
+
 - Install Devstack::
     
     ./stack.sh
@@ -93,21 +99,27 @@ Install with DevStack and Neutron
     # should see something like:
     # -e git+http://github.com/rackerlabs/quark@ff5b05943b44a44712b9fc352065a414bb2a6bf9#egg=quark-master
 
+- Now edit the /etc/neutron/neutron.conf file to setup Quark as the core plugin::
+
+    vim /etc/neutron/neutron.conf
+    # Search for line containing 'core_plugin = ' and replace it with
+    # 'core_plugin = quark.plugin.Plugin'
+    #
+    # Search for line containing 'service_plugins = ' and remove
+    # 'neutron.services.l3_router.l3_router_plugin.L3RouterPlugin,' from
+    # service plugins list
+
 - Stop Neutron by going into the screen session and going to the q-svc window and pressing ctrl-C::
 
     screen -r  # or go into devstack clone and then type ./rejoin-stack.sh
     # press ctrl+6 to go to q-svc window
     ctrl+C
 
-- Now edit the /etc/neutron/neutron.conf file to setup Quark as the core plugin::
-
-    vim /etc/neutron/neutron.conf
-    #  add 'core_plugin - quark.plugin.Plugin' (current example of core_plugin is near line 70)
-
 - Go back into screen and restart neutron (q-svc window)::
 
-    screen -r  # or go into folder where you cloned devstack then type ./rejoin-stack.sh
-    # go to q-svc window (ctrl+a, 6 currently does it)
+    screen -r  stack # or go into folder where you cloned devstack then type ./rejoin-stack.sh
+    # if screen command returns 'Cannot open your terminal /dev/pts/0' execute 'sudo chmod o+rwx /dev/pts/0'
+    # go to q-svc window (ctrl+a, 7 currently does it)
     # previous command that devstack used to start neutron should be in history, press up arrow key to see it
 
 - You shouldn't receive any errors.  To validate Quark has started up, you can scroll up in q-svc screen window (ctrl+a, esc, page-up) and look for the following lines::
