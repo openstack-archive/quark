@@ -37,10 +37,6 @@ def _validate_security_group_rule(context, rule):
         raise exceptions.InvalidInput(
             error_message="Remote groups are not currently supported")
 
-    if "direction" in rule and rule["direction"] != "ingress":
-        raise exceptions.InvalidInput(
-            error_message="Non-ingress rules are not currently supported")
-
     protocol = rule.pop('protocol')
     port_range_min = rule['port_range_min']
     port_range_max = rule['port_range_max']

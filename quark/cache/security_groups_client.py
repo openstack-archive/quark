@@ -80,7 +80,7 @@ class SecurityGroupsClient(redis_base.ClientBase):
                        "source network": source,
                        "destination network": destination,
                        "action": "allow",
-                       "direction": "ingress"}
+                       "direction": direction}
             payload.update(optional_fields)
             serialized.append(payload)
         return serialized
