@@ -175,7 +175,7 @@ class TestRedisSecurityGroupsClient(test_base.TestBase):
         self.assertEqual(None, rule["icmp type"])
         self.assertEqual(None, rule["icmp code"])
         self.assertEqual("allow", rule["action"])
-        self.assertEqual("ingress", rule["direction"])
+        self.assertEqual("egress", rule["direction"])
         self.assertEqual("::ffff:192.168.0.0/120", rule["destination network"])
         self.assertEqual("", rule["source network"])
 
@@ -245,14 +245,14 @@ class TestRedisSecurityGroupsClient(test_base.TestBase):
         self.assertEqual(None, rule["icmp type"])
         self.assertEqual(None, rule["icmp code"])
         self.assertEqual("allow", rule["action"])
-        self.assertEqual("ingress", rule["direction"])
+        self.assertEqual("egress", rule["direction"])
         self.assertEqual("", rule["source network"])
         self.assertEqual("", rule["destination network"])
 
     @mock.patch("redis.ConnectionPool")
     @mock.patch(
         "quark.cache.security_groups_client.redis_base.redis.StrictRedis")
-    def test_serialize_filters_dest_v6_net(self, strict_redis, conn_pool):
+    def test_serialize_filters_dest_v6_net_(self, strict_redis, conn_pool):
         rule_dict = {"ethertype": 0x86DD, "protocol": 58,
                      "direction": "egress",
                      "remote_ip_prefix": "feed::/0"}
@@ -269,7 +269,7 @@ class TestRedisSecurityGroupsClient(test_base.TestBase):
         self.assertEqual(None, rule["icmp type"])
         self.assertEqual(None, rule["icmp code"])
         self.assertEqual("allow", rule["action"])
-        self.assertEqual("ingress", rule["direction"])
+        self.assertEqual("egress", rule["direction"])
         self.assertEqual("", rule["source network"])
         self.assertEqual("", rule["destination network"])
 

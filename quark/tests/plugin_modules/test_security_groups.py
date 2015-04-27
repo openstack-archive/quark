@@ -389,9 +389,8 @@ class TestQuarkCreateSecurityGroupRule(test_quark_plugin.TestQuarkPlugin):
             self._test_create_security_rule(protocol=6, port_range_min=-1,
                                             port_range_max=10)
 
-    def test_create_security_rule_egress_raises(self):
-        with self.assertRaises(exceptions.InvalidInput):
-            self._test_create_security_rule(protocol=6, direction="egress")
+    def test_create_security_rule_egress(self):
+        self._test_create_security_rule(protocol=6, direction="egress")
 
     def test_create_security_rule_max_over_port_max(self):
         with self.assertRaises(exceptions.InvalidInput):
