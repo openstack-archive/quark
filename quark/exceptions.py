@@ -133,3 +133,7 @@ class RedisSlaveWritesForbidden(exceptions.NeutronException):
 class NoBackendConnectionsDefined(exceptions.NeutronException):
     message = _("This driver cannot be used without a backend connection "
                 "definition. %(msg)")
+
+
+class FloatingIpNotFound(exceptions.NeutronException):
+    message = _("Floating IP %(id)s not found.")

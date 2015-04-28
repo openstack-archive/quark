@@ -21,6 +21,7 @@ import netaddr
 from oslo.config import cfg
 from oslo_log import log as logging
 
+from quark.db import ip_types
 from quark import network_strategy
 from quark import protocols
 
@@ -241,3 +242,31 @@ def _make_ip_policy_dict(ipp):
             "subnet_ids": [s["id"] for s in ipp["subnets"]],
             "network_ids": [n["id"] for n in ipp["networks"]],
             "exclude": [ippc["cidr"] for ippc in ipp["exclude"]]}
+
+
+def _make_floating_ip_dict(flip):
+    # Note(Alan Quillin) A floating IP should only be associated with a single
+    # port so we need to get the first port from the list if any exist.
+
+    port_id = None
+    fixed_ip = None
+    if flip.ports and len(flip.ports) > 0:
+        port = flip.ports[0]
+        port_id = flip.ports[0].id
+        if port.ip_addresses and len(port.ip_addresses) > 0:
+            # Note(Alan Quillin) If the associated port has multiple fixed IP
+            # addresses, the first one found is used (based on allocated_at)
+            fixed_ip = next(ip.formatted() if ip else None
+                            for ip in sorted(port.ip_addresses,
+                                             key=lambda ip:
+                                             ip.get("allocated_at"))
+                            if ip.get("address_type") == ip_types.FIXED)
+
+    return {"id": flip.get("id"),
+            "floating_network_id": flip.get("network_id"),
+            "router_id": CONF.QUARK.floating_ip_router_id,
+            "fixed_ip_address": fixed_ip,
+            "floating_ip_address": flip.formatted(),
+            "tenant_id": flip.get("tenant_id"),
+            "status": flip.get("status"),
+            "port_id": port_id}
