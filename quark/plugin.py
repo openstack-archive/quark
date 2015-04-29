@@ -25,11 +25,13 @@ from oslo_log import log as logging
 
 from quark.api import extensions
 from quark import ip_availability
+from quark.plugin_modules import floating_ips
 from quark.plugin_modules import ip_addresses
 from quark.plugin_modules import ip_policies
 from quark.plugin_modules import mac_address_ranges
 from quark.plugin_modules import networks
 from quark.plugin_modules import ports
+from quark.plugin_modules import router
 from quark.plugin_modules import routes
 from quark.plugin_modules import security_groups
 from quark.plugin_modules import subnets
@@ -359,49 +361,60 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
     #               they're extensions in Neutron, Nova still expects to be
     #               able to call some of these as if they aren't
     def create_router(self, context, router):
-        pass
+        raise NotImplementedError()
 
     def update_router(self, context, id, router):
-        pass
+        raise NotImplementedError()
 
     def get_router(self, context, id, fields=None):
-        pass
+        return router.get_router(context, id, fields)
 
     def delete_router(self, context, id):
-        pass
+        raise NotImplementedError()
 
     def get_routers(self, context, filters=None, fields=None,
                     sorts=None, limit=None, marker=None, page_reverse=False):
-        pass
+        return router.get_routers(context, filters=filters, fields=fields,
+                                  sorts=sorts, limit=limit, marker=marker,
+                                  page_reverse=page_reverse)
 
     def add_router_interface(self, context, router_id, interface_info):
-        pass
+        raise NotImplementedError()
 
     def remove_router_interface(self, context, router_id, interface_info):
-        pass
+        raise NotImplementedError()
 
+    @sessioned
     def create_floatingip(self, context, floatingip):
-        pass
+        return floating_ips.create_floatingip(context, floatingip)
 
+    @sessioned
     def update_floatingip(self, context, id, floatingip):
-        pass
+        return floating_ips.update_floatingip(context, id, floatingip)
 
+    @sessioned
     def get_floatingip(self, context, id, fields=None):
-        return None
+        return floating_ips.get_floatingip(context, id, fields)
 
+    @sessioned
     def delete_floatingip(self, context, id):
-        pass
+        return floating_ips.delete_floatingip(context, id)
 
+    @sessioned
     def get_floatingips(self, context, filters=None, fields=None,
                         sorts=None, limit=None, marker=None,
                         page_reverse=False):
-        return []
+        return floating_ips.get_floatingips(context, filters=filters,
+                                            fields=fields, sorts=sorts,
+                                            limit=limit, marker=marker,
+                                            page_reverse=page_reverse)
 
     def get_routers_count(self, context, filters=None):
         raise NotImplementedError()
 
+    @sessioned
     def get_floatingips_count(self, context, filters=None):
-        raise NotImplementedError()
+        raise floating_ips.get_floatingips_count(context, filters)
 
     def get_ip_availability(self, **kwargs):
         return ip_availability.get_ip_availability(**kwargs)

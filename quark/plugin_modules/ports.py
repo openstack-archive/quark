@@ -434,7 +434,7 @@ def get_ports(context, limit=None, sorts=None, marker=None, page_reverse=False,
     : param context: neutron api request context
     : param filters: a dictionary with keys that are valid keys for
         a port as listed in the RESOURCE_ATTRIBUTE_MAP object
-        in neutron/api/v2/attributes.py.  Values in this dictiontary
+        in neutron/api/v2/attributes.py.  Values in this dictionary
         are an iterable containing values that will be used for an exact
         match comparison for that value.  Each result returned by this
         function will have matched one of the values for each key in
@@ -472,8 +472,8 @@ def get_ports_count(context, filters=None):
     (as indicated by the context) as well as any filters.
     : param context: neutron api request context
     : param filters: a dictionary with keys that are valid keys for
-        a network as listed in the RESOURCE_ATTRIBUTE_MAP object
-        in neutron/api/v2/attributes.py.  Values in this dictiontary
+        a port as listed in the RESOURCE_ATTRIBUTE_MAP object
+        in neutron/api/v2/attributes.py.  Values in this dictionary
         are an iterable containing values that will be used for an exact
         match comparison for that value.  Each result returned by this
         function will have matched one of the values for each key in

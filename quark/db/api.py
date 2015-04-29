@@ -319,6 +319,12 @@ def ip_address_find(context, lock_mode=False, **filters):
     return query.filter(*model_filters)
 
 
+def ip_address_count_all(context, **filters):
+    query = context.session.query(sql_func.count(models.IPAddress.id))
+    model_filters = _model_query(context, models.IPAddress, filters)
+    return query.filter(*model_filters).scalar()
+
+
 @scoped
 def ip_address_reallocate(context, update_kwargs, **filters):
     LOG.debug("ip_address_reallocate %s", filters)
@@ -857,3 +863,29 @@ def transaction_create(context):
     transaction = models.Transaction()
     context.session.add(transaction)
     return transaction
+
+
+@scoped
+def floating_ip_find(context, lock_mode=False, limit=None, sorts=None,
+                     marker=None, page_reverse=False, fields=None, **filters):
+    query = context.session.query(models.IPAddress)
+
+    if lock_mode:
+        query = query.with_lockmode("update")
+
+    model_filters = _model_query(context, models.IPAddress, filters)
+
+    if filters.get("port_id"):
+        model_filters.append(models.IPAddress.ports.any(
+            models.Port.id == filters['port_id']))
+
+    if filters.get("address_type"):
+        model_filters.append(
+            models.IPAddress.address_type == filters['address_type'])
+
+    if filters.get("transaction_id"):
+        model_filters.append(
+            models.IPAddress.transaction_id == filters['transaction_id'])
+
+    return paginate_query(query.filter(*model_filters), models.IPAddress,
+                          limit, sorts, marker)
