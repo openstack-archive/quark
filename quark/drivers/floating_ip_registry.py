@@ -13,20 +13,14 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from quark.drivers import base
-from quark.drivers import optimized_nvp_driver as optnvp
-from quark.drivers.registry_base import DriverRegistryBase
-from quark.drivers import unmanaged
+from quark.drivers.registry import DriverRegistryBase
+from quark.drivers import unicorn_driver as unicorn
 
 
-class DriverRegistry(DriverRegistryBase):
+class FloatingIPDriverRegistry(DriverRegistryBase):
     def __init__(self):
-        super(DriverRegistry, self).__init__()
-
-        self.drivers.update({
-            base.BaseDriver.get_name(): base.BaseDriver(),
-            optnvp.OptimizedNVPDriver.get_name(): optnvp.OptimizedNVPDriver(),
-            unmanaged.UnmanagedDriver.get_name(): unmanaged.UnmanagedDriver()})
+        self.drivers = {
+            unicorn.UnicornDriver.get_name(): unicorn.UnicornDriver()}
 
 
-DRIVER_REGISTRY = DriverRegistry()
+DRIVER_REGISTRY = FloatingIPDriverRegistry()

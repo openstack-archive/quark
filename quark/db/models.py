@@ -151,6 +151,7 @@ class IPAddress(BASEV2, models.HasId):
     network_id = sa.Column(sa.String(36),
                            sa.ForeignKey("quark_networks.id",
                                          ondelete="CASCADE"))
+    network = orm.relationship("Network")
     version = sa.Column(sa.Integer(), index=True)
     allocated_at = sa.Column(sa.DateTime())
     subnet = orm.relationship("Subnet")

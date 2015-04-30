@@ -13,20 +13,12 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from quark.drivers import base
-from quark.drivers import optimized_nvp_driver as optnvp
-from quark.drivers.registry_base import DriverRegistryBase
-from quark.drivers import unmanaged
 
-
-class DriverRegistry(DriverRegistryBase):
+class DriverRegistryBase(object):
     def __init__(self):
-        super(DriverRegistry, self).__init__()
+        self.drivers = {}
 
-        self.drivers.update({
-            base.BaseDriver.get_name(): base.BaseDriver(),
-            optnvp.OptimizedNVPDriver.get_name(): optnvp.OptimizedNVPDriver(),
-            unmanaged.UnmanagedDriver.get_name(): unmanaged.UnmanagedDriver()})
-
-
-DRIVER_REGISTRY = DriverRegistry()
+    def get_driver(self, driver_name):
+        if driver_name in self.drivers:
+            return self.drivers[driver_name]
+        raise Exception("Driver %s is not registered." % driver_name)

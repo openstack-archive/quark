@@ -18,7 +18,9 @@ from oslo_log import log as logging
 
 from quark.db import api as db_api
 from quark.db import ip_types
+from quark.drivers import floating_ip_registry as registry
 from quark import exceptions as quark_exceptions
+from quark import ipam
 from quark import plugin_views as v
 
 
@@ -26,9 +28,9 @@ CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
 quark_router_opts = [
-    cfg.StrOpt('floating_ip_base_url',
-               default='http://localhost/',
-               help=_('floating ips base url'))
+    cfg.StrOpt('default_floating_ip_driver',
+               default='Unicorn',
+               help=_('Driver for floating IP'))
 ]
 
 CONF.register_opts(quark_router_opts, "QUARK")
@@ -75,7 +77,21 @@ def update_floatingip(context, id, body):
 
 def delete_floatingip(context, id):
     LOG.info("delete_floatingip %s for tenant %s" % (id, context.tenant_id))
-    raise NotImplementedError()
+
+    filters = {"address_type": ip_types.FLOATING, "_deallocated": False}
+
+    addr = db_api.floating_ip_find(context, id=id, scope=db_api.ONE, **filters)
+    if not addr:
+        raise quark_exceptions.FloatingIpNotFound(id=id)
+
+    driver_type = CONF.QUARK.default_floating_ip_driver
+    driver = registry.DRIVER_REGISTRY.get_driver(driver_type)
+
+    driver.remove_floating_ip(addr)
+
+    strategy_name = addr.network["ipam_strategy"]
+    ipam_driver = ipam.IPAM_REGISTRY.get_strategy(strategy_name)
+    ipam_driver.deallocate_ip_address(context, addr)
 
 
 def get_floatingip(context, id, fields=None):
@@ -94,7 +110,7 @@ def get_floatingip(context, id, fields=None):
     """
     LOG.info("get_floatingip %s for tenant %s" % (id, context.tenant_id))
 
-    filters = {"address_type": ip_types.FLOATING}
+    filters = {"address_type": ip_types.FLOATING, "_deallocated": False}
 
     addr = db_api.floating_ip_find(context, id=id, scope=db_api.ONE, **filters)
 
@@ -161,4 +177,10 @@ def get_floatingips_count(context, filters=None):
     LOG.info("get_floatingips_count for tenant %s filters" %
              (context.tenant_id, filters))
 
-    raise NotImplementedError()
+    if filters is None:
+        filters = {}
+
+    filters["_deallocated"] = False
+    filters["address_type"] = ip_types.FLOATING
+
+    return db_api.ip_address_count_all(context, filters)
