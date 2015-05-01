@@ -729,17 +729,20 @@ class QuarkIpam(object):
         port["ip_addresses"] = list(
             set(port["ip_addresses"]) - set(ips_removed))
 
+    # NCP-1509(roaet):
+    # - started using admin_context due to tenant not claiming when realloc
     def deallocate_mac_address(self, context, address):
-        mac = db_api.mac_address_find(context, address=address,
+        admin_context = context.elevated()
+        mac = db_api.mac_address_find(admin_context, address=address,
                                       scope=db_api.ONE)
         if not mac:
             raise exceptions.NotFound(
                 message="No MAC address %s found" % netaddr.EUI(address))
 
         if mac["mac_address_range"]["do_not_use"]:
-            db_api.mac_address_delete(context, mac)
+            db_api.mac_address_delete(admin_context, mac)
         else:
-            db_api.mac_address_update(context, mac, deallocated=True,
+            db_api.mac_address_update(admin_context, mac, deallocated=True,
                                       deallocated_at=timeutils.utcnow())
 
     # RM6180(roaet):
