@@ -1,0 +1,91 @@
+#%RAML 0.8
+title: Nova extensions for Neutron Shared IPs API
+version: v2.0
+baseUri: https://{novaUri}/{version}/
+mediaType: application/json
+traits:
+    - secured:
+        headers:
+            X-Auth-Token:
+                description: Token for request's tenant
+                required: true
+                type: string
+/servers/{serverId}/ip_associations:
+    displayName: Nova IP Associations
+    description: A collection of IP associations
+    is: [ secured ]
+    get:
+        description: |
+            List all IPs associated to this instance
+            Invokes and parses (with tenant_id as header): GET http://{neutronUri}/{neutronVersion}/ip_addresses?device_id={serverId}&service=compute
+        responses:
+            200:
+                description: ok
+                body:
+                    application/json:
+                        example: |
+                            {"ip_associations": [{"id": "1", "address": "10.1.1.1"}, {"id": "2", "address": "10.1.1.2"}]}
+            404:
+                description: server not found
+    /{ipAddressId}:
+        description: |
+            A specific IP association, a member of the IP association collection
+            This id is the same as neutron's ip_address's id
+        get:
+            description: |
+                Shows an IP association
+                Invokes and parses (with tenant_id as header):
+                * GET http://{neutronUri}/{neutronVersion}/ip_addresses/{ipAddressId}
+            responses:
+                200:
+                    description: ok
+                    body:
+                        application/json:
+                            example: |
+                                {"ip_association": {"id": "1", "address": "10.1.1.1"}}
+                404:
+                    description: IP association not found
+        put:
+            description: |
+                Create IP address association (idempotent PUT)
+                Invokes and parses:
+                * GET http://{neutronUri}/{neutronVersion}/ip_addresses/{ipAddressId}/ports?device_id={serverId} (with tenant_id as header)
+                * PUT http://{neutronUri}/{neutronVersion}/ip_addresses/{ipAddressId}/ports/{portId} with {"service": "compute"}
+            body:
+                application/json:
+                    example: |
+                        {"ip_association": {}}
+            responses:
+                201:
+                    description: created
+                400:
+                    description: |
+                        Bad input
+                        * ip_address_id association already exists
+                        * ambiguous request: more than one port is related to device_id/ip_address_id
+                404:
+                    description: |
+                        not found
+                        * server not found
+                        * ip_address_id is not found, e.g. neutron call returns 404
+                500:
+                    description: |
+                        something went horribly wrong, e.g. neutron call returns 5xx
+        delete:
+            description: |
+                Delete IP address association
+                Invokes and parses:
+                * GET http://{neutronUri}/{neutronVersion}/ip_addresses/{ipAddressId}/ports?device_id={serverId} (with tenant_id as header)
+                * PUT http://{neutronUri}/{neutronVersion}/ip_addresses/{ipAddressId}/ports/{portId} with {"service": "none"}
+            responses:
+                204:
+                    description: successfully deleted
+                404:
+                    description: |
+                        not found
+                        * server not found
+                        * ip_address_id is not found, e.g. neutron call returns 404
+    post:
+        responses:
+            501:
+                description: not implemented
