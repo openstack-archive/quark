@@ -59,7 +59,11 @@ quark_opts = [
     cfg.BoolOpt("ipam_use_synchronization",
                 default=False,
                 help=_("Configures whether or not to use the experimental"
-                       " semaphore logic around IPAM"))
+                       " semaphore logic around IPAM")),
+    cfg.BoolOpt("ipam_select_subnet_v6_locking",
+                default=True,
+                help=_("Controls whether or not SELECT ... FOR UPDATE is used"
+                       " when retrieving v6 subnets explicitly."))
 ]
 
 CONF.register_opts(quark_opts, "QUARK")
@@ -757,8 +761,20 @@ class QuarkIpam(object):
                                 ip_version=filters.get("ip_version"))))
 
         with context.session.begin():
+            # NCP-1480: Don't need to lock V6 subnets, since we don't use
+            # next_auto_assign_ip for them. We already uniquely identified
+            # the V6 we're going to get by generating a MAC in a previous step.
+            # Also note that this only works under BOTH or BOTH_REQUIRED. ANY
+            # does not pass an ip_version
+            lock_subnets = True
+            if (not CONF.QUARK.ipam_select_subnet_v6_locking and
+                    "ip_version" in filters and
+                    int(filters["ip_version"]) == 6):
+                lock_subnets = False
+
             subnets = db_api.subnet_find_ordered_by_most_full(
-                context, net_id, segment_id=segment_id, scope=db_api.ALL,
+                context, net_id, lock_subnets=lock_subnets,
+                segment_id=segment_id, scope=db_api.ALL,
                 subnet_id=subnet_ids, **filters)
 
             if not subnets:
