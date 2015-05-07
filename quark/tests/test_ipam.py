@@ -500,7 +500,10 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
 
             yield addr_realloc
 
-    def test_allocate_new_ip_address_unmarked_negative_one_full_subnet(self):
+    def test_allocate_subnets_at_max_will_not_allocate(self):
+        # NOTE(mdietz): NCP-1480 - the test impl didn't match the
+        #               intent, and shouldn't have actually passed
+        #               as it was described.
         net1 = netaddr.IPNetwork("0.0.0.0/24")
         subnet4_1 = dict(id=1, first_ip=net1.first, last_ip=net1.last,
                          cidr=net1.cidr, ip_version=net1.version,
@@ -509,28 +512,23 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
         net2 = netaddr.IPNetwork("1.1.1.0/24")
         subnet4_2 = dict(id=2, first_ip=net2.first, last_ip=net2.last,
                          cidr=net2.cidr, ip_version=net2.version,
-                         next_auto_assign_ip=255,
+                         next_auto_assign_ip=16843263,
                          ip_policy=dict(size=2))
         net3 = netaddr.IPNetwork("2.2.2.0/24")
         subnet4_3 = dict(id=3, first_ip=net3.first, last_ip=net3.last,
                          cidr=net3.cidr, ip_version=net3.version,
-                         next_auto_assign_ip=255,
+                         next_auto_assign_ip=33686271,
                          ip_policy=dict(size=2))
         subnet6 = dict(id=1, first_ip=self.v6_fip.value,
                        last_ip=self.v6_lip.value, cidr="feed::/104",
                        ip_version=6, next_auto_assign_ip=self.v6_lip.value,
                        ip_policy=dict(size=2))
         with self._stubs(subnets=[[(subnet4_1, 255), (subnet4_2, 255),
-                                   (subnet4_3, 254)],
+                                   (subnet4_3, 255)],
                                   [(subnet6, self.v6_lip.value - 1)]],
                          addresses=[None, None, None, None]):
-            address = []
-            self.ipam.allocate_ip_address(self.context, address, 0, 0, 0)
-            self.assertEqual(len(address), 1)
-            self.assertEqual(address[0]["version"], 4)
-            self.assertEqual(address[0]['address_type'], 'fixed')
-            self.assertEqual(address[0]["address"],
-                             netaddr.IPAddress('2.2.2.255').ipv6().value)
+            with self.assertRaises(exceptions.IpAddressGenerationFailure):
+                self.ipam.allocate_ip_address(self.context, [], 0, 0, 0)
 
     def test_allocate_new_ip_address_two_empty_subnets(self):
         mac_address = 0
@@ -754,7 +752,7 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
     def test_reallocate_v6_with_mac_generates_rfc_address(self):
         subnet6 = dict(id=1, first_ip=self.v6_fip.value,
                        last_ip=self.v6_lip.value, cidr="feed::/104",
-                       ip_version=6, next_auto_assign_ip=0,
+                       ip_version=6, next_auto_assign_ip=self.v6_fip.value,
                        ip_policy=None)
 
         address = models.IPAddress()
@@ -789,7 +787,7 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
                        ip_version=6,
                        ip_policy=None,
                        last_ip=self.v6_lip.value,
-                       next_auto_assign_ip=0)
+                       next_auto_assign_ip=self.v6_fip.value)
 
         address = models.IPAddress()
         address["address"] = self.v46_val
@@ -838,7 +836,8 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
     def test_reallocate_deallocated_v4_v6(self):
         subnet6 = dict(cidr="feed::/104", first_ip=self.v6_fip.value,
                        id=1, ip_version=6, ip_policy=None,
-                       last_ip=self.v6_lip.value, next_auto_assign_ip=0)
+                       last_ip=self.v6_lip.value,
+                       next_auto_assign_ip=self.v6_fip.value)
         mac_address = 0
         address1 = models.IPAddress()
         address1["address"] = self.v46_val
@@ -1065,9 +1064,9 @@ class QuarkIpamTestBothRequiredIpAllocation(QuarkIpamBaseTest):
                        next_auto_assign_ip=1,
                        ip_policy=None)
 
-        subnet6 = dict(id=1, first_ip=self.v6_fip.value,
+        subnet6 = dict(id=2, first_ip=self.v6_fip.value,
                        last_ip=self.v6_lip.value, cidr="feed::/104",
-                       ip_version=6, next_auto_assign_ip=-1,
+                       ip_version=6, next_auto_assign_ip=-2,
                        ip_policy=dict(
                            size=2,
                            exclude=[
@@ -2041,7 +2040,7 @@ class QuarkIpamTestSelectSubnet(QuarkIpamBaseTest):
                                                                  refresh):
             s = self.ipam.select_subnet(self.context, subnet["network_id"],
                                         None, None)
-            self.assertEqual(subnets[0][0], s)
+            self.assertIsNone(s)
             self.assertEqual(subnets[0][0]["next_auto_assign_ip"], -1)
 
     def test_select_subnet_set_full_already_full(self):
@@ -2069,7 +2068,11 @@ class QuarkIpamTestSelectSubnet(QuarkIpamBaseTest):
             s = self.ipam.select_subnet(self.context, subnet["network_id"],
                                         None, None)
             self.assertEqual(None, s)
-            self.assertFalse(refresh.called)
+            # NCP-1480: refactoring combined some duplicate code into a path
+            # that already refreshes. Some tests were seeing stale data when
+            # the refresh wasn't always called, so I chose to always refresh
+            # rather than conditionally fix it.
+            self.assertTrue(refresh.called)
             self.assertEqual(subnets[0][0]["next_auto_assign_ip"], -1)
 
 
