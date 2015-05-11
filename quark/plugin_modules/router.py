@@ -29,8 +29,8 @@ CONF.register_opts(quark_router_opts, "QUARK")
 
 
 def get_router(context, id, fields):
-    LOG.info("get_router for %s for tenant %s fields %s" %
-             (context.tenant_id, fields))
+    LOG.info("get_router %s for tenant %s fields %s" %
+             (id, context.tenant_id, fields))
     if id != CONF.QUARK.floating_ip_router_id:
         return None
 

@@ -137,3 +137,8 @@ class NoBackendConnectionsDefined(exceptions.NeutronException):
 
 class FloatingIpNotFound(exceptions.NeutronException):
     message = _("Floating IP %(id)s not found.")
+
+
+class RemoveFloatingIpFailure(exceptions.NeutronException):
+    message = _("An error occured when trying to remove the floating IP %(id)."
+                " %(msg)")
