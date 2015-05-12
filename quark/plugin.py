@@ -386,7 +386,9 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
     @sessioned
     def create_floatingip(self, context, floatingip):
-        return floating_ips.create_floatingip(context, floatingip)
+        self._fix_missing_tenant_id(context, floatingip["floatingip"])
+        return floating_ips.create_floatingip(context,
+                                              floatingip["floatingip"])
 
     @sessioned
     def update_floatingip(self, context, id, floatingip):
@@ -412,9 +414,8 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
     def get_routers_count(self, context, filters=None):
         raise NotImplementedError()
 
-    @sessioned
     def get_floatingips_count(self, context, filters=None):
-        raise floating_ips.get_floatingips_count(context, filters)
+        return floating_ips.get_floatingips_count(context, filters)
 
     def get_ip_availability(self, **kwargs):
         return ip_availability.get_ip_availability(**kwargs)

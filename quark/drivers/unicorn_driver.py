@@ -17,6 +17,8 @@
 Unicorn driver for Quark
 """
 
+import json
+import netaddr
 import requests
 
 from oslo.config import cfg
@@ -44,21 +46,41 @@ class UnicornDriver(object):
     def get_name(cls):
         return "Unicorn"
 
-    def register_floating_ip(self, floating_ip):
-        pass
+    def register_floating_ip(self, floating_ip, port, fixed_ip):
+        url = CONF.QUARK.floating_ip_base_url
+        req = self._build_request_body(floating_ip, port, fixed_ip)
+
+        LOG.info("Calling unicorn to register floating ip: %s %s" % (url, req))
+        r = requests.post(url, data=json.dumps(req))
+
+        if r.status_code != 200:
+            msg = "Unexpected status from unicorn API: Status Code %s, " \
+                  "Message: %s" % (r.status_code, r.json())
+            LOG.error("register_floating_ip: %s" % msg)
+            raise ex.RegisterFloatingIpFailure(id=floating_ip.id)
 
     def update_floating_ip(self, floating_ip):
         pass
 
     def remove_floating_ip(self, floating_ip):
         url = "%s/%s" % (CONF.QUARK.floating_ip_base_url,
-                         floating_ip.formatted())
+                         floating_ip.address_readable)
 
         LOG.info("Calling unicorn to remove floating ip: %s" % url)
         r = requests.delete(url)
 
         if r.status_code != 204:
             msg = "Unexpected status from unicorn API: Status Code %s, " \
-                  "Message: %s" % (r.status_code,)
+                  "Message: %s" % (r.status_code, r.json())
             LOG.error("remove_floating_ip: %s" % msg)
-            raise ex.RemoveFloatingIpFailure(id=floating_ip["id"], msg=msg)
+            raise ex.RemoveFloatingIpFailure(id=floating_ip.id)
+
+    @staticmethod
+    def _build_request_body(floating_ip, port, fixed_ip):
+        mac_addr = netaddr.EUI(port.mac_address)
+        content = {"public_ip": floating_ip["address_readable"],
+                   "network_uuid": port.id,
+                   "destinations": [
+                       {"private_ip": fixed_ip.address_readable,
+                        "private_mac": str(mac_addr)}]}
+        return {"floating_ip": content}

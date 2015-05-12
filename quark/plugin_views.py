@@ -188,7 +188,9 @@ def _make_port_address_dict(ip, port, fields=None):
 def _make_port_dict(port, fields=None):
     res = _port_dict(port)
     res["fixed_ips"] = [_make_port_address_dict(ip, port, fields)
-                        for ip in port.ip_addresses]
+                        for ip in port.ip_addresses
+                        if (not ip.get("address_type") or
+                            ip.get("address_type") == ip_types.FIXED)]
     return res
 
 
@@ -196,8 +198,11 @@ def _make_ports_list(query, fields=None):
     ports = []
     for port in query:
         port_dict = _port_dict(port, fields)
-        port_dict["fixed_ips"] = [_make_port_address_dict(addr, port, fields)
-                                  for addr in port.ip_addresses]
+        port_dict["fixed_ips"] = [_make_port_address_dict(ip, port, fields)
+                                  for ip in port.ip_addresses
+                                  if (not ip.get("address_type") or
+                                      ip.get("address_type") == ip_types.FIXED)
+                                  ]
         ports.append(port_dict)
     return ports
 
@@ -245,27 +250,16 @@ def _make_ip_policy_dict(ipp):
 
 
 def _make_floating_ip_dict(flip):
-    # Note(Alan Quillin) A floating IP should only be associated with a single
-    # port so we need to get the first port from the list if any exist.
-
+    ports = flip.ports
     port_id = None
-    fixed_ip = None
-    if flip.ports and len(flip.ports) > 0:
-        port = flip.ports[0]
-        port_id = flip.ports[0].id
-        if port.ip_addresses and len(port.ip_addresses) > 0:
-            # Note(Alan Quillin) If the associated port has multiple fixed IP
-            # addresses, the first one found is used (based on allocated_at)
-            fixed_ip = next(ip.formatted() if ip else None
-                            for ip in sorted(port.ip_addresses,
-                                             key=lambda ip:
-                                             ip.get("allocated_at"))
-                            if ip.get("address_type") == ip_types.FIXED)
+    if ports and len(ports) > 0:
+        port_id = None if not ports[0] else ports[0].id
 
+    fixed_ip = flip.fixed_ip
     return {"id": flip.get("id"),
             "floating_network_id": flip.get("network_id"),
             "router_id": CONF.QUARK.floating_ip_router_id,
-            "fixed_ip_address": fixed_ip,
+            "fixed_ip_address": None if not fixed_ip else fixed_ip.formatted(),
             "floating_ip_address": flip.formatted(),
             "tenant_id": flip.get("tenant_id"),
             "status": flip.get("status"),

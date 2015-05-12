@@ -319,7 +319,7 @@ def ip_address_find(context, lock_mode=False, **filters):
     return query.filter(*model_filters)
 
 
-def ip_address_count_all(context, **filters):
+def ip_address_count_all(context, filters):
     query = context.session.query(sql_func.count(models.IPAddress.id))
     model_filters = _model_query(context, models.IPAddress, filters)
     return query.filter(*model_filters).scalar()
@@ -892,3 +892,14 @@ def floating_ip_find(context, lock_mode=False, limit=None, sorts=None,
 
     return paginate_query(query.filter(*model_filters), models.IPAddress,
                           limit, sorts, marker)
+
+
+def floating_ip_associate_fixed_ip(context, floating_ip, fixed_ip,
+                                   enable=True):
+    assoc = models.FloatingToFixedIPAssociation()
+    assoc.floating_ip_address_id = floating_ip.id
+    assoc.fixed_ip_address_id = fixed_ip.id
+    assoc.enabled = enable
+    context.session.add(assoc)
+    floating_ip.fixed_ip = fixed_ip
+    return floating_ip

@@ -1557,6 +1557,19 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
                 self.ipam.allocate_ip_address(
                     self.context, [], 0, 0, 0, ip_addresses=["0.0.0.240"])
 
+    def test_allocate_new_ip_address_with_floating_address_type(self):
+        subnet = dict(id=1, first_ip=0, last_ip=255,
+                      cidr="0.0.0.0/24", ip_version=4,
+                      next_auto_assign_ip=0,
+                      ip_policy=dict(size=1, exclude=[
+                          models.IPPolicyCIDR(cidr="0.0.0.0/32")]))
+        with self._stubs(subnets=[(subnet, 0)], addresses=[None, None]):
+            address = []
+            self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
+                                          version=4,
+                                          address_type='floating')
+            self.assertEqual(address[0]["address_type"], 'floating')
+
 
 class QuarkIPAddressAllocationTestRetries(QuarkIpamBaseTest):
     @contextlib.contextmanager

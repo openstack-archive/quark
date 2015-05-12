@@ -50,13 +50,17 @@ def _foreign_keys_dropped(op, table):
 
 
 def upgrade():
-    op.alter_column('quark_port_ip_address_associations', 'ip_address_id',
-                    existing_type=sa.String(36), nullable=False)
-    op.alter_column('quark_port_ip_address_associations', 'port_id',
-                    existing_type=sa.String(36), nullable=False)
-    op.create_primary_key("pk_quark_port_ip_address_associations",
-                          "quark_port_ip_address_associations",
-                          ['port_id', 'ip_address_id'])
+    metadata = sa.MetaData(bind=op.get_bind())
+    table = sa.Table('quark_port_ip_address_associations', metadata,
+                     autoload=True)
+    with _foreign_keys_dropped(op, table):
+        op.alter_column('quark_port_ip_address_associations', 'ip_address_id',
+                        existing_type=sa.String(36), nullable=False)
+        op.alter_column('quark_port_ip_address_associations', 'port_id',
+                        existing_type=sa.String(36), nullable=False)
+        op.create_primary_key("pk_quark_port_ip_address_associations",
+                              "quark_port_ip_address_associations",
+                              ['port_id', 'ip_address_id'])
 
 
 def downgrade():

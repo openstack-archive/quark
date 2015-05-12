@@ -197,6 +197,40 @@ class IPAddress(BASEV2, models.HasId):
         return str(ip.ipv6())
 
     deallocated_at = sa.Column(sa.DateTime(), index=True)
+    fixed_ip = None
+
+
+class FloatingToFixedIPAssociation(object):
+    pass
+
+flip_to_fixed_ip_assoc_tbl = sa.Table(
+    "quark_floating_to_fixed_ip_address_associations",
+    BASEV2.metadata,
+    sa.Column("floating_ip_address_id", sa.String(36),
+              sa.ForeignKey("quark_ip_addresses.id"), nullable=False,
+              primary_key=True),
+    sa.Column("fixed_ip_address_id", sa.String(36),
+              sa.ForeignKey("quark_ip_addresses.id"), nullable=False,
+              primary_key=True),
+    sa.Column("enabled", sa.Boolean(), default=True, nullable=False,
+              server_default='1'),
+    **TABLE_KWARGS)
+
+orm.mapper(FloatingToFixedIPAssociation, flip_to_fixed_ip_assoc_tbl)
+
+IPAddress.fixed_ip = orm.relationship("IPAddress",
+                                      secondary=flip_to_fixed_ip_assoc_tbl,
+                                      primaryjoin=(IPAddress.id ==
+                                                   flip_to_fixed_ip_assoc_tbl
+                                                   .c.floating_ip_address_id
+                                                   and
+                                                   flip_to_fixed_ip_assoc_tbl
+                                                   .c.floating_ip_address_id ==
+                                                   1),
+                                      secondaryjoin=(IPAddress.id ==
+                                                     flip_to_fixed_ip_assoc_tbl
+                                                     .c.fixed_ip_address_id),
+                                      uselist=False)
 
 
 class Route(BASEV2, models.HasTenant, models.HasId, IsHazTags):
@@ -390,6 +424,7 @@ class Port(BASEV2, models.HasTenant, models.HasId):
                                 secondaryjoin=secondaryjoin,
                                 secondary=port_group_association_table,
                                 backref="ports")
+
 
 # Indices tailored specifically to get_instance_nw_info calls from nova
 sa.Index("idx_ports_1", Port.__table__.c.device_id, Port.__table__.c.tenant_id)
