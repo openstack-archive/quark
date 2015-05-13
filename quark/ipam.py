@@ -749,6 +749,75 @@ class QuarkIpam(object):
             db_api.mac_address_update(admin_context, mac, deallocated=True,
                                       deallocated_at=timeutils.utcnow())
 
+    def _select_subnet(self, context, net_id, ip_address, segment_id,
+                       subnet_ids, **filters):
+        # NCP-1480: Don't need to lock V6 subnets, since we don't use
+        # next_auto_assign_ip for them. We already uniquely identified
+        # the V6 we're going to get by generating a MAC in a previous step.
+        # Also note that this only works under BOTH or BOTH_REQUIRED. ANY
+        # does not pass an ip_version
+        lock_subnets = True
+        if (not CONF.QUARK.ipam_select_subnet_v6_locking and
+                "ip_version" in filters and
+                int(filters["ip_version"]) == 6):
+            lock_subnets = False
+
+        select_api = db_api.subnet_find_ordered_by_most_full
+        # TODO(mdietz): Add configurable, alternate subnet selection here
+        subnets = select_api(context, net_id, lock_subnets=lock_subnets,
+                             segment_id=segment_id, scope=db_api.ALL,
+                             subnet_id=subnet_ids, **filters)
+
+        if not subnets:
+            LOG.info("No subnets found given the search criteria!")
+            return
+
+        # TODO(mdietz): Making this into an iterator because we want to move
+        #               to selecting 1 subnet at a time and paginating rather
+        #               than the bulk fetch. Without locks, we need to
+        #               minimize looking at stale data to save ourselves
+        #               some retries. Getting then 1 at a time will
+        #               facilitate this.
+        for subnet, ips_in_subnet in subnets:
+            yield subnet, ips_in_subnet
+
+    def _should_mark_subnet_full(self, context, subnet, ipnet, ip_address,
+                                 ips_in_subnet):
+        ip = subnet["next_auto_assign_ip"]
+        # NOTE(mdietz): When atomically updated, this probably
+        #               doesn't need the lower bounds check but
+        #               I'm not comfortable removing it yet.
+        if (subnet["ip_version"] == 4 and ip < subnet["first_ip"] or
+                ip > subnet["last_ip"]):
+            return True
+
+        ip_policy = None
+        if not ip_address:
+            # Policies don't prevent explicit assignment, so we only
+            # need to check if we're allocating a new IP
+            ip_policy = subnet.get("ip_policy")
+
+        policy_size = ip_policy["size"] if ip_policy else 0
+
+        if ipnet.size > (ips_in_subnet + policy_size - 1):
+            return False
+        return True
+
+    def _ip_in_subnet(self, subnet, subnet_ids, ipnet, ip_address):
+        if ip_address:
+            requested_ip = netaddr.IPAddress(ip_address)
+            if ipnet.version == 4 and requested_ip.version != 4:
+                requested_ip = requested_ip.ipv4()
+            if requested_ip not in ipnet:
+                if subnet_ids is not None:
+                    LOG.info("Requested IP {0} not in subnet {1}, "
+                             "retrying".format(str(requested_ip),
+                                               str(ipnet)))
+                    raise q_exc.IPAddressNotInSubnet(
+                        ip_addr=ip_address, subnet_id=subnet["id"])
+                return False
+        return True
+
     # RM6180(roaet):
     # - removed session.begin due to deadlocks
     # - fix off-by-one error and overflow
@@ -760,83 +829,52 @@ class QuarkIpam(object):
                                 segment_id=segment_id, subnet_ids=subnet_ids,
                                 ip_version=filters.get("ip_version"))))
 
+        # TODO(mdietz): Invert the iterator and the session, should only be
+        #               one subnet per attempt. We should also only be fetching
+        #               the subnet and usage when we need to. Otherwise
+        #               we're locking every subnet for a segment, and once
+        #               we stop locking, we're looking at stale data.
         with context.session.begin():
-            # NCP-1480: Don't need to lock V6 subnets, since we don't use
-            # next_auto_assign_ip for them. We already uniquely identified
-            # the V6 we're going to get by generating a MAC in a previous step.
-            # Also note that this only works under BOTH or BOTH_REQUIRED. ANY
-            # does not pass an ip_version
-            lock_subnets = True
-            if (not CONF.QUARK.ipam_select_subnet_v6_locking and
-                    "ip_version" in filters and
-                    int(filters["ip_version"]) == 6):
-                lock_subnets = False
-
-            subnets = db_api.subnet_find_ordered_by_most_full(
-                context, net_id, lock_subnets=lock_subnets,
-                segment_id=segment_id, scope=db_api.ALL,
-                subnet_id=subnet_ids, **filters)
-
-            if not subnets:
-                LOG.info("No subnets found given the search criteria!")
-
-            for subnet, ips_in_subnet in subnets:
+            for subnet, ips_in_subnet in self._select_subnet(context, net_id,
+                                                             ip_address,
+                                                             segment_id,
+                                                             subnet_ids,
+                                                             **filters):
                 ipnet = netaddr.IPNetwork(subnet["cidr"])
                 LOG.info("Trying subnet ID: {0} - CIDR: {1}".format(
                     subnet["id"], subnet["_cidr"]))
-                if ip_address:
-                    requested_ip = netaddr.IPAddress(ip_address)
-                    if ipnet.version == 4 and requested_ip.version != 4:
-                        requested_ip = requested_ip.ipv4()
-                    if requested_ip not in ipnet:
-                        if subnet_ids is not None:
-                            LOG.info("Requested IP {0} not in subnet {1}, "
-                                     "retrying".format(str(requested_ip),
-                                                       str(ipnet)))
-                            raise q_exc.IPAddressNotInSubnet(
-                                ip_addr=ip_address, subnet_id=subnet["id"])
-                        continue
 
-                ip_policy = None
-                if not ip_address:
-                    # Policies don't prevent explicit assignment, so we only
-                    # need to check if we're allocating a new IP
-                    ip_policy = subnet.get("ip_policy")
+                if not self._ip_in_subnet(subnet, subnet_ids, ipnet,
+                                          ip_address):
+                    continue
 
-                policy_size = ip_policy["size"] if ip_policy else 0
-
-                if ipnet.size > (ips_in_subnet + policy_size - 1):
-                    if not ip_address and subnet["ip_version"] == 4:
-                        ip = subnet["next_auto_assign_ip"]
-                        # NOTE(mdietz): When atomically updated, this probably
-                        #               doesn't need the lower bounds check but
-                        #               I'm not comfortable removing it yet.
-                        updated = 0
-                        if ip < subnet["first_ip"] or ip > subnet["last_ip"]:
-                            LOG.info("Marking subnet {0} as full".format(
-                                subnet["id"]))
-                            updated = db_api.subnet_update_set_full(context,
-                                                                    subnet)
-                        else:
-                            auto_inc = db_api.subnet_update_next_auto_assign_ip
-                            updated = auto_inc(context, subnet)
-
-                        if updated:
-                            context.session.refresh(subnet)
-                        else:
-                            # This means the subnet was marked full
-                            # while we were checking out policies.
-                            # Fall out and go back to the outer retry
-                            # loop.
-                            return
-
-                    LOG.info("Subnet {0} - {1} {2} looks viable, "
-                             "returning".format(subnet["id"], subnet["_cidr"],
-                                                subnet["next_auto_assign_ip"]))
-                    return subnet
-                else:
+                if self._should_mark_subnet_full(context, subnet, ipnet,
+                                                 ip_address, ips_in_subnet):
                     LOG.info("Marking subnet {0} as full".format(subnet["id"]))
-                    db_api.subnet_update_set_full(context, subnet)
+                    updated = db_api.subnet_update_set_full(context, subnet)
+
+                    # Ensure the session is aware of the changes to the subnet
+                    if updated:
+                        context.session.refresh(subnet)
+                    continue
+
+                if not ip_address and subnet["ip_version"] == 4:
+                    auto_inc = db_api.subnet_update_next_auto_assign_ip
+                    updated = auto_inc(context, subnet)
+
+                    if updated:
+                        context.session.refresh(subnet)
+                    else:
+                        # This means the subnet was marked full
+                        # while we were checking out policies.
+                        # Fall out and go back to the outer retry
+                        # loop.
+                        return
+
+                LOG.info("Subnet {0} - {1} {2} looks viable, "
+                         "returning".format(subnet["id"], subnet["_cidr"],
+                                            subnet["next_auto_assign_ip"]))
+                return subnet
 
 
 class QuarkIpamANY(QuarkIpam):
