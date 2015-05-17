@@ -15,10 +15,10 @@
 
 from neutron.common import exceptions
 from neutron.extensions import securitygroup as sg_ext
-from neutron.openstack.common import uuidutils
 from neutron import quota
 from oslo.config import cfg
 from oslo_log import log as logging
+from oslo_utils import uuidutils
 
 from quark.db import api as db_api
 from quark import plugin_views as v
