@@ -16,7 +16,35 @@ traits:
     is: [ secured ]
     get:
         description: List all IPs for a given tenant
-        queryParameters:  # This is not a complete list of query parameters, just the ones relevant to Shared IP.
+        queryParameters:
+            # All from the IP addresses response
+            id:
+                description: filters by IP addresses UUID
+                type: string
+            network_id:
+                description: filters IP addresses by their network UUID
+                type: string
+            address:
+                description: filters IP address by their address
+                type: string
+            # Query will support only one port ID
+            port_ids:
+                description: filters IP addresses by a port UUID
+                type: string
+            subnet_id:
+                description: filters IP addresses by their subnet UUID
+                type: string
+            tenant_id:
+                description: filters IP addresses by their user tenant ID
+                type: string
+            version:
+                description: filters IP addresses by their version 4 or 6
+                type: int
+            type:
+                description: filters IP addresses by their type, for ex. fixed
+                type: string
+            
+            # Plus the following /ip_addresses/{id}/ports child resources
             device_id:
                 description: filters IP addresses by their ports' device_id
                 type: string
@@ -145,8 +173,14 @@ traits:
                 description: |
                     List the ports associated with an IP address
                 queryParameters:
+                    id:
+                        description: filters ports for a specific ip_address_id by their UUID
+                        type: string
                     device_id:
                         description: filter ports for a specific ip_address_id by their device_id
+                        type: string
+                    service:
+                        description: filters ports for a specific ip_address_id by their service
                         type: string
                 responses:
                     200:
@@ -154,7 +188,8 @@ traits:
                         body:
                             application/json:
                                 example: |
-                                    {"ports": [{"id": "dce3dca6-2cba-4e00-95e9-748587f94620", "service": "compute"}]}
+                                    {"ports": [{"id": "dce3dca6-2cba-4e00-95e9-748587f94620", "service": "compute",
+                                    "device_id": "3b150725-cebb-492d-8286-9dbe80b54a87"}]}
                     404:
                         description: not found
             post:
@@ -167,7 +202,8 @@ traits:
                     body:
                         application/json:
                             example: |
-                                {"port": {"id": "dce3dca6-2cba-4e00-95e9-748587f94620", "service": "compute"}}
+                                {"port": {"id": "dce3dca6-2cba-4e00-95e9-748587f94620", "service": "compute",
+                                "device_id": "3b150725-cebb-492d-8286-9dbe80b54a87"}}
                 put:
                     description: |
                         Internal call from nova to neutron to update an IP address's service to either "none" or "compute"
