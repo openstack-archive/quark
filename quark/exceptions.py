@@ -140,5 +140,26 @@ class FloatingIpNotFound(exceptions.NeutronException):
 
 
 class RemoveFloatingIpFailure(exceptions.NeutronException):
-    message = _("An error occured when trying to remove the floating IP %(id)."
-                " %(msg)")
+    message = _("An error occurred when trying to remove the "
+                "floating IP %(id).")
+
+
+class RegisterFloatingIpFailure(exceptions.NeutronException):
+    message = _("An error occurred when trying to register the floating IP "
+                "%(id).")
+
+
+class PortAlreadyContainsFloatingIp(exceptions.Conflict):
+    message = _("Port %(port_id) already has an associated floating IP.")
+
+
+class FixedIpDoesNotExistsForPort(exceptions.BadRequest):
+    message = _("Fixed IP %(fixed_ip) does not exist on Port %(port_id)")
+
+
+class NoAvailableFixedIPsForPort(exceptions.Conflict):
+    message = _("There are no available fixed IPs for port %(port_id)")
+
+
+class PortDoesNotHaveAGateway(exceptions.Conflict):
+    message = _("Port %(port_id) does not have a gateway")
