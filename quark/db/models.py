@@ -403,6 +403,7 @@ class Port(BASEV2, models.HasTenant, models.HasId):
     device_owner = sa.Column(sa.String(255))
     bridge = sa.Column(sa.String(255))
     associations = orm.relationship(PortIpAssociation, backref="port")
+    service = sa.Column(sa.String(255), default="none")
 
     @declarative.declared_attr
     def ip_addresses(cls):

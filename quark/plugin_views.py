@@ -41,7 +41,11 @@ quark_view_opts = [
     cfg.BoolOpt('show_subnet_ip_policy_id',
                 default=True,
                 help=_('Controls whether or not to show ip_policy_id for'
-                       'subnets'))
+                       'subnets')),
+    cfg.BoolOpt('show_port_service',
+                default=False,
+                help=_('Controls whether or not to show service for'
+                       'ports'))
 ]
 
 CONF.register_opts(quark_view_opts, "QUARK")
@@ -151,6 +155,13 @@ def _make_security_group_rule_dict(security_rule, fields=None):
     return res
 
 
+def _ip_port_dict(port, fields=None):
+    res = {"id": port.get("id"),
+           "device_id": port.get("device_id"),
+           "service": port.get("service")}
+    return res
+
+
 def _port_dict(port, fields=None):
     res = {"id": port.get("id"),
            "name": port.get("name"),
@@ -163,6 +174,9 @@ def _port_dict(port, fields=None):
                                port.get("security_groups", None)],
            "device_id": port.get("device_id"),
            "device_owner": port.get("device_owner")}
+
+    if CONF.QUARK.show_port_service:
+        res['service'] = port.get("service")
 
     if "mac_address" in res and res["mac_address"]:
         mac = str(netaddr.EUI(res["mac_address"])).replace('-', ':')
@@ -185,6 +199,11 @@ def _make_port_address_dict(ip, port, fields=None):
     return ip_addr
 
 
+def _make_port_for_ip_dict(port, fields=None):
+    res = _ip_port_dict(port)
+    return res
+
+
 def _make_port_dict(port, fields=None):
     res = _port_dict(port)
     res["fixed_ips"] = [_make_port_address_dict(ip, port, fields)
@@ -192,6 +211,14 @@ def _make_port_dict(port, fields=None):
                         if (not ip.get("address_type") or
                             ip.get("address_type") == ip_types.FIXED)]
     return res
+
+
+def _make_ip_ports_list(query, fields=None):
+    ports = []
+    for port in query:
+        port_dict = _ip_port_dict(port, fields)
+        ports.append(port_dict)
+    return ports
 
 
 def _make_ports_list(query, fields=None):

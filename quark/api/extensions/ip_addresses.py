@@ -31,6 +31,13 @@ attr_dict[RESOURCE_NAME] = {'allow_post': True,
                             'allow_put': True,
                             'is_visible': True}
 
+SUB_RESOURCE_ATTRIBUTE_MAP = {
+    'ports': {
+        'parent': {'collection_name': 'ip_addresses',
+                   'member_name': 'ip_address'}
+    }
+}
+
 LOG = logging.getLogger(__name__)
 
 
@@ -62,6 +69,8 @@ class IpAddressesController(wsgi.Controller):
             raise webob.exc.HTTPNotFound()
         except exceptions.Conflict:
             raise webob.exc.HTTPConflict()
+        except exceptions.BadRequest:
+            raise webob.exc.HTTPBadRequest()
 
     def update(self, request, id, body=None):
         body = self._deserialize(request.body, request.get_content_type())
@@ -70,6 +79,67 @@ class IpAddressesController(wsgi.Controller):
                     request.context, id, body)}
         except exceptions.NotFound:
             raise webob.exc.HTTPNotFound()
+
+    def delete(self, request, id):
+        context = request.context
+        try:
+            return self._plugin.delete_ip_address(context, id)
+        except exceptions.NotFound:
+            raise webob.exc.HTTPNotFound()
+        except exceptions.BadRequest:
+            raise webob.exc.HTTPBadRequest()
+
+
+class IpAddressPortController(wsgi.Controller):
+
+    def __init__(self, plugin):
+        self._resource_name = RESOURCE_NAME
+        self._plugin = plugin
+
+    def _clean_query_string(self, request, filters):
+        clean_list = ['id', 'device_id', 'service']
+        for clean in clean_list:
+            if clean in request.GET:
+                filters[clean] = request.GET[clean]
+                del request.GET[clean]
+
+    def index(self, ip_address_id, request):
+        context = request.context
+        filters = {}
+        self._clean_query_string(request, filters)
+        fx = self._plugin.get_ports_for_ip_address
+        try:
+            ports = fx(context, ip_address_id, filters=filters, **request.GET)
+            return {"ports": ports}
+        except exceptions.NotFound:
+            raise webob.exc.HTTPNotFound()
+
+    def create(self, request, **kwargs):
+        raise webob.exc.HTTPNotImplemented()
+
+    def show(self, ip_address_id, request, id):
+        context = request.context
+        # TODO(jlh): need to ensure ip_address_id is used to filter port
+        try:
+            return {"port":
+                    self._plugin.get_port_for_ip_address(context,
+                                                         ip_address_id, id)}
+        except exceptions.NotFound:
+            raise webob.exc.HTTPNotFound()
+
+    def update(self, ip_address_id, request, id, body=None):
+        body = self._deserialize(request.body, request.get_content_type())
+        try:
+            return {"port": self._plugin.update_port_for_ip(request.context,
+                                                            ip_address_id,
+                                                            id, body)}
+        except exceptions.NotFound:
+            raise webob.exc.HTTPNotFound()
+        except exceptions.BadRequest:
+            raise webob.exc.HTTPBadRequest()
+
+    def delete(self, request, id, **kwargs):
+        raise webob.exc.HTTPNotImplemented()
 
 
 class Ip_addresses(object):
@@ -104,7 +174,16 @@ class Ip_addresses(object):
     @classmethod
     def get_resources(cls):
         """Returns Ext Resources."""
-        controller = IpAddressesController(manager.NeutronManager.get_plugin())
-        return [extensions.ResourceExtension(
-            Ip_addresses.get_alias(),
-            controller)]
+        ip_controller = IpAddressesController(
+            manager.NeutronManager.get_plugin())
+        ip_port_controller = IpAddressPortController(
+            manager.NeutronManager.get_plugin())
+        resources = []
+        resources.append(extensions.ResourceExtension(
+                         Ip_addresses.get_alias(),
+                         ip_controller))
+        parent = {'collection_name': 'ip_addresses',
+                  'member_name': 'ip_address'}
+        resources.append(extensions.ResourceExtension(
+                         'ports', ip_port_controller, parent=parent))
+        return resources

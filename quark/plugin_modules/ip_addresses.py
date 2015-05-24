@@ -23,6 +23,7 @@ from quark.db import api as db_api
 from quark.db import ip_types
 from quark import exceptions as quark_exceptions
 from quark import ipam
+from quark.plugin_modules import ports as port_module
 from quark import plugin_views as v
 
 CONF = cfg.CONF
@@ -75,7 +76,15 @@ def validate_port_ip_quotas(context, ports):
 
 def _shared_ip_request(ip_address):
     port_ids = ip_address.get('ip_address', {}).get('port_ids', [])
-    return len(port_ids) > 1
+    device_ids = ip_address.get('ip_address', {}).get('device_ids', [])
+    return len(port_ids) > 1 or len(device_ids) > 1
+
+
+def _shared_ip_and_active(iptype, ports, except_port=None):
+    if(iptype == ip_types.SHARED and any(p.service != 'none' and
+                                         p.id != except_port for p in ports)):
+        return True
+    return False
 
 
 def _can_be_shared(address_model):
@@ -85,8 +94,8 @@ def _can_be_shared(address_model):
 
 def create_ip_address(context, body):
     LOG.info("create_ip_address for tenant %s" % context.tenant_id)
-    address_type = (ip_types.SHARED if _shared_ip_request(body)
-                    else ip_types.FIXED)
+    iptype = (ip_types.SHARED if _shared_ip_request(body)
+              else ip_types.FIXED)
     ip_dict = body.get("ip_address")
     port_ids = ip_dict.get('port_ids', [])
     network_id = ip_dict.get('network_id')
@@ -139,7 +148,11 @@ def create_ip_address(context, body):
                                     version=ip_version,
                                     ip_addresses=[ip_address]
                                     if ip_address else [],
-                                    address_type=address_type)
+                                    address_type=iptype)
+    # Ensure that there are no ports whose service is set to something other
+    # than 'none' because nova will not be able to know it was disassociated
+    if _shared_ip_and_active(iptype, ports):
+        raise quark_exceptions.PortRequiresDisassociation()
     with context.session.begin():
         new_address = db_api.port_associate_ip(context, ports,
                                                new_addresses[0])
@@ -161,8 +174,7 @@ def _raise_if_shared_and_enabled(address_request, address_model):
 
 
 def update_ip_address(context, id, ip_address):
-    LOG.info("update_ip_address %s for tenant %s" %
-             (id, context.tenant_id))
+    LOG.info("update_ip_address %s for tenant %s" % (id, context.tenant_id))
     ports = []
     with context.session.begin():
         address = db_api.ip_address_find(
@@ -208,3 +220,118 @@ def update_ip_address(context, id, ip_address):
                     context, address)
             return v._make_ip_dict(address)
     return v._make_ip_dict(new_address)
+
+
+def delete_ip_address(context, id):
+    """Delete an ip address.
+
+    : param context: neutron api request context
+    : param id: UUID representing the ip address to delete.
+    """
+    LOG.info("delete_ip_address %s for tenant %s" % (id, context.tenant_id))
+
+    with context.session.begin():
+        ip_address = db_api.ip_address_find(
+            context, id=id, tenant_id=context.tenant_id, scope=db_api.ONE)
+        if not ip_address or ip_address.deallocated:
+            raise quark_exceptions.IpAddressNotFound(addr_id=id)
+
+        if _shared_ip_and_active(ip_address.address_type, ip_address.ports):
+            raise quark_exceptions.PortRequiresDisassociation()
+
+        db_api.update_port_associations_for_ip(context, [], ip_address)
+
+        ipam_driver.deallocate_ip_address(context, ip_address)
+
+
+def get_ports_for_ip_address(context, ip_id, limit=None, sorts=None,
+                             marker=None, page_reverse=False, filters=None,
+                             fields=None):
+    """Retrieve a list of ports.
+
+    The contents of the list depends on the identity of the user
+    making the request (as indicated by the context) as well as any
+    filters.
+    : param context: neutron api request context
+    : param filters: a dictionary with keys that are valid keys for
+        a port as listed in the RESOURCE_ATTRIBUTE_MAP object
+        in neutron/api/v2/attributes.py.  Values in this dictionary
+        are an iterable containing values that will be used for an exact
+        match comparison for that value.  Each result returned by this
+        function will have matched one of the values for each key in
+        filters.
+    : param fields: a list of strings that are valid keys in a
+        port dictionary as listed in the RESOURCE_ATTRIBUTE_MAP
+        object in neutron/api/v2/attributes.py. Only these fields
+        will be returned.
+    """
+    LOG.info("get_ports for tenant %s filters %s fields %s" %
+             (context.tenant_id, filters, fields))
+    addr = db_api.ip_address_find(context, id=ip_id, scope=db_api.ONE)
+    if not addr:
+        raise quark_exceptions.IpAddressNotFound(addr_id=ip_id)
+
+    if filters is None:
+        filters = {}
+
+    filters['ip_address'] = ip_id
+
+    ports = db_api.port_find(context, limit, sorts, marker,
+                             fields=fields, join_security_groups=True,
+                             **filters)
+    return v._make_ip_ports_list(ports, fields)
+
+
+def get_port_for_ip_address(context, ip_id, id, fields=None):
+    """Retrieve a port.
+
+    : param context: neutron api request context
+    : param id: UUID representing the port to fetch.
+    : param fields: a list of strings that are valid keys in a
+        port dictionary as listed in the RESOURCE_ATTRIBUTE_MAP
+        object in neutron/api/v2/attributes.py. Only these fields
+        will be returned.
+    """
+    LOG.info("get_port %s for tenant %s fields %s" %
+             (id, context.tenant_id, fields))
+    addr = db_api.ip_address_find(context, id=ip_id, scope=db_api.ONE)
+    if not addr:
+        raise quark_exceptions.IpAddressNotFound(addr_id=ip_id)
+
+    filters = {'ip_address': ip_id}
+    results = db_api.port_find(context, id=id, fields=fields,
+                               scope=db_api.ONE, **filters)
+
+    if not results:
+        raise exceptions.PortNotFound(port_id=id, net_id='')
+
+    return v._make_port_for_ip_dict(results)
+
+
+def update_port_for_ip_address(context, ip_id, id, port):
+    """Update values of a port.
+
+    : param context: neutron api request context
+    : param ip_id: UUID representing the ip associated with port to update
+    : param id: UUID representing the port to update.
+    : param port: dictionary with keys indicating fields to update.
+        valid keys are those that have a value of True for 'allow_put'
+        as listed in the RESOURCE_ATTRIBUTE_MAP object in
+        neutron/api/v2/attributes.py.
+    """
+    LOG.info("update_port %s for tenant %s" % (id, context.tenant_id))
+    addr = db_api.ip_address_find(context, id=ip_id, scope=db_api.ONE)
+    sanitize_list = ['service']
+    port_dict = {k: port['port'][k] for k in sanitize_list}
+    if not addr:
+        raise quark_exceptions.IpAddressNotFound(addr_id=ip_id)
+
+    ports = addr.ports
+    iptype = addr.address_type
+
+    if _shared_ip_and_active(iptype, ports, except_port=id):
+        raise quark_exceptions.PortRequiresDisassociation()
+
+    new_port = {"port": port_dict}
+    port_ret = port_module.update_port(context, id, new_port)
+    return v._make_port_for_ip_dict(port_ret)
