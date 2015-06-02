@@ -47,9 +47,10 @@ def main():
 
 def get_ip_availability(**kwargs):
     LOG.debug("Begin querying %s" % kwargs)
-    used_ips = get_used_ips(neutron_db_api.get_session(), **kwargs)
-    unused_ips = get_unused_ips(neutron_db_api.get_session(), used_ips,
-                                **kwargs)
+    used_ips = get_used_ips(neutron_db_api.get_session(use_slave=True),
+                            **kwargs)
+    unused_ips = get_unused_ips(neutron_db_api.get_session(use_slave=True),
+                                used_ips, **kwargs)
     LOG.debug("End querying")
     return dict(used=used_ips, unused=unused_ips)
 
