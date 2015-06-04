@@ -436,6 +436,27 @@ class QuarkIPAddressDeallocation(QuarkIpamBaseTest):
         self.assertFalse(addr["deallocated"])
         self.assertEqual(addr["address_type"], None)
 
+    @mock.patch("quark.db.api.ip_address_delete")
+    def test_deallocate_v6_ips_by_port(self, ip_delete):
+        ip = netaddr.IPAddress("fe80::1")
+        port_dict = dict(ip_addresses=[], device_id="foo")
+        addr_dict = dict(subnet_id=1, address_readable=ip.value,
+                         created_at=None, used_by_tenant_id=1,
+                         version=6)
+
+        port = models.Port()
+        port.update(port_dict)
+
+        addr = models.IPAddress()
+        addr.update(addr_dict)
+
+        port["ip_addresses"].append(addr)
+        self.ipam.deallocate_ips_by_port(self.context, port)
+        self.assertTrue(len(addr["ports"]) == 0 or
+                        len(port["ip_addresses"]) == 0)
+        ip_delete.assert_called_once_with(self.context, addr)
+        self.assertEqual(addr["address_type"], None)
+
 
 class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
     def setUp(self):
@@ -1948,7 +1969,7 @@ class QuarkIPAddressAllocationNotifications(QuarkIpamBaseTest):
                 "ip_block.address.delete",
                 dict(ip_block_id=address["subnet_id"],
                      ip_address="0.0.0.0",
-                     device_ids=["foo"],
+                     device_ids=[],
                      created_at=address["created_at"],
                      deleted_at="456",
                      used_by_tenant_id=1))
