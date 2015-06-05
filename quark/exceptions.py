@@ -167,3 +167,13 @@ class NoAvailableFixedIPsForPort(exceptions.Conflict):
 
 class PortDoesNotHaveAGateway(exceptions.Conflict):
     message = _("Port %(port_id) does not have a gateway")
+
+
+class PortAlreadyAssociatedToFloatingIP(exceptions.BadRequest):
+    message = _("Port %(port_id) is already associated with "
+                "floating IP %(flip_id)")
+
+
+class FloatingIPUpdateNoPortIdSupplied(exceptions.BadRequest):
+    message = _("When no port is currently associated to the floating if, "
+                "port_id is required but was not supplied")

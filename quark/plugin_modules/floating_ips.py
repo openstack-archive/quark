@@ -20,7 +20,7 @@ from oslo_log import log as logging
 from quark.db import api as db_api
 from quark.db import ip_types
 from quark.drivers import floating_ip_registry as registry
-from quark import exceptions as quark_exceptions
+from quark import exceptions as qex
 from quark import ipam
 from quark import plugin_views as v
 
@@ -40,6 +40,17 @@ CONF.register_opts(quark_router_opts, "QUARK")
 
 
 def create_floatingip(context, content):
+    """Allocate or reallocate a floating IP.
+
+    :param context: neutron api request context.
+    :param content: dictionary describing the floating ip, with keys
+        as listed in the RESOURCE_ATTRIBUTE_MAP object in
+        neutron/api/v2/attributes.py.  All keys will be populated.
+
+    :returns: Dictionary containing details for the new floating IP.  If values
+        are declared in the fields parameter, then only those keys will be
+        present.
+    """
     LOG.info("create_floatingip %s for tenant %s and body %s" %
              (id, context.tenant_id, content))
     tenant_id = content.get("tenant_id")
@@ -69,12 +80,12 @@ def create_floatingip(context, content):
             raise exceptions.PortNotFound(port_id=port_id)
 
         if not port.ip_addresses or len(port.ip_addresses) == 0:
-            raise quark_exceptions.NoAvailableFixedIPsForPort(port_id=port_id)
+            raise qex.NoAvailableFixedIPsForPort(port_id=port_id)
 
         if not fixed_ip_address:
             fixed_ip = _get_next_available_fixed_ip(port)
             if not fixed_ip:
-                raise quark_exceptions.NoAvailableFixedIPsForPort(
+                raise qex.NoAvailableFixedIPsForPort(
                     port_id=port_id)
         else:
             fixed_ip = next((ip for ip in port.ip_addresses
@@ -83,13 +94,13 @@ def create_floatingip(context, content):
                             None)
 
             if not fixed_ip:
-                raise quark_exceptions.FixedIpDoesNotExistsForPort(
+                raise qex.FixedIpDoesNotExistsForPort(
                     fixed_ip=fixed_ip_address, port_id=port_id)
 
             if any(ip for ip in port.ip_addresses
                    if (ip.get("address_type") == ip_types.FLOATING and
                        ip.fixed_ip["address_readable"] == fixed_ip_address)):
-                raise quark_exceptions.PortAlreadyContainsFloatingIp(
+                raise qex.PortAlreadyContainsFloatingIp(
                     port_id=port_id)
 
     new_addresses = []
@@ -106,55 +117,145 @@ def create_floatingip(context, content):
                                     ip_addresses=ip_addresses,
                                     address_type=ip_types.FLOATING)
 
-    floating_ip = new_addresses[0]
+    flip = new_addresses[0]
 
     if fixed_ip and port:
         with context.session.begin():
-            floating_ip = db_api.floating_ip_associate_fixed_ip(context,
-                                                                floating_ip,
-                                                                fixed_ip)
+            flip = db_api.port_associate_ip(context, [port], flip, [port_id])
+            flip = db_api.floating_ip_associate_fixed_ip(context, flip,
+                                                         fixed_ip)
 
+            flip_driver_type = CONF.QUARK.default_floating_ip_driver
+            flip_driver = registry.DRIVER_REGISTRY.get_driver(flip_driver_type)
+
+            flip_driver.register_floating_ip(flip, port, fixed_ip)
+
+    return v._make_floating_ip_dict(flip, port_id)
+
+
+def update_floatingip(context, id, content):
+    """Update an existing floating IP.
+
+    :param context: neutron api request context.
+    :param id: id of the floating ip
+    :param content: dictionary with keys indicating fields to update.
+        valid keys are those that have a value of True for 'allow_put'
+        as listed in the RESOURCE_ATTRIBUTE_MAP object in
+        neutron/api/v2/attributes.py.
+
+    :returns: Dictionary containing details for the new floating IP.  If values
+        are declared in the fields parameter, then only those keys will be
+        present.
+    """
+
+    LOG.info("update_floatingip %s for tenant %s and body %s" %
+             (id, context.tenant_id, content))
+
+    if "port_id" not in content:
+        raise exceptions.BadRequest(resource="floating_ip",
+                                    msg="port_id is required.")
+
+    port_id = content.get("port_id")
+    port = None
+    fixed_ip = None
+    current_port = None
+    flip = None
+
+    with context.session.begin():
+        flip = db_api.floating_ip_find(context, id=id, scope=db_api.ONE)
+
+        current_ports = flip.ports
+
+        if current_ports and len(current_ports) > 0:
+            current_port = current_ports[0]
+
+        if not port_id and not current_port:
+            raise qex.FloatingIPUpdateNoPortIdSupplied()
+
+        if port_id:
+            port = db_api.port_find(context, id=port_id, scope=db_api.ONE)
+            if not port:
+                raise exceptions.PortNotFound(port_id=port_id)
+
+            if current_port and current_port.id == port_id:
+                d = dict(flip_id=id, port_id=port_id)
+                raise qex.PortAlreadyAssociatedToFloatingIP(**d)
+
+            fixed_ip = _get_next_available_fixed_ip(port)
+            LOG.info("new fixed ip: %s" % fixed_ip)
+            if not fixed_ip:
+                raise qex.NoAvailableFixedIPsForPort(port_id=port_id)
+
+        LOG.info("current ports: %s" % current_ports)
+
+        if current_port:
+            flip = db_api.port_disassociate_ip(context, [current_port], flip)
+
+        if flip.fixed_ip:
+            flip = db_api.floating_ip_disassociate_fixed_ip(context, flip)
+
+        if port:
+            flip = db_api.port_associate_ip(context, [port], flip, [port_id])
+            flip = db_api.floating_ip_associate_fixed_ip(context, flip,
+                                                         fixed_ip)
         flip_driver_type = CONF.QUARK.default_floating_ip_driver
         flip_driver = registry.DRIVER_REGISTRY.get_driver(flip_driver_type)
 
-        flip_driver.register_floating_ip(floating_ip, port, fixed_ip)
+        if port:
+            if current_port:
+                flip_driver.update_floating_ip(flip, port, fixed_ip)
+            else:
+                flip_driver.register_floating_ip(flip, port, fixed_ip)
+        else:
+            flip_driver.remove_floating_ip(flip)
 
-    return v._make_floating_ip_dict(floating_ip)
+    # Note(alanquillin) The ports parameters on the model is not
+    # properly getting cleaned up when removed.  Manually cleaning them up.
+    # Need to fix the db api to correctly update the model.
+    if not port:
+        flip.ports = []
 
-
-def update_floatingip(context, id, body):
-    LOG.info("update_floatingip %s for tenant %s and body %s" %
-             (id, context.tenant_id, body))
-
-    # floating_ip_dict = body.get("ip_address")
-    #
-    # if "port_id" not in floating_ip_dict:
-    #     raise exceptions.BadRequest(resource="floating_ip",
-    #                                 msg="port_id is required.")
-
-    # port_id = floating_ip_dict.get("port_id")
-
-    raise NotImplementedError()
+    return v._make_floating_ip_dict(flip)
 
 
 def delete_floatingip(context, id):
+    """deallocate a floating IP.
+
+    :param context: neutron api request context.
+    :param id: id of the floating ip
+    """
+
     LOG.info("delete_floatingip %s for tenant %s" % (id, context.tenant_id))
 
     filters = {"address_type": ip_types.FLOATING, "_deallocated": False}
 
-    floating_ip = db_api.floating_ip_find(context, id=id, scope=db_api.ONE,
-                                          **filters)
-    if not floating_ip:
-        raise quark_exceptions.FloatingIpNotFound(id=id)
+    flip = db_api.floating_ip_find(context, id=id, scope=db_api.ONE, **filters)
+    if not flip:
+        raise qex.FloatingIpNotFound(id=id)
 
-    driver_type = CONF.QUARK.default_floating_ip_driver
-    driver = registry.DRIVER_REGISTRY.get_driver(driver_type)
+    current_ports = flip.ports
+    current_port = None
 
-    driver.remove_floating_ip(floating_ip)
+    if current_ports and len(current_ports) > 0:
+        current_port = current_ports[0]
 
-    strategy_name = floating_ip.network.get("ipam_strategy")
-    ipam_driver = ipam.IPAM_REGISTRY.get_strategy(strategy_name)
-    ipam_driver.deallocate_ip_address(context, floating_ip)
+    with context.session.begin():
+        strategy_name = flip.network.get("ipam_strategy")
+        ipam_driver = ipam.IPAM_REGISTRY.get_strategy(strategy_name)
+        ipam_driver.deallocate_ip_address(context, flip)
+
+        if current_port:
+            flip = db_api.port_disassociate_ip(context, [current_port],
+                                               flip)
+        if flip.fixed_ip:
+            flip = db_api.floating_ip_disassociate_fixed_ip(context, flip)
+
+        db_api.ip_address_deallocate(context, flip)
+
+    if flip.fixed_ip:
+        driver_type = CONF.QUARK.default_floating_ip_driver
+        driver = registry.DRIVER_REGISTRY.get_driver(driver_type)
+        driver.remove_floating_ip(flip)
 
 
 def get_floatingip(context, id, fields=None):
@@ -179,7 +280,7 @@ def get_floatingip(context, id, fields=None):
                                           **filters)
 
     if not floating_ip:
-        raise quark_exceptions.FloatingIpNotFound(id=id)
+        raise qex.FloatingIpNotFound(id=id)
 
     return v._make_floating_ip_dict(floating_ip)
 

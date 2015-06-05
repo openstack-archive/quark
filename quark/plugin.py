@@ -413,7 +413,8 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
     @sessioned
     def update_floatingip(self, context, id, floatingip):
-        return floating_ips.update_floatingip(context, id, floatingip)
+        return floating_ips.update_floatingip(context, id,
+                                              floatingip["floatingip"])
 
     @sessioned
     def get_floatingip(self, context, id, fields=None):

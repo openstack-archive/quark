@@ -276,13 +276,15 @@ def _make_ip_policy_dict(ipp):
             "exclude": [ippc["cidr"] for ippc in ipp["exclude"]]}
 
 
-def _make_floating_ip_dict(flip):
-    ports = flip.ports
-    port_id = None
-    if ports and len(ports) > 0:
-        port_id = None if not ports[0] else ports[0].id
+def _make_floating_ip_dict(flip, port_id=None):
+    if not port_id:
+        ports = flip.ports
+        port_id = None
+        if ports and len(ports) > 0:
+            port_id = None if not ports[0] else ports[0].id
 
     fixed_ip = flip.fixed_ip
+
     return {"id": flip.get("id"),
             "floating_network_id": flip.get("network_id"),
             "router_id": CONF.QUARK.floating_ip_router_id,
