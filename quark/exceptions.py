@@ -33,8 +33,12 @@ class AmbigiousLswitchCount(exceptions.NeutronException):
     message = _("Too many lswitches for network %(net_id)s.")
 
 
-class IpAddressNotFound(exceptions.NeutronException):
+class IpAddressNotFound(exceptions.NotFound):
     message = _("IP Address %(addr_id)s not found.")
+
+
+class PortRequiresDisassociation(exceptions.BadRequest):
+    message = _("Port requires disassociation before IP can be deleted")
 
 
 class RouteConflict(exceptions.NeutronException):

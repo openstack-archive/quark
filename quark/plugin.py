@@ -244,6 +244,10 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
         return ip_addresses.update_ip_address(context, id, ip_address)
 
     @sessioned
+    def delete_ip_address(self, context, id):
+        return ip_addresses.delete_ip_address(context, id)
+
+    @sessioned
     def create_port(self, context, port):
         self._fix_missing_tenant_id(context, port["port"])
         return ports.create_port(context, port)
@@ -257,10 +261,27 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
         return ports.update_port(context, id, port)
 
     @sessioned
+    def update_port_for_ip(self, context, ip_id, id, port):
+        return ip_addresses.update_port_for_ip_address(context, ip_id, id,
+                                                       port)
+
+    @sessioned
     def get_ports(self, context, limit=None, page_reverse=False, sorts=None,
                   marker=None, filters=None, fields=None):
         return ports.get_ports(context, limit, sorts, marker, page_reverse,
                                filters, fields)
+
+    @sessioned
+    def get_ports_for_ip_address(self, context, ip, limit=None,
+                                 page_reverse=False, sorts=None, marker=None,
+                                 filters=None, fields=None):
+        return ip_addresses.get_ports_for_ip_address(context, ip, limit, sorts,
+                                                     marker, page_reverse,
+                                                     filters, fields)
+
+    @sessioned
+    def get_port_for_ip_address(self, context, ip_id, id, fields=None):
+        return ip_addresses.get_port_for_ip_address(context, ip_id, id, fields)
 
     @sessioned
     def get_ports_count(self, context, filters=None):

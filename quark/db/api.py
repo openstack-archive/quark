@@ -85,7 +85,7 @@ def _model_attrs(model):
 def _model_query(context, model, filters, fields=None):
     filters = filters or {}
     model_filters = []
-    eq_filters = ["address", "cidr", "deallocated", "ip_version",
+    eq_filters = ["address", "cidr", "deallocated", "ip_version", "service",
                   "mac_address_range_id", "transaction_id"]
     in_filters = ["device_id", "device_owner", "group_id", "id", "mac_address",
                   "name", "network_id", "segment_id", "subnet_id",
@@ -293,6 +293,10 @@ def ip_address_create(context, **address_dict):
     ip_address["allocated_at"] = timeutils.utcnow()
     context.session.add(ip_address)
     return ip_address
+
+
+def ip_address_delete(context, addr):
+    context.session.delete(addr)
 
 
 @scoped
