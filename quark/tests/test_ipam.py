@@ -745,32 +745,7 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
                 addr_realloc.call_args[0][1][models.IPAddress.address_type],
                 "fixed")
 
-    def test_reallocate_deallocated_v6_ip(self):
-        subnet4 = dict(id=1, first_ip=0, last_ip=255,
-                       cidr="0.0.0.0/24", ip_version=4,
-                       next_auto_assign_ip=1,
-                       ip_policy=None)
-        address = models.IPAddress()
-        address["address"] = netaddr.IPAddress(4).ipv6()
-        address["version"] = 6
-        address["subnet"] = models.Subnet(cidr="::ffff:0:0/96")
-        with self._stubs(subnets=[[(subnet4, 0)]],
-                         addresses=[address, None, None]) as addr_realloc:
-            addresses = []
-            self.ipam.allocate_ip_address(self.context, addresses, 0, 0, 0)
-            self.assertEqual(len(addresses), 2)
-            self.assertEqual(addresses[0]["address"], address["address"])
-            self.assertEqual(addresses[0]["version"], 6)
-            self.assertEqual(
-                addr_realloc.call_args[0][1][models.IPAddress.address_type],
-                "fixed")
-
-            self.assertEqual(addresses[1]["address"],
-                             netaddr.IPAddress('::ffff:0.0.0.1').value)
-            self.assertEqual(addresses[1]["version"], 4)
-            self.assertEqual(addresses[1]['address_type'], 'fixed')
-
-    def test_reallocate_v6_with_mac_generates_rfc_address(self):
+    def test_allocate_v6_with_mac_generates_rfc_address(self):
         subnet6 = dict(id=1, first_ip=self.v6_fip.value,
                        last_ip=self.v6_lip.value, cidr="feed::/104",
                        ip_version=6, next_auto_assign_ip=self.v6_fip.value,
@@ -801,7 +776,7 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
             self.assertEqual(address[1]["version"], 6)
             self.assertEqual(address[1]['address_type'], 'fixed')
 
-    def test_reallocate_v6_with_mac_generates_exceeds_limit_raises(self):
+    def test_allocate_v6_with_mac_generates_exceeds_limit_raises(self):
         subnet6 = dict(cidr="feed::/104",
                        first_ip=self.v6_fip.value,
                        id=1,
@@ -829,7 +804,7 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
                                               mac_address=mac)
         cfg.CONF.set_override('v6_allocation_attempts', old_override, 'QUARK')
 
-    def test_reallocate_deallocated_v6_ip_as_string_address(self):
+    def test_allocate_deallocated_v6_ip_as_string_address(self):
         subnet4 = dict(id=1, first_ip=0, last_ip=255,
                        cidr="0.0.0.0/24", ip_version=4,
                        next_auto_assign_ip=1,
@@ -854,7 +829,7 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
             self.assertEqual(addresses[1]["version"], 4)
             self.assertEqual(addresses[1]['address_type'], 'fixed')
 
-    def test_reallocate_deallocated_v4_v6(self):
+    def test_reallocate_deallocated_v4_with_v6(self):
         subnet6 = dict(cidr="feed::/104", first_ip=self.v6_fip.value,
                        id=1, ip_version=6, ip_policy=None,
                        last_ip=self.v6_lip.value,
@@ -864,12 +839,9 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
         address1["address"] = self.v46_val
         address1["version"] = 4
         address1["subnet"] = models.Subnet(cidr="0.0.0.0/24")
-        address2 = models.IPAddress()
-        address2["address"] = netaddr.IPAddress(42).ipv6()
-        address2["version"] = 6
-        address2["subnet"] = models.Subnet(cidr="::ffff:0:0/96")
+
         with self._stubs(subnets=[[(subnet6, 1)]],
-                         addresses=[address1, address2]) as addr_realloc:
+                         addresses=[address1]) as addr_realloc:
             address = []
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
                                           mac_address=mac_address)
@@ -880,7 +852,8 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
                 addr_realloc.call_args[0][1][models.IPAddress.address_type],
                 "fixed")
 
-            self.assertEqual(address[1]["address"], address2["address"])
+            expected_v6 = netaddr.IPAddress("feed::200:ff:fe00:0")
+            self.assertEqual(address[1]["address"], expected_v6.value)
             self.assertEqual(address[1]["version"], 6)
             self.assertEqual(address[1]['address_type'], 'fixed')
 
@@ -1021,30 +994,7 @@ class QuarkIpamTestBothRequiredIpAllocation(QuarkIpamBaseTest):
             self.assertEqual(address[1]["version"], 6)
             self.assertEqual(address[1]['address_type'], 'fixed')
 
-    def test_reallocate_deallocated_v6_ip(self):
-        subnet4 = dict(id=1, first_ip=0, last_ip=255, cidr="0.0.0.0/24",
-                       ip_version=4, next_auto_assign_ip=1,
-                       ip_policy=None)
-        address = models.IPAddress()
-        address["address"] = 4
-        address["version"] = 6
-        address["subnet"] = models.Subnet(cidr="::ffff:0:0/96")
-        with self._stubs(subnets=[[(subnet4, 0)]],
-                         addresses=[address, None, None]) as addr_realloc:
-            addresses = []
-            self.ipam.allocate_ip_address(self.context, addresses, 0, 0, 0)
-            self.assertEqual(len(addresses), 2)
-            self.assertEqual(addresses[0]["address"], address["address"])
-            self.assertEqual(addresses[0]["version"], 6)
-            self.assertEqual(
-                addr_realloc.call_args[0][1][models.IPAddress.address_type],
-                "fixed")
-            self.assertEqual(addresses[1]["address"],
-                             netaddr.IPAddress("::ffff:0.0.0.1").value)
-            self.assertEqual(addresses[1]["version"], 4)
-            self.assertEqual(addresses[1]['address_type'], 'fixed')
-
-    def test_reallocate_deallocated_v4_v6(self):
+    def test_reallocate_deallocated_v4_with_new_v6(self):
         mac_address = 0
         subnet6 = dict(id=1, first_ip=self.v6_fip.value,
                        last_ip=self.v6_lip.value, cidr="feed::/104",
@@ -1054,13 +1004,9 @@ class QuarkIpamTestBothRequiredIpAllocation(QuarkIpamBaseTest):
         address1["address"] = self.v46_val
         address1["version"] = 4
         address1["subnet"] = models.Subnet(cidr="0.0.0.0/24")
-        address2 = models.IPAddress()
-        address2["address"] = 42
-        address2["version"] = 6
-        address2["subnet"] = subnet6["cidr"]
 
         with self._stubs(subnets=[[(subnet6, 0)]],
-                         addresses=[address1, address2]) as addr_realloc:
+                         addresses=[address1]) as addr_realloc:
             address = []
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
                                           mac_address=mac_address)
@@ -1070,7 +1016,9 @@ class QuarkIpamTestBothRequiredIpAllocation(QuarkIpamBaseTest):
             self.assertEqual(
                 addr_realloc.call_args[0][1][models.IPAddress.address_type],
                 "fixed")
-            self.assertEqual(address[1]["address"], address2["address"])
+
+            expected_v6 = netaddr.IPAddress("feed::200:ff:fe00:0")
+            self.assertEqual(address[1]["address"], expected_v6.value)
             self.assertEqual(address[1]["version"], 6)
             self.assertEqual(address[1]['address_type'], 'fixed')
 
@@ -1173,7 +1121,7 @@ class QuarkIpamAllocateFromV6Subnet(QuarkIpamBaseTest):
             ip_update.return_value = ip_mod
             yield policy_find, ip_address_find, ip_create, ip_update
 
-    def test_reallocate_v6_with_mac_fails_policy_raises(self):
+    def test_allocate_v6_with_mac_fails_policy_raises(self):
         port_id = "945af340-ed34-4fec-8c87-853a2df492b4"
         subnet6 = dict(id=1, first_ip=0, last_ip=0,
                        cidr="feed::/104", ip_version=6,
@@ -1196,7 +1144,7 @@ class QuarkIpamAllocateFromV6Subnet(QuarkIpamBaseTest):
 
         cfg.CONF.set_override('v6_allocation_attempts', old_override, 'QUARK')
 
-    def test_reallocate_v6_with_mac(self):
+    def test_allocate_v6_with_mac(self):
         port_id = "945af340-ed34-4fec-8c87-853a2df492b4"
         subnet6 = dict(id=1, first_ip=0, last_ip=0,
                        cidr="feed::/104", ip_version=6,
@@ -1217,8 +1165,11 @@ class QuarkIpamAllocateFromV6Subnet(QuarkIpamBaseTest):
                                                    port_id, self.reuse_after,
                                                    mac_address=mac)
             self.assertEqual(ip_address.value, a["address"])
-            self.assertEqual(1, ip_update.call_count)
-            self.assertEqual(0, ip_create.call_count)
+
+            # NCP-1548 - leaving this test to show the change from sometimes
+            # creating the IP address to always creating the IP address.
+            self.assertEqual(0, ip_update.call_count)
+            self.assertEqual(1, ip_create.call_count)
 
         cfg.CONF.set_override('v6_allocation_attempts', old_override, 'QUARK')
 
@@ -1238,53 +1189,6 @@ class QuarkIpamAllocateFromV6Subnet(QuarkIpamBaseTest):
                                                    port_id, self.reuse_after,
                                                    ip_address=ip_address)
             self.assertEqual(a['address'], ip_address.value)
-
-
-class QuarkIpamAllocateV6IPGeneration(QuarkIpamBaseTest):
-    @contextlib.contextmanager
-    def _stubs(self, ip_addresses, create_ip_return, update_ip_return):
-        self.context.session.add = mock.Mock()
-        ip_mods = []
-        for ip in ip_addresses:
-            ip_mod = models.IPAddress()
-            ip_mod.update(ip)
-            ip_mods.append(ip_mod)
-
-        old_override = cfg.CONF.QUARK.v6_allocation_attempts
-        cfg.CONF.set_override('v6_allocation_attempts', 2, 'QUARK')
-        with contextlib.nested(
-            mock.patch("quark.db.api.ip_address_find"),
-            mock.patch("quark.db.api.ip_address_create"),
-            mock.patch("quark.db.api.ip_address_update")
-        ) as (ip_address_find, ip_create, ip_update):
-            ip_address_find.side_effect = ip_mods
-            ip_create.return_value = create_ip_return
-            ip_update.return_value = update_ip_return
-            yield ip_address_find, ip_create, ip_update
-        cfg.CONF.set_override('v6_allocation_attempts', old_override, 'QUARK')
-
-    def test_reallocate_v6_with_mac_already_exists(self):
-        port_id = "945af340-ed34-4fec-8c87-853a2df492b4"
-        subnet6 = dict(id=1, first_ip=0, last_ip=0,
-                       cidr="feed::/104", ip_version=6,
-                       next_auto_assign_ip=0,
-                       ip_policy=None)
-
-        ip1 = {"address": netaddr.IPAddress("fe80::").value,
-               "deallocated": False}
-        ip2 = {"address": netaddr.IPAddress("fe81::").value,
-               "deallocated": True}
-
-        mac = models.MacAddress()
-        mac["address"] = netaddr.EUI("AA:BB:CC:DD:EE:FF")
-
-        with self._stubs([ip1, ip2], ip2, ip2) as (
-                ip_find, ip_create, ip_update):
-            self.ipam._allocate_from_v6_subnet(self.context, 0, subnet6,
-                                               port_id, self.reuse_after,
-                                               mac_address=mac)
-            self.assertEqual(1, ip_update.call_count)
-            self.assertEqual(0, ip_create.call_count)
 
 
 class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
