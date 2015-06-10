@@ -97,6 +97,7 @@ def rfc2462_ip(mac, cidr):
     # NOTE(mdietz): see RFC2462
     int_val = netaddr.IPNetwork(cidr).value
     mac = netaddr.EUI(mac)
+    LOG.info("Using RFC2462 method to generate a v6 with MAC %s" % mac)
     int_val += mac.eui64().value
     int_val ^= MAGIC_INT
     return int_val
@@ -106,7 +107,10 @@ def rfc3041_ip(port_id, cidr):
     random.seed(int(uuid.UUID(port_id)))
     int_val = netaddr.IPNetwork(cidr).value
     while True:
-        val = int_val + random.getrandbits(64)
+        rand_bits = random.getrandbits(64)
+        LOG.info("Using RFC3041 method to generate a v6 with bits %s" %
+                 rand_bits)
+        val = int_val + rand_bits
         val ^= MAGIC_INT
         yield val
 
@@ -118,7 +122,8 @@ def generate_v6(mac, port_id, cidr):
     #               have a MAC to base our generator on in that case for
     #               example.
     if mac is not None:
-        yield rfc2462_ip(mac, cidr)
+        addr = rfc2462_ip(mac, cidr)
+        yield addr
 
     for addr in rfc3041_ip(port_id, cidr):
         yield addr
@@ -704,8 +709,12 @@ class QuarkIpam(object):
         raise exceptions.IpAddressGenerationFailure(net_id=net_id)
 
     def deallocate_ip_address(self, context, address):
-        address["deallocated"] = 1
-        address["address_type"] = None
+        if address["version"] == 6:
+            db_api.ip_address_delete(context, address)
+        else:
+            address["deallocated"] = 1
+            address["address_type"] = None
+
         payload = dict(used_by_tenant_id=address["used_by_tenant_id"],
                        ip_block_id=address["subnet_id"],
                        ip_address=address["address_readable"],
@@ -717,7 +726,7 @@ class QuarkIpam(object):
                                            payload)
 
     def deallocate_ips_by_port(self, context, port=None, **kwargs):
-        ips_removed = []
+        ips_to_remove = []
         for addr in port["ip_addresses"]:
             if "ip_address" in kwargs:
                 ip = kwargs["ip_address"]
@@ -726,12 +735,23 @@ class QuarkIpam(object):
 
             # Note: only deallocate ip if this is the
             # only port mapped
-            if len(addr["ports"]) == 1:
-                self.deallocate_ip_address(context, addr)
-            ips_removed.append(addr)
+            ips_to_remove.append(addr)
 
         port["ip_addresses"] = list(
-            set(port["ip_addresses"]) - set(ips_removed))
+            set(port["ip_addresses"]) - set(ips_to_remove))
+
+        # NCP-1541: We don't need to track v6 IPs the same way. Also, we can't
+        # delete them until we've removed the FK on the assoc record first, so
+        # we have to flush the current state of the transaction.
+        # NOTE(mdietz): this does increase traffic to the db because we need
+        #               to flush, fetch the records again and potentially make
+        #               another trip to deallocate each IP, but keeping our
+        #               indices smaller probably provides more value than the
+        #               cost
+        context.session.flush()
+        for ip in ips_to_remove:
+            if len(ip["ports"]) == 0:
+                self.deallocate_ip_address(context, ip)
 
     # NCP-1509(roaet):
     # - started using admin_context due to tenant not claiming when realloc
