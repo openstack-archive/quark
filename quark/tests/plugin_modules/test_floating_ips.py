@@ -18,10 +18,10 @@ import contextlib
 import datetime
 import mock
 import netaddr
-from neutron.common import exceptions
+from neutron.common import exceptions as ex
 
 from quark.db import models
-from quark import exceptions as quark_exceptions
+from quark import exceptions as q_ex
 from quark.plugin_modules import floating_ips
 from quark.tests import test_quark_plugin
 
@@ -36,10 +36,14 @@ class TestRemoveFloatingIPs(test_quark_plugin.TestQuarkPlugin):
 
         with contextlib.nested(
             mock.patch("quark.db.api.floating_ip_find"),
+            mock.patch("quark.db.api.floating_ip_disassociate_fixed_ip"),
+            mock.patch("quark.db.api.port_disassociate_ip"),
+            mock.patch("quark.db.api.ip_address_deallocate"),
             mock.patch("quark.ipam.QuarkIpam.deallocate_ip_address"),
             mock.patch("quark.drivers.unicorn_driver.UnicornDriver"
                        ".remove_floating_ip")
-        ) as (flip_find, mock_dealloc, mock_remove_flip):
+        ) as (flip_find, db_fixed_ip_disassoc, db_port_disassoc, db_dealloc,
+              mock_dealloc, mock_remove_flip):
             flip_find.return_value = flip_model
             yield
 
@@ -52,7 +56,7 @@ class TestRemoveFloatingIPs(test_quark_plugin.TestQuarkPlugin):
 
     def test_delete_floating_by_when_ip_address_does_not_exists_fails(self):
         with self._stubs():
-            with self.assertRaises(quark_exceptions.FloatingIpNotFound):
+            with self.assertRaises(q_ex.FloatingIpNotFound):
                 self.plugin.delete_floatingip(self.context, 1)
 
 
@@ -213,6 +217,10 @@ class TestCreateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
         def _alloc_ip(context, new_addr, net_id, port_m, *args, **kwargs):
             new_addr.append(flip_model)
 
+        def _port_assoc(context, ports, addr, enable_port=None):
+            addr.ports = ports
+            return addr
+
         def _flip_fixed_ip_assoc(context, addr, fixed_ip):
             addr.fixed_ip = fixed_ip
             return addr
@@ -224,13 +232,16 @@ class TestCreateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
             mock.patch("quark.ipam.QuarkIpam.allocate_ip_address"),
             mock.patch("quark.drivers.unicorn_driver.UnicornDriver"
                        ".register_floating_ip"),
+            mock.patch("quark.db.api.port_associate_ip"),
             mock.patch("quark.db.api.floating_ip_associate_fixed_ip")
-        ) as (flip_find, net_find, port_find, alloc_ip, mock_reg_flip, assoc):
+        ) as (flip_find, net_find, port_find, alloc_ip, mock_reg_flip,
+              port_assoc, fixed_ip_assoc):
             flip_find.return_value = flip_model
             net_find.return_value = net_model
             port_find.return_value = port_model
             alloc_ip.side_effect = _alloc_ip
-            assoc.side_effect = _flip_fixed_ip_assoc
+            port_assoc.side_effect = _port_assoc
+            fixed_ip_assoc.side_effect = _flip_fixed_ip_assoc
             yield
 
     def test_create_with_a_port(self):
@@ -329,14 +340,14 @@ class TestCreateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
 
     def test_create_without_network_id_fails(self):
         with self._stubs():
-            with self.assertRaises(exceptions.BadRequest):
+            with self.assertRaises(ex.BadRequest):
                 request = dict(port_id=2, floating_ip_address="10.0.0.1")
                 self.plugin.create_floatingip(self.context,
                                               dict(floatingip=request))
 
     def test_create_with_invalid_network_fails(self):
         with self._stubs():
-            with self.assertRaises(exceptions.NetworkNotFound):
+            with self.assertRaises(ex.NetworkNotFound):
                 request = dict(floating_network_id=123,
                                port_id=2, floating_ip_address="10.0.0.1")
                 self.plugin.create_floatingip(self.context,
@@ -347,7 +358,7 @@ class TestCreateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
                        ipam_strategy="ANY")
 
         with self._stubs(network=network):
-            with self.assertRaises(exceptions.PortNotFound):
+            with self.assertRaises(ex.PortNotFound):
                 request = dict(floating_network_id=network["id"],
                                port_id=2, floating_ip_address="10.0.0.1")
                 self.plugin.create_floatingip(self.context,
@@ -367,7 +378,7 @@ class TestCreateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
 
         with self._stubs(port=port, ips=fixed_ips, network=network):
             with self.assertRaises(
-                    quark_exceptions.FixedIpDoesNotExistsForPort):
+                    q_ex.FixedIpDoesNotExistsForPort):
                 request = dict(floating_network_id=network["id"],
                                port_id=port["id"],
                                fixed_ip_address="192.168.0.2")
@@ -400,7 +411,7 @@ class TestCreateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
 
         with self._stubs(port=port, ips=ips, network=network):
             with self.assertRaises(
-                    quark_exceptions.PortAlreadyContainsFloatingIp):
+                    q_ex.PortAlreadyContainsFloatingIp):
                 request = dict(floating_network_id=network["id"],
                                port_id=port["id"],
                                fixed_ip_address="192.168.0.1")
@@ -415,7 +426,7 @@ class TestCreateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
 
         with self._stubs(port=port, network=network):
             with self.assertRaises(
-                    quark_exceptions.NoAvailableFixedIPsForPort):
+                    q_ex.NoAvailableFixedIPsForPort):
                 request = dict(floating_network_id=network["id"],
                                port_id=port["id"])
                 self.plugin.create_floatingip(self.context,
@@ -444,8 +455,186 @@ class TestCreateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
 
         with self._stubs(port=port, ips=ips, network=network):
             with self.assertRaises(
-                    quark_exceptions.NoAvailableFixedIPsForPort):
+                    q_ex.NoAvailableFixedIPsForPort):
                 request = dict(floating_network_id=network["id"],
                                port_id=port["id"])
                 self.plugin.create_floatingip(self.context,
                                               dict(floatingip=request))
+
+
+class TestUpdateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
+    @contextlib.contextmanager
+    def _stubs(self, flip=None, curr_port=None, new_port=None):
+        curr_port_model = None
+        if curr_port:
+            curr_port_model = models.Port()
+            curr_port_model.update(curr_port)
+
+        new_port_model = None
+        if new_port:
+            new_port_model = models.Port()
+            new_port_model.update(new_port)
+            fixed_ips = new_port.get("fixed_ips")
+            if fixed_ips:
+                new_port_model.ip_addresses = []
+                for ip in fixed_ips:
+                    addr = netaddr.IPAddress(ip)
+                    fixed_ip_model = models.IPAddress()
+                    fixed_ip_model.update(dict(address_readable=ip,
+                                               address=int(addr), version=4,
+                                               address_type="fixed"))
+                    new_port_model.ip_addresses.append(fixed_ip_model)
+
+        flip_model = None
+        if flip:
+            flip_model = models.IPAddress()
+            flip_model.update(flip)
+            if curr_port_model:
+                flip_model.ports = [curr_port_model]
+            fixed_ip = flip.get("fixed_ip_address")
+            if fixed_ip:
+                addr = netaddr.IPAddress(fixed_ip)
+                fixed_ip_model = models.IPAddress()
+                fixed_ip_model.update(dict(address_readable=fixed_ip,
+                                           address=int(addr), version=4,
+                                           address_type="fixed"))
+                flip_model.fixed_ip = fixed_ip_model
+
+        def _find_port(context, id, **kwargs):
+            return (curr_port_model if (curr_port_model and
+                                        id == curr_port_model.id)
+                    else new_port_model)
+
+        def _flip_assoc(context, addr, fixed_ip):
+            addr.fixed_ip = fixed_ip
+            return addr
+
+        def _flip_disassoc(context, addr):
+            addr.fixed_ip = None
+            return addr
+
+        def _port_assoc(context, ports, addr, enable_ports=None):
+            addr.ports = ports
+            return addr
+
+        def _port_dessoc(context, ports, addr):
+            addr.associations = []
+            addr.ports = []
+            return addr
+
+        with contextlib.nested(
+            mock.patch("quark.db.api.floating_ip_find"),
+            mock.patch("quark.db.api.port_find"),
+            mock.patch("quark.drivers.unicorn_driver.UnicornDriver"
+                       ".register_floating_ip"),
+            mock.patch("quark.drivers.unicorn_driver.UnicornDriver"
+                       ".update_floating_ip"),
+            mock.patch("quark.drivers.unicorn_driver.UnicornDriver"
+                       ".remove_floating_ip"),
+            mock.patch("quark.db.api.port_associate_ip"),
+            mock.patch("quark.db.api.port_disassociate_ip"),
+            mock.patch("quark.db.api.floating_ip_associate_fixed_ip"),
+            mock.patch("quark.db.api.floating_ip_disassociate_fixed_ip")
+        ) as (flip_find, port_find, reg_flip, update_flip, rem_flip,
+              port_assoc, port_dessoc, flip_assoc, flip_dessoc):
+            flip_find.return_value = flip_model
+            port_find.side_effect = _find_port
+            port_assoc.side_effect = _port_assoc
+            port_dessoc.side_effect = _port_dessoc
+            flip_assoc.side_effect = _flip_assoc
+            flip_dessoc.side_effect = _flip_disassoc
+            yield
+
+    def test_update_with_new_port_and_no_previous_port(self):
+        new_port = dict(id="2", fixed_ips=["192.168.0.1"])
+        addr = netaddr.IPAddress("10.0.0.1")
+        flip = dict(id="3", fixed_ip_address="172.16.1.1", address=int(addr),
+                    address_readable=str(addr))
+
+        with self._stubs(flip=flip, new_port=new_port):
+            content = dict(port_id=new_port["id"])
+            ret = self.plugin.update_floatingip(self.context, flip["id"],
+                                                dict(floatingip=content))
+            self.assertEqual(ret["fixed_ip_address"], "192.168.0.1")
+            self.assertEqual(ret["port_id"], new_port["id"])
+
+    def test_update_with_new_port(self):
+        curr_port = dict(id="1")
+        new_port = dict(id="2", fixed_ips=["192.168.0.1"])
+        addr = netaddr.IPAddress("10.0.0.1")
+        flip = dict(id="3", fixed_ip_address="172.16.1.1", address=int(addr),
+                    address_readable=str(addr))
+
+        with self._stubs(flip=flip, curr_port=curr_port, new_port=new_port):
+            content = dict(port_id=new_port["id"])
+            ret = self.plugin.update_floatingip(self.context, flip["id"],
+                                                dict(floatingip=content))
+            self.assertEqual(ret["fixed_ip_address"], "192.168.0.1")
+            self.assertEqual(ret["port_id"], new_port["id"])
+
+    def test_update_with_no_port(self):
+        curr_port = dict(id="1")
+        addr = netaddr.IPAddress("10.0.0.1")
+        flip = dict(id="3", fixed_ip_address="172.16.1.1", address=int(addr),
+                    address_readable=str(addr))
+
+        with self._stubs(flip=flip, curr_port=curr_port):
+            content = dict(port_id=None)
+            ret = self.plugin.update_floatingip(self.context, flip["id"],
+                                                dict(floatingip=content))
+            self.assertEqual(ret.get("fixed_ip_address"), None)
+            self.assertEqual(ret.get("port_id"), None)
+
+    def test_update_with_non_existent_port_should_fail(self):
+        addr = netaddr.IPAddress("10.0.0.1")
+        flip = dict(id="3", fixed_ip_address="172.16.1.1", address=int(addr),
+                    address_readable=str(addr))
+
+        with self._stubs(flip=flip):
+            with self.assertRaises(ex.PortNotFound):
+                content = dict(port_id="123")
+                self.plugin.update_floatingip(self.context, flip["id"],
+                                              dict(floatingip=content))
+
+    def test_update_with_port_with_no_fixed_ip_avail_should_fail(self):
+        new_port = dict(id="123")
+        addr = netaddr.IPAddress("10.0.0.1")
+        flip = dict(id="3", fixed_ip_address="172.16.1.1", address=int(addr),
+                    address_readable=str(addr))
+
+        with self._stubs(flip=flip, new_port=new_port):
+            with self.assertRaises(q_ex.NoAvailableFixedIPsForPort):
+                content = dict(port_id="123")
+                self.plugin.update_floatingip(self.context, flip["id"],
+                                              dict(floatingip=content))
+
+    def test_update_with_same_port_should_fail(self):
+        new_port = dict(id="123")
+        curr_port = dict(id="123")
+        addr = netaddr.IPAddress("10.0.0.1")
+        flip = dict(id="3", fixed_ip_address="172.16.1.1", address=int(addr),
+                    address_readable=str(addr))
+
+        with self._stubs(flip=flip, new_port=new_port, curr_port=curr_port):
+            with self.assertRaises(q_ex.PortAlreadyAssociatedToFloatingIP):
+                content = dict(port_id="123")
+                self.plugin.update_floatingip(self.context, flip["id"],
+                                              dict(floatingip=content))
+
+    def test_update_with_no_port_and_no_previous_port_should_fail(self):
+        addr = netaddr.IPAddress("10.0.0.1")
+        flip = dict(id="3", fixed_ip_address="172.16.1.1", address=int(addr),
+                    address_readable=str(addr))
+
+        with self._stubs(flip=flip):
+            with self.assertRaises(q_ex.FloatingIPUpdateNoPortIdSupplied):
+                content = dict(port_id=None)
+                self.plugin.update_floatingip(self.context, flip["id"],
+                                              dict(floatingip=content))
+
+    def test_update_with_missing_port_id_param_should_fail(self):
+        with self._stubs():
+            with self.assertRaises(ex.BadRequest):
+                content = {}
+                self.plugin.update_floatingip(self.context, "123",
+                                              dict(floatingip=content))

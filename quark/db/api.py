@@ -299,6 +299,12 @@ def ip_address_delete(context, addr):
     context.session.delete(addr)
 
 
+def ip_address_deallocate(context, address, **kwargs):
+    kwargs["_deallocated"] = 1
+    kwargs["deallocated_at"] = timeutils.utcnow()
+    return ip_address_update(context, address, **kwargs)
+
+
 @scoped
 def ip_address_find(context, lock_mode=False, **filters):
     query = context.session.query(models.IPAddress)
@@ -898,12 +904,11 @@ def floating_ip_find(context, lock_mode=False, limit=None, sorts=None,
                           limit, sorts, marker)
 
 
-def floating_ip_associate_fixed_ip(context, floating_ip, fixed_ip,
-                                   enable=True):
-    assoc = models.FloatingToFixedIPAssociation()
-    assoc.floating_ip_address_id = floating_ip.id
-    assoc.fixed_ip_address_id = fixed_ip.id
-    assoc.enabled = enable
-    context.session.add(assoc)
+def floating_ip_associate_fixed_ip(context, floating_ip, fixed_ip):
     floating_ip.fixed_ip = fixed_ip
+    return floating_ip
+
+
+def floating_ip_disassociate_fixed_ip(context, floating_ip):
+    floating_ip.fixed_ip = None
     return floating_ip
