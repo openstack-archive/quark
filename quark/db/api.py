@@ -318,6 +318,10 @@ def ip_address_find(context, lock_mode=False, **filters):
         model_filters.append(models.IPAddress.ports.any(
             models.Port.device_id.in_(filters["device_id"])))
 
+    if filters.get("service"):
+        model_filters.append(models.IPAddress.ports.any(
+            models.Port.service == filters["service"]))
+
     if filters.get("port_id"):
         model_filters.append(models.IPAddress.ports.any(
             models.Port.id == filters['port_id']))
