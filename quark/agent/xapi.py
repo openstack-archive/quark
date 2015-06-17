@@ -117,7 +117,7 @@ class XapiClient(object):
             raise
         finally:
             if session:
-                session.logout()
+                session.xenapi.session.logout()
 
     def get_instances(self, session):
         """Returns a dict of `VM OpaqueRef` (str) -> `xapi.VM`."""
