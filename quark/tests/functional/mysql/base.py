@@ -21,7 +21,7 @@ class MySqlBaseFunctionalTest(test_base.TestBase):
             'database')
         cfg.CONF.set_override(
             'connection_debug',
-            '100',
+            '0',
             'database')
 
     def setUp(self):

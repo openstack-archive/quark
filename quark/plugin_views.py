@@ -204,12 +204,16 @@ def _make_port_for_ip_dict(port, fields=None):
     return res
 
 
+def _ip_is_fixed(port, ip):
+    at = ip.get('address_type')
+    return (not at or at == ip_types.FIXED or (at == ip_types.SHARED and
+                                               port.service != "none"))
+
+
 def _make_port_dict(port, fields=None):
     res = _port_dict(port)
     res["fixed_ips"] = [_make_port_address_dict(ip, port, fields)
-                        for ip in port.ip_addresses
-                        if (not ip.get("address_type") or
-                            ip.get("address_type") == ip_types.FIXED)]
+                        for ip in port.ip_addresses if _ip_is_fixed(port, ip)]
     return res
 
 
@@ -226,10 +230,8 @@ def _make_ports_list(query, fields=None):
     for port in query:
         port_dict = _port_dict(port, fields)
         port_dict["fixed_ips"] = [_make_port_address_dict(ip, port, fields)
-                                  for ip in port.ip_addresses
-                                  if (not ip.get("address_type") or
-                                      ip.get("address_type") == ip_types.FIXED)
-                                  ]
+                                  for ip in port.ip_addresses if
+                                  _ip_is_fixed(port, ip)]
         ports.append(port_dict)
     return ports
 

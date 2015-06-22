@@ -760,6 +760,11 @@ class TestQuarkGetIpAddressPort(test_quark_plugin.TestQuarkPlugin):
             self._alloc_stub(ip_model))
 
         res = self.plugin.get_ports_for_ip_address(self.context, 1)[0]
+        mock_dbapi.port_find.assert_called_with(self.context, None, None, None,
+                                                join_security_groups=True,
+                                                fields=None,
+                                                ip_address_id=[1])
+
         self.assertEqual(port["id"], res["id"])
         self.assertEqual(port["service"], res["service"])
         self.assertEqual(port["device_id"], res["device_id"])
@@ -773,18 +778,32 @@ class TestQuarkGetIpAddressPort(test_quark_plugin.TestQuarkPlugin):
                     tenant_id=self.context.tenant_id, device_id=2,
                     bridge="xenbr0", device_owner='network:dhcp',
                     service='none', id=100)
+        port2 = dict(mac_address="AA:BB:CC:DD:EE:FF", network_id=1,
+                     tenant_id=self.context.tenant_id, device_id=2,
+                     bridge="xenbr0", device_owner='network:dhcp',
+                     service='none', id=100)
         ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
                   subnet_id=1, network_id=2, version=4)
         port_model = models.Port()
         port_model.update(port)
+        port_model2 = models.Port()
+        port_model2.update(port2)
         ip_model = models.IPAddress()
         ip_model.update(ip)
 
         mock_dbapi.port_find.return_value = port_model
         mock_ipam.allocate_ip_address.side_effect = (
             self._alloc_stub(ip_model))
+        mock_dbapi.ip_address_find.return_value = ip_model
 
         res = self.plugin.get_port_for_ip_address(self.context, 1, 100)
+
+        mock_dbapi.ip_address_find.assert_called_with(self.context,
+                                                      scope=mock_dbapi.ONE,
+                                                      id=1)
+        mock_dbapi.port_find.assert_called_with(self.context, fields=None,
+                                                id=100, ip_address_id=[1],
+                                                scope=mock_dbapi.ONE)
         self.assertEqual(port["id"], res["id"])
         self.assertEqual(port["service"], res["service"])
         self.assertEqual(port["device_id"], res["device_id"])
