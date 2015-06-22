@@ -516,36 +516,12 @@ class QuarkIpam(object):
                 LOG.info("Generated a new v6 address {0}".format(
                     str(ip_address)))
 
-                # NOTE(mdietz): treating the IPSet as a boolean caused netaddr
-                #               to attempt to enumerate the entire set!
                 if (ip_policy_cidrs is not None and
                         ip_address in ip_policy_cidrs):
                     LOG.info("Address {0} excluded by policy".format(
                         str(ip_address)))
                     continue
 
-                # TODO(mdietz): replace this with a compare-and-swap loop
-                with context.session.begin():
-                    address = db_api.ip_address_find(
-                        context, network_id=net_id, ip_address=ip_address,
-                        scope=db_api.ONE, reuse_after=reuse_after,
-                        deallocated=True, subnet_id=subnet["id"],
-                        lock_mode=True)
-
-                    if address:
-                        LOG.info("Address {0} exists, claiming".format(
-                            str(ip_address)))
-                        return db_api.ip_address_update(
-                            context, address, deallocated=False,
-                            deallocated_at=None,
-                            used_by_tenant_id=context.tenant_id,
-                            allocated_at=timeutils.utcnow(),
-                            address_type=kwargs.get('address_type',
-                                                    ip_types.FIXED))
-
-                # This triggers when the IP is allocated to another tenant,
-                # either because we missed it due to our filters above, or
-                # in an extremely unlikely race between the find and here.
                 try:
                     with context.session.begin():
                         return db_api.ip_address_create(
@@ -555,6 +531,8 @@ class QuarkIpam(object):
                             address_type=kwargs.get('address_type',
                                                     ip_types.FIXED))
                 except db_exception.DBDuplicateEntry:
+                    # This shouldn't ever happen, since we hold a unique MAC
+                    # address from the previous IPAM step.
                     LOG.info("{0} exists but was already "
                              "allocated".format(str(ip_address)))
                     LOG.debug("Duplicate entry found when inserting subnet_id"
