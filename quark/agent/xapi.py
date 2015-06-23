@@ -116,7 +116,7 @@ class XapiClient(object):
             LOG.exception("Failed to create a XAPI session")
             raise
         finally:
-            if session:
+            if session is not None:
                 session.xenapi.session.logout()
 
     def get_instances(self, session):
