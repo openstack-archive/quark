@@ -21,7 +21,7 @@ import netaddr
 from neutron.common import exceptions
 from neutron.common import rpc
 from oslo.config import cfg
-from oslo.db import exception as db_exc
+from oslo_db import exception as db_exc
 
 from quark.db import models
 from quark import exceptions as q_exc
