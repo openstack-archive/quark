@@ -1396,7 +1396,7 @@ class TestQuarkPortCreateFiltering(test_quark_plugin.TestQuarkPlugin):
             mock.patch("quark.db.api.network_find"),
             mock.patch("quark.ipam.QuarkIpam.allocate_ip_address"),
             mock.patch("quark.ipam.QuarkIpam.allocate_mac_address"),
-            mock.patch("neutron.openstack.common.uuidutils.generate_uuid"),
+            mock.patch("oslo_utils.uuidutils.generate_uuid"),
             mock.patch("quark.plugin_views._make_port_dict"),
             mock.patch("quark.db.api.port_count_all"),
             mock.patch("neutron.quota.QuotaEngine.limit_check")

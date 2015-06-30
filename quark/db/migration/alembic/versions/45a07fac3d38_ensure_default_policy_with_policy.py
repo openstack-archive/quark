@@ -15,8 +15,8 @@ import logging
 from alembic import op
 from sqlalchemy.sql import column, select, table
 import netaddr
-from neutron.openstack.common import uuidutils
 from oslo.utils import timeutils
+from oslo_utils import uuidutils
 import sqlalchemy as sa
 
 LOG = logging.getLogger("alembic.migration")

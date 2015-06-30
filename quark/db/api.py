@@ -19,10 +19,10 @@ import inspect
 import json
 import netaddr
 from neutron.db.sqlalchemyutils import paginate_query
-from neutron.openstack.common import uuidutils
 from oslo.config import cfg
 from oslo.utils import timeutils
 from oslo_log import log as logging
+from oslo_utils import uuidutils
 from sqlalchemy import event
 from sqlalchemy import func as sql_func
 from sqlalchemy import and_, asc, desc, orm, or_, not_

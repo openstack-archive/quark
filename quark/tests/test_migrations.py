@@ -97,7 +97,7 @@ class Test2748e48cee3a(BaseMigrationTest):
                  ip_policy_id="111", cidr="192.168.10.0/16"))
 
         with contextlib.nested(
-            mock.patch("neutron.openstack.common.uuidutils"),
+            mock.patch("oslo_utils.uuidutils"),
             mock.patch("oslo.utils.timeutils")
         ) as (uuid, tu):
             tu.utcnow.return_value = datetime.datetime(2004, 2, 14)
@@ -122,7 +122,7 @@ class Test2748e48cee3a(BaseMigrationTest):
                  ip_policy_id="111", cidr="fd00::/7"))
 
         with contextlib.nested(
-            mock.patch("neutron.openstack.common.uuidutils"),
+            mock.patch("oslo_utils.uuidutils"),
             mock.patch("oslo.utils.timeutils")
         ) as (uuid, tu):
             tu.utcnow.return_value = datetime.datetime(2004, 2, 14)
@@ -169,7 +169,7 @@ class Test2748e48cee3a(BaseMigrationTest):
                  cidr="0.0.0.0/24"))
 
         with contextlib.nested(
-            mock.patch("neutron.openstack.common.uuidutils"),
+            mock.patch("oslo_utils.uuidutils"),
             mock.patch("oslo.utils.timeutils")
         ) as (uuid, tu):
             tu.utcnow.return_value = datetime.datetime(2004, 2, 14)
@@ -203,7 +203,7 @@ class Test2748e48cee3a(BaseMigrationTest):
                  ip_policy_id="111", cidr="192.168.10.0/23"))
 
         with contextlib.nested(
-            mock.patch("neutron.openstack.common.uuidutils"),
+            mock.patch("oslo_utils.uuidutils"),
             mock.patch("oslo.utils.timeutils")
         ) as (uuid, tu):
             tu.utcnow.return_value = datetime.datetime(2004, 2, 14)
@@ -277,7 +277,7 @@ class Test45a07fac3d38(BaseMigrationTest):
             dict(id="222", created_at=datetime.date(1970, 1, 1),
                  ip_policy_id="111", cidr="192.168.10.13/32"))
         with contextlib.nested(
-            mock.patch("neutron.openstack.common.uuidutils"),
+            mock.patch("oslo_utils.uuidutils"),
             mock.patch("oslo.utils.timeutils")
         ) as (uuid, tu):
             uuid.generate_uuid.side_effect = (1, 2, 3)
@@ -306,7 +306,7 @@ class Test45a07fac3d38(BaseMigrationTest):
             dict(id="222", created_at=datetime.date(1970, 1, 1),
                  ip_policy_id="111", cidr="fd00::3/128"))
         with contextlib.nested(
-            mock.patch("neutron.openstack.common.uuidutils"),
+            mock.patch("oslo_utils.uuidutils"),
             mock.patch("oslo.utils.timeutils")
         ) as (uuid, tu):
             uuid.generate_uuid.side_effect = (1, 2, 3)
@@ -480,7 +480,7 @@ class Test552b213c2b8c(BaseMigrationTest):
             dict(id="000", tenant_id="foo", _cidr="192.168.10.0/24",
                  ip_policy_id=None))
         with contextlib.nested(
-            mock.patch("neutron.openstack.common.uuidutils"),
+            mock.patch("oslo_utils.uuidutils"),
             mock.patch("oslo.utils.timeutils")
         ) as (uuid, tu):
             dt = datetime.datetime(1970, 1, 1)
@@ -515,7 +515,7 @@ class Test552b213c2b8c(BaseMigrationTest):
             dict(id="000", tenant_id="foo", _cidr="fd00::/64",
                  ip_policy_id=None))
         with contextlib.nested(
-            mock.patch("neutron.openstack.common.uuidutils"),
+            mock.patch("oslo_utils.uuidutils"),
             mock.patch("oslo.utils.timeutils")
         ) as (uuid, tu):
             dt = datetime.datetime(1970, 1, 1)
@@ -564,7 +564,7 @@ class Test552b213c2b8c(BaseMigrationTest):
                  ip_policy_id="111", cidr="192.168.10.13/32"))
 
         with contextlib.nested(
-            mock.patch("neutron.openstack.common.uuidutils"),
+            mock.patch("oslo_utils.uuidutils"),
             mock.patch("oslo.utils.timeutils")
         ) as (uuid, tu):
             tu.utcnow.return_value = dt
