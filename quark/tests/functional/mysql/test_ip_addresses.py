@@ -80,7 +80,7 @@ class QuarkSharedIPs(MySqlBaseFunctionalTest):
                                             network_id=net['id'],
                                             version=4)}
             ip = ip_api.create_ip_address(self.context, shared_ip)
-            self.assertEqual(ip_types.SHARED, ip['address_type'])
+            self.assertEqual(ip_types.SHARED, ip['type'])
 
             ports_ip = ip_api.get_ports_for_ip_address(self.context, ip['id'])
             self.assertEqual(2, len(ports_ip))
@@ -102,7 +102,7 @@ class QuarkSharedIPs(MySqlBaseFunctionalTest):
                                             network_id=net['id'],
                                             version=4)}
             ip = ip_api.create_ip_address(self.context, shared_ip)
-            self.assertEqual(ip_types.SHARED, ip['address_type'])
+            self.assertEqual(ip_types.SHARED, ip['type'])
 
             ports_ip = ip_api.get_ports_for_ip_address(self.context, ip['id'])
             self.assertEqual(2, len(ports_ip))
@@ -130,7 +130,7 @@ class QuarkSharedIPs(MySqlBaseFunctionalTest):
                                             network_id=net['id'],
                                             version=4)}
             ip = ip_api.create_ip_address(self.context, shared_ip)
-            self.assertEqual(ip_types.SHARED, ip['address_type'])
+            self.assertEqual(ip_types.SHARED, ip['type'])
 
             ports_ip = ip_api.get_ports_for_ip_address(self.context, ip['id'])
             self.assertEqual(2, len(ports_ip))
@@ -177,12 +177,12 @@ class QuarkSharedIPs(MySqlBaseFunctionalTest):
             self.assertEqual(2, len(ips))
 
             filters = dict(device_id='a', service='derp',
-                           address_type=ip_types.FIXED)
+                           type=ip_types.FIXED)
             ips = ip_api.get_ip_addresses(self.context, **filters)
             self.assertEqual(1, len(ips))
 
             filters = dict(device_id='a', service='derp',
-                           address_type=ip_types.SHARED)
+                           type=ip_types.SHARED)
             ips = ip_api.get_ip_addresses(self.context, **filters)
             self.assertEqual(1, len(ips))
 
