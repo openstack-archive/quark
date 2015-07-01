@@ -69,6 +69,7 @@ class TestIpAddresses(test_quark_plugin.TestQuarkPlugin):
             new_addr.extend([addr_model])
 
         with contextlib.nested(
+            mock.patch("quark.db.api.network_find"),
             mock.patch("quark.db.api.port_find"),
             mock.patch(
                 "quark.plugin_modules.ip_addresses.ipam_driver"),
@@ -78,7 +79,7 @@ class TestIpAddresses(test_quark_plugin.TestQuarkPlugin):
             mock.patch(
                 "quark.plugin_modules.ip_addresses"
                 ".validate_ports_on_network_and_same_segment")
-        ) as (port_find, mock_ipam, mock_port_associate_ip, validate):
+        ) as (net_f, port_find, mock_ipam, mock_port_associate_ip, validate):
             port_find.return_value = port_model
             mock_ipam.allocate_ip_address.side_effect = _alloc_ip
             mock_port_associate_ip.side_effect = _port_associate_stub
@@ -97,10 +98,10 @@ class TestIpAddresses(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(response["network_id"], ip_address["network_id"])
             self.assertEqual(response["port_ids"], [port["id"]])
             self.assertEqual(response["subnet_id"], ip["subnet_id"])
-            self.assertEqual(response['address_type'], None)
+            self.assertEqual(response['type'], None)
             self.assertEqual(response["version"], 4)
             self.assertEqual(response["address"], "192.168.1.100")
-            self.assertEqual(response["used_by_tenant_id"], 1)
+            self.assertEqual(response["tenant_id"], 1)
 
     def test_create_ip_address_with_port(self):
         port = dict(id=1, network_id=2, ip_addresses=[])
@@ -125,11 +126,10 @@ class TestIpAddresses(test_quark_plugin.TestQuarkPlugin):
                 self.plugin.create_ip_address(self.context,
                                               dict(ip_address=ip_address))
 
-    def test_create_ip_address_invalid_network_and_device(self):
+    def test_create_ip_address_invalid_missing_port_and_device_list(self):
         with self._stubs(port=None, addr=None):
-            with self.assertRaises(exceptions.PortNotFound):
+            with self.assertRaises(exceptions.BadRequest):
                 ip_address = {'ip_address': {'network_id': 'fake',
-                                             'device_id': 'fake',
                                              'version': 4}}
                 self.plugin.create_ip_address(self.context, ip_address)
 
@@ -138,7 +138,7 @@ class TestIpAddresses(test_quark_plugin.TestQuarkPlugin):
             with self.assertRaises(exceptions.PortNotFound):
                 ip_address = {
                     'ip_address': {
-                        'port_id': 'fake',
+                        'port_ids': ['fake'],
                         'version': 4,
                         'network_id': 'fake'
                     }
@@ -158,13 +158,14 @@ class TestCreateIpAddressQuotaCheck(test_quark_plugin.TestQuarkPlugin):
             port_model["ip_addresses"].append(addr_model)
 
         with contextlib.nested(
+            mock.patch("quark.db.api.network_find"),
             mock.patch("quark.db.api.port_find"),
             mock.patch("quark.plugin_modules.ip_addresses.ipam_driver"),
             mock.patch("quark.plugin_modules.ip_addresses.db_api"
                        ".port_associate_ip"),
             mock.patch("quark.plugin_modules.ip_addresses"
                        ".validate_ports_on_network_and_same_segment")
-        ) as (port_find, mock_ipam, mock_port_associate_ip, validate):
+        ) as (net_f, port_find, mock_ipam, mock_port_associate_ip, validate):
             port_find.return_value = port_model
             yield
 
@@ -200,7 +201,7 @@ class TestQuarkSharedIPAddressCreate(test_quark_plugin.TestQuarkPlugin):
                                                        mock_ipam, *args):
         port = dict(id=1, network_id=2, ip_addresses=[])
         ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
-                  subnet_id=1, network_id=2, version=4, used_by_tenant_id=1)
+                  subnet_id=1, network_id=2, version=4, tenant_id=1)
         port_model = models.Port()
         port_model.update(port)
         ip_model = models.IPAddress()
@@ -224,7 +225,7 @@ class TestQuarkSharedIPAddressCreate(test_quark_plugin.TestQuarkPlugin):
         ports = [dict(id=1, network_id=2, ip_addresses=[], service="none"),
                  dict(id=2, network_id=2, ip_addresses=[], service="none")]
         ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
-                  subnet_id=1, network_id=2, version=4, used_by_tenant_id=1)
+                  subnet_id=1, network_id=2, version=4, tenant_id=1)
         port_models = [models.Port(**p) for p in ports]
         ip_model = models.IPAddress()
         ip_model.update(ip)
@@ -253,7 +254,7 @@ class TestQuarkSharedIPAddressCreate(test_quark_plugin.TestQuarkPlugin):
         cfg.CONF.set_override('ipam_reuse_after', 100, "QUARK")
         ports = [dict(id=1, network_id=2, ip_addresses=[])]
         ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
-                  subnet_id=1, network_id=2, version=4, used_by_tenant_id=1)
+                  subnet_id=1, network_id=2, version=4, tenant_id=1)
         port_models = [models.Port(**p) for p in ports]
         ip_model = models.IPAddress()
         ip_model.update(ip)
@@ -923,36 +924,6 @@ class TestQuarkGetIpAddressPort(test_quark_plugin.TestQuarkPlugin):
         self.assertTrue(mock_port_update.called)
         self.assertTrue(mock_port_update.called_once_with(
             self.context, 100, port_update))
-
-    def test_fail_to_update_service_with_active_shared_ip(self, mock_dbapi,
-                                                          mock_ipam, *args):
-        port = dict(id=100, service='none', network_id=2,
-                    backend_key="derp", device_id="y")
-        port2 = dict(id=101, service='compute', network_id=2,
-                     backend_key="derp", device_id="x")
-        ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
-                  subnet_id=1, network_id=2, version=4, address_type="shared")
-        port_model = models.Port()
-        port_model2 = models.Port()
-        port_model.update(port)
-        port_model2.update(port2)
-        ip_model = models.IPAddress()
-        ip_model.update(ip)
-        ip_model.ports = [port_model, port_model2]
-
-        mock_port_update = patch('quark.plugin_modules.ports.update_port')
-        self.addCleanup(mock_port_update.stop)
-        mock_port_update = mock_port_update.start()
-
-        mock_dbapi.port_find.return_value = port_model
-        mock_dbapi.ip_address_find.return_value = ip_model
-        mock_ipam.allocate_ip_address.side_effect = (
-            self._alloc_stub(ip_model))
-        port_update = dict(service='derp')
-        port_update = {'port': port_update}
-        qe = quark_exceptions
-        with self.assertRaises(qe.PortRequiresDisassociation):
-            self.plugin.update_port_for_ip(self.context, 1, 100, port_update)
 
     def test_update_shared_ip_deactivate(self, mock_dbapi, mock_ipam, *args):
         port = dict(id=100, service='compute', network_id=2,

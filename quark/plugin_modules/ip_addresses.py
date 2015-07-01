@@ -37,6 +37,10 @@ ipam_driver = ipam.IPAM_REGISTRY.get_strategy(ipam.QuarkIpamANY.get_name())
 
 def get_ip_addresses(context, **filters):
     LOG.info("get_ip_addresses for tenant %s" % context.tenant_id)
+    if not filters:
+        filters = {}
+    if 'type' in filters:
+        filters['address_type'] = filters['type']
     filters["_deallocated"] = False
     addrs = db_api.ip_address_find(context, scope=db_api.ALL, **filters)
     return [v._make_ip_dict(ip) for ip in addrs]
@@ -45,7 +49,9 @@ def get_ip_addresses(context, **filters):
 def get_ip_address(context, id):
     LOG.info("get_ip_address %s for tenant %s" %
              (id, context.tenant_id))
-    addr = db_api.ip_address_find(context, id=id, scope=db_api.ONE)
+    filters = {}
+    filters["_deallocated"] = False
+    addr = db_api.ip_address_find(context, id=id, scope=db_api.ONE, **filters)
     if not addr:
         raise quark_exceptions.IpAddressNotFound(addr_id=id)
     return v._make_ip_dict(addr)
@@ -108,9 +114,18 @@ def create_ip_address(context, body):
     if not ip_version:
         raise exceptions.BadRequest(resource="ip_addresses",
                                     msg="version is required.")
-    if not network_id:
+    if network_id is None:
         raise exceptions.BadRequest(resource="ip_addresses",
                                     msg="network_id is required.")
+    if network_id == "":
+        raise exceptions.NetworkNotFound(net_id=network_id)
+    net = db_api.network_find(context, None, None, None, False,
+                              id=network_id, scope=db_api.ONE)
+    if not net:
+        raise exceptions.NetworkNotFound(net_id=network_id)
+    if not port_ids and not device_ids:
+        raise exceptions.BadRequest(resource="ip_addresses",
+                                    msg="port_ids or device_ids required.")
 
     new_addresses = []
     ports = []
@@ -328,10 +343,11 @@ def update_port_for_ip_address(context, ip_id, id, port):
     if not addr:
         raise quark_exceptions.IpAddressNotFound(addr_id=ip_id)
 
+    require_da = False
     ports = addr.ports
     iptype = addr.address_type
 
-    if _shared_ip_and_active(iptype, ports, except_port=id):
+    if require_da and _shared_ip_and_active(iptype, ports, except_port=id):
         raise quark_exceptions.PortRequiresDisassociation()
 
     new_port = {"port": port_dict}

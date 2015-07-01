@@ -264,9 +264,9 @@ def _make_ip_dict(address):
             "port_ids": [assoc.port_id
                          for assoc in address["associations"]],
             "subnet_id": address["subnet_id"],
-            "used_by_tenant_id": address["used_by_tenant_id"],
+            "tenant_id": address["used_by_tenant_id"],
             "version": address["version"],
-            "address_type": address['address_type']}
+            "type": address['address_type']}
 
 
 def _make_ip_policy_dict(ipp):
