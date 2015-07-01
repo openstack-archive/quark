@@ -816,6 +816,10 @@ class QuarkIpam(object):
                 return False
         return True
 
+    # RM6180(roaet):
+    # - removed session.begin due to deadlocks
+    # - fix off-by-one error and overflow
+    @synchronized(named("select_subnet"))
     def select_subnet(self, context, net_id, ip_address, segment_id,
                       subnet_ids=None, **filters):
         LOG.info("Selecting subnet(s) - (Step 2 of 3) [{0}]".format(
