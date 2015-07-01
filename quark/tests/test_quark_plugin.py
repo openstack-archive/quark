@@ -15,7 +15,7 @@
 
 
 import mock
-from oslo.config import cfg
+from oslo_config import cfg
 
 import quark.plugin
 from quark.tests.functional.base import BaseFunctionalTest

@@ -15,7 +15,7 @@
 
 import contextlib
 
-from oslo.config import cfg
+from oslo_config import cfg
 
 from quark import environment as env
 from quark.tests import test_base

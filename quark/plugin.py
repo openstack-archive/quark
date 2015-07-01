@@ -20,7 +20,7 @@ v2 Neutron Plug-in API Quark Implementation
 from neutron.extensions import securitygroup as sg_ext
 from neutron import neutron_plugin_base_v2
 from neutron import quota
-from oslo.config import cfg
+from oslo_config import cfg
 from oslo_log import log as logging
 
 from quark.api import extensions

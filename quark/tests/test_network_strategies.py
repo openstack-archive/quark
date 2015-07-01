@@ -16,7 +16,7 @@
 import json
 
 from neutron.common import exceptions
-from oslo.config import cfg
+from oslo_config import cfg
 
 from quark import network_strategy
 from quark.tests import test_base

@@ -19,7 +19,7 @@ import time
 
 from neutron.common import config
 from neutron.common import utils as n_utils
-from oslo.config import cfg
+from oslo_config import cfg
 from oslo_log import log as logging
 
 from quark.agent import xapi

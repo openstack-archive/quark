@@ -3,11 +3,14 @@ import datetime
 import mock
 import netaddr
 from neutron.db import api as neutron_db_api
-from oslo.config import cfg
+from oslo_config import cfg
 
 from quark.db import models
 from quark import ip_availability as ip_avail
 from quark.tests.functional.base import BaseFunctionalTest
+
+
+EPOCH = datetime.date(1970, 1, 1)
 
 
 class QuarkIpAvailabilityBaseFunctionalTest(BaseFunctionalTest):
@@ -31,14 +34,15 @@ class QuarkIpAvailabilityBaseFunctionalTest(BaseFunctionalTest):
             excludes = (0, 255)
         self.connection.execute(
             self.ip_policy.insert(),
-            dict(id=id, size=len(excludes)))
+            id=id, size=len(excludes), created_at=EPOCH)
         self.connection.execute(
             self.ip_policy_cidr.insert(),
-            [dict(ip_policy_id=id, first_ip=x, last_ip=x)
+            [dict(ip_policy_id=id, first_ip=x, last_ip=x, created_at=EPOCH)
              for x in excludes])
 
     def _insert_network(self, id="00000000-0000-0000-0000-000000000000"):
-        self.connection.execute(self.networks.insert(), dict(id=id))
+        self.connection.execute(self.networks.insert(),
+                                id=id, created_at=EPOCH)
 
     def _insert_subnet(self,
                        do_not_use=0,
@@ -50,13 +54,14 @@ class QuarkIpAvailabilityBaseFunctionalTest(BaseFunctionalTest):
                        ip_version=4):
         self.connection.execute(
             self.subnets.insert(),
-            dict(do_not_use=do_not_use,
-                 _cidr=cidr,
-                 network_id=network_id,
-                 ip_version=ip_version,
-                 segment_id=segment_id,
-                 id=id,
-                 ip_policy_id=ip_policy_id))
+            do_not_use=do_not_use,
+            _cidr=cidr,
+            network_id=network_id,
+            ip_version=ip_version,
+            segment_id=segment_id,
+            id=id,
+            ip_policy_id=ip_policy_id,
+            created_at=EPOCH)
 
     def _insert_ip_address(self,
                            address=1,
@@ -66,11 +71,12 @@ class QuarkIpAvailabilityBaseFunctionalTest(BaseFunctionalTest):
                            deallocated_at=None):
         self.connection.execute(
             self.ip_addresses.insert(),
-            dict(address=address,
-                 address_readable=address_readable,
-                 subnet_id=subnet_id,
-                 _deallocated=deallocated,
-                 deallocated_at=deallocated_at))
+            address=address,
+            address_readable=address_readable,
+            subnet_id=subnet_id,
+            _deallocated=deallocated,
+            deallocated_at=deallocated_at,
+            created_at=EPOCH)
 
     def _default(self):
         self._insert_ip_policy()

@@ -49,7 +49,7 @@ import docopt
 import netaddr
 from neutron.common import config
 import neutron.context
-from oslo.config import cfg
+from oslo_config import cfg
 
 from quark.cache import security_groups_client as sg_client
 from quark.db import api as db_api

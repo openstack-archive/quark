@@ -16,7 +16,7 @@ from quark.plugin_modules import ip_policies
 
 from alembic import op
 from sqlalchemy.sql import column, select, table
-from oslo.utils import timeutils
+from oslo_utils import timeutils
 from oslo_utils import uuidutils
 import sqlalchemy as sa
 

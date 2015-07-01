@@ -19,7 +19,7 @@ import uuid
 
 import mock
 import netaddr
-from oslo.config import cfg
+from oslo_config import cfg
 import redis
 
 from quark.cache import redis_base

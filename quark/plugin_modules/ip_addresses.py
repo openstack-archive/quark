@@ -15,7 +15,7 @@
 
 from neutron.common import exceptions
 from neutron import quota
-from oslo.config import cfg
+from oslo_config import cfg
 from oslo_log import log as logging
 import webob
 

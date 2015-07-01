@@ -6,7 +6,7 @@ from gunicorn import config as gconfig
 from neutron.common import config
 from neutron.common import utils
 from neutron import service  # noqa  For api_workers config value
-from oslo.config import cfg
+from oslo_config import cfg
 from oslo_log import log as logging
 
 

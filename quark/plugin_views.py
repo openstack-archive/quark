@@ -18,7 +18,7 @@ View Helpers for Quark Plugin
 """
 
 import netaddr
-from oslo.config import cfg
+from oslo_config import cfg
 from oslo_log import log as logging
 
 from quark.db import ip_types

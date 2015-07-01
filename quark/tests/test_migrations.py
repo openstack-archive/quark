@@ -98,7 +98,7 @@ class Test2748e48cee3a(BaseMigrationTest):
 
         with contextlib.nested(
             mock.patch("oslo_utils.uuidutils"),
-            mock.patch("oslo.utils.timeutils")
+            mock.patch("oslo_utils.timeutils")
         ) as (uuid, tu):
             tu.utcnow.return_value = datetime.datetime(2004, 2, 14)
             uuid.generate_uuid.return_value = "foo"
@@ -123,7 +123,7 @@ class Test2748e48cee3a(BaseMigrationTest):
 
         with contextlib.nested(
             mock.patch("oslo_utils.uuidutils"),
-            mock.patch("oslo.utils.timeutils")
+            mock.patch("oslo_utils.timeutils")
         ) as (uuid, tu):
             tu.utcnow.return_value = datetime.datetime(2004, 2, 14)
             uuid.generate_uuid.return_value = "foo"
@@ -170,7 +170,7 @@ class Test2748e48cee3a(BaseMigrationTest):
 
         with contextlib.nested(
             mock.patch("oslo_utils.uuidutils"),
-            mock.patch("oslo.utils.timeutils")
+            mock.patch("oslo_utils.timeutils")
         ) as (uuid, tu):
             tu.utcnow.return_value = datetime.datetime(2004, 2, 14)
             uuid.generate_uuid.return_value = "foo"
@@ -204,7 +204,7 @@ class Test2748e48cee3a(BaseMigrationTest):
 
         with contextlib.nested(
             mock.patch("oslo_utils.uuidutils"),
-            mock.patch("oslo.utils.timeutils")
+            mock.patch("oslo_utils.timeutils")
         ) as (uuid, tu):
             tu.utcnow.return_value = datetime.datetime(2004, 2, 14)
             uuid.generate_uuid.return_value = "foo"
@@ -278,7 +278,7 @@ class Test45a07fac3d38(BaseMigrationTest):
                  ip_policy_id="111", cidr="192.168.10.13/32"))
         with contextlib.nested(
             mock.patch("oslo_utils.uuidutils"),
-            mock.patch("oslo.utils.timeutils")
+            mock.patch("oslo_utils.timeutils")
         ) as (uuid, tu):
             uuid.generate_uuid.side_effect = (1, 2, 3)
             tu.utcnow.return_value = datetime.datetime(1970, 1, 1)
@@ -307,7 +307,7 @@ class Test45a07fac3d38(BaseMigrationTest):
                  ip_policy_id="111", cidr="fd00::3/128"))
         with contextlib.nested(
             mock.patch("oslo_utils.uuidutils"),
-            mock.patch("oslo.utils.timeutils")
+            mock.patch("oslo_utils.timeutils")
         ) as (uuid, tu):
             uuid.generate_uuid.side_effect = (1, 2, 3)
             tu.utcnow.return_value = datetime.datetime(1970, 1, 1)
@@ -481,7 +481,7 @@ class Test552b213c2b8c(BaseMigrationTest):
                  ip_policy_id=None))
         with contextlib.nested(
             mock.patch("oslo_utils.uuidutils"),
-            mock.patch("oslo.utils.timeutils")
+            mock.patch("oslo_utils.timeutils")
         ) as (uuid, tu):
             dt = datetime.datetime(1970, 1, 1)
             tu.utcnow.return_value = dt
@@ -516,7 +516,7 @@ class Test552b213c2b8c(BaseMigrationTest):
                  ip_policy_id=None))
         with contextlib.nested(
             mock.patch("oslo_utils.uuidutils"),
-            mock.patch("oslo.utils.timeutils")
+            mock.patch("oslo_utils.timeutils")
         ) as (uuid, tu):
             dt = datetime.datetime(1970, 1, 1)
             tu.utcnow.return_value = dt
@@ -565,7 +565,7 @@ class Test552b213c2b8c(BaseMigrationTest):
 
         with contextlib.nested(
             mock.patch("oslo_utils.uuidutils"),
-            mock.patch("oslo.utils.timeutils")
+            mock.patch("oslo_utils.timeutils")
         ) as (uuid, tu):
             tu.utcnow.return_value = dt
             uuid.generate_uuid.side_effect = ("5", "6", "7", "8", "9", "10")

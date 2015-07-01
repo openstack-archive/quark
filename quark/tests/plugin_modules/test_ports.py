@@ -20,7 +20,7 @@ import mock
 import netaddr
 from neutron.api.v2 import attributes as neutron_attrs
 from neutron.common import exceptions
-from oslo.config import cfg
+from oslo_config import cfg
 
 from quark.db import models
 from quark import exceptions as q_exc

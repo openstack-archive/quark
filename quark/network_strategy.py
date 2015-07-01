@@ -16,7 +16,7 @@
 import json
 
 from neutron.common import exceptions
-from oslo.config import cfg
+from oslo_config import cfg
 from oslo_log import log as logging
 
 LOG = logging.getLogger(__name__)
