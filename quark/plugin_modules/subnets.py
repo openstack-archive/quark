@@ -17,7 +17,6 @@ import netaddr
 from neutron.common import config as neutron_cfg
 from neutron.common import exceptions
 from neutron.common import rpc as n_rpc
-from neutron.db import quota_db as qdb
 from neutron import quota
 from oslo_config import cfg
 from oslo_log import log as logging
@@ -32,6 +31,7 @@ from quark import network_strategy
 from quark.plugin_modules import ip_policies
 from quark.plugin_modules import routes
 from quark import plugin_views as v
+from quark import quota_driver as qdv
 from quark import utils
 
 CONF = cfg.CONF
@@ -140,7 +140,7 @@ def create_subnet(context, subnet):
                     v4_count += 1
 
             if cidr.version == 6:
-                tenant_quota_v6 = context.session.query(qdb.Quota).filter_by(
+                tenant_quota_v6 = context.session.query(qdv.Quota).filter_by(
                     tenant_id=context.tenant_id,
                     resource='v6_subnets_per_network').first()
                 if tenant_quota_v6 != -1:
@@ -148,7 +148,7 @@ def create_subnet(context, subnet):
                         context, context.tenant_id,
                         v6_subnets_per_network=v6_count + 1)
             else:
-                tenant_quota_v4 = context.session.query(qdb.Quota).filter_by(
+                tenant_quota_v4 = context.session.query(qdv.Quota).filter_by(
                     tenant_id=context.tenant_id,
                     resource='v4_subnets_per_network').first()
                 if tenant_quota_v4 != -1:
