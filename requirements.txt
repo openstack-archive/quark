@@ -2,7 +2,7 @@ SQLAlchemy==0.9.9
 alembic==0.7.6
 oslo.concurrency==1.9.0
 oslo.config==1.11.0
-oslo.db==1.12.0
+oslo.db==2.0.0
 oslo.middleware==1.2.0
 mysql-python==1.2.5
 Routes==2.1

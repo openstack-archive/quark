@@ -479,7 +479,7 @@ class QuarkPortFixedIPOperations(BaseFunctionalTest):
                          ip_address="192.168.10.199")]
             port = dict(port=dict(network_id=network['id'],
                                   tenant_id=self.context.tenant_id,
-                                  device_id=2,
+                                  device_id='2',
                                   fixed_ips=fixed_ips))
             expected = {'status': "ACTIVE",
                         'device_owner': None,
@@ -487,7 +487,7 @@ class QuarkPortFixedIPOperations(BaseFunctionalTest):
                         'tenant_id': self.context.tenant_id,
                         'admin_state_up': True,
                         'fixed_ips': fixed_ips,
-                        'device_id': 2}
+                        'device_id': '2'}
             result = port_api.create_port(self.context, port)
             result = port_api.get_port(self.context, result['id'])
             for key in expected.keys():
