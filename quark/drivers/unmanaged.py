@@ -15,8 +15,7 @@
 
 from oslo_log import log as logging
 
-from quark.cache import security_groups_client as sg_client
-from quark import environment as env
+from quark.drivers import security_groups as sg_driver
 from quark import network_strategy
 
 
@@ -31,6 +30,7 @@ class UnmanagedDriver(object):
     """
     def __init__(self):
         self.load_config()
+        self.sg_driver = sg_driver.SecurityGroupDriver()
 
     def load_config(self):
         LOG.info("load_config")
@@ -60,37 +60,14 @@ class UnmanagedDriver(object):
         bridge_name = STRATEGY.get_network(context, network_id)["bridge"]
         return {"uuid": port_id, "bridge": bridge_name}
 
-    @env.has_capability(env.Capabilities.SECURITY_GROUPS)
-    def _update_port_security_groups(self, **kwargs):
-        if "security_groups" in kwargs:
-            client = sg_client.SecurityGroupsClient(use_master=True)
-            if kwargs["security_groups"]:
-                payload = client.serialize_groups(kwargs["security_groups"])
-                client.apply_rules(kwargs["device_id"], kwargs["mac_address"],
-                                   payload)
-            else:
-                client.delete_vif_rules(kwargs["device_id"],
-                                        kwargs["mac_address"])
-
     def update_port(self, context, port_id, **kwargs):
         LOG.info("update_port %s %s" % (context.tenant_id, port_id))
-        self._update_port_security_groups(**kwargs)
+        self.sg_driver.update_port(**kwargs)
         return {"uuid": port_id}
-
-    @env.has_capability(env.Capabilities.SECURITY_GROUPS)
-    def _delete_port_security_groups(self, **kwargs):
-        # Contacting redis is cheaper than hitting the database to find out
-        # if we have rules to delete, and deleting an absence of rules is a
-        # NOOP, so this is a safe operation
-        try:
-            client = sg_client.SecurityGroupsClient(use_master=True)
-            client.delete_vif(kwargs["device_id"], kwargs["mac_address"])
-        except Exception:
-            LOG.exception("Failed to reach the security groups backend")
 
     def delete_port(self, context, port_id, **kwargs):
         LOG.info("delete_port %s %s" % (context.tenant_id, port_id))
-        self._delete_port_security_groups(**kwargs)
+        self.sg_driver.delete_port(**kwargs)
 
     def diag_port(self, context, network_id, **kwargs):
         LOG.info("diag_port %s" % network_id)
