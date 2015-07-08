@@ -222,10 +222,12 @@ class QuarkIpam(object):
                     "transaction_id": transaction.id
                 }
                 filter_kwargs = {
-                    "reuse_after": reuse_after,
                     "deallocated": True,
-                    "address": mac_address
                 }
+                if mac_address is not None:
+                    filter_kwargs["address"] = mac_address
+                if reuse_after is not None:
+                    filter_kwargs["reuse_after"] = reuse_after
                 elevated = context.elevated()
                 result = db_api.mac_address_reallocate(
                     elevated, update_kwargs, **filter_kwargs)
@@ -363,12 +365,13 @@ class QuarkIpam(object):
 
         ip_kwargs = {
             "network_id": net_id,
-            "reuse_after": reuse_after,
             "deallocated": True,
-            "ip_address": ip_address,
             "version": version,
         }
-        if ip_address:
+        if reuse_after is not None:
+            ip_kwargs["reuse_after"] = reuse_after
+        if ip_address is not None:
+            ip_kwargs["ip_address"] = ip_address
             del ip_kwargs["deallocated"]
         if sub_ids:
             ip_kwargs["subnet_id"] = sub_ids
