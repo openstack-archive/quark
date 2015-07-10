@@ -1,6 +1,6 @@
 from neutron import context
 from neutron.db import api as neutron_db_api
-from oslo.config import cfg
+from oslo_config import cfg
 from sqlalchemy.orm import configure_mappers
 
 from quark.db import models

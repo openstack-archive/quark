@@ -18,7 +18,7 @@ import contextlib
 import mock
 from mock import patch
 from neutron.common import exceptions
-from oslo.config import cfg
+from oslo_config import cfg
 import webob
 
 from quark.db import models

@@ -16,7 +16,7 @@
 from neutron.common import exceptions
 from neutron.extensions import securitygroup as sg_ext
 from neutron import quota
-from oslo.config import cfg
+from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_utils import uuidutils
 

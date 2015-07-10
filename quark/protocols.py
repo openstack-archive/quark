@@ -16,7 +16,7 @@
 import netaddr
 from neutron.common import exceptions
 from neutron.extensions import securitygroup as sg_ext
-from oslo.config import cfg
+from oslo_config import cfg
 from oslo_log import log as logging
 
 from quark import exceptions as q_exc

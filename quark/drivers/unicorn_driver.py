@@ -21,7 +21,7 @@ import json
 import netaddr
 import requests
 
-from oslo.config import cfg
+from oslo_config import cfg
 from oslo_log import log as logging
 
 from quark import exceptions as ex

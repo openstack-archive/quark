@@ -20,7 +20,7 @@ import mock
 import netaddr
 from neutron.common import exceptions
 from neutron.common import rpc
-from oslo.config import cfg
+from oslo_config import cfg
 from oslo_db import exception as db_exc
 
 from quark.db import models
@@ -1807,7 +1807,7 @@ class QuarkIPAddressAllocationNotifications(QuarkIpamBaseTest):
             mock.patch("quark.db.api.subnet_update_next_auto_assign_ip"),
             mock.patch("sqlalchemy.orm.session.Session.refresh"),
             mock.patch("neutron.common.rpc.get_notifier"),
-            mock.patch("oslo.utils.timeutils.utcnow"),
+            mock.patch("oslo_utils.timeutils.utcnow"),
         ) as (addr_find, addr_create, subnet_find, subnet_update, refresh,
               notify, timeutils):
             addrs_found = []

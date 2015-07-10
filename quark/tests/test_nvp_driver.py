@@ -19,7 +19,7 @@ import contextlib
 
 import mock
 import neutron.extensions.securitygroup as sg_ext
-from oslo.config import cfg
+from oslo_config import cfg
 
 import quark.drivers.nvp_driver
 from quark import exceptions as q_exc

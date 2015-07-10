@@ -17,7 +17,7 @@ import os
 
 from neutron.common import config
 from neutron import context
-from oslo.config import cfg
+from oslo_config import cfg
 import unittest2
 
 

@@ -3,7 +3,7 @@ import netaddr
 
 import contextlib
 
-from oslo.config import cfg
+from oslo_config import cfg
 from quark.db import ip_types
 import quark.ipam
 import quark.plugin

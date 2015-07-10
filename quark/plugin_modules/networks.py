@@ -18,9 +18,9 @@ from neutron.common import exceptions
 from neutron.db import quota_db as qdb
 from neutron.extensions import providernet as pnet
 from neutron import quota
-from oslo.config import cfg
-from oslo.utils import importutils
+from oslo_config import cfg
 from oslo_log import log as logging
+from oslo_utils import importutils
 from oslo_utils import uuidutils
 
 from quark.db import api as db_api

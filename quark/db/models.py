@@ -18,8 +18,8 @@ import json
 import netaddr
 import neutron.db.model_base
 from neutron.db import models_v2 as models
-from oslo.utils import timeutils
 from oslo_log import log as logging
+from oslo_utils import timeutils
 import sqlalchemy as sa
 from sqlalchemy.ext import associationproxy
 from sqlalchemy.ext import declarative

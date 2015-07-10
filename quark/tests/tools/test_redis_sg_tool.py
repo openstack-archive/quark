@@ -37,7 +37,7 @@ class QuarkRedisSgToolBase(test_base.TestBase):
     def setUp(self):
         super(QuarkRedisSgToolBase, self).setUp()
         neutron_cfg_patch = mock.patch("neutron.common.config.init")
-        oslo_cfg_patch = mock.patch("oslo.config.cfg.CONF")
+        oslo_cfg_patch = mock.patch("oslo_config.cfg.CONF")
         neutron_cfg_patch.start()
         oslo_cfg_patch.start()
         self.addCleanup(neutron_cfg_patch.stop)

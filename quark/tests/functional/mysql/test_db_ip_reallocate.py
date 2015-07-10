@@ -1,7 +1,7 @@
 import datetime
 
 import netaddr
-from oslo.utils import timeutils
+from oslo_utils import timeutils
 
 from quark.db import api as db_api
 from quark.plugin_modules import ip_policies
