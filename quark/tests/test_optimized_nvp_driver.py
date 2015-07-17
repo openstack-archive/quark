@@ -486,7 +486,6 @@ class TestSecurityGroupRules(TestOptimizedNVPDriver):
             self.driver.create_security_group_rule(
                 self.context, 1,
                 {'ethertype': 'IPv4', 'direction': 'ingress'})
-            connection.securityprofile.assert_any_calls(self.profile_id)
             connection.securityprofile().assert_has_calls([
                 mock.call.port_ingress_rules([{'ethertype': 'IPv4'}]),
                 mock.call.update(),
@@ -497,7 +496,6 @@ class TestSecurityGroupRules(TestOptimizedNVPDriver):
             self.driver.create_security_group_rule(
                 self.context, 1,
                 {'ethertype': 'IPv4', 'direction': 'ingress'})
-            connection.securityprofile.assert_any_calls(self.profile_id)
             connection.securityprofile().assert_has_calls([
                 mock.call.port_ingress_rules([{}, {'ethertype': 'IPv4'}]),
                 mock.call.update(),

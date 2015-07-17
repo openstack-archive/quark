@@ -176,7 +176,7 @@ class QuarkRedisSgToolPurgeOrphans(QuarkRedisSgToolBase):
             get_conn.assert_called_with(use_master=False)
             connection_mock.vif_key.assert_any_call(1, 1)
             db_ports_groups.assert_called_with(ctxt_mock)
-            connection_mock.delete_key.assertNotCalled()
+            connection_mock.delete_key.assert_not_called()
 
     def test_purge_orphans(self):
         with self._stubs() as (get_conn, connection_mock, db_ports_groups,
