@@ -828,7 +828,7 @@ class TestNVPDriverUpdateSecurityGroup(TestNVPDriver):
     def test_security_group_update(self):
         with self._stubs() as connection:
             self.driver.update_security_group(self.context, 1, name='bar')
-            connection.securityprofile().assert_any_calls(self.profile_id)
+            connection.securityprofile.assert_any_call(self.profile_id)
             connection.securityprofile().assert_has_calls([
                 mock.call.display_name('bar'),
                 mock.call.update()],
@@ -852,7 +852,7 @@ class TestNVPDriverUpdateSecurityGroup(TestNVPDriver):
                 self.context, 1,
                 port_ingress_rules=ingress_rules,
                 port_egress_rules=egress_rules)
-            connection.securityprofile.assert_any_calls(self.profile_id)
+            connection.securityprofile.assert_any_call(self.profile_id)
             connection.securityprofile().assert_has_calls([
                 mock.call.port_ingress_rules(ingress_rules),
                 mock.call.port_egress_rules(egress_rules),
@@ -894,7 +894,7 @@ class TestNVPDriverCreateSecurityGroupRule(TestNVPDriver):
             self.driver.create_security_group_rule(
                 self.context, 1,
                 {'ethertype': 'IPv4', 'direction': 'ingress'})
-            connection.securityprofile.assert_any_calls(self.profile_id)
+            connection.securityprofile.assert_any_call(self.profile_id)
             connection.securityprofile().assert_has_calls([
                 mock.call.port_ingress_rules([{'ethertype': 'IPv4'}]),
                 mock.call.update(),
@@ -907,7 +907,7 @@ class TestNVPDriverCreateSecurityGroupRule(TestNVPDriver):
                 {'ethertype': 'IPv4', 'direction': 'ingress',
                  'remote_ip_prefix': "pre", "remote_group_id": "group",
                  "protocol": "udp"})
-            connection.securityprofile.assert_any_calls(self.profile_id)
+            connection.securityprofile.assert_any_call(self.profile_id)
             connection.securityprofile().assert_has_calls([
                 mock.call.port_ingress_rules([{'ethertype': 'IPv4',
                                                "ip_prefix": "pre",
@@ -1024,7 +1024,7 @@ class TestNVPDriverLoadConfigRandomController(TestNVPDriver):
                               "NVP")
         randint.return_value = 0
         self.driver.load_config()
-        randint.assert_called()
+        self.assertTrue(randint.called)
         cfg.CONF.clear_override("controller_connection", "NVP")
         cfg.CONF.clear_override("random_initial_controller", "NVP")
 
