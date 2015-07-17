@@ -20,6 +20,9 @@ options = [
     cfg.StrOpt('worker_class',
                default='eventlet',
                help='The type of workers to use.'),
+    cfg.IntOpt('worker_connections',
+               default=20,
+               help='The number of concurrent worker threads.'),
     cfg.IntOpt('limit_request_line',
                default=0,
                help='The maximum size of HTTP request line in bytes.'),
@@ -41,6 +44,7 @@ class Neutron(base.Application):
         self.cfg = gconfig.Config(self.usage, prog=self.prog)
         settings = {'bind': '%s:%s' % (cfg.CONF.bind_host, cfg.CONF.bind_port),
                     'workers': cfg.CONF.api_workers,
+                    'worker_connections': cfg.CONF.gunicorn.worker_connections,
                     'worker_class': cfg.CONF.gunicorn.worker_class,
                     'proc_name': 'neutron-server',
                     'accesslog': cfg.CONF.gunicorn.access_log,
