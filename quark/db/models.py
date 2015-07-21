@@ -18,6 +18,8 @@ import json
 import netaddr
 import neutron.db.model_base
 from neutron.db import models_v2 as models
+# NOTE(jhammond): this is here to get by neutron RBAC changes killing tox
+from neutron.db import rbac_db_models  # noqa
 from oslo_log import log as logging
 from oslo_utils import timeutils
 import sqlalchemy as sa
