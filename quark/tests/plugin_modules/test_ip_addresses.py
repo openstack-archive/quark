@@ -78,7 +78,7 @@ class TestIpAddresses(test_quark_plugin.TestQuarkPlugin):
                 ".port_associate_ip"),
             mock.patch(
                 "quark.plugin_modules.ip_addresses"
-                ".validate_ports_on_network_and_same_segment")
+                ".validate_and_fetch_segment")
         ) as (net_f, port_find, mock_ipam, mock_port_associate_ip, validate):
             port_find.return_value = port_model
             mock_ipam.allocate_ip_address.side_effect = _alloc_ip
@@ -164,7 +164,7 @@ class TestCreateIpAddressQuotaCheck(test_quark_plugin.TestQuarkPlugin):
             mock.patch("quark.plugin_modules.ip_addresses.db_api"
                        ".port_associate_ip"),
             mock.patch("quark.plugin_modules.ip_addresses"
-                       ".validate_ports_on_network_and_same_segment")
+                       ".validate_and_fetch_segment")
         ) as (net_f, port_find, mock_ipam, mock_port_associate_ip, validate):
             port_find.return_value = port_model
             yield
@@ -187,11 +187,17 @@ class TestCreateIpAddressQuotaCheck(test_quark_plugin.TestQuarkPlugin):
 
 
 @mock.patch("quark.plugin_modules.ip_addresses.v")
-@mock.patch("quark.plugin_modules.ip_addresses"
-            ".validate_ports_on_network_and_same_segment")
 @mock.patch("quark.plugin_modules.ip_addresses.ipam_driver")
 @mock.patch("quark.plugin_modules.ip_addresses.db_api")
 class TestQuarkSharedIPAddressCreate(test_quark_plugin.TestQuarkPlugin):
+    def setUp(self):
+        super(TestQuarkSharedIPAddressCreate, self).setUp()
+        patcher = patch('quark.plugin_modules.ip_addresses.'
+                        'validate_and_fetch_segment')
+        segment_check = patcher.start()
+        segment_check.return_value = None
+        self.addCleanup(patcher.stop)
+
     def _alloc_stub(self, ip_model):
         def _alloc_ip(context, addr, *args, **kwargs):
             addr.append(ip_model)
@@ -247,7 +253,7 @@ class TestQuarkSharedIPAddressCreate(test_quark_plugin.TestQuarkPlugin):
         mock_ipam.allocate_ip_address.assert_called_once_with(
             self.context, [ip_model], ip['network_id'], None, 100,
             version=ip_address['version'], ip_addresses=[],
-            address_type="shared")
+            address_type="shared", segment_id=None)
 
     def test_create_ip_address_address_type_fixed(self, mock_dbapi, mock_ipam,
                                                   *args):
@@ -276,7 +282,7 @@ class TestQuarkSharedIPAddressCreate(test_quark_plugin.TestQuarkPlugin):
         mock_ipam.allocate_ip_address.assert_called_once_with(
             self.context, [ip_model], ip['network_id'], None, 100,
             version=ip_address['version'], ip_addresses=[],
-            address_type="fixed")
+            segment_id=None, address_type="fixed")
 
     def test_fail_to_make_shared_with_active_port(self, mock_dbapi, mock_ipam,
                                                   *args):
@@ -308,7 +314,7 @@ class TestQuarkSharedIPAddressCreate(test_quark_plugin.TestQuarkPlugin):
         mock_ipam.allocate_ip_address.assert_called_once_with(
             self.context, [ip_model], ip['network_id'], None, 100,
             version=ip_address['version'], ip_addresses=[],
-            address_type="shared")
+            address_type="shared", segment_id=None)
 
 
 class TestQuarkSharedIPAddressPortsValid(test_quark_plugin.TestQuarkPlugin):
@@ -323,7 +329,7 @@ class TestQuarkSharedIPAddressPortsValid(test_quark_plugin.TestQuarkPlugin):
             mock_ports[i].ip_addresses.append(mock_address)
 
         with self.assertRaises(exceptions.BadRequest):
-            ip_addresses.validate_ports_on_network_and_same_segment(
+            ip_addresses.validate_and_fetch_segment(
                 mock_ports, "2")
 
     def test_validate_ports_on_network_raise_segment_multiple_ips(self):
@@ -338,7 +344,7 @@ class TestQuarkSharedIPAddressPortsValid(test_quark_plugin.TestQuarkPlugin):
                 mock_ports[x].ip_addresses.append(mock_address)
 
         with self.assertRaises(exceptions.BadRequest):
-            ip_addresses.validate_ports_on_network_and_same_segment(
+            ip_addresses.validate_and_fetch_segment(
                 mock_ports, "2")
 
     def test_validate_ports_on_network_raise_network(self):
@@ -352,7 +358,7 @@ class TestQuarkSharedIPAddressPortsValid(test_quark_plugin.TestQuarkPlugin):
             mock_ports[i].ip_addresses.append(ip_address)
 
         with self.assertRaises(exceptions.BadRequest):
-            ip_addresses.validate_ports_on_network_and_same_segment(
+            ip_addresses.validate_and_fetch_segment(
                 mock_ports, "2")
 
     def test_validate_ports_on_network_valid(self):
@@ -362,9 +368,9 @@ class TestQuarkSharedIPAddressPortsValid(test_quark_plugin.TestQuarkPlugin):
             p.ip_addresses.append(models.IPAddress(id="1", network_id="2"))
             p.ip_addresses[-1].subnet = models.Subnet(id="1", segment_id="1")
 
-        r = ip_addresses.validate_ports_on_network_and_same_segment(
+        r = ip_addresses.validate_and_fetch_segment(
             mock_ports, "2")
-        self.assertEqual(r, None)
+        self.assertEqual(r, "1")
 
 
 class TestQuarkSharedIPAddress(test_quark_plugin.TestQuarkPlugin):
@@ -474,7 +480,7 @@ class TestQuarkUpdateIPAddress(test_quark_plugin.TestQuarkPlugin):
             mock.patch("%s.port_associate_ip" % db_mod),
             mock.patch("%s.port_disassociate_ip" % db_mod),
             mock.patch("quark.plugin_modules.ip_addresses"
-                       ".validate_ports_on_network_and_same_segment"),
+                       ".validate_and_fetch_segment"),
             mock.patch("quark.plugin_modules.ip_addresses.ipam_driver")
         ) as (port_find, ip_find, port_associate_ip,
               port_disassociate_ip, val, mock_ipam):
@@ -608,7 +614,7 @@ class TestQuarkUpdateIPAddressQuotaCheck(test_quark_plugin.TestQuarkPlugin):
             mock.patch("%s.port_associate_ip" % db_mod),
             mock.patch("%s.port_disassociate_ip" % db_mod),
             mock.patch("quark.plugin_modules.ip_addresses"
-                       ".validate_ports_on_network_and_same_segment"),
+                       ".validate_and_fetch_segment"),
             mock.patch("quark.plugin_modules.ip_addresses.ipam_driver")
         ) as (port_find, ip_find, port_associate_ip, port_disassociate_ip, val,
               mock_ipam):
@@ -735,7 +741,7 @@ class TestQuarkGetIpAddresses(test_quark_plugin.TestQuarkPlugin):
 
 
 @mock.patch("quark.plugin_modules.ip_addresses"
-            ".validate_ports_on_network_and_same_segment")
+            ".validate_and_fetch_segment")
 @mock.patch("quark.plugin_modules.ip_addresses.ipam_driver")
 @mock.patch("quark.plugin_modules.ip_addresses.db_api")
 class TestQuarkGetIpAddressPort(test_quark_plugin.TestQuarkPlugin):

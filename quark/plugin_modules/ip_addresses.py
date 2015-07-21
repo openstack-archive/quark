@@ -57,8 +57,9 @@ def get_ip_address(context, id):
     return v._make_ip_dict(addr)
 
 
-def validate_ports_on_network_and_same_segment(ports, network_id):
+def validate_and_fetch_segment(ports, network_id):
     first_segment = None
+    segment_id = None
     for port in ports:
         addresses = port.get("ip_addresses", [])
         for address in addresses:
@@ -71,6 +72,7 @@ def validate_ports_on_network_and_same_segment(ports, network_id):
             if segment_id != first_segment:
                 raise exceptions.BadRequest(resource="ip_addresses",
                                             msg="Segment id's do not match.")
+    return segment_id
 
 
 def validate_port_ip_quotas(context, ports):
@@ -150,7 +152,7 @@ def create_ip_address(context, body):
             raise exceptions.PortNotFound(port_id=port_ids,
                                           net_id=network_id)
 
-    validate_ports_on_network_and_same_segment(ports, network_id)
+    segment_id = validate_and_fetch_segment(ports, network_id)
     validate_port_ip_quotas(context, ports)
 
     # Shared Ips are only new IPs. Two use cases: if we got device_id
@@ -165,6 +167,7 @@ def create_ip_address(context, body):
                                     version=ip_version,
                                     ip_addresses=[ip_address]
                                     if ip_address else [],
+                                    segment_id=segment_id,
                                     address_type=iptype)
     # Ensure that there are no ports whose service is set to something other
     # than 'none' because nova will not be able to know it was disassociated
@@ -221,8 +224,7 @@ def update_ip_address(context, id, ip_address):
                 raise exceptions.NotFound(
                     message="No ports not found with ids=%s" % port_ids)
 
-            validate_ports_on_network_and_same_segment(ports,
-                                                       address["network_id"])
+            validate_and_fetch_segment(ports, address["network_id"])
             validate_port_ip_quotas(context, ports)
 
             LOG.info("Updating IP address, %s, to only be used by the"
