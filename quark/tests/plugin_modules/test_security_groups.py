@@ -327,11 +327,14 @@ class TestQuarkCreateSecurityGroupRule(test_quark_plugin.TestQuarkPlugin):
         expected = dict(self.expected, **ruleset)
         expected.pop('group', None)
         hax = {'security_group_rule': rule}
+        cfg.CONF.set_override('environment_capabilities',
+                              ['security_groups', 'egress'], 'QUARK')
         with self._stubs(rule, group, limit_raise) as rule_create:
             result = self.plugin.create_security_group_rule(self.context, hax)
             self.assertTrue(rule_create.called)
             for key in expected.keys():
                 self.assertEqual(expected[key], result[key])
+        cfg.CONF.clear_override('environment_capabilities', 'QUARK')
 
     def test_create_security_rule_IPv6(self):
         self._test_create_security_rule(ethertype='IPv6')
