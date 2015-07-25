@@ -107,28 +107,6 @@ class TestQuarkGetPorts(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(fixed_ips[0]["ip_address"],
                              ip["address_readable"])
 
-    def test_port_show(self):
-        ip = dict(id=1, address=netaddr.IPAddress("192.168.1.100").value,
-                  address_readable="192.168.1.100", subnet_id=1, network_id=2,
-                  version=4)
-        port = dict(mac_address="AA:BB:CC:DD:EE:FF", network_id=1,
-                    tenant_id=self.context.tenant_id, device_id=2)
-        expected = {'status': "ACTIVE",
-                    'device_owner': None,
-                    'mac_address': 'AA:BB:CC:DD:EE:FF',
-                    'network_id': 1,
-                    'tenant_id': self.context.tenant_id,
-                    'admin_state_up': None,
-                    'device_id': 2}
-        with self._stubs(ports=port, addrs=[ip]):
-            result = self.plugin.get_port(self.context, 1)
-            fixed_ips = result.pop("fixed_ips")
-            for key in expected.keys():
-                self.assertEqual(result[key], expected[key])
-            self.assertEqual(fixed_ips[0]["subnet_id"], ip["subnet_id"])
-            self.assertEqual(fixed_ips[0]["ip_address"],
-                             ip["address_readable"])
-
     def test_port_show_with_int_mac(self):
         port = dict(mac_address=int('AABBCCDDEEFF', 16), network_id=1,
                     tenant_id=self.context.tenant_id, device_id=2)
@@ -192,165 +170,6 @@ class TestQuarkGetPortsByIPAddress(test_quark_plugin.TestQuarkPlugin):
             with self.assertRaises(exceptions.NotAuthorized):
                 self.plugin.get_ports(self.context, filters=filters,
                                       fields=None)
-
-
-class TestQuarkCreatePort(test_quark_plugin.TestQuarkPlugin):
-    @contextlib.contextmanager
-    def _stubs(self, port=None, ip_addresses=None):
-        ip_models = [models.IPAddress(**ip) for ip in ip_addresses]
-        mac = {"address": "AA:BB:CC:DD:EE:FF"}
-        network = {"network_plugin": "BASE",
-                   "ipam_strategy": "ANY",
-                   "id": 1,
-                   "tenant_id": self.context.tenant_id}
-        del(port['fixed_ips'])
-        port['ip_addresses'] = ip_models
-        port_model = models.Port(**port)
-
-        with contextlib.nested(
-            mock.patch("quark.db.api.network_find"),
-            mock.patch("quark.db.api.port_count_all"),
-            mock.patch("quark.db.api.port_create"),
-            mock.patch("quark.db.api.port_find"),
-            mock.patch("quark.ipam.QuarkIpam.allocate_ip_address"),
-            mock.patch("quark.ipam.QuarkIpam.allocate_mac_address")
-        ) as (network_find, port_count, port_create, port_find, allocate_ip,
-              allocate_mac):
-            def allocate_ip_effect(context, addresses, *args, **kwargs):
-
-                for ip_model in ip_models:
-                    ip_model.enabled_for_port = lambda x: True
-                    addresses.append(ip_models)
-            network_find.return_value = network
-            port_count.return_value = 0
-            port_create.return_value = port_model
-            port_find.return_value = None
-            allocate_ip.side_effect = allocate_ip_effect
-            allocate_mac.return_value = mac
-            yield port_create
-
-    def test_create_port_with_2_fixed_ipv4_ips(self):
-        ip1 = {"address": netaddr.IPAddress("1.0.0.2").ipv6().value,
-               "address_readable": "1.0.0.2",
-               "network_id": 1,
-               "subnet_id": "subnet1",
-               "version": 4}
-        ip2 = {"address": netaddr.IPAddress("2.0.0.2").ipv6().value,
-               "address_readable": "2.0.0.2",
-               "network_id": 1,
-               "subnet_id": "subnet2",
-               "version": 4}
-        fixed_ips = [{"ip_address": ip1['address_readable'],
-                      "subnet_id": ip1['subnet_id'],
-                      "enabled": True},
-                     {"ip_address": ip2['address_readable'],
-                      "subnet_id": ip2['subnet_id'],
-                      "enabled": True}]
-        port = {"port":
-                {'fixed_ips': fixed_ips,
-                 'id': "11111111-2222-3333-4444-555555555555",
-                 'tenant_id': self.context.tenant_id,
-                 'mac_address': "AA:BB:CC:DD:EE:FF",
-                 'name': "fakeport",
-                 'network_id': 1}}
-        expected = {'admin_state_up': None,
-                    'device_id': None,
-                    'device_owner': None,
-                    'fixed_ips': fixed_ips,
-                    'id': "11111111-2222-3333-4444-555555555555",
-                    'mac_address': "AA:BB:CC:DD:EE:FF",
-                    'name': "fakeport",
-                    'network_id': 1,
-                    'security_groups': [],
-                    'status': "ACTIVE",
-                    'tenant_id': self.context.tenant_id}
-        with self._stubs(port=port.get('port'), ip_addresses=(ip1, ip2)) as (
-                port_create):
-            result = self.plugin.create_port(self.context, port)
-            self.assertTrue(port_create.called)
-            self.assertEqual(result, expected)
-
-    def test_create_port_with_2_fixed_ipv6_ips(self):
-        ip1 = {"address": netaddr.IPAddress("feed::1").ipv6().value,
-               "address_readable": "feed::1",
-               "network_id": 1,
-               "subnet_id": "subnet1",
-               "version": 6}
-        ip2 = {"address": netaddr.IPAddress("feef::1").ipv6().value,
-               "address_readable": "feef::1",
-               "network_id": 1,
-               "subnet_id": "subnet2",
-               "version": 6}
-        fixed_ips = [{"ip_address": ip1['address_readable'],
-                      "subnet_id": ip1['subnet_id'],
-                      "enabled": True},
-                     {"ip_address": ip2['address_readable'],
-                      "subnet_id": ip2['subnet_id'],
-                      "enabled": True}]
-        port = {"port":
-                {'fixed_ips': fixed_ips,
-                 'id': "11111111-2222-3333-4444-555555555555",
-                 'tenant_id': self.context.tenant_id,
-                 'mac_address': "AA:BB:CC:DD:EE:FF",
-                 'name': "fakeport",
-                 'network_id': 1}}
-        expected = {'admin_state_up': None,
-                    'device_id': None,
-                    'device_owner': None,
-                    'fixed_ips': fixed_ips,
-                    'id': "11111111-2222-3333-4444-555555555555",
-                    'mac_address': "AA:BB:CC:DD:EE:FF",
-                    'name': "fakeport",
-                    'network_id': 1,
-                    'security_groups': [],
-                    'status': "ACTIVE",
-                    'tenant_id': self.context.tenant_id}
-        with self._stubs(port=port.get('port'), ip_addresses=(ip1, ip2)) as (
-                port_create):
-            result = self.plugin.create_port(self.context, port)
-            self.assertTrue(port_create.called)
-            self.assertEqual(result, expected)
-
-    def test_create_port_mixed_ipv4_and_ipv6_fixed_ips(self):
-        ip1 = {"address": netaddr.IPAddress("1.0.0.2").ipv6().value,
-               "address_readable": "1.0.0.2",
-               "network_id": 1,
-               "subnet_id": "subnet1",
-               "version": 4}
-        ip2 = {"address": netaddr.IPAddress("feed::1").ipv6().value,
-               "address_readable": "feed::1",
-               "network_id": 1,
-               "subnet_id": "subnet2",
-               "version": 6}
-        fixed_ips = [{"ip_address": ip1['address_readable'],
-                      "subnet_id": ip1['subnet_id'],
-                      "enabled": True},
-                     {"ip_address": ip2['address_readable'],
-                      "subnet_id": ip2['subnet_id'],
-                      "enabled": True}]
-        port = {"port":
-                {'fixed_ips': fixed_ips,
-                 'id': "11111111-2222-3333-4444-555555555555",
-                 'tenant_id': self.context.tenant_id,
-                 'mac_address': "AA:BB:CC:DD:EE:FF",
-                 'name': "fakeport",
-                 'network_id': 1}}
-        expected = {'admin_state_up': None,
-                    'device_id': None,
-                    'device_owner': None,
-                    'fixed_ips': fixed_ips,
-                    'id': "11111111-2222-3333-4444-555555555555",
-                    'mac_address': "AA:BB:CC:DD:EE:FF",
-                    'name': "fakeport",
-                    'network_id': 1,
-                    'security_groups': [],
-                    'status': "ACTIVE",
-                    'tenant_id': self.context.tenant_id}
-        with self._stubs(port=port.get('port'), ip_addresses=(ip1, ip2)) as (
-                port_create):
-            result = self.plugin.create_port(self.context, port)
-            self.assertTrue(port_create.called)
-            self.assertEqual(result, expected)
 
 
 class TestQuarkCreatePortFailure(test_quark_plugin.TestQuarkPlugin):
@@ -607,35 +426,6 @@ class TestQuarkCreatePortsSameDevBadRequest(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(port=port["port"], network=network, addr=ip,
                          mac=mac) as port_create:
             port["port"]["mac_address"] = neutron_attrs.ATTR_NOT_SPECIFIED
-            result = self.plugin.create_port(self.context, port)
-            self.assertTrue(port_create.called)
-            for key in expected.keys():
-                self.assertEqual(result[key], expected[key])
-
-    def test_create_port_fixed_ip(self):
-        network = dict(id='1', tenant_id=self.context.tenant_id)
-        mac = dict(address="AA:BB:CC:DD:EE:FF")
-        subnet = dict(id=1, network_id=network["id"])
-        ip = mock.MagicMock()
-        ip.get = lambda x, *y: 1 if x == "subnet_id" else None
-        ip.formatted = lambda: "192.168.10.45"
-        ip.enabled_for_port = lambda x: True
-        fixed_ips = [dict(subnet_id=1, enabled=True,
-                     ip_address="192.168.10.45")]
-        port = dict(port=dict(mac_address=mac["address"], network_id='1',
-                              tenant_id=self.context.tenant_id, device_id=2,
-                              fixed_ips=fixed_ips, ip_addresses=[ip]))
-
-        expected = {'status': "ACTIVE",
-                    'device_owner': None,
-                    'mac_address': mac["address"],
-                    'network_id': network["id"],
-                    'tenant_id': self.context.tenant_id,
-                    'admin_state_up': None,
-                    'fixed_ips': fixed_ips,
-                    'device_id': 2}
-        with self._stubs(port=port["port"], network=network, addr=ip,
-                         mac=mac, subnet=subnet) as port_create:
             result = self.plugin.create_port(self.context, port)
             self.assertTrue(port_create.called)
             for key in expected.keys():
@@ -924,48 +714,6 @@ class TestQuarkUpdatePort(test_quark_plugin.TestQuarkPlugin):
                                 ip_address=new_addr["address_readable"])]))
             self.plugin.update_port(self.context, 1, new_port)
             self.assertEqual(alloc_ip.call_count, 1)
-
-    def test_update_port_multiple_fixed_ips(self):
-        ip1 = netaddr.IPAddress("1.1.1.1")
-        ip2 = netaddr.IPAddress("1.1.1.2")
-        with self._stubs(
-            port=dict(id=1, name="myport", mac_address="0:0:0:0:0:1")
-        ) as (port_find, port_update, alloc_ip, dealloc_ip):
-
-            class AllocIPMock(object):
-                def __init__(mock_self):
-                    mock_self.called_once = False
-
-                def __call__(mock_self, ctxt, addrs, *args, **kwargs):
-                    # RM10187 fix - assert that the allocate is called with an
-                    # empty list each time. Otherwise any call after the first
-                    # could pass because the requested IP was created but not
-                    # allocated, or fail because the IP hadn't been generated
-                    # but the IP generated on the previous call satisfied the
-                    # IPAM strategy.
-                    self.assertEqual(addrs, [])
-                    if not mock_self.called_once:
-                        addrs.append(models.IPAddress(
-                            address=ip1.value, address_readable=str(ip1)))
-                        mock_self.called_once = True
-                    else:
-                        addrs.append(models.IPAddress(
-                            address=ip2.value, address_readable=str(ip2)))
-
-            alloc_ip.side_effect = AllocIPMock()
-
-            new_port = dict(port=dict(
-                fixed_ips=[dict(subnet_id=1,
-                                ip_address=str(ip1)),
-                           dict(subnet_id=1,
-                                ip_address=str(ip2))]))
-            port_res = self.plugin.update_port(self.context, 1, new_port)
-            self.assertEqual(alloc_ip.call_count, 2)
-
-            self.assertEqual(port_res["fixed_ips"][0]["ip_address"],
-                             str(ip1.ipv6()))
-            self.assertEqual(port_res["fixed_ips"][1]["ip_address"],
-                             str(ip2.ipv6()))
 
     def test_update_port_goes_over_quota(self):
         fixed_ips = {"fixed_ips": [{"subnet_id": 1},

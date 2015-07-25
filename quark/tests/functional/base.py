@@ -14,11 +14,15 @@ class BaseFunctionalTest(test_base.TestBase):
         self.context = context.Context('fake', 'fake', is_admin=False)
         cfg.CONF.set_override('connection', 'sqlite://', 'database')
         configure_mappers()
-        engine = neutron_db_api.get_engine()
-        models.BASEV2.metadata.create_all(engine)
-        quota_driver.quota_db.Quota.metadata.create_all(engine)
+        # Must set the neutron's facade to none before each test
+        # otherwise the data will be shared between tests
+        neutron_db_api._FACADE = None
+        self.engine = neutron_db_api.get_engine()
+        models.BASEV2.metadata.create_all(self.engine)
+        quota_driver.quota_db.Quota.metadata.create_all(self.engine)
 
     def tearDown(self):
-        engine = neutron_db_api.get_engine()
-        models.BASEV2.metadata.drop_all(engine)
-        quota_driver.quota_db.Quota.metadata.drop_all(engine)
+        self.context = None
+        neutron_db_api._FACADE = None
+        models.BASEV2.metadata.drop_all(self.engine)
+        quota_driver.quota_db.Quota.metadata.drop_all(self.engine)

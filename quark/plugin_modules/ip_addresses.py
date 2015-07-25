@@ -23,7 +23,6 @@ from quark.db import api as db_api
 from quark.db import ip_types
 from quark import exceptions as quark_exceptions
 from quark import ipam
-from quark.plugin_modules import ports as port_module
 from quark import plugin_views as v
 
 CONF = cfg.CONF
@@ -88,9 +87,8 @@ def _shared_ip_request(ip_address):
     return len(port_ids) > 1 or len(device_ids) > 1
 
 
-def _shared_ip_and_active(iptype, ports, except_port=None):
-    if(iptype == ip_types.SHARED and any(p.service != 'none' and
-                                         p.id != except_port for p in ports)):
+def _shared_ip_and_active(ip_address, except_port=None):
+    if ip_address.is_shared() and ip_address.has_shared_owner():
         return True
     return False
 
@@ -169,13 +167,9 @@ def create_ip_address(context, body):
                                     if ip_address else [],
                                     segment_id=segment_id,
                                     address_type=iptype)
-    # Ensure that there are no ports whose service is set to something other
-    # than 'none' because nova will not be able to know it was disassociated
-    if _shared_ip_and_active(iptype, ports):
-        raise quark_exceptions.PortRequiresDisassociation()
     with context.session.begin():
-        new_address = db_api.port_associate_ip(context, ports,
-                                               new_addresses[0])
+        address = new_addresses[0]
+        new_address = db_api.port_associate_ip(context, ports, address)
     return v._make_ip_dict(new_address)
 
 
@@ -255,7 +249,7 @@ def delete_ip_address(context, id):
         if not ip_address or ip_address.deallocated:
             raise quark_exceptions.IpAddressNotFound(addr_id=id)
 
-        if _shared_ip_and_active(ip_address.address_type, ip_address.ports):
+        if _shared_ip_and_active(ip_address):
             raise quark_exceptions.PortRequiresDisassociation()
 
         db_api.update_port_associations_for_ip(context, [], ip_address)
@@ -298,7 +292,7 @@ def get_ports_for_ip_address(context, ip_id, limit=None, sorts=None,
     ports = db_api.port_find(context, limit, sorts, marker,
                              fields=fields, join_security_groups=True,
                              **filters)
-    return v._make_ip_ports_list(ports, fields)
+    return v._make_ip_ports_list(addr, ports, fields)
 
 
 def get_port_for_ip_address(context, ip_id, id, fields=None):
@@ -324,7 +318,7 @@ def get_port_for_ip_address(context, ip_id, id, fields=None):
     if not results:
         raise exceptions.PortNotFound(port_id=id, net_id='')
 
-    return v._make_port_for_ip_dict(results)
+    return v._make_port_for_ip_dict(addr, results)
 
 
 def update_port_for_ip_address(context, ip_id, id, port):
@@ -339,19 +333,19 @@ def update_port_for_ip_address(context, ip_id, id, port):
         neutron/api/v2/attributes.py.
     """
     LOG.info("update_port %s for tenant %s" % (id, context.tenant_id))
-    addr = db_api.ip_address_find(context, id=ip_id, scope=db_api.ONE)
     sanitize_list = ['service']
-    port_dict = {k: port['port'][k] for k in sanitize_list}
+    addr = db_api.ip_address_find(context, id=ip_id, scope=db_api.ONE)
     if not addr:
         raise quark_exceptions.IpAddressNotFound(addr_id=ip_id)
+    port_db = db_api.port_find(context, id=id, scope=db_api.ONE)
+    if not port_db:
+        raise quark_exceptions.PortNotFound(port_id=id)
+    port_dict = {k: port['port'][k] for k in sanitize_list}
 
     require_da = False
-    ports = addr.ports
-    iptype = addr.address_type
+    service = port_dict.get('service')
 
-    if require_da and _shared_ip_and_active(iptype, ports, except_port=id):
+    if require_da and _shared_ip_and_active(addr, except_port=id):
         raise quark_exceptions.PortRequiresDisassociation()
-
-    new_port = {"port": port_dict}
-    port_ret = port_module.update_port(context, id, new_port)
-    return v._make_port_for_ip_dict(port_ret)
+    addr.set_service_for_port(port_db, service)
+    return v._make_port_for_ip_dict(addr, port_db)

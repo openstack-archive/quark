@@ -155,10 +155,11 @@ def _make_security_group_rule_dict(security_rule, fields=None):
     return res
 
 
-def _ip_port_dict(port, fields=None):
+def _ip_port_dict(ip, port, fields=None):
+    service = ip.get_service_for_port(port)
     res = {"id": port.get("id"),
            "device_id": port.get("device_id"),
-           "service": port.get("service")}
+           "service": service}
     return res
 
 
@@ -199,28 +200,30 @@ def _make_port_address_dict(ip, port, fields=None):
     return ip_addr
 
 
-def _make_port_for_ip_dict(port, fields=None):
-    res = _ip_port_dict(port)
+def _make_port_for_ip_dict(ip, port, fields=None):
+    res = _ip_port_dict(ip, port)
     return res
 
 
 def _ip_is_fixed(port, ip):
     at = ip.get('address_type')
-    return (not at or at == ip_types.FIXED or (at == ip_types.SHARED and
-                                               port.service != "none"))
+    return (not at or at in (ip_types.FIXED, ip_types.SHARED))
 
 
 def _make_port_dict(port, fields=None):
     res = _port_dict(port)
+    ips = []
+    for assoc in port.associations:
+        ips.append(assoc.ip_address)
     res["fixed_ips"] = [_make_port_address_dict(ip, port, fields)
-                        for ip in port.ip_addresses if _ip_is_fixed(port, ip)]
+                        for ip in ips if _ip_is_fixed(port, ip)]
     return res
 
 
-def _make_ip_ports_list(query, fields=None):
+def _make_ip_ports_list(ip, query, fields=None):
     ports = []
     for port in query:
-        port_dict = _ip_port_dict(port, fields)
+        port_dict = _ip_port_dict(ip, port, fields)
         ports.append(port_dict)
     return ports
 

@@ -325,3 +325,175 @@ class QuarkFindPortsFilterByDeviceOwner(BaseFunctionalTest):
         db_api.port_delete(self.context, port_mod1)
         db_api.port_delete(self.context, port_mod2)
         db_api.port_delete(self.context, port_mod3)
+
+
+class QuarkPortFixedIPOperations(BaseFunctionalTest):
+
+    def __init__(self, *args, **kwargs):
+        super(QuarkPortFixedIPOperations, self).__init__(*args, **kwargs)
+        cidr = "192.168.10.0/24"
+        ip_network = netaddr.IPNetwork(cidr)
+        cidr_v6 = "2001:db8::/32"
+        ip_network_v6 = netaddr.IPNetwork(cidr_v6)
+        # some default stuff
+        network = dict(name="public", tenant_id="make",
+                       network_plugin="BASE",
+                       ipam_strategy="ANY")
+        self.net_info = {"network": network}
+        subnet_v4 = dict(ip_version=4, next_auto_assign_ip=2,
+                         cidr=cidr, first_ip=ip_network.first,
+                         last_ip=ip_network.last, ip_policy=None,
+                         tenant_id="fake")
+        subnet_v6 = dict(ip_version=6, next_auto_assign_ip=2,
+                         cidr=cidr_v6, first_ip=ip_network_v6.first,
+                         last_ip=ip_network_v6.last, ip_policy=None,
+                         tenant_id="fake")
+        self.sub_info = {"subnet": subnet_v4}
+        self.sub_info_v6 = {"subnet": subnet_v6}
+
+    @contextlib.contextmanager
+    def _stubs(self, network_info, subnet_info):
+        with contextlib.nested(
+                mock.patch("neutron.common.rpc.get_notifier"),
+                mock.patch("neutron.quota.QUOTAS.limit_check")):
+            mac = {'mac_address_range': dict(cidr="AA:BB:CC")}
+            self.context.is_admin = True
+            macrng_api.create_mac_address_range(self.context, mac)
+            self.context.is_admin = False
+            network = network_api.create_network(self.context, network_info)
+            subnet_info['subnet']['network_id'] = network['id']
+            subnet = subnet_api.create_subnet(self.context, subnet_info)
+
+            yield network, subnet
+
+    def test_create_port_single_fixed_ip(self):
+        with self._stubs(self.net_info, self.sub_info) as (network, subnet):
+            fixed_ips = [dict(subnet_id=subnet['id'], enabled=True,
+                         ip_address="192.168.10.45")]
+            port = dict(port=dict(network_id=network['id'],
+                                  tenant_id=self.context.tenant_id,
+                                  device_id=2,
+                                  fixed_ips=fixed_ips))
+            expected = {'status': "ACTIVE",
+                        'device_owner': None,
+                        'network_id': network["id"],
+                        'tenant_id': self.context.tenant_id,
+                        'admin_state_up': True,
+                        'fixed_ips': fixed_ips,
+                        'device_id': 2}
+            result = port_api.create_port(self.context, port)
+            for key in expected.keys():
+                self.assertEqual(result[key], expected[key],
+                                 "Mismatch on %s" % key)
+
+    def test_create_port_multiple_fixed_ipv4(self):
+        with self._stubs(self.net_info, self.sub_info) as (network, subnet):
+            fixed_ips = [dict(subnet_id=subnet['id'], enabled=True,
+                         ip_address="192.168.10.45"),
+                         dict(subnet_id=subnet['id'], enabled=True,
+                         ip_address="192.168.10.199")]
+            port = dict(port=dict(network_id=network['id'],
+                                  tenant_id=self.context.tenant_id,
+                                  device_id=2,
+                                  fixed_ips=fixed_ips))
+            expected = {'status': "ACTIVE",
+                        'device_owner': None,
+                        'network_id': network["id"],
+                        'tenant_id': self.context.tenant_id,
+                        'admin_state_up': True,
+                        'fixed_ips': fixed_ips,
+                        'device_id': 2}
+            result = port_api.create_port(self.context, port)
+            for key in expected.keys():
+                if key != 'fixed_ips':
+                    self.assertEqual(result[key], expected[key],
+                                     "Mismatch on %s" % key)
+            for ip in result['fixed_ips']:
+                self.assertTrue(ip in expected['fixed_ips'])
+
+    def test_create_port_multiple_fixed_ipv6(self):
+        with self._stubs(self.net_info, self.sub_info_v6) as (network, subnet):
+            ipv6a = "2001:db8::10"
+            ipv6b = "2001:db8::15"
+            fixed_ips = [dict(subnet_id=subnet['id'], enabled=True,
+                         ip_address=ipv6a),
+                         dict(subnet_id=subnet['id'], enabled=True,
+                         ip_address=ipv6b)]
+            port = dict(port=dict(network_id=network['id'],
+                                  tenant_id=self.context.tenant_id,
+                                  device_id=2,
+                                  fixed_ips=fixed_ips))
+            expected = {'status': "ACTIVE",
+                        'device_owner': None,
+                        'network_id': network["id"],
+                        'tenant_id': self.context.tenant_id,
+                        'admin_state_up': True,
+                        'fixed_ips': fixed_ips,
+                        'device_id': 2}
+            result = port_api.create_port(self.context, port)
+            for key in expected.keys():
+                if key != 'fixed_ips':
+                    self.assertEqual(result[key], expected[key],
+                                     "Mismatch on %s" % key)
+            for ip in result['fixed_ips']:
+                self.assertTrue(ip in expected['fixed_ips'])
+
+    def test_update_port_multiple_fixed_ipv4(self):
+        with self._stubs(self.net_info, self.sub_info) as (network, subnet):
+            fixed_ips = [dict(subnet_id=subnet['id'], enabled=True,
+                         ip_address="192.168.10.45"),
+                         dict(subnet_id=subnet['id'], enabled=True,
+                         ip_address="192.168.10.199")]
+            port = dict(port=dict(network_id=network['id'],
+                                  tenant_id=self.context.tenant_id,
+                                  device_id=2,
+                                  fixed_ips=fixed_ips))
+            expected = {'status': "ACTIVE",
+                        'device_owner': None,
+                        'network_id': network["id"],
+                        'tenant_id': self.context.tenant_id,
+                        'admin_state_up': True,
+                        'fixed_ips': fixed_ips,
+                        'device_id': '2'}
+            result = port_api.create_port(self.context, port)
+
+            fixed_ips = [dict(subnet_id=subnet['id'], enabled=True,
+                         ip_address="192.168.10.236"),
+                         dict(subnet_id=subnet['id'], enabled=True,
+                         ip_address="192.168.10.42")]
+            new_port = dict(port=dict(fixed_ips=fixed_ips))
+            result = port_api.update_port(self.context, result['id'], new_port)
+            for key in expected.keys():
+                if key != 'fixed_ips':
+                    self.assertEqual(result[key], expected[key],
+                                     "Mismatch on %s" % key)
+            for ip in result['fixed_ips']:
+                self.assertTrue(ip in fixed_ips,
+                                '%s not in %s' % (ip, expected['fixed_ips']))
+
+    def test_port_show(self):
+        with self._stubs(self.net_info, self.sub_info) as (network, subnet):
+            fixed_ips = [dict(subnet_id=subnet['id'], enabled=True,
+                         ip_address="192.168.10.45"),
+                         dict(subnet_id=subnet['id'], enabled=True,
+                         ip_address="192.168.10.199")]
+            port = dict(port=dict(network_id=network['id'],
+                                  tenant_id=self.context.tenant_id,
+                                  device_id=2,
+                                  fixed_ips=fixed_ips))
+            expected = {'status': "ACTIVE",
+                        'device_owner': None,
+                        'network_id': network["id"],
+                        'tenant_id': self.context.tenant_id,
+                        'admin_state_up': True,
+                        'fixed_ips': fixed_ips,
+                        'device_id': 2}
+            result = port_api.create_port(self.context, port)
+            result = port_api.get_port(self.context, result['id'])
+            for key in expected.keys():
+                if key != 'fixed_ips':
+                    self.assertEqual(result[key], expected[key],
+                                     "Mismatch on %s" % key)
+            for ip in result['fixed_ips']:
+                self.assertTrue(ip in fixed_ips,
+                                '%s not in %s' % (ip, expected['fixed_ips']))
