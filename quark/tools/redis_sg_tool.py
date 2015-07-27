@@ -100,12 +100,10 @@ class QuarkRedisTool(object):
             print("Redis security groups tool. Re-run with -h/--help for "
                   "options")
 
-    def _get_connection(self, use_master=False, giveup=True):
-        client = sg_client.SecurityGroupsClient(use_master=use_master)
+    def _get_connection(self, giveup=True):
+        client = sg_client.SecurityGroupsClient()
         try:
-            # You have to use the connection determine it's functional
-            result = client.echo("connected")
-            if result == "connected":
+            if client.ping():
                 return client
         except Exception as e:
             print(e)
