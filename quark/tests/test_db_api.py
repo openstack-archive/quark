@@ -208,10 +208,9 @@ class TestDBAPI(BaseFunctionalTest):
         r = db_api.port_associate_ip(self.context, mock_ports, mock_address)
         self.assertEqual(len(r.associations), len(mock_ports))
         for assoc, port in zip(r.associations, mock_ports):
-            self.assertEqual(assoc.port_id, port.id)
-            self.assertEqual(assoc.ip_address_id, mock_address.id)
+            self.assertEqual(assoc.port, port)
+            self.assertEqual(assoc.ip_address, mock_address)
             self.assertEqual(assoc.enabled, False)
-        self.context.session.add.assert_called_once_with(r)
 
     def test_port_associate_ip_enable_port(self):
         self.context.session.add = mock.Mock()
@@ -224,10 +223,10 @@ class TestDBAPI(BaseFunctionalTest):
                                      enable_port="1")
         self.assertEqual(len(r.associations), 1)
         assoc = r.associations[0]
-        self.assertEqual(assoc.port_id, mock_port.id)
-        self.assertEqual(assoc.ip_address_id, mock_address.id)
+        self.assertEqual(assoc.port, mock_port)
+        self.assertEqual(assoc.ip_address, mock_address)
         self.assertEqual(assoc.enabled, True)
-        self.context.session.add.assert_called_once_with(r)
+        self.context.session.add.assert_called_once_with(assoc)
 
     def test_port_disassociate_ip(self):
         self.context.session.add = mock.Mock()

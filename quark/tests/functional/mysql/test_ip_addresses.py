@@ -4,6 +4,7 @@ import netaddr
 import contextlib
 
 from oslo_config import cfg
+from quark.db import api as db_api
 from quark.db import ip_types
 import quark.ipam
 import quark.plugin
@@ -73,7 +74,16 @@ class QuarkSharedIPs(MySqlBaseFunctionalTest):
         with self._stubs(self.network, self.subnet, self.ports_info2) as (
                 net, sub, ports):
             for p in ports:
-                self.assertEqual('none', p.get('service'))
+                port_db = db_api.port_find(self.context, id=p['id'],
+                                           scope=db_api.ONE)
+                assocs = db_api.ip_port_association_find(self.context,
+                                                         scope=db_api.ALL,
+                                                         port_id=p['id'])
+                self.assertEqual(1, len(p.get('fixed_ips')))
+                self.assertEqual(1, len(port_db.ip_addresses))
+                ip_db = port_db.ip_addresses[0]
+                self.assertEqual('none', ip_db.get_service_for_port(port_db))
+                self.assertEqual(1, len(assocs))
 
             port_ids = [ports[0]['id'], ports[1]['id']]
             shared_ip = {'ip_address': dict(port_ids=port_ids,
@@ -95,7 +105,16 @@ class QuarkSharedIPs(MySqlBaseFunctionalTest):
         with self._stubs(self.network, self.subnet, self.ports_info2) as (
                 net, sub, ports):
             for p in ports:
-                self.assertEqual('none', p.get('service'))
+                port_db = db_api.port_find(self.context, id=p['id'],
+                                           scope=db_api.ONE)
+                assocs = db_api.ip_port_association_find(self.context,
+                                                         scope=db_api.ALL,
+                                                         port_id=p['id'])
+                self.assertEqual(1, len(p.get('fixed_ips')))
+                self.assertEqual(1, len(port_db.ip_addresses))
+                ip_db = port_db.ip_addresses[0]
+                self.assertEqual('none', ip_db.get_service_for_port(port_db))
+                self.assertEqual(1, len(assocs))
 
             device_ids = [ports[0]['device_id'], ports[1]['device_id']]
             shared_ip = {'ip_address': dict(device_ids=device_ids,
@@ -108,22 +127,35 @@ class QuarkSharedIPs(MySqlBaseFunctionalTest):
             self.assertEqual(2, len(ports_ip))
 
             port = port_api.get_port(self.context, ports[0]['id'])
-            self.assertEqual(1, len(port['fixed_ips']))
+            self.assertEqual(2, len(port['fixed_ips']))
 
             port_ip_update = ip_api.update_port_for_ip_address
             updated_port = port_ip_update(self.context, ip['id'],
                                           ports[0]['id'], _make_body('derp'))
             self.assertEqual('derp', updated_port.get('service'))
 
-            port = port_api.get_port(self.context, ports[0]['id'])
-            self.assertEqual(2, len(port['fixed_ips']))
+            port = ip_api.get_port_for_ip_address(self.context, ip['id'],
+                                                  ports[0]['id'])
+            self.assertEqual('derp', port.get('service'))
+            port = ip_api.get_port_for_ip_address(self.context, ip['id'],
+                                                  ports[1]['id'])
+            self.assertEqual('none', port.get('service'))
 
     def test_create_shared_ips_with_device_ids(self):
 
         with self._stubs(self.network, self.subnet, self.ports_info2) as (
                 net, sub, ports):
             for p in ports:
-                self.assertEqual('none', p.get('service'))
+                port_db = db_api.port_find(self.context, id=p['id'],
+                                           scope=db_api.ONE)
+                assocs = db_api.ip_port_association_find(self.context,
+                                                         scope=db_api.ALL,
+                                                         port_id=p['id'])
+                self.assertEqual(1, len(p.get('fixed_ips')))
+                self.assertEqual(1, len(port_db.ip_addresses))
+                ip_db = port_db.ip_addresses[0]
+                self.assertEqual('none', ip_db.get_service_for_port(port_db))
+                self.assertEqual(1, len(assocs))
 
             device_ids = [ports[0]['device_id'], ports[1]['device_id']]
             shared_ip = {'ip_address': dict(device_ids=device_ids,
@@ -144,42 +176,63 @@ class QuarkSharedIPs(MySqlBaseFunctionalTest):
 
         with self._stubs(self.network, self.subnet, self.ports_info4) as (
                 net, sub, ports):
-            for p in ports:
-                self.assertEqual('none', p.get('service'))
-
             port_ids1 = [ports[0]['id'], ports[1]['id']]
             port_ids2 = [ports[2]['id'], ports[3]['id']]
+
+            filters = dict(device_id='a')
+            ips = ip_api.get_ip_addresses(self.context, **filters)
+            self.assertEqual(1, len(ips))
 
             shared_ip1 = {'ip_address': dict(port_ids=port_ids1,
                                              network_id=net['id'],
                                              version=4)}
             ip1 = ip_api.create_ip_address(self.context, shared_ip1)
-
-            updated_port = port_api.update_port(self.context, ports[0]['id'],
-                                                _make_body('derp'))
-            self.assertEqual('derp', updated_port.get('service'))
-            for p in ports:
-                if p['id'] != ports[0]['id']:
-                    self.assertEqual('none', p.get('service'))
+            self.assertEqual(2, len(ip1['port_ids']))
 
             shared_ip2 = {'ip_address': dict(port_ids=port_ids2,
                                              network_id=net['id'],
                                              version=4)}
             ip2 = ip_api.create_ip_address(self.context, shared_ip2)
+            self.assertEqual(2, len(ip2['port_ids']))
 
             ports_ip = ip_api.get_ports_for_ip_address(self.context, ip1['id'])
             self.assertEqual(2, len(ports_ip))
             ports_ip = ip_api.get_ports_for_ip_address(self.context, ip2['id'])
             self.assertEqual(2, len(ports_ip))
 
-            filters = dict(device_id='a', service='derp')
+            filters = dict(device_id='a')
             ips = ip_api.get_ip_addresses(self.context, **filters)
             self.assertEqual(2, len(ips))
+
+            filters = dict(device_id='x')
+            ips = ip_api.get_ip_addresses(self.context, **filters)
+            self.assertEqual(0, len(ips))
+
+            filters = dict(device_id='a', service='derp')
+            ips = ip_api.get_ip_addresses(self.context, **filters)
+            self.assertEqual(0, len(ips))
+
+            filters = dict(service='derp')
+            ips = ip_api.get_ip_addresses(self.context, **filters)
+            self.assertEqual(0, len(ips))
+
+            filters = dict(device_id='a', service='none')
+            ips = ip_api.get_ip_addresses(self.context, **filters)
+            self.assertEqual(2, len(ips))
+
+            port_ip_update = ip_api.update_port_for_ip_address
+            updated_port = port_ip_update(self.context, ip1['id'],
+                                          ports[0]['id'], _make_body('derp'))
+            self.assertEqual('derp', updated_port.get('service'))
+
+            filters = dict(device_id='a', service='derp')
+            ips = ip_api.get_ip_addresses(self.context, **filters)
+            self.assertEqual(1, len(ips))
 
             filters = dict(device_id='a', service='derp',
                            type=ip_types.FIXED)
             ips = ip_api.get_ip_addresses(self.context, **filters)
-            self.assertEqual(1, len(ips))
+            self.assertEqual(0, len(ips))
 
             filters = dict(device_id='a', service='derp',
                            type=ip_types.SHARED)
