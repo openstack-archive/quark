@@ -21,6 +21,7 @@ from neutron.common import exceptions
 from oslo_config import cfg
 import webob
 
+from quark.db import ip_types
 from quark.db import models
 from quark import exceptions as quark_exceptions
 from quark.plugin_modules import ip_addresses
@@ -86,6 +87,8 @@ class TestIpAddresses(test_quark_plugin.TestQuarkPlugin):
             yield
 
     def test_create_ip_address_by_network_and_device(self):
+        old_cfg = cfg.CONF.QUARK.ipaddr_allow_fixed_ip
+        cfg.CONF.set_override('ipaddr_allow_fixed_ip', True, "QUARK")
         port = dict(id=1, network_id=2, ip_addresses=[])
         ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
                   subnet_id=1, network_id=2, version=4, used_by_tenant_id=1)
@@ -102,8 +105,11 @@ class TestIpAddresses(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(response["version"], 4)
             self.assertEqual(response["address"], "192.168.1.100")
             self.assertEqual(response["tenant_id"], 1)
+        cfg.CONF.set_override('ipaddr_allow_fixed_ip', old_cfg, "QUARK")
 
     def test_create_ip_address_with_port(self):
+        old_cfg = cfg.CONF.QUARK.ipaddr_allow_fixed_ip
+        cfg.CONF.set_override('ipaddr_allow_fixed_ip', True, "QUARK")
         port = dict(id=1, network_id=2, ip_addresses=[])
         ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
                   subnet_id=1, network_id=2, version=4)
@@ -118,6 +124,22 @@ class TestIpAddresses(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(response['network_id'], ip["network_id"])
             self.assertEqual(response['port_ids'], [port["id"]])
             self.assertEqual(response['subnet_id'], ip['id'])
+        cfg.CONF.set_override('ipaddr_allow_fixed_ip', old_cfg, "QUARK")
+
+    def test_fail_create_ip_address_with_port_when_disallowed(self):
+        old_cfg = cfg.CONF.QUARK.ipaddr_allow_fixed_ip
+        cfg.CONF.set_override('ipaddr_allow_fixed_ip', False, "QUARK")
+        port = dict(id=1, network_id=2, ip_addresses=[])
+        ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
+                  subnet_id=1, network_id=2, version=4)
+        with self._stubs(port=port, addr=ip):
+            ip_address = dict(port_ids=[port["id"]])
+            ip_address['version'] = 4
+            ip_address['network_id'] = 2
+            with self.assertRaises(exceptions.BadRequest):
+                self.plugin.create_ip_address(self.context,
+                                              dict(ip_address=ip_address))
+        cfg.CONF.set_override('ipaddr_allow_fixed_ip', old_cfg, "QUARK")
 
     def test_create_ip_address_by_device_no_network_fails(self):
         with self._stubs(port={}, addr=None):
@@ -134,6 +156,8 @@ class TestIpAddresses(test_quark_plugin.TestQuarkPlugin):
                 self.plugin.create_ip_address(self.context, ip_address)
 
     def test_create_ip_address_invalid_port(self):
+        old_cfg = cfg.CONF.QUARK.ipaddr_allow_fixed_ip
+        cfg.CONF.set_override('ipaddr_allow_fixed_ip', True, "QUARK")
         with self._stubs(port=None, addr=None):
             with self.assertRaises(exceptions.PortNotFound):
                 ip_address = {
@@ -144,46 +168,7 @@ class TestIpAddresses(test_quark_plugin.TestQuarkPlugin):
                     }
                 }
                 self.plugin.create_ip_address(self.context, ip_address)
-
-
-class TestCreateIpAddressQuotaCheck(test_quark_plugin.TestQuarkPlugin):
-    @contextlib.contextmanager
-    def _stubs(self, port, addresses):
-        port_model = models.Port()
-        port_model.update(port)
-
-        for addr in addresses:
-            addr_model = models.IPAddress()
-            addr_model.update(addr)
-            port_model["ip_addresses"].append(addr_model)
-
-        with contextlib.nested(
-            mock.patch("quark.db.api.network_find"),
-            mock.patch("quark.db.api.port_find"),
-            mock.patch("quark.plugin_modules.ip_addresses.ipam_driver"),
-            mock.patch("quark.plugin_modules.ip_addresses.db_api"
-                       ".port_associate_ip"),
-            mock.patch("quark.plugin_modules.ip_addresses"
-                       ".validate_and_fetch_segment")
-        ) as (net_f, port_find, mock_ipam, mock_port_associate_ip, validate):
-            port_find.return_value = port_model
-            yield
-
-    def test_create_ip_address_with_port_over_quota(self):
-        addresses = [{"id": ip, "address": ip} for ip in xrange(5)]
-        port = dict(id=1, network_id=2, ip_addresses=[])
-
-        ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
-                  subnet_id=1, network_id=2, version=4)
-
-        with self._stubs(port=port, addresses=addresses):
-            ip_address = dict(port_ids=[port["id"]])
-            ip_address['version'] = 4
-            ip_address['network_id'] = 2
-
-            with self.assertRaises(exceptions.OverQuota):
-                self.plugin.create_ip_address(
-                    self.context, dict(ip_address=ip_address))
+        cfg.CONF.set_override('ipaddr_allow_fixed_ip', old_cfg, "QUARK")
 
 
 @mock.patch("quark.plugin_modules.ip_addresses.v")
@@ -205,6 +190,8 @@ class TestQuarkSharedIPAddressCreate(test_quark_plugin.TestQuarkPlugin):
 
     def test_create_ip_address_calls_port_associate_ip(self, mock_dbapi,
                                                        mock_ipam, *args):
+        old_cfg = cfg.CONF.QUARK.ipaddr_allow_fixed_ip
+        cfg.CONF.set_override('ipaddr_allow_fixed_ip', True, "QUARK")
         port = dict(id=1, network_id=2, ip_addresses=[])
         ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
                   subnet_id=1, network_id=2, version=4, tenant_id=1)
@@ -224,6 +211,7 @@ class TestQuarkSharedIPAddressCreate(test_quark_plugin.TestQuarkPlugin):
                                       dict(ip_address=ip_address))
         mock_dbapi.port_associate_ip.assert_called_once_with(
             self.context, [port_model], ip_model)
+        cfg.CONF.set_override('ipaddr_allow_fixed_ip', old_cfg, "QUARK")
 
     def test_create_ip_address_address_type_shared(self, mock_dbapi, mock_ipam,
                                                    *args):
@@ -258,6 +246,8 @@ class TestQuarkSharedIPAddressCreate(test_quark_plugin.TestQuarkPlugin):
     def test_create_ip_address_address_type_fixed(self, mock_dbapi, mock_ipam,
                                                   *args):
         cfg.CONF.set_override('ipam_reuse_after', 100, "QUARK")
+        old_cfg = cfg.CONF.QUARK.ipaddr_allow_fixed_ip
+        cfg.CONF.set_override('ipaddr_allow_fixed_ip', True, "QUARK")
         ports = [dict(id=1, network_id=2, ip_addresses=[])]
         ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
                   subnet_id=1, network_id=2, version=4, tenant_id=1)
@@ -283,6 +273,7 @@ class TestQuarkSharedIPAddressCreate(test_quark_plugin.TestQuarkPlugin):
             self.context, [ip_model], ip['network_id'], None, 100,
             version=ip_address['version'], ip_addresses=[],
             segment_id=None, address_type="fixed")
+        cfg.CONF.set_override('ipaddr_allow_fixed_ip', old_cfg, "QUARK")
 
 
 class TestQuarkSharedIPAddressPortsValid(test_quark_plugin.TestQuarkPlugin):
@@ -489,6 +480,20 @@ class TestQuarkUpdateIPAddress(test_quark_plugin.TestQuarkPlugin):
                                                      ip_address)
             self.assertEqual(response['port_ids'], [port['id']])
 
+    def test_bad_request_fixed_update_multiple_ports(self):
+        port1 = dict(id=1, network_id=2, ip_addresses=[])
+        port2 = dict(id=2, network_id=2, ip_addresses=[])
+        ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
+                  subnet_id=1, network_id=2, version=4,
+                  address_type=ip_types.FIXED)
+        with self._stubs(ports=[port1, port2], addr=ip):
+            ip_address = {'ip_address': {'port_ids': [port1['id'],
+                                                      port2['id']],
+                                         'network_id': 2}}
+            with self.assertRaises(exceptions.BadRequest):
+                self.plugin.update_ip_address(self.context, ip['id'],
+                                              ip_address)
+
     def _create_patch(self, path):
         patcher = patch(path)
         mocked = patcher.start()
@@ -558,55 +563,6 @@ class TestQuarkUpdateIPAddress(test_quark_plugin.TestQuarkPlugin):
                                                      ip['id'],
                                                      ip_address)
             self.assertEqual(response['port_ids'], [])
-
-
-class TestQuarkUpdateIPAddressQuotaCheck(test_quark_plugin.TestQuarkPlugin):
-    @contextlib.contextmanager
-    def _stubs(self, port, addresses):
-        port_models = []
-        addr_model = None
-
-        port_model = models.Port()
-        port_model.update(port)
-        port_models.append(port_model)
-
-        for addr in addresses:
-            addr_model = models.IPAddress()
-            addr_model.update(addr)
-            port_model["ip_addresses"].append(addr_model)
-
-        db_mod = "quark.db.api"
-        with contextlib.nested(
-            mock.patch("%s.port_find" % db_mod),
-            mock.patch("%s.ip_address_find" % db_mod),
-            mock.patch("%s.port_associate_ip" % db_mod),
-            mock.patch("%s.port_disassociate_ip" % db_mod),
-            mock.patch("quark.plugin_modules.ip_addresses"
-                       ".validate_and_fetch_segment"),
-            mock.patch("quark.plugin_modules.ip_addresses.ipam_driver")
-        ) as (port_find, ip_find, port_associate_ip, port_disassociate_ip, val,
-              mock_ipam):
-            port_find.return_value = port_models
-            ip_find.return_value = addr_model
-            port_associate_ip.side_effect = _port_associate_stub
-            port_disassociate_ip.side_effect = _port_disassociate_stub
-            mock_ipam.deallocate_ip_address.side_effect = (
-                _ip_deallocate_stub)
-            yield
-
-    def test_update_ip_address_port_over_quota(self):
-        addresses = [{"id": ip, "address": ip} for ip in xrange(5)]
-
-        port = dict(id=1, network_id=2)
-        ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
-                  subnet_id=1, network_id=2, version=4, deallocated=1,
-                  deallocated_at='2020-01-01 00:00:00')
-
-        with self._stubs(port=port, addresses=addresses):
-            ip_address = {'ip_address': {"port_ids": [port]}}
-            with self.assertRaises(exceptions.OverQuota):
-                self.plugin.update_ip_address(self.admin_context, ip['id'],
-                                              ip_address)
 
 
 class TestQuarkGetIpAddress(test_quark_plugin.TestQuarkPlugin):
@@ -814,66 +770,3 @@ class TestQuarkGetIpAddressPort(test_quark_plugin.TestQuarkPlugin):
         mock_dbapi.port_find.return_value = []
         with self.assertRaises(exceptions.PortNotFound):
             self.plugin.get_port_for_ip_address(self.context, 123, 100)
-
-    def test_update_port_service_inactive_ip(self, mock_dbapi, mock_ipam,
-                                             *args):
-        port = dict(id=100, network_id=2,
-                    backend_key="derp", device_id="y")
-        port2 = dict(id=101, network_id=2,
-                     backend_key="derp", device_id="x")
-        ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
-                  subnet_id=1, network_id=2, version=4, address_type="shared")
-        port_model = models.Port()
-        port_model2 = models.Port()
-        port_model.update(port)
-        port_model2.update(port2)
-        ip_model = models.IPAddress()
-        ip_model.update(ip)
-        ip_model.ports = [port_model, port_model2]
-
-        ip_mod = 'quark.db.models.IPAddress'
-        mock_port_update = patch('%s.set_service_for_port' % ip_mod)
-        self.addCleanup(mock_port_update.stop)
-        mock_port_update = mock_port_update.start()
-
-        mock_dbapi.port_find.return_value = port_model
-        mock_dbapi.ip_address_find.return_value = ip_model
-        mock_ipam.allocate_ip_address.side_effect = (
-            self._alloc_stub(ip_model))
-        port_update = dict(service='derp')
-        port_update = {'port': port_update}
-        self.plugin.update_port_for_ip(self.context, 1, 100, port_update)
-        self.assertTrue(mock_port_update.called)
-        self.assertTrue(mock_port_update.called_once_with(
-            self.context, 100, port_update))
-
-    def test_update_shared_ip_deactivate(self, mock_dbapi, mock_ipam, *args):
-        port = dict(id=100, service='compute', network_id=2,
-                    backend_key="derp", device_id="y")
-        port2 = dict(id=101, network_id=2,
-                     backend_key="derp", device_id="x")
-        ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
-                  subnet_id=1, network_id=2, version=4, address_type="shared")
-        port_model = models.Port()
-        port_model2 = models.Port()
-        port_model.update(port)
-        port_model2.update(port2)
-        ip_model = models.IPAddress()
-        ip_model.update(ip)
-        ip_model.ports = [port_model, port_model2]
-
-        ip_mod = 'quark.db.models.IPAddress'
-        mock_port_update = patch('%s.set_service_for_port' % ip_mod)
-        self.addCleanup(mock_port_update.stop)
-        mock_port_update = mock_port_update.start()
-
-        mock_dbapi.port_find.return_value = port_model
-        mock_dbapi.ip_address_find.return_value = ip_model
-        mock_ipam.allocate_ip_address.side_effect = (
-            self._alloc_stub(ip_model))
-        port_update = dict(service='derp')
-        port_update = {'port': port_update}
-        self.plugin.update_port_for_ip(self.context, 1, 100, port_update)
-        self.assertTrue(mock_port_update.called)
-        self.assertTrue(mock_port_update.called_once_with(
-            self.context, 100, port_update))

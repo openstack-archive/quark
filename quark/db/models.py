@@ -175,17 +175,11 @@ class IPAddress(BASEV2, models.HasId):
     def is_shared(self):
         return self.address_type == ip_types.SHARED
 
-    def has_shared_owner(self):
+    def has_any_shared_owner(self):
         for assoc in self["associations"]:
             if assoc.service != 'none' and assoc.service is not None:
                 return True
         return False
-
-    def get_shared_owner(self):
-        for assoc in self["associations"]:
-            if assoc.service != 'none' and assoc.service is not None:
-                return assoc.port
-        return None
 
     def set_service_for_port(self, port, service):
         for assoc in self["associations"]:

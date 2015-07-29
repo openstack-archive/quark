@@ -18,9 +18,10 @@ import netaddr
 
 import contextlib
 
-from oslo_config import cfg
+from neutron.common import exceptions
 from quark.db import ip_types
 
+from quark.db import api as db_api
 from quark import exceptions as q_exceptions
 import quark.ipam
 import quark.plugin
@@ -54,13 +55,14 @@ class QuarkSharedIPs(BaseFunctionalTest):
 
     def setUp(self):
         super(QuarkSharedIPs, self).setUp()
-        self.old_show_port_service = cfg.CONF.QUARK.show_port_service
-        cfg.CONF.set_override('show_port_service', True, 'QUARK')
 
     def tearDown(self):
         super(QuarkSharedIPs, self).tearDown()
-        cfg.CONF.set_override('show_port_service', self.old_show_port_service,
-                              'QUARK')
+
+    def _make_port_body(self, service):
+        body = dict(service=service)
+        port_info = {"port": dict(body)}
+        return port_info
 
     @contextlib.contextmanager
     def _stubs(self, network_info, subnet_info, ports_info):
@@ -81,12 +83,207 @@ class QuarkSharedIPs(BaseFunctionalTest):
                 ports.append(port_api.create_port(self.context, port_info))
             yield net, sub, ports
 
-    def test_create_shared_ips_with_port_ids(self):
+    def test_delete_ip_with_shared_owner_error(self):
 
-        def _make_body(ip):
-            fix_ip = dict(ip_address=ip, subnet_id=sub['id'])
-            port_info = {"port": dict(fixed_ips=[fix_ip])}
-            return port_info
+        with self._stubs(self.network, self.subnet, self.ports_info2) as (
+                net, sub, ports):
+
+            port_ids = [ports[0]['id'], ports[1]['id']]
+            p_id = ports[0]['id']
+            shared_ip = {'ip_address': dict(port_ids=port_ids,
+                                            network_id=net['id'],
+                                            version=4)}
+            ip = ip_api.create_ip_address(self.context, shared_ip)
+            port_ip_update = ip_api.update_port_for_ip_address
+            port_ip_update(self.context, ip['id'], p_id,
+                           self._make_port_body('derp'))
+
+            with self.assertRaises(self.disassociate_exception):
+                ip_api.delete_ip_address(self.context, ip['id'])
+
+    def test_update_shared_ip_with_unowned_ports_is_okay(self):
+
+        with self._stubs(self.network, self.subnet, self.ports_info4) as (
+                net, sub, ports):
+
+            port_ids = [ports[0]['id'], ports[1]['id']]
+            shared_ip = {'ip_address': dict(port_ids=port_ids,
+                                            network_id=net['id'],
+                                            version=4)}
+            ip = ip_api.create_ip_address(self.context, shared_ip)
+            self.assertEqual(ip_types.SHARED, ip['type'])
+            port_ids = [ports[0]['id'], ports[3]['id']]
+            shared_ip = {'ip_address': dict(port_ids=port_ids)}
+
+            ip = ip_api.update_ip_address(self.context, ip['id'], shared_ip)
+
+            ports_ip = ip_api.get_ports_for_ip_address(self.context, ip['id'])
+            self.assertEqual(2, len(ports_ip))
+            for port in ports_ip:
+                self.assertTrue(port['id'] in port_ids)
+
+    def test_has_shared_owner_detection(self):
+        with self._stubs(self.network, self.subnet, self.ports_info4) as (
+                net, sub, ports):
+
+            port_ids = [ports[0]['id'], ports[1]['id']]
+            p_id = ports[0]['id']
+
+            shared_ip = {'ip_address': dict(port_ids=port_ids,
+                                            network_id=net['id'],
+                                            version=4)}
+            ip = ip_api.create_ip_address(self.context, shared_ip)
+            self.assertEqual(ip_types.SHARED, ip['type'])
+            ip_db = db_api.ip_address_find(self.context, id=ip['id'],
+                                           scope=db_api.ONE)
+            self.assertFalse(ip_db.has_any_shared_owner())
+
+            port_ip_update = ip_api.update_port_for_ip_address
+            port_ip_update(self.context, ip['id'], p_id,
+                           self._make_port_body('derp'))
+
+            self.assertTrue(ip_db.has_any_shared_owner())
+
+    def test_update_shared_ip_with_owned_port_no_error_if_present(self):
+
+        with self._stubs(self.network, self.subnet, self.ports_info4) as (
+                net, sub, ports):
+
+            port_ids = [ports[0]['id'], ports[1]['id']]
+            p_id = ports[0]['id']
+
+            shared_ip = {'ip_address': dict(port_ids=port_ids,
+                                            network_id=net['id'],
+                                            version=4)}
+            ip = ip_api.create_ip_address(self.context, shared_ip)
+            self.assertEqual(ip_types.SHARED, ip['type'])
+
+            port_ip_update = ip_api.update_port_for_ip_address
+            port_ip_update(self.context, ip['id'], p_id,
+                           self._make_port_body('derp'))
+
+            port_ids = [ports[0]['id'], ports[2]['id']]
+            shared_ip = {'ip_address': dict(port_ids=port_ids)}
+
+            ip_api.update_ip_address(self.context, ip['id'], shared_ip)
+
+    def test_update_shared_ip_with_owned_port_no_error_if_present_alone(self):
+
+        with self._stubs(self.network, self.subnet, self.ports_info4) as (
+                net, sub, ports):
+
+            port_ids = [ports[0]['id'], ports[1]['id']]
+            p_id = ports[0]['id']
+
+            shared_ip = {'ip_address': dict(port_ids=port_ids,
+                                            network_id=net['id'],
+                                            version=4)}
+            ip = ip_api.create_ip_address(self.context, shared_ip)
+            self.assertEqual(ip_types.SHARED, ip['type'])
+
+            port_ip_update = ip_api.update_port_for_ip_address
+            port_ip_update(self.context, ip['id'], p_id,
+                           self._make_port_body('derp'))
+
+            port_ids = [ports[0]['id']]
+            shared_ip = {'ip_address': dict(port_ids=port_ids)}
+
+            ip_api.update_ip_address(self.context, ip['id'], shared_ip)
+
+    def test_update_shared_ip_with_owned_port_no_error_if_adding(self):
+
+        with self._stubs(self.network, self.subnet, self.ports_info4) as (
+                net, sub, ports):
+
+            port_ids = [ports[0]['id'], ports[1]['id']]
+            p_id = ports[0]['id']
+
+            shared_ip = {'ip_address': dict(port_ids=port_ids,
+                                            network_id=net['id'],
+                                            version=4)}
+            ip = ip_api.create_ip_address(self.context, shared_ip)
+            self.assertEqual(ip_types.SHARED, ip['type'])
+
+            port_ip_update = ip_api.update_port_for_ip_address
+            port_ip_update(self.context, ip['id'], p_id,
+                           self._make_port_body('derp'))
+            port_ids = [ports[0]['id'], ports[1]['id'], ports[2]['id']]
+
+            shared_ip = {'ip_address': dict(port_ids=port_ids)}
+
+            ip_api.update_ip_address(self.context, ip['id'], shared_ip)
+
+    def test_update_shared_ip_with_owned_port_no_error_if_same_list(self):
+
+        with self._stubs(self.network, self.subnet, self.ports_info4) as (
+                net, sub, ports):
+
+            port_ids = [ports[0]['id'], ports[1]['id']]
+            p_id = ports[0]['id']
+
+            shared_ip = {'ip_address': dict(port_ids=port_ids,
+                                            network_id=net['id'],
+                                            version=4)}
+            ip = ip_api.create_ip_address(self.context, shared_ip)
+            self.assertEqual(ip_types.SHARED, ip['type'])
+
+            port_ip_update = ip_api.update_port_for_ip_address
+            port_ip_update(self.context, ip['id'], p_id,
+                           self._make_port_body('derp'))
+
+            shared_ip = {'ip_address': dict(port_ids=port_ids)}
+
+            ip_api.update_ip_address(self.context, ip['id'], shared_ip)
+
+    def test_update_shared_ip_with_owned_port_error_deallocate(self):
+
+        with self._stubs(self.network, self.subnet, self.ports_info4) as (
+                net, sub, ports):
+
+            port_ids = [ports[0]['id'], ports[1]['id']]
+            p_id = ports[0]['id']
+
+            shared_ip = {'ip_address': dict(port_ids=port_ids,
+                                            network_id=net['id'],
+                                            version=4)}
+            ip = ip_api.create_ip_address(self.context, shared_ip)
+            self.assertEqual(ip_types.SHARED, ip['type'])
+
+            port_ip_update = ip_api.update_port_for_ip_address
+            port_ip_update(self.context, ip['id'], p_id,
+                           self._make_port_body('derp'))
+
+            port_ids = []
+            shared_ip = {'ip_address': dict(port_ids=port_ids)}
+
+            with self.assertRaises(self.disassociate_exception):
+                ip_api.update_ip_address(self.context, ip['id'], shared_ip)
+
+    def test_update_shared_ip_with_owned_port_error(self):
+
+        with self._stubs(self.network, self.subnet, self.ports_info4) as (
+                net, sub, ports):
+
+            port_ids = [ports[0]['id'], ports[1]['id']]
+            p_id = ports[0]['id']
+
+            shared_ip = {'ip_address': dict(port_ids=port_ids,
+                                            network_id=net['id'],
+                                            version=4)}
+            ip = ip_api.create_ip_address(self.context, shared_ip)
+            self.assertEqual(ip_types.SHARED, ip['type'])
+
+            port_ip_update = ip_api.update_port_for_ip_address
+            port_ip_update(self.context, ip['id'], p_id,
+                           self._make_port_body('derp'))
+
+            port_ids = [ports[2]['id'], ports[1]['id']]
+            shared_ip = {'ip_address': dict(port_ids=port_ids)}
+
+            with self.assertRaises(self.disassociate_exception):
+                ip_api.update_ip_address(self.context, ip['id'], shared_ip)
+
+    def test_create_shared_ips_with_port_ids(self):
 
         with self._stubs(self.network, self.subnet, self.ports_info2) as (
                 net, sub, ports):
@@ -102,11 +299,6 @@ class QuarkSharedIPs(BaseFunctionalTest):
             self.assertEqual(2, len(ports_ip))
 
     def test_shared_ip_in_fixed_ip_list(self):
-
-        def _make_body(service):
-            body = dict(service=service)
-            port_info = {"port": dict(body)}
-            return port_info
 
         with self._stubs(self.network, self.subnet, self.ports_info2) as (
                 net, sub, ports):
@@ -128,18 +320,13 @@ class QuarkSharedIPs(BaseFunctionalTest):
 
             port_ip_update = ip_api.update_port_for_ip_address
             updated_port = port_ip_update(self.context, ip['id'],
-                                          p_id, _make_body('derp'))
+                                          p_id, self._make_port_body('derp'))
             self.assertEqual('derp', updated_port.get('service'))
 
             port = port_api.get_port(self.context, p_id)
             self.assertEqual(2, len(port['fixed_ips']))
 
     def test_ip_port_list_has_services(self):
-
-        def _make_body(service):
-            body = dict(service=service)
-            port_info = {"port": dict(body)}
-            return port_info
 
         with self._stubs(self.network, self.subnet, self.ports_info2) as (
                 net, sub, ports):
@@ -154,7 +341,7 @@ class QuarkSharedIPs(BaseFunctionalTest):
             ip = ip_api.create_ip_address(self.context, shared_ip)
             port_ip_update = ip_api.update_port_for_ip_address
             port_ip_update(self.context, ip['id'],
-                           ports[0]['id'], _make_body('derp'))
+                           ports[0]['id'], self._make_port_body('derp'))
 
             ports_ip = ip_api.get_ports_for_ip_address(self.context, ip['id'])
             self.assertEqual(2, len(ports_ip))
@@ -167,11 +354,6 @@ class QuarkSharedIPs(BaseFunctionalTest):
                                 'Service is: %s' % str(port['service']))
 
     def test_can_delete_ip_without_active_port(self):
-
-        def _make_body(service):
-            body = dict(service=service)
-            port_info = {"port": dict(body)}
-            return port_info
 
         with self._stubs(self.network, self.subnet, self.ports_info2) as (
                 net, sub, ports):
@@ -186,11 +368,6 @@ class QuarkSharedIPs(BaseFunctionalTest):
 
     def test_cannot_delete_ip_with_active_port(self):
 
-        def _make_body(service):
-            body = dict(service=service)
-            port_info = {"port": dict(body)}
-            return port_info
-
         with self._stubs(self.network, self.subnet, self.ports_info2) as (
                 net, sub, ports):
             device_ids = [ports[0]['device_id'], ports[1]['device_id']]
@@ -200,7 +377,173 @@ class QuarkSharedIPs(BaseFunctionalTest):
             ip = ip_api.create_ip_address(self.context, shared_ip)
             port_ip_update = ip_api.update_port_for_ip_address
             port_ip_update(self.context, ip['id'],
-                           ports[0]['id'], _make_body('derp'))
+                           ports[0]['id'], self._make_port_body('derp'))
 
             with self.assertRaises(self.disassociate_exception):
                 ip_api.delete_ip_address(self.context, ip['id'])
+
+
+class QuarkSharedIPsQuotaCheck(BaseFunctionalTest):
+    def __init__(self, *args, **kwargs):
+        super(QuarkSharedIPsQuotaCheck, self).__init__(*args, **kwargs)
+        self.disassociate_exception = q_exceptions.PortRequiresDisassociation
+        self.cidr = "192.168.2.0/24"
+        self.ip_network = netaddr.IPNetwork(self.cidr)
+        network = dict(name="public", tenant_id="fake", network_plugin="BASE")
+        self.network = {"network": network}
+        subnet = dict(ip_version=4, next_auto_assign_ip=2,
+                      cidr=self.cidr, first_ip=self.ip_network.first,
+                      last_ip=self.ip_network.last, ip_policy=None,
+                      tenant_id="fake")
+        self.subnet = {"subnet": subnet}
+        port1 = {'port': dict(device_id='a')}
+        port2 = {'port': dict(device_id='b')}
+        port3 = {'port': dict(device_id='c')}
+        port4 = {'port': dict(device_id='d')}
+        self.ports_info2 = [port1, port2]
+        self.ports_info4 = [port1, port2, port3, port4]
+
+    def setUp(self):
+        super(QuarkSharedIPsQuotaCheck, self).setUp()
+
+    def tearDown(self):
+        super(QuarkSharedIPsQuotaCheck, self).tearDown()
+
+    @contextlib.contextmanager
+    def _stubs(self, network_info, subnet_info, ports_info):
+        self.ipam = quark.ipam.QuarkIpamANY()
+        with contextlib.nested(
+                mock.patch("neutron.common.rpc.get_notifier")):
+            self.context.is_admin = True
+            net = network_api.create_network(self.context, network_info)
+            mac = {'mac_address_range': dict(cidr="AA:BB:CC")}
+            macrng_api.create_mac_address_range(self.context, mac)
+            self.context.is_admin = False
+            subnet_info['subnet']['network_id'] = net['id']
+            sub = subnet_api.create_subnet(self.context, subnet_info)
+            ports = []
+            for port_info in ports_info:
+                port_info['port']['network_id'] = net['id']
+                ports.append(port_api.create_port(self.context, port_info))
+            yield net, sub, ports
+
+    def test_create_shared_ip_over_public_network_quota(self):
+        network = dict(name="public", tenant_id="fake", network_plugin="BASE",
+                       id='00000000-0000-0000-0000-000000000000')
+        network = {"network": network}
+
+        with self._stubs(network, self.subnet, self.ports_info4) as (
+                net, sub, ports):
+
+            port_ids = [ports[0]['id'], ports[1]['id']]
+            shared_ip = {'ip_address': dict(port_ids=port_ids,
+                                            network_id=net['id'],
+                                            version=4)}
+            port_ids = [ports[2]['id'], ports[3]['id']]
+            shared_ip2 = {'ip_address': dict(port_ids=port_ids,
+                                             network_id=net['id'],
+                                             version=4)}
+
+            # NOTE(roaet): this is hardcoded to 5 and will fail after 5
+            for i in xrange(5):
+                # NOTE(roaet): need to do this modulo stuff to not hit IP quota
+                if i % 2 == 0:
+                    ip_api.create_ip_address(self.context, shared_ip)
+                else:
+                    ip_api.create_ip_address(self.context, shared_ip2)
+
+            with self.assertRaises(q_exceptions.CannotCreateMoreSharedIPs):
+                ip_api.create_ip_address(self.context, shared_ip)
+
+    def test_create_shared_ip_over_isolated_network_quota(self):
+        with self._stubs(self.network, self.subnet, self.ports_info4) as (
+                net, sub, ports):
+
+            port_ids = [ports[0]['id'], ports[1]['id']]
+            shared_ip = {'ip_address': dict(port_ids=port_ids,
+                                            network_id=net['id'],
+                                            version=4)}
+            port_ids = [ports[2]['id'], ports[3]['id']]
+            shared_ip2 = {'ip_address': dict(port_ids=port_ids,
+                                             network_id=net['id'],
+                                             version=4)}
+
+            # NOTE(roaet): this is hardcoded to 5
+            for i in xrange(4):
+                # NOTE(roaet): need to do this modulo stuff to not hit IP quota
+                if i % 2 == 0:
+                    ip_api.create_ip_address(self.context, shared_ip)
+                else:
+                    ip_api.create_ip_address(self.context, shared_ip2)
+
+            # NOTE(roaet): this should not fail
+            ip_api.create_ip_address(self.context, shared_ip)
+
+    def test_create_shared_ip_over_service_network_quota(self):
+        network = dict(name="service", tenant_id="fake", network_plugin="BASE",
+                       id='11111111-1111-1111-1111-111111111111')
+        network = {"network": network}
+
+        with self._stubs(network, self.subnet, self.ports_info4) as (
+                net, sub, ports):
+
+            port_ids = [ports[0]['id'], ports[1]['id']]
+            shared_ip = {'ip_address': dict(port_ids=port_ids,
+                                            network_id=net['id'],
+                                            version=4)}
+
+            # NOTE(roaet): this is hardcoded to 0 so should fail instantly
+            with self.assertRaises(q_exceptions.CannotCreateMoreSharedIPs):
+                ip_api.create_ip_address(self.context, shared_ip)
+
+    def test_create_shared_ip_over_public_total_ip_on_port_quota(self):
+        network = dict(name="public", tenant_id="fake", network_plugin="BASE",
+                       id='00000000-0000-0000-0000-000000000000')
+        network = {"network": network}
+
+        with self._stubs(network, self.subnet, self.ports_info2) as (
+                net, sub, ports):
+
+            port_ids = [ports[0]['id'], ports[1]['id']]
+            shared_ip = {'ip_address': dict(port_ids=port_ids,
+                                            network_id=net['id'],
+                                            version=4)}
+            # NOTE(roaet): this is hardcoded to 6 so should fail after 5
+            # since a port comes with 1 IP already
+            for i in xrange(5):
+                ip_api.create_ip_address(self.context, shared_ip)
+
+            with self.assertRaises(exceptions.OverQuota):
+                ip_api.create_ip_address(self.context, shared_ip)
+
+    def test_create_shared_ip_over_isolated_total_ip_on_port_quota(self):
+        with self._stubs(self.network, self.subnet, self.ports_info2) as (
+                net, sub, ports):
+
+            port_ids = [ports[0]['id'], ports[1]['id']]
+            shared_ip = {'ip_address': dict(port_ids=port_ids,
+                                            network_id=net['id'],
+                                            version=4)}
+            # NOTE(roaet): this is hardcoded to 5 should fail after 4
+            # since a port comes with 1 IP already
+            for i in xrange(4):
+                ip_api.create_ip_address(self.context, shared_ip)
+
+            with self.assertRaises(exceptions.OverQuota):
+                ip_api.create_ip_address(self.context, shared_ip)
+
+    def test_create_shared_ip_over_service_total_ip_on_port_quota(self):
+        network = dict(name="service", tenant_id="fake", network_plugin="BASE",
+                       id='11111111-1111-1111-1111-111111111111')
+        network = {"network": network}
+
+        with self._stubs(network, self.subnet, self.ports_info2) as (
+                net, sub, ports):
+
+            port_ids = [ports[0]['id'], ports[1]['id']]
+            shared_ip = {'ip_address': dict(port_ids=port_ids,
+                                            network_id=net['id'],
+                                            version=4)}
+            # NOTE(roaet): this is hardcoded to 1 so should fail immediately
+            with self.assertRaises(exceptions.OverQuota):
+                ip_api.create_ip_address(self.context, shared_ip)

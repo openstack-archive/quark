@@ -42,10 +42,6 @@ quark_view_opts = [
                 default=True,
                 help=_('Controls whether or not to show ip_policy_id for'
                        'subnets')),
-    cfg.BoolOpt('show_port_service',
-                default=False,
-                help=_('Controls whether or not to show service for'
-                       'ports'))
 ]
 
 CONF.register_opts(quark_view_opts, "QUARK")
@@ -175,9 +171,6 @@ def _port_dict(port, fields=None):
                                port.get("security_groups", None)],
            "device_id": port.get("device_id"),
            "device_owner": port.get("device_owner")}
-
-    if CONF.QUARK.show_port_service:
-        res['service'] = port.get("service")
 
     if "mac_address" in res and res["mac_address"]:
         mac = str(netaddr.EUI(res["mac_address"])).replace('-', ':')

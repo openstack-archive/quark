@@ -263,8 +263,15 @@ def port_associate_ip(context, ports, address, enable_port=None):
     return address
 
 
+def get_ports_for_address(address):
+    ports = []
+    for assoc in address.associations:
+        ports.append(assoc.port)
+    return ports
+
+
 def update_port_associations_for_ip(context, ports, address):
-    assoc_ports = set(address.ports)
+    assoc_ports = set(get_ports_for_address(address))
     new_ports = set(ports)
     new_address = port_associate_ip(context, new_ports - assoc_ports,
                                     address)
@@ -546,8 +553,11 @@ def network_find(context, limit=None, sorts=None, marker=None,
                  page_reverse=False, fields=None, **filters):
     ids = []
     defaults = []
+    provider_query = False
     if "id" in filters:
         ids, defaults = STRATEGY.split_network_ids(context, filters["id"])
+        if not ids and defaults and "shared" not in filters:
+            provider_query = True
         if ids:
             filters["id"] = ids
         else:
@@ -565,11 +575,12 @@ def network_find(context, limit=None, sorts=None, marker=None,
             defaults.insert(0, INVERT_DEFAULTS)
         filters.pop("shared")
     return _network_find(context, limit, sorts, marker, page_reverse, fields,
-                         defaults=defaults, **filters)
+                         defaults=defaults, provider_query=provider_query,
+                         **filters)
 
 
 def _network_find(context, limit, sorts, marker, page_reverse, fields,
-                  defaults=None, **filters):
+                  defaults=None, provider_query=False, **filters):
     query = context.session.query(models.Network)
     model_filters = _model_query(context, models.Network, filters, query)
 
@@ -581,7 +592,7 @@ def _network_find(context, limit, sorts, marker, page_reverse, fields,
         if filters and invert_defaults:
             query = query.filter(and_(not_(models.Network.id.in_(defaults)),
                                       and_(*model_filters)))
-        elif filters and not invert_defaults:
+        elif not provider_query and filters and not invert_defaults:
             query = query.filter(or_(models.Network.id.in_(defaults),
                                      and_(*model_filters)))
 
