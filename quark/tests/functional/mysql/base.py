@@ -30,9 +30,9 @@ class MySqlBaseFunctionalTest(test_base.TestBase):
         configure_mappers()
         engine = neutron_db_api.get_engine()
         models.BASEV2.metadata.create_all(engine)
-        quota_driver.quota_db.Quota.metadata.create_all(engine)
+        quota_driver.Quota.metadata.create_all(engine)
 
     def tearDown(self):
         engine = neutron_db_api.get_engine()
         models.BASEV2.metadata.drop_all(engine)
-        quota_driver.quota_db.Quota.metadata.drop_all(engine)
+        quota_driver.Quota.metadata.drop_all(engine)

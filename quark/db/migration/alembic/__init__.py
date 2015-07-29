@@ -8,6 +8,6 @@ from quark import quota_driver
 target_metadata = models.BASEV2.metadata
 # FIXME: https://bitbucket.org/zzzeek/alembic/issue/38
 table_names = set([tbl.name for tbl in target_metadata.sorted_tables])
-for t in quota_driver.quota_db.Quota.metadata.tables.values():
+for t in quota_driver.Quota.metadata.tables.values():
     if t.name == "quotas" and t.name not in table_names:
         t.tometadata(target_metadata)
