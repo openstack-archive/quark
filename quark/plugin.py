@@ -19,7 +19,8 @@ v2 Neutron Plug-in API Quark Implementation
 
 from neutron.extensions import securitygroup as sg_ext
 from neutron import neutron_plugin_base_v2
-from neutron import quota
+from neutron.quota import resource as qres
+from neutron.quota import resource_registry as qres_reg
 from oslo_config import cfg
 from oslo_log import log as logging
 
@@ -41,24 +42,24 @@ LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
 
 quark_resources = [
-    quota.BaseResource('alloc_pools_per_subnet',
-                       'quota_alloc_pools_per_subnet'),
-    quota.BaseResource('dns_nameservers_per_subnet',
-                       'quota_dns_nameservers_per_subnet'),
-    quota.BaseResource('ports_per_network',
-                       'quota_ports_per_network'),
-    quota.BaseResource('routes_per_subnet',
-                       'quota_routes_per_subnet'),
-    quota.BaseResource('security_rules_per_group',
-                       'quota_security_rules_per_group'),
-    quota.BaseResource('security_groups_per_port',
-                       'quota_security_groups_per_port'),
-    quota.BaseResource('v4_subnets_per_network',
-                       'quota_v4_subnets_per_network'),
-    quota.BaseResource('v6_subnets_per_network',
-                       'quota_v6_subnets_per_network'),
-    quota.BaseResource('fixed_ips_per_port',
-                       'quota_fixed_ips_per_port')
+    qres.BaseResource('alloc_pools_per_subnet',
+                      'quota_alloc_pools_per_subnet'),
+    qres.BaseResource('dns_nameservers_per_subnet',
+                      'quota_dns_nameservers_per_subnet'),
+    qres.BaseResource('ports_per_network',
+                      'quota_ports_per_network'),
+    qres.BaseResource('routes_per_subnet',
+                      'quota_routes_per_subnet'),
+    qres.BaseResource('security_rules_per_group',
+                      'quota_security_rules_per_group'),
+    qres.BaseResource('security_groups_per_port',
+                      'quota_security_groups_per_port'),
+    qres.BaseResource('v4_subnets_per_network',
+                      'quota_v4_subnets_per_network'),
+    qres.BaseResource('v6_subnets_per_network',
+                      'quota_v6_subnets_per_network'),
+    qres.BaseResource('fixed_ips_per_port',
+                      'quota_fixed_ips_per_port')
 ]
 
 quark_quota_opts = [
@@ -104,7 +105,7 @@ append_quark_extensions(CONF)
 
 
 CONF.register_opts(quark_quota_opts, "QUOTAS")
-quota.QUOTAS.register_resources(quark_resources)
+qres_reg.ResourceRegistry.get_instance().register_resources(quark_resources)
 
 
 def sessioned(func):
