@@ -33,7 +33,11 @@ quark_router_opts = [
                default='Unicorn',
                help=_('Driver for floating IP')),
     cfg.StrOpt('floating_ip_segment_name', default='floating_ip',
-               help=_('Segment name for floating IP subnets'))
+               help=_('Segment name for floating IP subnets')),
+    cfg.StrOpt('floating_ip_ipam_strategy', default='ANY',
+               help=_('Override the network IPAM stategy for floating '
+                      "allocation. Use 'NETWORK' to fall back to the "
+                      "network's strategy")),
 ]
 
 CONF.register_opts(quark_router_opts, 'QUARK')
@@ -109,7 +113,11 @@ def create_floatingip(context, content):
         ip_addresses.append(ip_address)
 
     seg_name = CONF.QUARK.floating_ip_segment_name
-    strategy_name = network.get('ipam_strategy')
+    strategy_name = CONF.QUARK.floating_ip_ipam_strategy
+
+    if strategy_name.upper() == 'NETWORK':
+        strategy_name = network.get("ipam_strategy")
+
     ipam_driver = ipam.IPAM_REGISTRY.get_strategy(strategy_name)
     ipam_driver.allocate_ip_address(context, new_addresses, network_id,
                                     port_id, CONF.QUARK.ipam_reuse_after,
