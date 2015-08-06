@@ -82,9 +82,7 @@ class QuarkIPReallocateFunctionalTest(MySqlBaseFunctionalTest,
             "network_id": self.network_db["id"],
             "reuse_after": self.REUSE_AFTER,
             "deallocated": True,
-            "ip_address": None,
             "version": 4,
-            "subnet_id": None
         }
         reallocated = db_api.ip_address_reallocate(
             self.context,
@@ -97,9 +95,7 @@ class QuarkIPReallocateFunctionalTest(MySqlBaseFunctionalTest,
             "network_id": self.network_db["id"],
             "reuse_after": self.REUSE_AFTER,
             "deallocated": True,
-            "ip_address": None,
             "version": 6,
-            "subnet_id": None
         }
         reallocated = db_api.ip_address_reallocate(
             self.context,
@@ -111,10 +107,8 @@ class QuarkIPReallocateFunctionalTest(MySqlBaseFunctionalTest,
         ip_kwargs = {
             "network_id": self.network_db["id"],
             "reuse_after": self.REUSE_AFTER,
-            "deallocated": None,
             "ip_address": self.ip_address_v4,
             "version": 4,
-            "subnet_id": None
         }
         reallocated = db_api.ip_address_reallocate(
             self.context,
@@ -127,7 +121,6 @@ class QuarkIPReallocateFunctionalTest(MySqlBaseFunctionalTest,
             "network_id": self.network_db["id"],
             "reuse_after": self.REUSE_AFTER,
             "deallocated": True,
-            "ip_address": None,
             "version": 4,
             "subnet_id": [self.subnet_v4_db["id"]]
         }
@@ -142,9 +135,7 @@ class QuarkIPReallocateFunctionalTest(MySqlBaseFunctionalTest,
             "network_id": self.network_db["id"],
             "reuse_after": self.REUSE_AFTER * 2,
             "deallocated": True,
-            "ip_address": None,
             "version": 4,
-            "subnet_id": None
         }
         reallocated = db_api.ip_address_reallocate(
             self.context,
@@ -157,9 +148,6 @@ class QuarkIPReallocateFunctionalTest(MySqlBaseFunctionalTest,
             "network_id": self.network_db["id"],
             "reuse_after": self.REUSE_AFTER,
             "deallocated": True,
-            "ip_address": None,
-            "version": None,
-            "subnet_id": None
         }
         reallocated = db_api.ip_address_reallocate(
             self.context,
@@ -175,9 +163,7 @@ class QuarkIPReallocateFindTest(MySqlBaseFunctionalTest, IPReallocateMixin):
             "network_id": self.network_db["id"],
             "reuse_after": self.REUSE_AFTER,
             "deallocated": True,
-            "ip_address": None,
             "version": 4,
-            "subnet_id": None
         }
         reallocated = db_api.ip_address_reallocate(
             self.context,
@@ -196,9 +182,7 @@ class QuarkIPReallocateFindTest(MySqlBaseFunctionalTest, IPReallocateMixin):
             "network_id": self.network_db["id"],
             "reuse_after": self.REUSE_AFTER,
             "deallocated": True,
-            "ip_address": None,
             "version": 6,
-            "subnet_id": None
         }
         reallocated = db_api.ip_address_reallocate(
             self.context,
@@ -229,9 +213,7 @@ class QuarkIPReallocateFindTest(MySqlBaseFunctionalTest, IPReallocateMixin):
             "network_id": self.network_db["id"],
             "reuse_after": self.REUSE_AFTER,
             "deallocated": True,
-            "ip_address": None,
             "version": 4,
-            "subnet_id": None
         }
         reallocated = db_api.ip_address_reallocate(
             self.context,
@@ -255,9 +237,7 @@ class QuarkIPReallocateFindTest(MySqlBaseFunctionalTest, IPReallocateMixin):
             "network_id": self.network_db["id"],
             "reuse_after": self.REUSE_AFTER,
             "deallocated": True,
-            "ip_address": None,
             "version": 4,
-            "subnet_id": None
         }
         reallocated = db_api.ip_address_reallocate(
             self.context,
@@ -282,9 +262,7 @@ class QuarkIPReallocateFindTest(MySqlBaseFunctionalTest, IPReallocateMixin):
             "network_id": self.network_db["id"],
             "reuse_after": self.REUSE_AFTER,
             "deallocated": True,
-            "ip_address": None,
             "version": 4,
-            "subnet_id": None
         }
         reallocated = db_api.ip_address_reallocate(
             self.context,
@@ -315,9 +293,7 @@ class QuarkIPReallocateFindTest(MySqlBaseFunctionalTest, IPReallocateMixin):
             "network_id": self.network_db["id"],
             "reuse_after": self.REUSE_AFTER,
             "deallocated": True,
-            "ip_address": None,
             "version": 4,
-            "subnet_id": None
         }
         reallocated = db_api.ip_address_reallocate(
             self.context,

@@ -115,9 +115,6 @@ def _model_query(context, model, filters, fields=None):
         eq_filters.extend(sg_rule_attribs)
 
     for key, value in filters.items():
-        # This is mostly for unittests, as they're configured to send in None
-        if value is None:
-            continue
         if key in in_filters:
             model_type = getattr(model, key)
             model_filters.append(model_type.in_(value))
