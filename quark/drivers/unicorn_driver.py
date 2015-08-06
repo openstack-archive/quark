@@ -18,12 +18,12 @@ Unicorn driver for Quark
 """
 
 import json
-import netaddr
 import requests
 
 from oslo_config import cfg
 from oslo_log import log as logging
 
+from quark.db import ip_types
 from quark import exceptions as ex
 
 CONF = cfg.CONF
@@ -53,7 +53,7 @@ class UnicornDriver(object):
         LOG.info("Calling unicorn to register floating ip: %s %s" % (url, req))
         r = requests.post(url, data=json.dumps(req))
 
-        if r.status_code != 200:
+        if r.status_code != 200 and r.status_code != 201:
             msg = "Unexpected status from unicorn API: Status Code %s, " \
                   "Message: %s" % (r.status_code, r.json())
             LOG.error("register_floating_ip: %s" % msg)
@@ -67,7 +67,7 @@ class UnicornDriver(object):
         LOG.info("Calling unicorn to register floating ip: %s %s" % (url, req))
         r = requests.put(url, data=json.dumps(req))
 
-        if r.status_code != 200:
+        if r.status_code != 200 and r.status_code != 201:
             msg = "Unexpected status from unicorn API: Status Code %s, " \
                   "Message: %s" % (r.status_code, r.json())
             LOG.error("register_floating_ip: %s" % msg)
@@ -91,10 +91,21 @@ class UnicornDriver(object):
 
     @staticmethod
     def _build_request_body(floating_ip, port, fixed_ip):
-        mac_addr = netaddr.EUI(port.mac_address)
+        fixed_ips = [{"ip_address": ip.address_readable,
+                      "version": ip.version,
+                      "subnet_id": ip.subnet.id,
+                      "cidr": ip.subnet.cidr,
+                      "address_type": ip.address_type}
+                     for ip in port.ip_addresses
+                     if (ip.get("address_type") == ip_types.FIXED)]
         content = {"public_ip": floating_ip["address_readable"],
-                   "network_uuid": port.id,
-                   "destinations": [
-                       {"private_ip": fixed_ip.address_readable,
-                        "private_mac": str(mac_addr)}]}
+                   "endpoints": [
+                       {"port": {"uuid": port.id,
+                                 "name": port.name,
+                                 "network_uuid": port.network_id,
+                                 "mac_address": port.mac_address,
+                                 "device_id": port.device_id,
+                                 "device_owner": port.device_owner,
+                                 "fixed_ip": fixed_ips},
+                        "private_ip": fixed_ip.address_readable}]}
         return {"floating_ip": content}
