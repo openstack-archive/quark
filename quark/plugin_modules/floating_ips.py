@@ -33,10 +33,14 @@ quark_router_opts = [
                default='Unicorn',
                help=_('Driver for floating IP')),
     cfg.StrOpt('floating_ip_segment_name', default='floating_ip',
-               help=_('Segment name for floating IP subnets'))
+               help=_('Segment name for floating IP subnets')),
+    cfg.StrOpt('floating_ip_ipam_strategy', default='ANY',
+               help=_('Override the network IPAM stategy for floating '
+                      "allocation. Use 'NETWORK' to fall back to the "
+                      "network's strategy")),
 ]
 
-CONF.register_opts(quark_router_opts, "QUARK")
+CONF.register_opts(quark_router_opts, 'QUARK')
 
 
 def create_floatingip(context, content):
@@ -51,20 +55,20 @@ def create_floatingip(context, content):
         are declared in the fields parameter, then only those keys will be
         present.
     """
-    LOG.info("create_floatingip %s for tenant %s and body %s" %
+    LOG.info('create_floatingip %s for tenant %s and body %s' %
              (id, context.tenant_id, content))
-    tenant_id = content.get("tenant_id")
-    network_id = content.get("floating_network_id")
-    fixed_ip_address = content.get("fixed_ip_address")
-    ip_address = content.get("floating_ip_address")
-    port_id = content.get("port_id")
+    tenant_id = content.get('tenant_id')
+    network_id = content.get('floating_network_id')
+    fixed_ip_address = content.get('fixed_ip_address')
+    ip_address = content.get('floating_ip_address')
+    port_id = content.get('port_id')
 
     if not tenant_id:
         tenant_id = context.tenant_id
 
     if not network_id:
-        raise exceptions.BadRequest(resource="floating_ip",
-                                    msg="floating_network_id is required.")
+        raise exceptions.BadRequest(resource='floating_ip',
+                                    msg='floating_network_id is required.')
 
     network = db_api.network_find(context, id=network_id, scope=db_api.ONE)
 
@@ -89,8 +93,8 @@ def create_floatingip(context, content):
                     port_id=port_id)
         else:
             fixed_ip = next((ip for ip in port.ip_addresses
-                            if (ip["address_readable"] == fixed_ip_address and
-                                ip.get("address_type") == ip_types.FIXED)),
+                            if (ip['address_readable'] == fixed_ip_address and
+                                ip.get('address_type') == ip_types.FIXED)),
                             None)
 
             if not fixed_ip:
@@ -98,8 +102,8 @@ def create_floatingip(context, content):
                     fixed_ip=fixed_ip_address, port_id=port_id)
 
             if any(ip for ip in port.ip_addresses
-                   if (ip.get("address_type") == ip_types.FLOATING and
-                       ip.fixed_ip["address_readable"] == fixed_ip_address)):
+                   if (ip.get('address_type') == ip_types.FLOATING and
+                       ip.fixed_ip['address_readable'] == fixed_ip_address)):
                 raise qex.PortAlreadyContainsFloatingIp(
                     port_id=port_id)
 
@@ -109,7 +113,11 @@ def create_floatingip(context, content):
         ip_addresses.append(ip_address)
 
     seg_name = CONF.QUARK.floating_ip_segment_name
-    strategy_name = network.get("ipam_strategy")
+    strategy_name = CONF.QUARK.floating_ip_ipam_strategy
+
+    if strategy_name.upper() == 'NETWORK':
+        strategy_name = network.get("ipam_strategy")
+
     ipam_driver = ipam.IPAM_REGISTRY.get_strategy(strategy_name)
     ipam_driver.allocate_ip_address(context, new_addresses, network_id,
                                     port_id, CONF.QUARK.ipam_reuse_after,
@@ -148,14 +156,14 @@ def update_floatingip(context, id, content):
         present.
     """
 
-    LOG.info("update_floatingip %s for tenant %s and body %s" %
+    LOG.info('update_floatingip %s for tenant %s and body %s' %
              (id, context.tenant_id, content))
 
-    if "port_id" not in content:
-        raise exceptions.BadRequest(resource="floating_ip",
-                                    msg="port_id is required.")
+    if 'port_id' not in content:
+        raise exceptions.BadRequest(resource='floating_ip',
+                                    msg='port_id is required.')
 
-    port_id = content.get("port_id")
+    port_id = content.get('port_id')
     port = None
     fixed_ip = None
     current_port = None
@@ -182,11 +190,11 @@ def update_floatingip(context, id, content):
                 raise qex.PortAlreadyAssociatedToFloatingIP(**d)
 
             fixed_ip = _get_next_available_fixed_ip(port)
-            LOG.info("new fixed ip: %s" % fixed_ip)
+            LOG.info('new fixed ip: %s' % fixed_ip)
             if not fixed_ip:
                 raise qex.NoAvailableFixedIPsForPort(port_id=port_id)
 
-        LOG.info("current ports: %s" % current_ports)
+        LOG.info('current ports: %s' % current_ports)
 
         if current_port:
             flip = db_api.port_disassociate_ip(context, [current_port], flip)
@@ -225,9 +233,9 @@ def delete_floatingip(context, id):
     :param id: id of the floating ip
     """
 
-    LOG.info("delete_floatingip %s for tenant %s" % (id, context.tenant_id))
+    LOG.info('delete_floatingip %s for tenant %s' % (id, context.tenant_id))
 
-    filters = {"address_type": ip_types.FLOATING, "_deallocated": False}
+    filters = {'address_type': ip_types.FLOATING, '_deallocated': False}
 
     flip = db_api.floating_ip_find(context, id=id, scope=db_api.ONE, **filters)
     if not flip:
@@ -240,7 +248,7 @@ def delete_floatingip(context, id):
         current_port = current_ports[0]
 
     with context.session.begin():
-        strategy_name = flip.network.get("ipam_strategy")
+        strategy_name = flip.network.get('ipam_strategy')
         ipam_driver = ipam.IPAM_REGISTRY.get_strategy(strategy_name)
         ipam_driver.deallocate_ip_address(context, flip)
 
@@ -272,9 +280,9 @@ def get_floatingip(context, id, fields=None):
         are declared in the fields parameter, then only those keys will be
         present.
     """
-    LOG.info("get_floatingip %s for tenant %s" % (id, context.tenant_id))
+    LOG.info('get_floatingip %s for tenant %s' % (id, context.tenant_id))
 
-    filters = {"address_type": ip_types.FLOATING, "_deallocated": False}
+    filters = {'address_type': ip_types.FLOATING, '_deallocated': False}
 
     floating_ip = db_api.floating_ip_find(context, id=id, scope=db_api.ONE,
                                           **filters)
@@ -306,14 +314,14 @@ def get_floatingips(context, filters=None, fields=None, sorts=None, limit=None,
         submits the request (as indicated by the tenant id of the context)
         as well as any filters.
     """
-    LOG.info("get_floatingips for tenant %s filters %s fields %s" %
+    LOG.info('get_floatingips for tenant %s filters %s fields %s' %
              (context.tenant_id, filters, fields))
 
     if filters is None:
         filters = {}
 
-    filters["_deallocated"] = False
-    filters["address_type"] = ip_types.FLOATING
+    filters['_deallocated'] = False
+    filters['address_type'] = ip_types.FLOATING
 
     floating_ips = db_api.floating_ip_find(context, scope=db_api.ALL,
                                            **filters)
@@ -340,23 +348,23 @@ def get_floatingips_count(context, filters=None):
     NOTE: this method is optional, as it was not part of the originally
           defined plugin API.
     """
-    LOG.info("get_floatingips_count for tenant %s filters %s" %
+    LOG.info('get_floatingips_count for tenant %s filters %s' %
              (context.tenant_id, filters))
 
     if filters is None:
         filters = {}
 
-    filters["_deallocated"] = False
-    filters["address_type"] = ip_types.FLOATING
+    filters['_deallocated'] = False
+    filters['address_type'] = ip_types.FLOATING
 
     return db_api.ip_address_count_all(context, filters)
 
 
 def _get_next_available_fixed_ip(port):
     floating_ips = [ip for ip in port.ip_addresses
-                    if ip.get("address_type") == ip_types.FLOATING]
+                    if ip.get('address_type') == ip_types.FLOATING]
     fixed_ips = [ip for ip in port.ip_addresses
-                 if ip.get("address_type") == ip_types.FIXED]
+                 if ip.get('address_type') == ip_types.FIXED]
 
     if not fixed_ips or len(fixed_ips) == 0:
         return None
@@ -365,5 +373,5 @@ def _get_next_available_fixed_ip(port):
             if ip and ip.fixed_ip]
 
     return next((ip for ip in sorted(fixed_ips,
-                                     key=lambda ip: ip.get("allocated_at"))
+                                     key=lambda ip: ip.get('allocated_at'))
                 if ip.address not in used), None)
