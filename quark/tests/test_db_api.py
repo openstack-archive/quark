@@ -256,10 +256,12 @@ class TestDBAPI(BaseFunctionalTest):
         self.context.session.delete.assert_has_calls(
             [mock.call(mock_assocs[1]), mock.call(mock_assocs[2])])
 
+    @mock.patch("quark.db.api.get_ports_for_address")
     @mock.patch("quark.db.api.port_disassociate_ip")
     @mock.patch("quark.db.api.port_associate_ip")
     def test_update_port_associations_for_ip(self, associate_mock,
-                                             disassociate_mock):
+                                             disassociate_mock,
+                                             get_associations_mock):
         self.context.session.add = mock.Mock()
         self.context.session.delete = mock.Mock()
         mock_ports = [models.Port(id=str(x), network_id="2", ip_addresses=[])
@@ -272,6 +274,7 @@ class TestDBAPI(BaseFunctionalTest):
         new_port_list = mock_ports[1:3]
         new_port_list.append(models.Port(id="4", network_id="2",
                              ip_addresses=[]))
+        get_associations_mock.return_value = mock_ports
         # NOTE(thomasem): Should be the new address after associating
         # any new ports in the list.
         mock_new_address = associate_mock.return_value

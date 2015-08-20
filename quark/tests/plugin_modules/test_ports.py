@@ -608,7 +608,8 @@ class TestQuarkPortCreateFixedIpsQuota(test_quark_plugin.TestQuarkPlugin):
     def test_create_port_fixed_ips_over_quota(self):
         network = {"id": 1, "tenant_id": self.context.tenant_id}
         fixed_ips = [{"subnet_id": 1}, {"subnet_id": 1}, {"subnet_id": 1},
-                     {"subnet_id": 1}, {"subnet_id": 1}, {"subnet_id": 1}]
+                     {"subnet_id": 1}, {"subnet_id": 1}, {"subnet_id": 1},
+                     {"subnet_id": 1}]
         port = {"port": {"network_id": 1, "tenant_id": self.context.tenant_id,
                          "device_id": 2, "fixed_ips": fixed_ips}}
         with self._stubs(network=network):
@@ -717,6 +718,7 @@ class TestQuarkUpdatePort(test_quark_plugin.TestQuarkPlugin):
 
     def test_update_port_goes_over_quota(self):
         fixed_ips = {"fixed_ips": [{"subnet_id": 1},
+                                   {"subnet_id": 1},
                                    {"subnet_id": 1},
                                    {"subnet_id": 1},
                                    {"subnet_id": 1},

@@ -88,8 +88,8 @@ quark_quota_opts = [
                default=1,
                help=_('Maximum v6 subnets per network')),
     cfg.IntOpt('quota_fixed_ips_per_port',
-               default=5,
-               help=_('Maximum number of fixed IPs per port'))
+               default=6,
+               help=_('Maximum number of fixed IPs per port')),
 ]
 
 

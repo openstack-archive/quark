@@ -3,7 +3,6 @@ import netaddr
 
 import contextlib
 
-from oslo_config import cfg
 from quark.db import api as db_api
 from quark.db import ip_types
 import quark.ipam
@@ -37,13 +36,9 @@ class QuarkSharedIPs(MySqlBaseFunctionalTest):
 
     def setUp(self):
         super(QuarkSharedIPs, self).setUp()
-        self.old_show_port_service = cfg.CONF.QUARK.show_port_service
-        cfg.CONF.set_override('show_port_service', True, 'QUARK')
 
     def tearDown(self):
         super(QuarkSharedIPs, self).tearDown()
-        cfg.CONF.set_override('show_port_service', self.old_show_port_service,
-                              'QUARK')
 
     @contextlib.contextmanager
     def _stubs(self, network_info, subnet_info, ports_info):

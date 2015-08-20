@@ -177,3 +177,19 @@ class PortAlreadyAssociatedToFloatingIP(exceptions.BadRequest):
 class FloatingIPUpdateNoPortIdSupplied(exceptions.BadRequest):
     message = _("When no port is currently associated to the floating if, "
                 "port_id is required but was not supplied")
+
+
+class PortOrDeviceNotFound(exceptions.PortNotFound):
+    message = _("Suitable port or device could not be found")
+
+
+class NotAllPortOrDeviceFound(exceptions.NotFound):
+    message = _("Not all ports or devices from request could be found")
+
+
+class CannotAddMoreIPsToPort(exceptions.OverQuota):
+    message = _("Cannot add more IPs to port")
+
+
+class CannotCreateMoreSharedIPs(exceptions.OverQuota):
+    message = _("Cannot create more shared IPs on selected network")

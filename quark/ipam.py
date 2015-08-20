@@ -608,7 +608,7 @@ class QuarkIpam(object):
 
         def _try_reallocate_ip_address(ipam_log, ip_addr=None):
             new_addresses.extend(self.attempt_to_reallocate_ip(
-                context, net_id, port_id, reuse_after, version=None,
+                context, net_id, port_id, reuse_after, version=version,
                 ip_address=ip_addr, segment_id=segment_id, subnets=subnets,
                 **kwargs))
 

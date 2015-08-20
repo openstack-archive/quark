@@ -155,7 +155,8 @@ class TestQuarkGetNetworksShared(test_quark_plugin.TestQuarkPlugin):
                     self.assertEqual(1, len(net['subnets']))
             net_find.assert_called_with(self.context, None, None, None, False,
                                         None, join_subnets=True,
-                                        defaults=["public_network"])
+                                        defaults=["public_network"],
+                                        provider_query=False)
 
     def test_get_networks_shared_false(self):
         net0 = dict(id='public_network', tenant_id=self.context.tenant_id,
@@ -168,7 +169,8 @@ class TestQuarkGetNetworksShared(test_quark_plugin.TestQuarkPlugin):
                                      {"shared": [False]})
             net_find.assert_called_with(self.context, None, None, None, False,
                                         None, join_subnets=True,
-                                        defaults=[invert, "public_network"])
+                                        defaults=[invert, "public_network"],
+                                        provider_query=False)
 
     def test_get_networks_no_shared(self):
         net0 = dict(id='public_network', tenant_id=self.context.tenant_id,
@@ -179,7 +181,7 @@ class TestQuarkGetNetworksShared(test_quark_plugin.TestQuarkPlugin):
             self.plugin.get_networks(self.context, None, None, None, False)
             net_find.assert_called_with(self.context, None, None, None,
                                         False, None, join_subnets=True,
-                                        defaults=[])
+                                        defaults=[], provider_query=False)
 
 
 class TestQuarkGetNetworkCount(test_quark_plugin.TestQuarkPlugin):
