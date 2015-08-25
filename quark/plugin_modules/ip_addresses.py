@@ -257,8 +257,7 @@ def update_ip_address(context, id, ip_address):
     LOG.info("update_ip_address %s for tenant %s" % (id, context.tenant_id))
     ports = []
     with context.session.begin():
-        address = db_api.ip_address_find(
-            context, id=id, tenant_id=context.tenant_id, scope=db_api.ONE)
+        address = db_api.ip_address_find(context, id=id, scope=db_api.ONE)
         if not address:
             raise exceptions.NotFound(
                 message="No IP address found with id=%s" % id)
