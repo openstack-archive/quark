@@ -211,7 +211,6 @@ def create_ip_address(context, body):
     segment_id = validate_and_fetch_segment(ports, network_id)
     if iptype == ip_types.SHARED:
         old_addresses = db_api.ip_address_find(context,
-                                               tenant_id=context.tenant_id,
                                                network_id=network_id,
                                                address_type=ip_types.SHARED,
                                                scope=db_api.ALL)
@@ -327,9 +326,15 @@ def delete_ip_address(context, id):
     LOG.info("delete_ip_address %s for tenant %s" % (id, context.tenant_id))
     with context.session.begin():
         ip_address = db_api.ip_address_find(
-            context, id=id, tenant_id=context.tenant_id, scope=db_api.ONE)
+            context, id=id, scope=db_api.ONE)
         if not ip_address or ip_address.deallocated:
             raise quark_exceptions.IpAddressNotFound(addr_id=id)
+
+        iptype = ip_address.address_type
+        if iptype == ip_types.FIXED and not CONF.QUARK.ipaddr_allow_fixed_ip:
+            raise exceptions.BadRequest(
+                resource="ip_addresses",
+                msg="Fixed ips cannot be updated using this interface.")
 
         if ip_address.has_any_shared_owner():
             raise quark_exceptions.PortRequiresDisassociation()
