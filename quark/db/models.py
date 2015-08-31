@@ -412,7 +412,7 @@ class SecurityGroup(BASEV2, models.HasId):
     tenant_id = sa.Column(sa.String(255), index=True)
 
 
-class Port(BASEV2, models.HasTenant, models.HasId):
+class Port(BASEV2, models.HasTenant, models.HasId, IsHazTags):
     __tablename__ = "quark_ports"
     id = sa.Column(sa.String(36), primary_key=True)
     name = sa.Column(sa.String(255), index=True)

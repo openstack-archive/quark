@@ -23,6 +23,7 @@ from oslo_log import log as logging
 
 from quark.db import ip_types
 from quark import network_strategy
+from quark import port_vlan_id
 from quark import protocols
 
 
@@ -179,6 +180,11 @@ def _port_dict(port, fields=None):
     # NOTE(mdietz): more pythonic key in dict check fails here. Leave as get
     if port.get("bridge"):
         res["bridge"] = port["bridge"]
+
+    vlan_id = port_vlan_id.retrieve_vlan_id(port)
+    if vlan_id:
+        res["vlan_id"] = vlan_id
+
     return res
 
 
