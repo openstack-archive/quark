@@ -29,7 +29,6 @@ from sqlalchemy import and_, asc, desc, orm, or_, not_
 from sqlalchemy.orm import class_mapper
 
 from quark.db import models
-from quark.db import sqlalchemy_adapter as quark_sa
 from quark import network_strategy
 from quark import protocols
 
@@ -360,8 +359,9 @@ def ip_address_reallocate(context, update_kwargs, **filters):
     query = context.session.query(models.IPAddress)
     model_filters = _model_query(context, models.IPAddress, filters)
     query = query.filter(*model_filters)
-    row_count = quark_sa.update(query, update_kwargs,
-                                update_args={"mysql_limit": 1})
+    row_count = query.update(update_kwargs,
+                             update_args={"mysql_limit": 1},
+                             synchronize_session=False)
     return row_count == 1
 
 
@@ -431,9 +431,8 @@ def mac_address_reallocate(context, update_kwargs, **filters):
     query = context.session.query(models.MacAddress)
     model_filters = _model_query(context, models.MacAddress, filters)
     query = query.filter(*model_filters)
-    row_count = quark_sa.update(
-        query, update_kwargs,
-        update_args={"mysql_limit": 1})
+    row_count = query.update(update_kwargs, update_args={"mysql_limit": 1},
+                             synchronize_session=False)
     return row_count == 1
 
 
