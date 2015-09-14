@@ -25,6 +25,8 @@ class QuarkIpAvailabilityBaseFunctionalTest(BaseFunctionalTest):
             "quark_ip_policy_cidrs"]
         self.ip_addresses = models.BASEV2.metadata.tables[
             "quark_ip_addresses"]
+        self.locks = models.BASEV2.metadata.tables[
+            "quark_locks"]
         self.default_kwargs = {
             "network_id": "00000000-0000-0000-0000-000000000000",
             "ip_version": 4}
@@ -68,7 +70,8 @@ class QuarkIpAvailabilityBaseFunctionalTest(BaseFunctionalTest):
                            address_readable="0.0.0.1",
                            subnet_id=0,
                            deallocated=0,
-                           deallocated_at=None):
+                           deallocated_at=None,
+                           lock_id=None):
         self.connection.execute(
             self.ip_addresses.insert(),
             address=address,
@@ -76,7 +79,15 @@ class QuarkIpAvailabilityBaseFunctionalTest(BaseFunctionalTest):
             subnet_id=subnet_id,
             _deallocated=deallocated,
             deallocated_at=deallocated_at,
+            lock_id=lock_id,
             created_at=EPOCH)
+
+    def _insert_lock(self, id=0, type="ip_address"):
+        self.connection.execute(
+            self.locks.insert(),
+            created_at=EPOCH,
+            id=id,
+            type=type)
 
     def _default(self):
         self._insert_ip_policy()
@@ -118,20 +129,26 @@ class QuarkIpAvailabilityBaseFunctionalTest(BaseFunctionalTest):
                             1: "0.0.0.1",
                             255: "0.0.0.255"}
         subnet_id = 0
-        for deallocated in (None, 0, 1):
-            for deallocated_at in (None,
-                                   reuse_window - epsilon,
-                                   reuse_window,
-                                   reuse_window + epsilon):
-                for address in address_readable:
-                    self._insert_subnet(id=subnet_id, ip_policy_id=None)
-                    self._insert_ip_address(
-                        subnet_id=subnet_id,
-                        address=address,
-                        deallocated=deallocated,
-                        deallocated_at=deallocated_at,
-                        address_readable=address_readable[address])
-                    subnet_id += 1
+        for lock in (None, 1):
+            for deallocated in (None, 0, 1):
+                for deallocated_at in (None,
+                                       reuse_window - epsilon,
+                                       reuse_window,
+                                       reuse_window + epsilon):
+                    for address in address_readable:
+                        self._insert_subnet(id=subnet_id, ip_policy_id=None)
+                        lock_id = None
+                        if lock:
+                            lock_id = subnet_id
+                            self._insert_lock(id=lock_id)
+                        self._insert_ip_address(
+                            subnet_id=subnet_id,
+                            address=address,
+                            deallocated=deallocated,
+                            deallocated_at=deallocated_at,
+                            address_readable=address_readable[address],
+                            lock_id=lock_id)
+                        subnet_id += 1
 
     def _with_ip_policy(self, utcnow_patch):
         self._insert_network()
@@ -147,20 +164,25 @@ class QuarkIpAvailabilityBaseFunctionalTest(BaseFunctionalTest):
                             1: "0.0.0.1",
                             255: "0.0.0.255"}
         subnet_id = 0
-        for deallocated in (None, 0, 1):
-            for deallocated_at in (None,
-                                   reuse_window - epsilon,
-                                   reuse_window,
-                                   reuse_window + epsilon):
-                for address in address_readable:
-                    self._insert_subnet(id=subnet_id)
-                    self._insert_ip_address(
-                        subnet_id=subnet_id,
-                        address=address,
-                        deallocated=deallocated,
-                        deallocated_at=deallocated_at,
-                        address_readable=address_readable[address])
-                    subnet_id += 1
+        for lock in (None, 1):
+            for deallocated in (None, 0, 1):
+                for deallocated_at in (None,
+                                       reuse_window - epsilon,
+                                       reuse_window,
+                                       reuse_window + epsilon):
+                    for address in address_readable:
+                        self._insert_subnet(id=subnet_id)
+                        lock_id = None
+                        if lock:
+                            lock_id = subnet_id
+                            self._insert_lock(id=lock_id)
+                        self._insert_ip_address(
+                            subnet_id=subnet_id,
+                            address=address,
+                            deallocated=deallocated,
+                            deallocated_at=deallocated_at,
+                            address_readable=address_readable[address])
+                        subnet_id += 1
 
 
 class QuarkIpAvailabilityFunctionalTest(QuarkIpAvailabilityBaseFunctionalTest):
@@ -203,15 +225,15 @@ class QuarkIpAvailabilityFunctionalTest(QuarkIpAvailabilityBaseFunctionalTest):
     def test_no_ip_policy(self, utcnow_patch):
         self._no_ip_policy(utcnow_patch)
         output = ip_avail.get_ip_availability(**self.default_kwargs)
-        self.assertEqual(output["used"], {"region-cell": 27})
-        self.assertEqual(output["unused"], {"region-cell": 256 * 36 - 27})
+        self.assertEqual(output["used"], {"region-cell": 63})
+        self.assertEqual(output["unused"], {"region-cell": 256 * 72 - 63})
 
     @mock.patch("quark.ip_availability.timeutils.utcnow")
     def test_with_ip_policy(self, utcnow_patch):
         self._with_ip_policy(utcnow_patch)
         output = ip_avail.get_ip_availability(**self.default_kwargs)
-        self.assertEqual(output["used"], {"region-cell": 25})
-        self.assertEqual(output["unused"], {"region-cell": 254 * 36 - 25})
+        self.assertEqual(output["used"], {"region-cell": 50})
+        self.assertEqual(output["unused"], {"region-cell": 254 * 72 - 50})
 
 
 class QuarkIpAvailabilityFilterTest(QuarkIpAvailabilityBaseFunctionalTest):
