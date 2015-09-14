@@ -85,7 +85,7 @@ def _model_query(context, model, filters, fields=None):
     filters = filters or {}
     model_filters = []
     eq_filters = ["address", "cidr", "deallocated", "ip_version", "service",
-                  "mac_address_range_id", "transaction_id"]
+                  "mac_address_range_id", "transaction_id", "lock_id"]
     in_filters = ["device_id", "device_owner", "group_id", "id", "mac_address",
                   "name", "network_id", "segment_id", "subnet_id",
                   "used_by_tenant_id", "version"]
