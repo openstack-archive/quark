@@ -25,7 +25,7 @@ class QuarkIpamBaseFunctionalTest(MySqlBaseFunctionalTest):
 
 class QuarkIPAddressReallocate(QuarkIpamBaseFunctionalTest):
     @contextlib.contextmanager
-    def _stubs(self, network, subnet, address):
+    def _stubs(self, network, subnet, address, lock=False):
         self.ipam = quark.ipam.QuarkIpamANY()
         with self.context.session.begin():
             next_ip = subnet.pop("next_auto_assign_ip", 0)
@@ -37,12 +37,16 @@ class QuarkIPAddressReallocate(QuarkIpamBaseFunctionalTest):
             address["subnet_id"] = sub_mod["id"]
             ip = db_api.ip_address_create(self.context, **address)
             address.pop("address")
-            db_api.ip_address_update(self.context, ip, **address)
+            ip = db_api.ip_address_update(self.context, ip, **address)
 
             # NOTE(asadoughi): update after cidr constructor has been invoked
             db_api.subnet_update(self.context,
                                  sub_mod,
                                  next_auto_assign_ip=next_ip)
+
+        if lock:
+            db_api.lock_holder_create(self.context, ip,
+                                      name="testlock", type="ip_address")
         yield net_mod
 
     def test_allocate_finds_ip_reallocates(self):
@@ -88,6 +92,30 @@ class QuarkIPAddressReallocate(QuarkIpamBaseFunctionalTest):
             with self.assertRaises(exceptions.IpAddressGenerationFailure):
                 self.ipam.allocate_ip_address(self.context, [], net["id"],
                                               0, 0)
+
+    def test_allocate_finds_ip_locked_allocates_next_ip(self):
+        network = dict(name="public", tenant_id="fake")
+        ipnet = netaddr.IPNetwork("0.0.0.0/24")
+        next_ip = ipnet.ipv6().first + 10
+        subnet = dict(cidr="0.0.0.0/24", next_auto_assign_ip=next_ip,
+                      ip_policy=None, tenant_id="fake", do_not_use=False)
+
+        addr = netaddr.IPAddress("0.0.0.2")
+
+        after_reuse_after = cfg.CONF.QUARK.ipam_reuse_after + 1
+        reusable_after = datetime.timedelta(seconds=after_reuse_after)
+        deallocated_at = timeutils.utcnow() - reusable_after
+        ip_address = dict(address=addr, version=4, _deallocated=True,
+                          deallocated_at=deallocated_at)
+
+        with self._stubs(network, subnet, ip_address, lock=True) as net:
+            ipaddress = []
+            self.ipam.allocate_ip_address(self.context, ipaddress,
+                                          net["id"], 0, 0)
+            self.assertIsNotNone(ipaddress[0]['id'])
+            self.assertEqual(ipaddress[0]['address'], next_ip)
+            self.assertEqual(ipaddress[0]['version'], 4)
+            self.assertEqual(ipaddress[0]['used_by_tenant_id'], "fake")
 
 
 class MacAddressReallocate(QuarkIpamBaseFunctionalTest):
