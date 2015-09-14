@@ -91,9 +91,11 @@ class OptimizedNVPDriver(NVPDriver):
     def update_port(self, context, port_id, status=True,
                     security_groups=None, **kwargs):
         security_groups = security_groups or []
+        mac_address = kwargs.get('mac_address')
+        device_id = kwargs.get('device_id')
         nvp_port = super(OptimizedNVPDriver, self).update_port(
-            context, port_id, status=status,
-            security_groups=security_groups)
+            context, port_id, mac_address=mac_address, device_id=device_id,
+            status=status, security_groups=security_groups)
         port = self._lport_select_by_id(context, port_id)
         port.update(nvp_port)
 

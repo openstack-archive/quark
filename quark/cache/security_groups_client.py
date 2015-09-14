@@ -16,13 +16,17 @@
 import json
 
 import netaddr
+from oslo_config import cfg
 from oslo_log import log as logging
 
 from quark.cache import redis_base
+from quark.environment import Capabilities
+from quark import exceptions as q_exc
 from quark import protocols
 from quark import utils
 
 
+CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 SECURITY_GROUP_RULE_KEY = "rules"
 SECURITY_GROUP_HASH_ATTR = "security group rules"
@@ -61,7 +65,11 @@ class SecurityGroupsClient(redis_base.ClientBase):
                 if direction == "ingress":
                     source = self._convert_remote_network(prefix)
                 else:
-                    destination = self._convert_remote_network(prefix)
+                    if (Capabilities.EGRESS not in
+                            CONF.QUARK.environment_capabilities):
+                        raise q_exc.EgressSecurityGroupRulesNotEnabled()
+                    else:
+                        destination = self._convert_remote_network(prefix)
 
             optional_fields = {}
 

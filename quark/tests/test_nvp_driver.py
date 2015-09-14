@@ -29,10 +29,10 @@ from quark.tests import test_base
 class TestNVPDriver(test_base.TestBase):
     def setUp(self):
         super(TestNVPDriver, self).setUp()
-
+        cfg.CONF.set_override('environment_capabilities', [], 'QUARK')
         if not hasattr(self, 'driver'):
             self.driver = quark.drivers.nvp_driver.NVPDriver()
-
+        cfg.CONF.clear_override('environment_capabilities', 'QUARK')
         cfg.CONF.set_override('max_rules_per_group', 3, 'NVP')
         cfg.CONF.set_override('max_rules_per_port', 1, 'NVP')
         self.driver.max_ports_per_switch = 0
@@ -491,6 +491,7 @@ class TestNVPDriverCreatePort(TestNVPDriver):
             self.assertTrue(False in status_args)
 
     def test_create_port_with_security_groups(self):
+        cfg.CONF.set_override('environment_capabilities', [], 'QUARK')
         with self._stubs() as connection:
             connection.securityprofile = self._create_security_profile()
             self.driver.create_port(self.context, self.net_id,
@@ -499,8 +500,10 @@ class TestNVPDriverCreatePort(TestNVPDriver):
             connection.lswitch_port().assert_has_calls([
                 mock.call.security_profiles([self.profile_id]),
             ], any_order=True)
+        cfg.CONF.clear_override('environment_capabilities', 'QUARK')
 
     def test_create_port_with_security_groups_max_rules(self):
+        cfg.CONF.set_override('environment_capabilities', [], 'QUARK')
         with self._stubs() as connection:
             connection.securityprofile = self._create_security_profile()
             connection.securityprofile().read().update(
@@ -512,6 +515,7 @@ class TestNVPDriverCreatePort(TestNVPDriver):
                 self.driver.create_port(
                     self.context, self.net_id, self.port_id,
                     security_groups=[1])
+        cfg.CONF.clear_override('environment_capabilities', 'QUARK')
 
 
 class TestNVPDriverUpdatePort(TestNVPDriver):
@@ -527,6 +531,7 @@ class TestNVPDriverUpdatePort(TestNVPDriver):
             yield connection
 
     def test_update_port(self):
+        cfg.CONF.set_override('environment_capabilities', [], 'QUARK')
         with self._stubs() as connection:
             self.driver.update_port(
                 self.context, self.port_id,
@@ -534,8 +539,10 @@ class TestNVPDriverUpdatePort(TestNVPDriver):
             connection.lswitch_port().assert_has_calls([
                 mock.call.security_profiles([self.profile_id]),
             ], any_order=True)
+        cfg.CONF.clear_override('environment_capabilities', 'QUARK')
 
     def test_update_port_max_rules(self):
+        cfg.CONF.set_override('environment_capabilities', [], 'QUARK')
         with self._stubs() as connection:
             connection.securityprofile().read().update(
                 {'logical_port_ingress_rules': [{'ethertype': 'IPv4'},
@@ -546,6 +553,7 @@ class TestNVPDriverUpdatePort(TestNVPDriver):
                 self.driver.update_port(
                     self.context, self.port_id,
                     security_groups=[1])
+        cfg.CONF.clear_override('environment_capabilities', 'QUARK')
 
 
 class TestNVPDriverLswitchesForNetwork(TestNVPDriver):

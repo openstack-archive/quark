@@ -23,6 +23,7 @@ import redis
 from quark.agent.xapi import VIF
 from quark.cache import security_groups_client as sg_client
 from quark.db import models
+from quark.environment import Capabilities
 from quark import exceptions as q_exc
 from quark.tests import test_base
 
@@ -33,6 +34,13 @@ class TestRedisSecurityGroupsClient(test_base.TestBase):
 
     def setUp(self):
         super(TestRedisSecurityGroupsClient, self).setUp()
+        # Forces the connection pool to be recreated on every test
+        sg_client.SecurityGroupsClient.connection_pool = None
+        temp_envcaps = [Capabilities.SECURITY_GROUPS, Capabilities.EGRESS]
+        CONF.set_override('environment_capabilities', temp_envcaps, 'QUARK')
+
+    def tearDown(self):
+        CONF.clear_override('environment_capabilities', 'QUARK')
 
     @mock.patch("uuid.uuid4")
     @mock.patch("quark.cache.redis_base.TwiceRedis")
