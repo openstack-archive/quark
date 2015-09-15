@@ -130,10 +130,6 @@ class RedisConnectionFailure(exceptions.NeutronException):
     message = _("No connection to Redis could be made.")
 
 
-class RedisSlaveWritesForbidden(exceptions.NeutronException):
-    message = _("No write actions can be applied to Slave redis nodes.")
-
-
 class NoBackendConnectionsDefined(exceptions.NeutronException):
     message = _("This driver cannot be used without a backend connection "
                 "definition. %(msg)")

@@ -24,7 +24,7 @@ LOG = logging.getLogger(__name__)
 class SecurityGroupDriver(object):
     @env.has_capability(env.Capabilities.SECURITY_GROUPS)
     def update_port(self, **kwargs):
-        client = sg_client.SecurityGroupsClient(use_master=True)
+        client = sg_client.SecurityGroupsClient()
         if "security_groups" in kwargs:
             if kwargs["security_groups"]:
                 payload = client.serialize_groups(
@@ -38,7 +38,7 @@ class SecurityGroupDriver(object):
 
     @env.has_capability(env.Capabilities.SECURITY_GROUPS)
     def delete_port(self, **kwargs):
-        client = sg_client.SecurityGroupsClient(use_master=True)
+        client = sg_client.SecurityGroupsClient()
         try:
             client.delete_vif(kwargs["device_id"],
                               kwargs["mac_address"])

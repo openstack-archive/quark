@@ -19,7 +19,6 @@ import netaddr
 from oslo_log import log as logging
 
 from quark.cache import redis_base
-from quark import exceptions as q_exc
 from quark import protocols
 from quark import utils
 
@@ -144,8 +143,6 @@ class SecurityGroupsClient(redis_base.ClientBase):
         """Writes a series of security group rules to a redis server."""
         LOG.info("Applying security group rules for device %s with MAC %s" %
                  (device_id, mac_address))
-        if not self._use_master:
-            raise q_exc.RedisSlaveWritesForbidden()
 
         rule_dict = {SECURITY_GROUP_RULE_KEY: rules}
         redis_key = self.vif_key(device_id, mac_address)
@@ -200,9 +197,6 @@ class SecurityGroupsClient(redis_base.ClientBase):
     @utils.retry_loop(3)
     def update_group_states_for_vifs(self, vifs, ack):
         """Updates security groups by setting the ack field"""
-        if not self._use_master:
-            raise q_exc.RedisSlaveWritesForbidden()
-
         vif_keys = [self.vif_key(vif.device_id, vif.mac_address)
                     for vif in vifs]
         self.set_fields(vif_keys, SECURITY_GROUP_ACK, ack)
