@@ -171,6 +171,9 @@ class IPAddress(BASEV2, models.HasId):
     transaction_id = sa.Column(sa.Integer(),
                                sa.ForeignKey("quark_transactions.id"),
                                nullable=True)
+    lock_id = sa.Column(sa.Integer(),
+                        sa.ForeignKey("quark_locks.id"),
+                        nullable=True)
 
     def is_shared(self):
         return self.address_type == ip_types.SHARED
@@ -537,3 +540,18 @@ class Network(BASEV2, models.HasId):
 class Transaction(BASEV2):
     __tablename__ = "quark_transactions"
     id = sa.Column(sa.Integer, primary_key=True)
+
+
+class Lock(BASEV2):
+    __tablename__ = "quark_locks"
+    id = sa.Column(sa.Integer, primary_key=True)
+    type = sa.Column(sa.Enum("ip_address"), nullable=False)
+
+
+class LockHolder(BASEV2):
+    __tablename__ = "quark_lock_holders"
+    id = sa.Column(sa.Integer, primary_key=True)
+    lock_id = sa.Column(sa.Integer(),
+                        sa.ForeignKey("quark_locks.id"),
+                        nullable=False)
+    name = sa.Column(sa.String(255), nullable=True)
