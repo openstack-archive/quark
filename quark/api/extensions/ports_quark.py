@@ -13,6 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from neutron.api.v2 import attributes as attrs
+from neutron.extensions import securitygroup
+
 RESOURCE_NAME = "port"
 RESOURCE_COLLECTION = RESOURCE_NAME + "s"
 EXTENDED_ATTRIBUTES_2_0 = {
@@ -23,7 +26,22 @@ EXTENDED_ATTRIBUTES_2_0 = {
                       "is_visible": True},
         "segment_id": {"allow_post": True, "default": False},
         "bridge": {'allow_post': False, 'allow_put': False,
-                   'default': False, 'is_visible': True}}}
+                   'default': False, 'is_visible': True},
+        "device_owner": {'allow_post': True, 'allow_put': True,
+                         'default': '', 'is_visible': True,
+                         'enforce_policy': True},
+        'use_forbidden_mac_range': {'allow_post': True, 'allow_put': True,
+                                    'default': False,
+                                    'convert_to': attrs.convert_to_boolean,
+                                    'enforce_policy': True,
+                                    'is_visible': True},
+        "security_groups": {
+            "allow_post": True,
+            "allow_put": True,
+            "is_visible": True,
+            "enforce_policy": True,
+            "convert_to": securitygroup.convert_to_uuid_list_or_none,
+            "default": attrs.ATTR_NOT_SPECIFIED}}}
 
 
 class Ports_quark(object):
