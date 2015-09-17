@@ -106,7 +106,11 @@ def rfc2462_ip(mac, cidr):
 
 
 def rfc3041_ip(port_id, cidr):
-    random.seed(int(uuid.UUID(port_id)))
+    if not port_id:
+        random_stuff = uuid.uuid4()
+    else:
+        random_stuff = uuid.UUID(port_id)
+    random.seed(int(random_stuff))
     int_val = netaddr.IPNetwork(cidr).value
     while True:
         rand_bits = random.getrandbits(64)
