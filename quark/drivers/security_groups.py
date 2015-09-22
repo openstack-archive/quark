@@ -26,21 +26,24 @@ class SecurityGroupDriver(object):
     def update_port(self, **kwargs):
         client = sg_client.SecurityGroupsClient()
         if "security_groups" in kwargs:
+            device_id = kwargs.get('device_id')
+            mac_address = kwargs.get('mac_address')
             if kwargs["security_groups"]:
+                if not device_id or not mac_address:
+                    LOG.warning('device_id or mac_address not given, ignored.')
+                    return
                 payload = client.serialize_groups(
                     kwargs["security_groups"])
-                client.apply_rules(kwargs["device_id"],
-                                   kwargs["mac_address"],
-                                   payload)
+                client.apply_rules(device_id, mac_address, payload)
             else:
-                client.delete_vif_rules(kwargs["device_id"],
-                                        kwargs["mac_address"])
+                client.delete_vif_rules(device_id, mac_address)
 
     @env.has_capability(env.Capabilities.SECURITY_GROUPS)
     def delete_port(self, **kwargs):
         client = sg_client.SecurityGroupsClient()
         try:
-            client.delete_vif(kwargs["device_id"],
-                              kwargs["mac_address"])
+            device_id = kwargs.get('device_id')
+            mac_address = kwargs.get('mac_address')
+            client.delete_vif(device_id, mac_address)
         except Exception:
             LOG.exception("Failed to reach the security groups backend")
