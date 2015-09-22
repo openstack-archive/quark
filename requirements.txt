@@ -1,9 +1,9 @@
 SQLAlchemy==1.0.8
 alembic==0.7.6
-oslo.concurrency==1.9.0
-oslo.config==1.11.0
-oslo.db==2.0.0
-oslo.middleware==1.2.0
+oslo.concurrency
+oslo.config
+oslo.db
+oslo.middleware
 mysql-python==1.2.5
 Routes==2.1
 aiclib==0.84
