@@ -29,7 +29,6 @@ from sqlalchemy import and_, asc, desc, orm, or_, not_
 from sqlalchemy.orm import class_mapper
 
 from quark.db import models
-from quark.db import sqlalchemy_adapter as quark_sa
 from quark import network_strategy
 from quark import port_vlan_id
 from quark import protocols
@@ -87,7 +86,7 @@ def _model_query(context, model, filters, fields=None):
     filters = filters or {}
     model_filters = []
     eq_filters = ["address", "cidr", "deallocated", "ip_version", "service",
-                  "mac_address_range_id", "transaction_id"]
+                  "mac_address_range_id", "transaction_id", "lock_id"]
     in_filters = ["device_id", "device_owner", "group_id", "id", "mac_address",
                   "name", "network_id", "segment_id", "subnet_id",
                   "used_by_tenant_id", "version"]
@@ -151,7 +150,8 @@ def _model_query(context, model, filters, fields=None):
         elif key == "tenant_id":
             if model == models.IPAddress:
                 model_filters.append(model.used_by_tenant_id.in_(value))
-            elif model == models.PortIpAssociation:
+            elif (model == models.PortIpAssociation or
+                  model == models.LockHolder):
                 pass
             else:
                 model_filters.append(model.tenant_id.in_(value))
@@ -373,8 +373,9 @@ def ip_address_reallocate(context, update_kwargs, **filters):
     query = context.session.query(models.IPAddress)
     model_filters = _model_query(context, models.IPAddress, filters)
     query = query.filter(*model_filters)
-    row_count = quark_sa.update(query, update_kwargs,
-                                update_args={"mysql_limit": 1})
+    row_count = query.update(update_kwargs,
+                             update_args={"mysql_limit": 1},
+                             synchronize_session=False)
     return row_count == 1
 
 
@@ -444,9 +445,8 @@ def mac_address_reallocate(context, update_kwargs, **filters):
     query = context.session.query(models.MacAddress)
     model_filters = _model_query(context, models.MacAddress, filters)
     query = query.filter(*model_filters)
-    row_count = quark_sa.update(
-        query, update_kwargs,
-        update_args={"mysql_limit": 1})
+    row_count = query.update(update_kwargs, update_args={"mysql_limit": 1},
+                             synchronize_session=False)
     return row_count == 1
 
 
@@ -948,3 +948,59 @@ def floating_ip_associate_fixed_ip(context, floating_ip, fixed_ip):
 def floating_ip_disassociate_fixed_ip(context, floating_ip):
     floating_ip.fixed_ip = None
     return floating_ip
+
+
+@scoped
+def lock_holder_find(context, **filters):
+    query = context.session.query(models.LockHolder)
+    model_filters = _model_query(context, models.LockHolder, filters)
+    return query.filter(*model_filters)
+
+
+def _lock_create(context, target, **kwargs):
+    with context.session.begin():
+        result = context.session.execute(
+            models.Lock.__table__.insert(),
+            {"type": kwargs["type"]})
+        lock_id = result.lastrowid
+
+        target_model = target.__class__
+        row_count = context.session.query(target_model).filter(
+            and_(target_model.id == target.id, target_model.lock_id.is_(None))
+        ).update(dict(lock_id=lock_id))
+
+    if row_count == 0:
+        context.session.query(models.Lock).filter(
+            models.Lock.id == lock_id).delete()
+        return None
+    return lock_id
+
+
+def lock_holder_create(context, target, **kwargs):
+    lock_id = target.lock_id
+    if not lock_id:
+        lock_id = _lock_create(context, target, **kwargs)
+        if not lock_id:
+            # Failed to concurrently create lock; invoker must retry
+            return
+    lock_holder = models.LockHolder(lock_id=lock_id,
+                                    name=kwargs["name"])
+    context.session.add(lock_holder)
+    return lock_holder
+
+
+def _lock_delete(context, target):
+    with context.session.begin():
+        lock_id = target.lock_id
+        lock_holder = lock_holder_find(context, lock_id=lock_id, scope=ONE)
+        if not lock_holder:
+            target.lock_id = None
+            context.session.add(target)
+            context.session.query(
+                models.Lock).filter(
+                    models.Lock.id == lock_id).delete()
+
+
+def lock_holder_delete(context, target, lock_holder):
+    context.session.delete(lock_holder)
+    _lock_delete(context, target)

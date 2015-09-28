@@ -21,27 +21,13 @@ from alembic import environment
 from alembic import script as alembic_script
 from alembic import util as alembic_util
 from oslo_config import cfg
-from oslo_utils import importutils
-
-from neutron.common import repos
 
 HEAD_FILENAME = 'HEAD'
-
-mods = repos.NeutronModules()
-VALID_SERVICES = map(mods.alembic_name, mods.installed_list())
-
 
 _core_opts = [
     cfg.StrOpt('core_plugin',
                default='',
                help=_('Neutron plugin provider module')),
-    cfg.ListOpt('service_plugins',
-                default=[],
-                help=_("The service plugins Neutron will use")),
-    cfg.StrOpt('service',
-               choices=VALID_SERVICES,
-               help=_("The advanced service to execute the command against. "
-                      "Can be one of '%s'.") % "', '".join(VALID_SERVICES))
 ]
 
 _quota_opts = [
@@ -191,18 +177,9 @@ command_opt = cfg.SubCommandOpt('command',
 CONF.register_cli_opt(command_opt)
 
 
-def validate_service_installed(service):
-    if not importutils.try_import('neutron_%s' % service):
-        alembic_util.err(_('Package neutron-%s not installed') % service)
-
-
 def get_script_location(neutron_config):
     location = '%s.db.migration:alembic_migrations'
-    if neutron_config.service:
-        validate_service_installed(neutron_config.service)
-        base = "neutron_%s" % neutron_config.service
-    else:
-        base = "neutron"
+    base = "neutron"
     return location % base
 
 

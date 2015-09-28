@@ -86,10 +86,9 @@ def partition_vifs(xapi_client, interfaces, security_group_states):
     return added, updated, removed
 
 
-def ack_groups(groups):
+def ack_groups(client, groups):
     if len(groups) > 0:
-        write_groups_client = sg_cli.SecurityGroupsClient(use_master=True)
-        write_groups_client.update_group_states_for_vifs(groups, True)
+        client.update_group_states_for_vifs(groups, True)
 
 
 def run():
@@ -120,7 +119,7 @@ def run():
                                                             sg_states)
             xapi_client.update_interfaces(new_sg, updated_sg, removed_sg)
             groups_to_ack = [v for v in new_sg + updated_sg if v.success]
-            ack_groups(groups_to_ack)
+            ack_groups(groups_client, groups_to_ack)
 
         except Exception:
             LOG.exception("Unable to get security groups from registry and "

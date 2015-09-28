@@ -24,7 +24,7 @@ from neutron.db import api as neutron_db_api
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_utils import timeutils
-from sqlalchemy import and_, or_, func
+from sqlalchemy import and_, or_, func, not_
 
 from quark.db import models
 
@@ -108,7 +108,8 @@ def get_used_ips(session, **kwargs):
         query = query.outerjoin(
             models.IPAddress,
             and_(models.Subnet.id == models.IPAddress.subnet_id,
-                 or_(models.IPAddress._deallocated.is_(None),
+                 or_(not_(models.IPAddress.lock_id.is_(None)),
+                     models.IPAddress._deallocated.is_(None),
                      models.IPAddress._deallocated == 0,
                      models.IPAddress.deallocated_at > reuse_window)))
 

@@ -367,6 +367,7 @@ class QuarkIpam(object):
             "network_id": net_id,
             "deallocated": True,
             "version": version,
+            "lock_id": None,
         }
         if reuse_after is not None:
             ip_kwargs["reuse_after"] = reuse_after

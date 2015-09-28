@@ -15,16 +15,15 @@
 
 import functools
 import json
-from random import shuffle
 import string
 
 import netaddr
 from oslo_config import cfg
 from oslo_log import log as logging
-import redis
-import redis.sentinel
 
 from quark import exceptions as q_exc
+
+from twiceredis import TwiceRedis
 
 
 CONF = cfg.CONF
@@ -33,18 +32,6 @@ MAC_TRANS_TABLE = string.maketrans(string.ascii_uppercase,
                                    string.ascii_lowercase)
 
 quark_opts = [
-    cfg.StrOpt('redis_host',
-               default='127.0.0.1',
-               help=_("The server to write redis data to or"
-                      " retrieve sentinel information from, as appropriate")),
-    cfg.IntOpt('redis_port',
-               default=6379,
-               help=_("The port for the redis server to write redis data to or"
-                      " retrieve sentinel information from, as appropriate")),
-    cfg.BoolOpt("redis_use_sentinels",
-                default=False,
-                help=_("Tell the redis client to use sentinels rather than a "
-                       "direct connection")),
     cfg.ListOpt("redis_sentinel_hosts",
                 default=["localhost:26397"],
                 help=_("Comma-separated list of host:port pairs for Redis "
@@ -78,81 +65,26 @@ def handle_connection_error(fn):
     def wrapped(*args, **kwargs):
         try:
             return fn(*args, **kwargs)
-        except redis.ConnectionError as e:
+        except TwiceRedis.generic_error as e:
             LOG.exception(e)
             raise q_exc.RedisConnectionFailure()
     return wrapped
 
 
 class ClientBase(object):
-    read_connection_pool = None
-    write_connection_pool = None
+    def __init__(self):
+        self._client = self.get_redis_client()
 
-    def __init__(self, use_master=False):
-        self._use_master = use_master
-        try:
-            if CONF.QUARK.redis_use_sentinels:
-                self._compile_sentinel_list()
-            self._ensure_connection_pools_exist()
-            self._client = self._client()
-        except redis.ConnectionError as e:
-            LOG.exception(e)
-            raise q_exc.RedisConnectionFailure()
+    def get_redis_client(self):
+        sentinels = [tuple(str.split(host_pair, ':'))
+                     for host_pair in CONF.QUARK.redis_sentinel_hosts]
 
-    def _prepare_pool_connection(self, master):
-        LOG.info("Creating redis connection pool for the first time...")
-        host = CONF.QUARK.redis_host
-        port = CONF.QUARK.redis_port
-
-        connect_args = []
-        connect_kw = {}
-        if CONF.QUARK.redis_password:
-            connect_kw["password"] = CONF.QUARK.redis_password
-
-        if CONF.QUARK.redis_use_sentinels:
-            LOG.info("Using redis sentinel connections %s" %
-                     self._sentinel_list)
-            klass = redis.sentinel.SentinelConnectionPool
-            connect_args.append(CONF.QUARK.redis_sentinel_master)
-            connect_args.append(redis.sentinel.Sentinel(self._sentinel_list))
-            connect_kw["check_connection"] = True
-            connect_kw["is_master"] = master
-        else:
-            LOG.info("Using redis host %s:%s" % (host, port))
-            klass = redis.ConnectionPool
-            connect_kw["host"] = host
-            connect_kw["port"] = port
-
-        return klass, connect_args, connect_kw
-
-    def _ensure_connection_pools_exist(self):
-        if not (ClientBase.write_connection_pool or
-                ClientBase.read_connection_pool):
-            klass, args, kwargs = self._prepare_pool_connection(master=False)
-            ClientBase.read_connection_pool = klass(*args, **kwargs)
-
-            klass, args, kwargs = self._prepare_pool_connection(master=True)
-            ClientBase.write_connection_pool = klass(*args, **kwargs)
-
-    def _compile_sentinel_list(self):
-        self._sentinel_list = [tuple(host.split(':'))
-                               for host in CONF.QUARK.redis_sentinel_hosts]
-        # NOTE(asadoughi): RM12113: shuffle list of sentinels to distribute
-        #                           connection load
-        shuffle(self._sentinel_list)
-        if not self._sentinel_list:
-            raise TypeError("sentinel_list is not a properly formatted"
-                            "list of 'host:port' pairs")
-
-    def _client(self):
-        pool = ClientBase.read_connection_pool
-        if self._use_master:
-            pool = ClientBase.write_connection_pool
-
-        kwargs = {"connection_pool": pool,
-                  "db": CONF.QUARK.redis_db,
-                  "socket_timeout": CONF.QUARK.redis_socket_timeout}
-        return redis.StrictRedis(**kwargs)
+        return TwiceRedis(master_name=CONF.QUARK.redis_sentinel_master,
+                          sentinels=sentinels,
+                          password=CONF.QUARK.redis_password,
+                          check_connection=True,
+                          socket_timeout=CONF.QUARK.redis_socket_timeout,
+                          min_other_sentinels=2)
 
     def vif_key(self, device_id, mac_address):
         mac = str(netaddr.EUI(mac_address))
@@ -162,55 +94,66 @@ class ClientBase(object):
         return "{0}.{1}".format(device_id, mac)
 
     @handle_connection_error
-    def echo(self, echo_str):
-        return self._client.echo(echo_str)
+    def ping(self):
+        # NOTE(tr3buchet): if this gets used by anything other than the
+        #                  redis_sg_tool, self._client.disconnect()
+        #                  needs to be called before returning
+        return self._client.master.ping() and self._client.slave.ping()
 
     @handle_connection_error
     def vif_keys(self, field=None):
-        keys = self._client.keys("*.????????????")
+        keys = self._client.slave.keys("*.????????????")
         filtered = []
         if isinstance(keys, str):
             keys = [keys]
-        for key in keys:
-            value = None
-            if field:
-                value = self._client.hget(key, field)
-            else:
-                value = self._client.hgetall(key)
+        with self._client.slave.pipeline() as pipe:
+            for key in keys:
+                value = None
+                if field:
+                    value = pipe.hget(key, field)
+                else:
+                    value = pipe.hgetall(key)
+            values = pipe.execute()
+        for value in values:
             if value:
                 filtered.append(key)
         return filtered
 
     @handle_connection_error
     def set_field(self, key, field, data):
-        return self.set_field_raw(key, field, json.dumps(data))
+        self.set_field_raw(key, field, json.dumps(data))
 
     @handle_connection_error
     def set_field_raw(self, key, field, data):
-        return self._client.hset(key, field, data)
+        self._client.master.hset(key, field, data)
+        self._client.master.disconnect()
 
     @handle_connection_error
     def get_field(self, key, field):
-        return self._client.hget(key, field)
+        return self._client.slave.hget(key, field)
 
     @handle_connection_error
     def delete_field(self, key, field):
-        return self._client.hdel(key, field)
+        self._client.master.hdel(key, field)
+        self._client.master.disconnect()
 
     @handle_connection_error
     def delete_key(self, key):
-        return self._client.delete(key)
+        self._client.master.delete(key)
+        self._client.master.disconnect()
 
     @handle_connection_error
     def get_fields(self, keys, field):
-        p = self._client.pipeline()
-        for key in keys:
-            p.hget(key, field)
-        return p.execute()
+        with self._client.slave.pipeline() as pipe:
+            for key in keys:
+                pipe.hget(key, field)
+            values = pipe.execute()
+        return values
 
     @handle_connection_error
     def set_fields(self, keys, field, value):
-        p = self._client.pipeline()
-        for key in keys:
-            p.hset(key, field, value)
-        return p.execute()
+        with self._client.master.pipeline() as pipe:
+            for key in keys:
+                pipe.hset(key, field, value)
+            pipe.execute()
+        self._client.master.disconnect()
