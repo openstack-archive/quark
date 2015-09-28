@@ -181,6 +181,10 @@ def _port_dict(port, fields=None):
     if port.get("bridge"):
         res["bridge"] = port["bridge"]
 
+    # NOTE(ClifHouck): This causes another trip to the DB since tags are
+    # are not eager loaded. According to mdietz this be a small impact on
+    # performance, but if the tag system gets used more on ports, we may
+    # want to eager load the tags.
     vlan_id = port_vlan_id.retrieve_vlan_id(port)
     if vlan_id:
         res["vlan_id"] = vlan_id
