@@ -269,3 +269,21 @@ class QuarkSharedIPs(MySqlBaseFunctionalTest):
             filters = dict(device_id='a')
             ports = port_api.get_ports(self.context, filters=filters)
             self.assertEqual(2, len(ports))
+
+
+class QuarkIPAddressFind(MySqlBaseFunctionalTest):
+    def setUp(self):
+        super(QuarkIPAddressFind, self).setUp()
+        self.address = netaddr.IPAddress("0.0.0.1")
+        db_api.ip_address_create(self.context, address=self.address)
+        self.context.session.flush()
+
+    def test_ip_address_find_address_integer(self):
+        result = db_api.ip_address_find(
+            self.context, address=int(self.address), scope=db_api.ONE)
+        self.assertEqual(result.address_readable, str(self.address))
+
+    def test_ip_address_find_address_string(self):
+        result = db_api.ip_address_find(
+            self.context, address=str(self.address), scope=db_api.ONE)
+        self.assertEqual(result.address, int(self.address.ipv6()))
