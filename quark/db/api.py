@@ -327,6 +327,10 @@ def ip_address_find(context, lock_mode=False, **filters):
     if lock_mode:
         query = query.with_lockmode("update")
 
+    # NOTE(asadoughi): NCP-1677: Maps string or integer into integer value
+    if filters.get("address"):
+        filters["address"] = int(netaddr.IPAddress(filters["address"]).ipv6())
+
     model_filters = _model_query(context, models.IPAddress, filters)
 
     if filters.get("device_id"):
