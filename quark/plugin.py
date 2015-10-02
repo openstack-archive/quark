@@ -111,10 +111,11 @@ qres_reg.ResourceRegistry.get_instance().register_resources(quark_resources)
 def sessioned(func):
     def _wrapped(self, context, *args, **kwargs):
         res = func(self, context, *args, **kwargs)
-        context.session.close()
-        # NOTE(mdietz): Forces neutron to get a fresh session
-        #              if it needs it after our call
-        context._session = None
+        if not context.session.is_active:
+            context.session.close()
+            # NOTE(mdietz): Forces neutron to get a fresh session
+            #              if it needs it after our call
+            context._session = None
         return res
     return _wrapped
 
