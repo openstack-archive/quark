@@ -171,7 +171,7 @@ class PortAlreadyAssociatedToFloatingIP(exceptions.BadRequest):
 
 
 class FloatingIPUpdateNoPortIdSupplied(exceptions.BadRequest):
-    message = _("When no port is currently associated to the floating if, "
+    message = _("When no port is currently associated to the floating IP, "
                 "port_id is required but was not supplied")
 
 
