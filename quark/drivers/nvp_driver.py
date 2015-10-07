@@ -26,6 +26,8 @@ from oslo_config import cfg
 from oslo_log import log as logging
 
 from quark.drivers import base
+from quark.drivers import security_groups as sg_driver
+from quark.environment import Capabilities
 from quark import exceptions
 from quark import utils
 
@@ -100,6 +102,9 @@ class NVPDriver(base.BaseDriver):
         self.limits = {'max_ports_per_switch': 0,
                        'max_rules_per_group': 0,
                        'max_rules_per_port': 0}
+        self.sg_driver = None
+        if Capabilities.SECURITY_GROUPS in CONF.QUARK.environment_capabilities:
+            self.sg_driver = sg_driver.SecurityGroupDriver()
         super(NVPDriver, self).__init__()
 
     @classmethod
@@ -268,9 +273,8 @@ class NVPDriver(base.BaseDriver):
         return {'logical_switches': [self._collect_lswitch_info(s, get_status)
                 for s in switches]}
 
-    def create_port(self, context, network_id, port_id,
-                    status=True, security_groups=None,
-                    device_id="", **kwargs):
+    def create_port(self, context, network_id, port_id, status=True,
+                    security_groups=None, device_id="", **kwargs):
         security_groups = security_groups or []
         tenant_id = context.tenant_id
         lswitch = self._create_or_choose_lswitch(context, network_id)
@@ -280,9 +284,10 @@ class NVPDriver(base.BaseDriver):
             with self.get_connection() as connection:
                 port = connection.lswitch_port(lswitch)
                 port.admin_status_enabled(status)
-                nvp_group_ids = self._get_security_groups_for_port(
-                    context, security_groups)
-                port.security_profiles(nvp_group_ids)
+                if not self.sg_driver:
+                    nvp_group_ids = self._get_security_groups_for_port(
+                        context, security_groups)
+                    port.security_profiles(nvp_group_ids)
                 tags = [dict(tag=network_id, scope="neutron_net_id"),
                         dict(tag=port_id, scope="neutron_port_id"),
                         dict(tag=tenant_id, scope="os_tid"),
@@ -291,8 +296,8 @@ class NVPDriver(base.BaseDriver):
                 port.tags(tags)
                 res = port.create()
                 try:
-                    """Catching odd NVP returns here will make it safe to assume that
-                    NVP returned something correct."""
+                    """Catching odd NVP returns here will make it safe to
+                    assume that NVP returned something correct."""
                     res["lswitch"] = lswitch
                 except TypeError:
                     LOG.exception("Unexpected return from NVP: %s" % res)
@@ -304,16 +309,24 @@ class NVPDriver(base.BaseDriver):
         return _create_lswitch_port()
 
     @utils.retry_loop(CONF.NVP.operation_retries)
-    def update_port(self, context, port_id, status=True,
-                    security_groups=None, **kwargs):
-        security_groups = security_groups or []
+    def update_port(self, context, port_id, mac_address=None, device_id=None,
+                    status=True, security_groups=None, **kwargs):
+        if not self.sg_driver:
+            security_groups = security_groups or []
+        else:
+            kwargs.update({'security_groups': security_groups})
         with self.get_connection() as connection:
+            if self.sg_driver:
+                kwargs.update({'mac_addres': mac_address,
+                               'device_id': device_id})
+                self.sg_driver.update_port(**kwargs)
             lswitch_id = self._lswitch_from_port(context, port_id)
             port = connection.lswitch_port(lswitch_id, port_id)
-            nvp_group_ids = self._get_security_groups_for_port(context,
-                                                               security_groups)
-            if nvp_group_ids:
-                port.security_profiles(nvp_group_ids)
+            if not self.sg_driver:
+                nvp_group_ids = self._get_security_groups_for_port(
+                    context, security_groups)
+                if nvp_group_ids:
+                    port.security_profiles(nvp_group_ids)
             port.admin_status_enabled(status)
             return port.update()
 
@@ -327,6 +340,8 @@ class NVPDriver(base.BaseDriver):
                 LOG.debug("Deleting port %s from lswitch %s"
                           % (port_id, lswitch_uuid))
                 connection.lswitch_port(lswitch_uuid, port_id).delete()
+                if self.sg_driver:
+                    self.sg_driver.delete_port(**kwargs)
             except aiclib.core.AICException as ae:
                 if ae.code == 404:
                     LOG.info("LSwitchPort/Port %s not found in NVP."

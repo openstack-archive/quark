@@ -23,6 +23,7 @@ from oslo_utils import uuidutils
 
 from quark.db import api as db_api
 from quark.drivers import registry
+from quark.environment import Capabilities
 from quark import exceptions as q_exc
 from quark import ipam
 from quark import network_strategy
@@ -145,8 +146,8 @@ def create_port(context, port):
 
     net_driver = registry.DRIVER_REGISTRY.get_driver(net["network_plugin"])
 
-    # TODO(anyone): security groups are not currently supported on port create,
-    #               nor on isolated networks today. Please see RM8615
+    # TODO(anyone): security groups are not currently supported on port create.
+    #               Please see JIRA:NCP-801
     security_groups = utils.pop_param(port_attrs, "security_groups")
     if security_groups is not None:
         raise q_exc.SecurityGroupsNotImplemented()
@@ -294,12 +295,11 @@ def update_port(context, id, port):
         quota.QUOTAS.limit_check(context, context.tenant_id,
                                  fixed_ips_per_port=len(fixed_ips))
 
-    # TODO(anyone): security groups are not currently supported on port create,
-    #               nor on isolated networks today. Please see RM8615
     new_security_groups = utils.pop_param(port_dict, "security_groups")
-    if new_security_groups is not None:
-        if not STRATEGY.is_parent_network(port_db["network_id"]):
-            raise q_exc.TenantNetworkSecurityGroupsNotImplemented()
+    if Capabilities.SECURITY_GROUPS not in CONF.QUARK.environment_capabilities:
+        if new_security_groups is not None:
+            if not STRATEGY.is_parent_network(port_db["network_id"]):
+                raise q_exc.TenantNetworkSecurityGroupsNotImplemented()
 
     if new_security_groups is not None and not port_db["device_id"]:
         raise q_exc.SecurityGroupsRequireDevice()

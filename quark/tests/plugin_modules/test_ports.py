@@ -790,17 +790,6 @@ class TestQuarkUpdatePortSecurityGroups(test_quark_plugin.TestQuarkPlugin):
             yield (port_find, port_update, alloc_ip, dealloc_ip, sg_find,
                    driver_port_update)
 
-    def test_update_port_security_groups_on_tenant_net_raises(self):
-        with self._stubs(
-            port=dict(id=1, device_id="device")
-        ) as (port_find, port_update, alloc_ip, dealloc_ip, sg_find,
-              driver_port_update):
-            new_port = dict(port=dict(name="ourport",
-                                      security_groups=[1]))
-            with self.assertRaises(
-                    q_exc.TenantNetworkSecurityGroupsNotImplemented):
-                self.plugin.update_port(self.context, 1, new_port)
-
     def test_update_port_security_groups(self):
         with self._stubs(
             port=dict(id=1, device_id="device"), parent_net=True

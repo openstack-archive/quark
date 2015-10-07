@@ -116,9 +116,9 @@ class SecurityGroupsNotImplemented(exceptions.InvalidInput):
                 "create")
 
 
-class TenantNetworkSecurityGroupsNotImplemented(exceptions.InvalidInput):
-    message = _("Security Groups are not currently implemented for "
-                "tenant networks")
+class EgressSecurityGroupRulesNotEnabled(exceptions.InvalidInput):
+    message = _("Egress security group rules are not currently allowed "
+                "by environment_capabilities configuration.")
 
 
 class SecurityGroupsRequireDevice(exceptions.InvalidInput):
