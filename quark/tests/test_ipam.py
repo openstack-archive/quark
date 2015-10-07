@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import contextlib
+import json
 import time
 
 import mock
@@ -26,6 +27,7 @@ from oslo_db import exception as db_exc
 from quark.db import models
 from quark import exceptions as q_exc
 import quark.ipam
+from quark import network_strategy
 from quark.tests import test_base
 
 
@@ -2158,3 +2160,24 @@ class QuarkIpamTestLog(test_base.TestBase):
         except Exception:
             self.assertTrue(output.called)
             output.assert_called_with(False, 0, 0, 0)
+
+
+class QuarkIpamTestIpAddressFailure(test_base.TestBase):
+    def setUp(self):
+        super(QuarkIpamTestIpAddressFailure, self).setUp()
+        strategy = {"00000000-0000-0000-0000-000000000000":
+                    {"bridge": "publicnet"},
+                    "11111111-1111-1111-1111-111111111111":
+                    {"bridge": "servicenet"}}
+        strategy_json = json.dumps(strategy)
+        quark.ipam.STRATEGY = network_strategy.JSONStrategy(strategy_json)
+
+    def test_ip_failure_provider_net(self):
+        net_id = "00000000-0000-0000-0000-000000000000"
+        with self.assertRaises(q_exc.ProviderNetworkOutOfIps):
+            raise quark.ipam.ip_address_failure(net_id)
+
+    def test_ip_failure_tenant_net(self):
+        net_id = "8f6555ca-fbe7-49db-8240-1cb84202c1f7"
+        with self.assertRaises(exceptions.IpAddressGenerationFailure):
+            raise quark.ipam.ip_address_failure(net_id)

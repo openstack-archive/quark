@@ -95,6 +95,11 @@ class IPAddressProhibitedByPolicy(exceptions.InvalidInput):
     message = _("IP %(ip_addr)s is prohibited by policies on the subnet")
 
 
+class ProviderNetworkOutOfIps(exceptions.NeutronException):
+    message = _("Network %(net_id)s appears to be out of IP Addresses."
+                "You may want to try again in a few seconds")
+
+
 class IPPolicyNotFound(exceptions.NeutronException):
     message = _("IP Policy %(id)s not found.")
 
