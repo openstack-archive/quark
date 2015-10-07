@@ -36,10 +36,12 @@ from quark.db import api as db_api
 from quark.db import ip_types
 from quark.db import models
 from quark import exceptions as q_exc
+from quark import network_strategy
 from quark import utils
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
+STRATEGY = network_strategy.STRATEGY
 
 quark_opts = [
     cfg.IntOpt('v6_allocation_attempts',
@@ -113,6 +115,13 @@ def rfc3041_ip(port_id, cidr):
         val = int_val + rand_bits
         val ^= MAGIC_INT
         yield val
+
+
+def ip_address_failure(network_id):
+    if STRATEGY.is_parent_network(network_id):
+        return q_exc.ProviderNetworkOutOfIps(net_id=network_id)
+    else:
+        return exceptions.IpAddressGenerationFailure(net_id=network_id)
 
 
 def generate_v6(mac, port_id, cidr):
@@ -360,8 +369,7 @@ class QuarkIpam(object):
             if not sub_ids:
                 LOG.info("No subnets matching segment_id {0} could be "
                          "found".format(segment_id))
-                raise exceptions.IpAddressGenerationFailure(
-                    net_id=net_id)
+                raise ip_address_failure(net_id)
 
         ip_kwargs = {
             "network_id": net_id,
@@ -513,8 +521,7 @@ class QuarkIpam(object):
 
                 if tries > CONF.QUARK.v6_allocation_attempts - 1:
                     LOG.info("Exceeded v6 allocation attempts, bailing")
-                    raise exceptions.IpAddressGenerationFailure(
-                        net_id=net_id)
+                    raise ip_address_failure(net_id)
 
                 ip_address = netaddr.IPAddress(ip_address).ipv6()
                 LOG.info("Generated a new v6 address {0}".format(
@@ -688,7 +695,7 @@ class QuarkIpam(object):
             return
         ipam_log.failed()
 
-        raise exceptions.IpAddressGenerationFailure(net_id=net_id)
+        raise ip_address_failure(net_id)
 
     def deallocate_ip_address(self, context, address):
         if address["version"] == 6:
@@ -890,7 +897,7 @@ class QuarkIpamANY(QuarkIpam):
                                     **filters)
         if subnet:
             return [subnet]
-        raise exceptions.IpAddressGenerationFailure(net_id=net_id)
+        raise ip_address_failure(net_id)
 
 
 class QuarkIpamBOTH(QuarkIpam):
@@ -939,7 +946,7 @@ class QuarkIpamBOTH(QuarkIpam):
             if sub:
                 both_subnet_versions.append(sub)
         if not reallocated_ips and not both_subnet_versions:
-            raise exceptions.IpAddressGenerationFailure(net_id=net_id)
+            raise ip_address_failure(net_id)
 
         return both_subnet_versions
 
@@ -967,7 +974,7 @@ class QuarkIpamBOTHREQ(QuarkIpamBOTH):
             context, net_id, version, segment_id, ip_address, reallocated_ips)
 
         if len(reallocated_ips) + len(subnets) < 2:
-            raise exceptions.IpAddressGenerationFailure(net_id=net_id)
+            raise ip_address_failure(net_id)
         return subnets
 
 
