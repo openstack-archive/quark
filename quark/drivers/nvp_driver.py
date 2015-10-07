@@ -317,7 +317,7 @@ class NVPDriver(base.BaseDriver):
             kwargs.update({'security_groups': security_groups})
         with self.get_connection() as connection:
             if self.sg_driver:
-                kwargs.update({'mac_addres': mac_address,
+                kwargs.update({'mac_address': mac_address,
                                'device_id': device_id})
                 self.sg_driver.update_port(**kwargs)
             lswitch_id = self._lswitch_from_port(context, port_id)
