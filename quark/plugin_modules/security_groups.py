@@ -21,6 +21,8 @@ from oslo_log import log as logging
 from oslo_utils import uuidutils
 
 from quark.db import api as db_api
+from quark.environment import Capabilities
+from quark import exceptions as q_exc
 from quark import plugin_views as v
 from quark import protocols
 
@@ -36,6 +38,11 @@ def _validate_security_group_rule(context, rule):
     if rule.get("remote_group_id"):
         raise exceptions.InvalidInput(
             error_message="Remote groups are not currently supported")
+
+    direction = rule.get("direction")
+    if direction == Capabilities.EGRESS:
+        if Capabilities.EGRESS not in CONF.QUARK.environment_capabilities:
+            raise q_exc.EgressSecurityGroupRulesNotEnabled()
 
     protocol = rule.pop('protocol')
     port_range_min = rule['port_range_min']
