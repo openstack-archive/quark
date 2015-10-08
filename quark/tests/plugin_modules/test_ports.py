@@ -452,7 +452,7 @@ class TestQuarkCreatePortsSameDevBadRequest(test_quark_plugin.TestQuarkPlugin):
             for key in expected.keys():
                 self.assertEqual(result[key], expected[key])
 
-    @mock.patch("quark.network_strategy.JSONStrategy.is_parent_network")
+    @mock.patch("quark.network_strategy.JSONStrategy.is_provider_network")
     def test_create_providernet_port_fixed_ip_not_authorized(self, is_parent):
         is_parent.return_value = True
         network = dict(id='1', tenant_id=self.context.tenant_id)
@@ -474,7 +474,7 @@ class TestQuarkCreatePortsSameDevBadRequest(test_quark_plugin.TestQuarkPlugin):
             with self.assertRaises(exceptions.NotAuthorized):
                 self.plugin.create_port(self.context, port)
 
-    @mock.patch("quark.network_strategy.JSONStrategy.is_parent_network")
+    @mock.patch("quark.network_strategy.JSONStrategy.is_provider_network")
     def test_create_providernet_port_fixed_ip_wrong_segment(self, is_parent):
         is_parent.return_value = True
         network = dict(id='1', tenant_id=self.context.tenant_id)
@@ -773,7 +773,7 @@ class TestQuarkUpdatePortSecurityGroups(test_quark_plugin.TestQuarkPlugin):
             mock.patch("quark.ipam.QuarkIpam.deallocate_ips_by_port"),
             mock.patch("neutron.quota.QuotaEngine.limit_check"),
             mock.patch("quark.plugin_modules.ports.STRATEGY"
-                       ".is_parent_network"),
+                       ".is_provider_network"),
             mock.patch("quark.db.api.security_group_find"),
             mock.patch("quark.drivers.base.BaseDriver.update_port")
         ) as (port_find, port_update, alloc_ip, dealloc_ip, limit_check,

@@ -38,7 +38,7 @@ STRATEGY = network_strategy.STRATEGY
 # HACK(amir): RM9305: do not allow a tenant to associate a network to a port
 # that does not belong to them unless it is publicnet or servicenet
 def _raise_if_unauthorized(tenant_id, net):
-    if (not STRATEGY.is_parent_network(net["id"]) and
+    if (not STRATEGY.is_provider_network(net["id"]) and
             net["tenant_id"] != tenant_id):
         raise exceptions.NotAuthorized()
 
@@ -130,7 +130,7 @@ def create_port(context, port):
         quota.QUOTAS.limit_check(context, context.tenant_id,
                                  fixed_ips_per_port=len(fixed_ips))
 
-    if not STRATEGY.is_parent_network(net_id):
+    if not STRATEGY.is_provider_network(net_id):
         # We don't honor segmented networks when they aren't "shared"
         segment_id = None
         port_count = db_api.port_count_all(context, network_id=[net_id],
@@ -164,7 +164,8 @@ def create_port(context, port):
         def _allocate_ips(fixed_ips, net, port_id, segment_id, mac):
             fixed_ip_kwargs = {}
             if fixed_ips:
-                if STRATEGY.is_parent_network(net_id) and not context.is_admin:
+                if (STRATEGY.is_provider_network(net_id) and
+                        not context.is_admin):
                     raise exceptions.NotAuthorized()
 
                 ips, subnets = split_and_validate_requested_subnets(context,
@@ -298,7 +299,7 @@ def update_port(context, id, port):
     new_security_groups = utils.pop_param(port_dict, "security_groups")
     if Capabilities.SECURITY_GROUPS not in CONF.QUARK.environment_capabilities:
         if new_security_groups is not None:
-            if not STRATEGY.is_parent_network(port_db["network_id"]):
+            if not STRATEGY.is_provider_network(port_db["network_id"]):
                 raise q_exc.TenantNetworkSecurityGroupsNotImplemented()
 
     if new_security_groups is not None and not port_db["device_id"]:
