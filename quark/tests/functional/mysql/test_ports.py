@@ -3,9 +3,11 @@ import netaddr
 
 import contextlib
 
+from quark.db import api as db_api
 from quark import exceptions
 import quark.ipam
 import quark.plugin
+import quark.plugin_modules.ip_addresses as ip_api
 import quark.plugin_modules.mac_address_ranges as macrng_api
 import quark.plugin_modules.networks as network_api
 import quark.plugin_modules.ports as port_api
@@ -67,3 +69,27 @@ class QuarkUpdatePorts(MySqlBaseFunctionalTest):
             ip = "192.168.1.50"
             port = port_api.update_port(self.context, id, _make_body(ip))
             self.assertEqual(ip, port['fixed_ips'][0]['ip_address'])
+
+
+class QuarkFindPorts(MySqlBaseFunctionalTest):
+    def test_ip_address_port_find_service(self):
+        net = db_api.network_create(self.context)
+        port = db_api.port_create(self.context, network_id=net["id"],
+                                  backend_key="", device_id="")
+        ip_address = db_api.ip_address_create(
+            self.context, address=netaddr.IPAddress("0.0.0.0"))
+        self.context.session.flush()
+
+        ip_address = db_api.port_associate_ip(self.context, [port], ip_address)
+        ip_address.set_service_for_port(port, "foobar")
+        self.context.session.flush()
+
+        ports = ip_api.get_ports_for_ip_address(
+            self.context, ip_address["id"],
+            filters={"service": "not-foobar"})
+        self.assertEqual(len(ports), 0)
+
+        ports = ip_api.get_ports_for_ip_address(
+            self.context, ip_address["id"],
+            filters={"service": "foobar"})
+        self.assertEqual(len(ports), 1)
