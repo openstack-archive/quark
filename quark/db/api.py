@@ -199,6 +199,10 @@ def port_find(context, limit=None, sorts=None, marker_obj=None, fields=None,
     if filters.get("device_id"):
         model_filters.append(models.Port.device_id.in_(filters["device_id"]))
 
+    if filters.get("service"):
+        model_filters.append(models.Port.associations.any(
+            models.PortIpAssociation.service == filters["service"]))
+
     if "join_security_groups" in filters:
         query = query.options(orm.joinedload(models.Port.security_groups))
 
