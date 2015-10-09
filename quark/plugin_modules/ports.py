@@ -333,7 +333,12 @@ def update_port(context, id, port):
                     msg="subnet_id required for ip_address allocation")
 
             if subnet_id and ip_address:
-                ip_netaddr = netaddr.IPAddress(ip_address).ipv6()
+                ip_netaddr = None
+                try:
+                    ip_netaddr = netaddr.IPAddress(ip_address).ipv6()
+                except netaddr.AddrFormatError:
+                    raise exceptions.InvalidInput(
+                        error_message="Invalid format provided for ip_address")
                 ip_addresses[ip_netaddr] = subnet_id
             else:
                 subnet_ids.append(subnet_id)
@@ -452,7 +457,12 @@ def get_ports(context, limit=None, sorts=None, marker=None, page_reverse=False,
     if "ip_address" in filters:
         if not context.is_admin:
             raise exceptions.NotAuthorized()
-        ips = [netaddr.IPAddress(ip) for ip in filters.pop("ip_address")]
+        ips = []
+        try:
+            ips = [netaddr.IPAddress(ip) for ip in filters.pop("ip_address")]
+        except netaddr.AddrFormatError:
+            raise exceptions.InvalidInput(
+                error_message="Invalid format provided for ip_address")
         query = db_api.port_find_by_ip_address(context, ip_address=ips,
                                                scope=db_api.ALL, **filters)
         ports = []
