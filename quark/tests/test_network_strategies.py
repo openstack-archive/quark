@@ -15,7 +15,6 @@
 
 import json
 
-from neutron.common import exceptions
 from oslo_config import cfg
 
 from quark import network_strategy
@@ -27,8 +26,7 @@ class TestJSONStrategy(test_base.TestBase):
         self.context = None
         self.strategy = {"public_network":
                          {"required": True,
-                          "bridge": "xenbr0",
-                          "children": {"nova": "child_net"}}}
+                          "bridge": "xenbr0"}}
         strategy_json = json.dumps(self.strategy)
         cfg.CONF.set_override("default_net_strategy", strategy_json, "QUARK")
 
@@ -57,31 +55,3 @@ class TestJSONStrategy(test_base.TestBase):
         self.assertTrue("foo_net" not in assignable)
         self.assertTrue("public_network" not in tenant)
         self.assertTrue("public_network" in assignable)
-
-    def test_get_parent_network(self):
-        json_strategy = network_strategy.JSONStrategy(None)
-        parent_net = json_strategy.get_parent_network("child_net")
-        self.assertEqual(parent_net, "public_network")
-
-    def test_get_parent_network_no_parent(self):
-        json_strategy = network_strategy.JSONStrategy(None)
-        parent_net = json_strategy.get_parent_network("bar_network")
-        self.assertEqual(parent_net, "bar_network")
-
-    def test_best_match_network_id(self):
-        json_strategy = network_strategy.JSONStrategy(None)
-        net = json_strategy.best_match_network_id(self.context,
-                                                  "public_network", "nova")
-        self.assertEqual(net, "child_net")
-
-    def test_best_match_network_net_not_in_strategy(self):
-        json_strategy = network_strategy.JSONStrategy(None)
-        net = json_strategy.best_match_network_id(self.context,
-                                                  "foo_net", "nova")
-        self.assertEqual(net, "foo_net")
-
-    def test_best_match_network_no_valid_child(self):
-        json_strategy = network_strategy.JSONStrategy(None)
-        with self.assertRaises(exceptions.NetworkNotFound):
-            json_strategy.best_match_network_id(self.context,
-                                                "public_network", "derpa")

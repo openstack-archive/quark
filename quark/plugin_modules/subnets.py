@@ -340,11 +340,6 @@ def get_subnet(context, id, fields=None):
     if not subnet:
         raise exceptions.SubnetNotFound(subnet_id=id)
 
-    # Check the network_id against the strategies
-    net_id = subnet["network_id"]
-    net_id = STRATEGY.get_parent_network(net_id)
-    subnet["network_id"] = net_id
-
     cache = subnet.get("_allocation_pool_cache")
     if not cache:
         new_cache = subnet.allocation_pools

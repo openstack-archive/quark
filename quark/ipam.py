@@ -118,7 +118,7 @@ def rfc3041_ip(port_id, cidr):
 
 
 def ip_address_failure(network_id):
-    if STRATEGY.is_parent_network(network_id):
+    if STRATEGY.is_provider_network(network_id):
         return q_exc.ProviderNetworkOutOfIps(net_id=network_id)
     else:
         return exceptions.IpAddressGenerationFailure(net_id=network_id)

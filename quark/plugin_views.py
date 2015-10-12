@@ -53,7 +53,7 @@ def _is_default_route(route):
 
 
 def _make_network_dict(network, fields=None):
-    shared_net = STRATEGY.is_parent_network(network["id"])
+    shared_net = STRATEGY.is_provider_network(network["id"])
     res = {"id": network["id"],
            "name": network.get("name"),
            "tenant_id": network.get("tenant_id"),
@@ -77,7 +77,7 @@ def _make_network_dict(network, fields=None):
 def _make_subnet_dict(subnet, fields=None):
     dns_nameservers = [str(netaddr.IPAddress(dns["ip"]))
                        for dns in subnet.get("dns_nameservers")]
-    net_id = STRATEGY.get_parent_network(subnet["network_id"])
+    net_id = subnet["network_id"]
 
     res = {"id": subnet.get("id"),
            "name": subnet.get("name"),
@@ -86,7 +86,7 @@ def _make_subnet_dict(subnet, fields=None):
            "ip_version": subnet.get("ip_version"),
            "dns_nameservers": dns_nameservers or [],
            "cidr": subnet.get("cidr"),
-           "shared": STRATEGY.is_parent_network(net_id),
+           "shared": STRATEGY.is_provider_network(net_id),
            "enable_dhcp": None}
 
     if CONF.QUARK.show_subnet_ip_policy_id:
@@ -163,7 +163,7 @@ def _ip_port_dict(ip, port, fields=None):
 def _port_dict(port, fields=None):
     res = {"id": port.get("id"),
            "name": port.get("name"),
-           "network_id": STRATEGY.get_parent_network(port["network_id"]),
+           "network_id": port["network_id"],
            "tenant_id": port.get("tenant_id"),
            "mac_address": port.get("mac_address"),
            "admin_state_up": port.get("admin_state_up"),
@@ -263,9 +263,8 @@ def _make_route_dict(route):
 
 
 def _make_ip_dict(address):
-    net_id = STRATEGY.get_parent_network(address["network_id"])
     return {"id": address["id"],
-            "network_id": net_id,
+            "network_id": address["network_id"],
             "address": address.formatted(),
             "port_ids": [assoc.port_id
                          for assoc in address["associations"]],
