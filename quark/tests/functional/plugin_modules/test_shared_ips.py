@@ -101,6 +101,40 @@ class QuarkSharedIPs(BaseFunctionalTest):
             with self.assertRaises(self.disassociate_exception):
                 ip_api.delete_ip_address(self.context, ip['id'])
 
+    def test_update_shared_ip_with_plural_will_error(self):
+
+        with self._stubs(self.network, self.subnet, self.ports_info4) as (
+                net, sub, ports):
+
+            port_ids = [ports[0]['id'], ports[1]['id']]
+            shared_ip = {'ip_address': dict(port_ids=port_ids,
+                                            network_id=net['id'],
+                                            version=4)}
+            ip = ip_api.create_ip_address(self.context, shared_ip)
+            self.assertEqual(ip_types.SHARED, ip['type'])
+            port_ids = [ports[0]['id'], ports[3]['id']]
+            shared_ip = {'ip_addresses': dict(port_ids=port_ids)}
+
+            with self.assertRaises(exceptions.BadRequest):
+                ip_api.update_ip_address(self.context, ip['id'], shared_ip)
+
+    def test_update_shared_ip_with_garbage_will_error(self):
+
+        with self._stubs(self.network, self.subnet, self.ports_info4) as (
+                net, sub, ports):
+
+            port_ids = [ports[0]['id'], ports[1]['id']]
+            shared_ip = {'ip_address': dict(port_ids=port_ids,
+                                            network_id=net['id'],
+                                            version=4)}
+            ip = ip_api.create_ip_address(self.context, shared_ip)
+            self.assertEqual(ip_types.SHARED, ip['type'])
+            port_ids = [ports[0]['id'], ports[3]['id']]
+            shared_ip = {'delasdfkj': dict(port_ids=port_ids)}
+
+            with self.assertRaises(exceptions.BadRequest):
+                ip_api.update_ip_address(self.context, ip['id'], shared_ip)
+
     def test_update_shared_ip_with_unowned_ports_is_okay(self):
 
         with self._stubs(self.network, self.subnet, self.ports_info4) as (
@@ -297,6 +331,30 @@ class QuarkSharedIPs(BaseFunctionalTest):
 
             ports_ip = ip_api.get_ports_for_ip_address(self.context, ip['id'])
             self.assertEqual(2, len(ports_ip))
+
+    def test_create_shared_ips_fails_with_plural_body(self):
+
+        with self._stubs(self.network, self.subnet, self.ports_info2) as (
+                net, sub, ports):
+
+            port_ids = [ports[0]['id'], ports[1]['id']]
+            shared_ip = {'ip_addresses': dict(port_ids=port_ids,
+                                              network_id=net['id'],
+                                              version=4)}
+            with self.assertRaises(exceptions.BadRequest):
+                ip_api.create_ip_address(self.context, shared_ip)
+
+    def test_create_shared_ips_fails_with_garbage_body(self):
+
+        with self._stubs(self.network, self.subnet, self.ports_info2) as (
+                net, sub, ports):
+
+            port_ids = [ports[0]['id'], ports[1]['id']]
+            shared_ip = {'derpie_derp': dict(port_ids=port_ids,
+                                             network_id=net['id'],
+                                             version=4)}
+            with self.assertRaises(exceptions.BadRequest):
+                ip_api.create_ip_address(self.context, shared_ip)
 
     def test_shared_ip_in_fixed_ip_list(self):
 

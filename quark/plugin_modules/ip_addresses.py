@@ -150,6 +150,9 @@ def create_ip_address(context, body):
     LOG.info("create_ip_address for tenant %s" % context.tenant_id)
     iptype = (ip_types.SHARED if _shared_ip_request(body)
               else ip_types.FIXED)
+    if 'ip_address' not in body:
+        raise exceptions.BadRequest(resource="ip_addresses",
+                                    msg="Invalid request body.")
     if iptype == ip_types.FIXED and not CONF.QUARK.ipaddr_allow_fixed_ip:
         raise exceptions.BadRequest(resource="ip_addresses",
                                     msg="Only shared IPs may be made with "
@@ -255,6 +258,9 @@ def update_ip_address(context, id, ip_address):
     """Due to NCP-1592 ensure that address_type cannot change after update."""
     LOG.info("update_ip_address %s for tenant %s" % (id, context.tenant_id))
     ports = []
+    if 'ip_address' not in ip_address:
+        raise exceptions.BadRequest(resource="ip_addresses",
+                                    msg="Invalid request body.")
     with context.session.begin():
         address = db_api.ip_address_find(context, id=id, scope=db_api.ONE)
         if not address:
