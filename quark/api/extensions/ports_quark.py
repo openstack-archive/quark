@@ -41,7 +41,11 @@ EXTENDED_ATTRIBUTES_2_0 = {
             "is_visible": True,
             "enforce_policy": True,
             "convert_to": securitygroup.convert_to_uuid_list_or_none,
-            "default": attrs.ATTR_NOT_SPECIFIED}}}
+            "default": attrs.ATTR_NOT_SPECIFIED},
+        "vlan_id": {
+            "allow_post": False,
+            "allow_put": False,
+            "is_visible": True}}}
 
 
 class Ports_quark(object):
