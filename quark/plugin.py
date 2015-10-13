@@ -23,6 +23,7 @@ from neutron.quota import resource as qres
 from neutron.quota import resource_registry as qres_reg
 from oslo_config import cfg
 from oslo_log import log as logging
+import webob.exc
 
 from quark.api import extensions
 from quark import ip_availability
@@ -139,7 +140,11 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
         core could never have gotten here otherwise.
         """
         if context.tenant_id is None:
-            context.tenant_id = resource["tenant_id"]
+            context.tenant_id = resource.get("tenant_id")
+        if context.tenant_id is None:
+            msg = _("Running without keystone AuthN requires "
+                    "that tenant_id is specified")
+            raise webob.exc.HTTPBadRequest(msg)
 
     @sessioned
     def get_mac_address_range(self, context, id, fields=None):
