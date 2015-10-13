@@ -281,7 +281,13 @@ def update_ip_address(context, id, ip_address):
                 msg = "Modification of reset_allocation_time requires admin"
                 raise webob.exc.HTTPForbidden(detail=msg)
 
-        port_ids = ip_address['ip_address'].get('port_ids')
+        port_ids = ip_address['ip_address'].get('port_ids', None)
+
+        if port_ids is not None and not port_ids:
+            raise exceptions.BadRequest(
+                resource="ip_addresses",
+                msg="Cannot be updated with empty port_id list")
+
         if iptype == ip_types.SHARED:
             has_owner = address.has_any_shared_owner()
 
