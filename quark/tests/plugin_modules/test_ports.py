@@ -192,6 +192,13 @@ class TestQuarkGetPortsByIPAddress(test_quark_plugin.TestQuarkPlugin):
                 self.plugin.get_ports(self.context, filters=filters,
                                       fields=None)
 
+    def test_port_list_malformed_address_bad_request(self):
+        with self._stubs(ports=[]):
+            filters = {"ip_address": ["malformed-address-here"]}
+            admin_ctx = self.context.elevated()
+            with self.assertRaises(exceptions.BadRequest):
+                self.plugin.get_ports(admin_ctx, filters=filters, fields=None)
+
 
 class TestQuarkCreatePortFailure(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
@@ -686,6 +693,16 @@ class TestQuarkUpdatePort(test_quark_plugin.TestQuarkPlugin):
             new_port = dict(port=dict(
                 fixed_ips=[dict(subnet_id=None,
                                 ip_address=None)]))
+            with self.assertRaises(exceptions.BadRequest):
+                self.plugin.update_port(self.context, 1, new_port)
+
+    def test_update_port_fixed_ip_bad_request_malformed_address(self):
+        with self._stubs(
+            port=dict(id=1, name="myport", mac_address="0:0:0:0:0:1")
+        ) as (port_find, port_update, alloc_ip, dealloc_ip):
+            new_port = dict(port=dict(
+                fixed_ips=[dict(subnet_id=1,
+                                ip_address="malformed-address-here")]))
             with self.assertRaises(exceptions.BadRequest):
                 self.plugin.update_port(self.context, 1, new_port)
 
