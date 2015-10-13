@@ -118,6 +118,23 @@ class QuarkSharedIPs(BaseFunctionalTest):
             with self.assertRaises(exceptions.BadRequest):
                 ip_api.update_ip_address(self.context, ip['id'], shared_ip)
 
+    def test_update_shared_ip_with_empty_port_id_list_will_error(self):
+
+        with self._stubs(self.network, self.subnet, self.ports_info4) as (
+                net, sub, ports):
+
+            port_ids = [ports[0]['id'], ports[1]['id']]
+            shared_ip = {'ip_address': dict(port_ids=port_ids,
+                                            network_id=net['id'],
+                                            version=4)}
+            ip = ip_api.create_ip_address(self.context, shared_ip)
+            self.assertEqual(ip_types.SHARED, ip['type'])
+            port_ids = []
+            shared_ip = {'ip_addresses': dict(port_ids=port_ids)}
+
+            with self.assertRaises(exceptions.BadRequest):
+                ip_api.update_ip_address(self.context, ip['id'], shared_ip)
+
     def test_update_shared_ip_with_garbage_will_error(self):
 
         with self._stubs(self.network, self.subnet, self.ports_info4) as (
@@ -268,30 +285,6 @@ class QuarkSharedIPs(BaseFunctionalTest):
             shared_ip = {'ip_address': dict(port_ids=port_ids)}
 
             ip_api.update_ip_address(self.context, ip['id'], shared_ip)
-
-    def test_update_shared_ip_with_owned_port_error_deallocate(self):
-
-        with self._stubs(self.network, self.subnet, self.ports_info4) as (
-                net, sub, ports):
-
-            port_ids = [ports[0]['id'], ports[1]['id']]
-            p_id = ports[0]['id']
-
-            shared_ip = {'ip_address': dict(port_ids=port_ids,
-                                            network_id=net['id'],
-                                            version=4)}
-            ip = ip_api.create_ip_address(self.context, shared_ip)
-            self.assertEqual(ip_types.SHARED, ip['type'])
-
-            port_ip_update = ip_api.update_port_for_ip_address
-            port_ip_update(self.context, ip['id'], p_id,
-                           self._make_port_body('derp'))
-
-            port_ids = []
-            shared_ip = {'ip_address': dict(port_ids=port_ids)}
-
-            with self.assertRaises(self.disassociate_exception):
-                ip_api.update_ip_address(self.context, ip['id'], shared_ip)
 
     def test_update_shared_ip_with_owned_port_error(self):
 

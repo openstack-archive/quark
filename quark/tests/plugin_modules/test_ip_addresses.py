@@ -553,16 +553,15 @@ class TestQuarkUpdateIPAddress(test_quark_plugin.TestQuarkPlugin):
                                                      ip_address)
             self.assertEqual(response['port_ids'], [])
 
-    def test_update_ip_address_empty_ports_delete(self):
+    def test_update_ip_address_empty_ports_does_not_delete_but_errors(self):
         port = dict(id=1, network_id=2, ip_addresses=[])
         ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
                   subnet_id=1, network_id=2, version=4)
         with self._stubs(ports=[port], addr=ip, addr_ports=True):
             ip_address = {'ip_address': {'port_ids': []}}
-            response = self.plugin.update_ip_address(self.context,
-                                                     ip['id'],
-                                                     ip_address)
-            self.assertEqual(response['port_ids'], [])
+            with self.assertRaises(exceptions.BadRequest):
+                self.plugin.update_ip_address(self.context, ip['id'],
+                                              ip_address)
 
 
 class TestQuarkGetIpAddress(test_quark_plugin.TestQuarkPlugin):
