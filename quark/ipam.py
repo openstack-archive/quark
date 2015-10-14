@@ -35,6 +35,7 @@ from oslo_utils import timeutils
 from quark.db import api as db_api
 from quark.db import ip_types
 from quark.db import models
+from quark.drivers import floating_ip_registry as registry
 from quark import exceptions as q_exc
 from quark import network_strategy
 from quark import utils
@@ -741,10 +742,20 @@ class QuarkIpam(object):
         #               another trip to deallocate each IP, but keeping our
         #               indices smaller probably provides more value than the
         #               cost
+        # NOTE(aquillin): For floating IPs associated with the port, we do not
+        #                 want to deallocate the IP or disassociate the IP from
+        #                 the tenant, instead we will disassociate floating's
+        #                 fixed IP address.
         context.session.flush()
         for ip in ips_to_remove:
-            if len(ip["ports"]) == 0:
-                self.deallocate_ip_address(context, ip)
+            if ip["address_type"] == ip_types.FLOATING:
+                if ip.fixed_ip:
+                    db_api.floating_ip_disassociate_fixed_ip(context, ip)
+                    driver = registry.DRIVER_REGISTRY.get_driver()
+                    driver.remove_floating_ip(ip)
+            else:
+                if len(ip["ports"]) == 0:
+                    self.deallocate_ip_address(context, ip)
 
     # NCP-1509(roaet):
     # - started using admin_context due to tenant not claiming when realloc

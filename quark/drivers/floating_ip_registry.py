@@ -13,8 +13,20 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from oslo_config import cfg
+
 from quark.drivers.registry import DriverRegistryBase
 from quark.drivers import unicorn_driver as unicorn
+
+CONF = cfg.CONF
+
+quark_router_opts = [
+    cfg.StrOpt('default_floating_ip_driver',
+               default='Unicorn',
+               help=_('Driver for floating IP')),
+]
+
+CONF.register_opts(quark_router_opts, 'QUARK')
 
 
 class FloatingIPDriverRegistry(DriverRegistryBase):
@@ -22,5 +34,13 @@ class FloatingIPDriverRegistry(DriverRegistryBase):
         self.drivers = {
             unicorn.UnicornDriver.get_name(): unicorn.UnicornDriver()}
 
+    def get_driver(self, driver_name=None):
+        if not driver_name:
+            driver_name = CONF.QUARK.default_floating_ip_driver
+
+        if driver_name in self.drivers:
+            return self.drivers[driver_name]
+
+        raise Exception("Driver %s is not registered." % driver_name)
 
 DRIVER_REGISTRY = FloatingIPDriverRegistry()
