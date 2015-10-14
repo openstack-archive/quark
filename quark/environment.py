@@ -22,6 +22,7 @@ CONF = cfg.CONF
 class Capabilities(object):
     SECURITY_GROUPS = "security_groups"
     EGRESS = "egress"
+    TENANT_NETWORK_SG = "tenant_network_sg"
 
 
 quark_opts = [

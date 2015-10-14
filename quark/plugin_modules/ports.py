@@ -297,10 +297,11 @@ def update_port(context, id, port):
                                  fixed_ips_per_port=len(fixed_ips))
 
     new_security_groups = utils.pop_param(port_dict, "security_groups")
-    if Capabilities.SECURITY_GROUPS not in CONF.QUARK.environment_capabilities:
-        if new_security_groups is not None:
+    if new_security_groups is not None:
+        if (Capabilities.TENANT_NETWORK_SG not in
+                CONF.QUARK.environment_capabilities):
             if not STRATEGY.is_provider_network(port_db["network_id"]):
-                raise q_exc.TenantNetworkSecurityGroupsNotImplemented()
+                raise q_exc.TenantNetworkSecurityGroupRulesNotEnabled()
 
     if new_security_groups is not None and not port_db["device_id"]:
         raise q_exc.SecurityGroupsRequireDevice()
