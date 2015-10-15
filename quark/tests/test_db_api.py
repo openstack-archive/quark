@@ -19,6 +19,7 @@ from oslo_log import log as logging
 
 from quark.db import api as db_api
 from quark.db import models
+from quark import tags
 from quark.tests.functional.base import BaseFunctionalTest
 
 LOG = logging.getLogger(__name__)
@@ -291,3 +292,15 @@ class TestDBAPI(BaseFunctionalTest):
                                                   set([mock_ports[0],
                                                        mock_ports[3]]),
                                                   mock_new_address)
+
+    def test_update_port_sets_vlan_tag(self):
+        self.context.session.add = mock.Mock()
+        mock_port = models.Port(id=1, network_id="2", ip_addresses=[], tags=[])
+        db_api.port_update(self.context, mock_port, vlan_id=1)
+        self.assertEqual(mock_port.tags, [tags.VlanTag().serialize(1)])
+
+    def test_create_port_sets_vlan_tag(self):
+        self.context.session.add = mock.Mock()
+        port_req = {"id": 1, "network_id": "2", "vlan_id": 1}
+        new_port = db_api.port_create(self.context, **port_req)
+        self.assertEqual(new_port.tags, [tags.VlanTag().serialize(1)])
