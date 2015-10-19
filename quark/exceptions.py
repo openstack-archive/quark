@@ -121,6 +121,11 @@ class SecurityGroupsNotImplemented(exceptions.InvalidInput):
                 "create")
 
 
+class TenantNetworkSecurityGroupRulesNotEnabled(exceptions.InvalidInput):
+    message = _("Tenant network security group rules are not currently "
+                "allowed by environment_capabilities configuration.")
+
+
 class EgressSecurityGroupRulesNotEnabled(exceptions.InvalidInput):
     message = _("Egress security group rules are not currently allowed "
                 "by environment_capabilities configuration.")
