@@ -29,9 +29,6 @@ CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
 quark_router_opts = [
-    cfg.StrOpt('default_floating_ip_driver',
-               default='Unicorn',
-               help=_('Driver for floating IP')),
     cfg.StrOpt('floating_ip_segment_name', default='floating_ip',
                help=_('Segment name for floating IP subnets')),
     cfg.StrOpt('floating_ip_ipam_strategy', default='ANY',
@@ -133,8 +130,7 @@ def create_floatingip(context, content):
             flip = db_api.floating_ip_associate_fixed_ip(context, flip,
                                                          fixed_ip)
 
-            flip_driver_type = CONF.QUARK.default_floating_ip_driver
-            flip_driver = registry.DRIVER_REGISTRY.get_driver(flip_driver_type)
+            flip_driver = registry.DRIVER_REGISTRY.get_driver()
 
             flip_driver.register_floating_ip(flip, port, fixed_ip)
 
@@ -206,8 +202,7 @@ def update_floatingip(context, id, content):
             flip = db_api.port_associate_ip(context, [port], flip, [port_id])
             flip = db_api.floating_ip_associate_fixed_ip(context, flip,
                                                          fixed_ip)
-        flip_driver_type = CONF.QUARK.default_floating_ip_driver
-        flip_driver = registry.DRIVER_REGISTRY.get_driver(flip_driver_type)
+        flip_driver = registry.DRIVER_REGISTRY.get_driver()
 
         if port:
             if current_port:
@@ -261,8 +256,7 @@ def delete_floatingip(context, id):
         db_api.ip_address_deallocate(context, flip)
 
     if flip.fixed_ip:
-        driver_type = CONF.QUARK.default_floating_ip_driver
-        driver = registry.DRIVER_REGISTRY.get_driver(driver_type)
+        driver = registry.DRIVER_REGISTRY.get_driver()
         driver.remove_floating_ip(flip)
 
 
