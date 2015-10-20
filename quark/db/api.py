@@ -711,9 +711,13 @@ def subnet_update_set_full(context, subnet):
 def subnet_update_set_alloc_pool_cache(context, subnet, cache_data=None):
     if cache_data is not None:
         cache_data = json.dumps(cache_data)
-    subnet["_allocation_pool_cache"] = cache_data
-    subnet = subnet_update(context, subnet)
-    LOG.debug("Setting alloc pool cache to %s" % cache_data)
+    update_kwargs = {"_allocation_pool_cache": cache_data}
+    query = context.session.query(models.Subnet)
+    query = query.filter(models.Subnet.id == subnet.id)
+    row_count = query.update(update_kwargs,
+                             update_args={"mysql_limit": 1})
+    LOG.debug("Setting alloc pool cache to %s (row_count: %s)" % (
+        cache_data, row_count))
     return subnet
 
 
