@@ -430,6 +430,8 @@ class Port(BASEV2, models.HasTenant, models.HasId, IsHazTags):
     bridge = sa.Column(sa.String(255))
     associations = orm.relationship(PortIpAssociation, backref="port")
 
+    network_plugin = sa.Column(sa.String(36), nullable=True)
+
     @declarative.declared_attr
     def ip_addresses(cls):
         primaryjoin = cls.id == port_ip_association_table.c.port_id

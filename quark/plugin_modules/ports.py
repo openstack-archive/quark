@@ -43,6 +43,19 @@ def _raise_if_unauthorized(tenant_id, net):
         raise exceptions.NotAuthorized()
 
 
+def _get_net_driver(network, port=None):
+    port_driver = None
+    if port and port.get("network_plugin"):
+        port_driver = port.get("network_plugin")
+
+    try:
+        return registry.DRIVER_REGISTRY.get_driver(
+            network["network_plugin"], port_driver=port_driver)
+    except Exception as e:
+        raise exceptions.BadRequest(resource="ports",
+                                    msg="invalid network_plugin: %s" % e)
+
+
 def split_and_validate_requested_subnets(context, net_id, segment_id,
                                          fixed_ips):
     subnets = []
@@ -90,7 +103,7 @@ def create_port(context, port):
     port_attrs = port["port"]
 
     admin_only = ["mac_address", "device_owner", "bridge", "admin_state_up",
-                  "use_forbidden_mac_range"]
+                  "use_forbidden_mac_range", "network_plugin"]
     utils.filter_body(context, port_attrs, admin_only=admin_only)
 
     port_attrs = port["port"]
@@ -144,7 +157,7 @@ def create_port(context, port):
 
     ipam_driver = ipam.IPAM_REGISTRY.get_strategy(net["ipam_strategy"])
 
-    net_driver = registry.DRIVER_REGISTRY.get_driver(net["network_plugin"])
+    net_driver = _get_net_driver(net, port=port_attrs)
 
     # TODO(anyone): security groups are not currently supported on port create.
     #               Please see JIRA:NCP-801
@@ -285,7 +298,7 @@ def update_port(context, id, port):
 
     admin_only = ["mac_address", "device_owner", "bridge", "admin_state_up",
                   "device_id"]
-    always_filter = ["network_id", "backend_key"]
+    always_filter = ["network_id", "backend_key", "network_plugin"]
     utils.filter_body(context, port_dict, admin_only=admin_only,
                       always_filter=always_filter)
 
@@ -380,8 +393,9 @@ def update_port(context, id, port):
             port_dict["addresses"] = port_db["ip_addresses"]
             port_dict["addresses"].extend(addresses)
 
-    net_driver = registry.DRIVER_REGISTRY.get_driver(
-        port_db.network["network_plugin"])
+    # NOTE(morgabra) Updating network_plugin on port objects is explicitly
+    # disallowed in the api, so we use whatever exists in the db.
+    net_driver = _get_net_driver(port_db.network, port=port_db)
 
     # TODO(anyone): What do we want to have happen here if this fails? Is it
     #               ok to continue to keep the IPs but fail to apply security
@@ -520,8 +534,7 @@ def delete_port(context, id):
     ipam_driver.deallocate_ips_by_port(
         context, port, ipam_reuse_after=CONF.QUARK.ipam_reuse_after)
 
-    net_driver = registry.DRIVER_REGISTRY.get_driver(
-        port.network["network_plugin"])
+    net_driver = _get_net_driver(port.network, port=port)
     net_driver.delete_port(context, backend_key, device_id=port["device_id"],
                            mac_address=port["mac_address"])
 
@@ -531,8 +544,7 @@ def delete_port(context, id):
 
 def _diag_port(context, port, fields):
     p = v._make_port_dict(port)
-    net_driver = registry.DRIVER_REGISTRY.get_driver(
-        port.network["network_plugin"])
+    net_driver = _get_net_driver(port.network, port=port)
     if 'config' in fields:
         p.update(net_driver.diag_port(
             context, port["backend_key"], get_status='status' in fields))

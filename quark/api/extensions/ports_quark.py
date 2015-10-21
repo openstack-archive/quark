@@ -45,7 +45,10 @@ EXTENDED_ATTRIBUTES_2_0 = {
         "vlan_id": {
             "allow_post": False,
             "allow_put": False,
-            "is_visible": True}}}
+            "is_visible": True},
+        "network_plugin": {"allow_post": True, "allow_put": False,
+                           "enforce_policy": True,
+                           "is_visible": False, "default": ''}}}
 
 
 class Ports_quark(object):
