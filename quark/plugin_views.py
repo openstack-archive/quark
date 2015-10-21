@@ -23,13 +23,14 @@ from oslo_log import log as logging
 
 from quark.db import ip_types
 from quark import network_strategy
-from quark import port_vlan_id
 from quark import protocols
+from quark import tags
 
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 STRATEGY = network_strategy.STRATEGY
+PORT_TAG_REGISTRY = tags.PORT_TAG_REGISTRY
 
 quark_view_opts = [
     cfg.BoolOpt('show_allocation_pools',
@@ -185,9 +186,15 @@ def _port_dict(port, fields=None):
     # are not eager loaded. According to mdietz this be a small impact on
     # performance, but if the tag system gets used more on ports, we may
     # want to eager load the tags.
-    vlan_id = port_vlan_id.retrieve_vlan_id(port)
-    if vlan_id:
-        res["vlan_id"] = vlan_id
+    try:
+        t = PORT_TAG_REGISTRY.get_all(port)
+        res.update(t)
+    except Exception as e:
+        # NOTE(morgabra) We really don't want to break port-listing if
+        # this goes sideways here, so we pass.
+        msg = ("Unknown error loading tags for port %s: %s"
+               % (port["id"], e))
+        LOG.exception(msg)
 
     return res
 

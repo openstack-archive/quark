@@ -26,7 +26,7 @@ from quark.db import models
 from quark import exceptions as q_exc
 from quark import network_strategy
 from quark.plugin_modules import ports as quark_ports
-from quark import port_vlan_id
+from quark import tags
 from quark.tests import test_quark_plugin
 
 
@@ -131,7 +131,7 @@ class TestQuarkGetPorts(test_quark_plugin.TestQuarkPlugin):
 
     def test_port_show_vlan_id(self):
         """Prove VLAN IDs are included in port information when available."""
-        port_tags = [port_vlan_id._build_vlan_tag_string("5")]
+        port_tags = [tags.VlanTag().serialize(5)]
         port = dict(mac_address=int('AABBCCDDEEFF', 16), network_id=1,
                     tenant_id=self.context.tenant_id, device_id=2,
                     tags=port_tags)
@@ -143,7 +143,26 @@ class TestQuarkGetPorts(test_quark_plugin.TestQuarkPlugin):
                     'admin_state_up': None,
                     'fixed_ips': [],
                     'device_id': 2,
-                    'vlan_id': 5}
+                    'vlan_id': '5'}
+        with self._stubs(ports=port):
+            result = self.plugin.get_port(self.context, 1)
+            for key in expected.keys():
+                self.assertEqual(result[key], expected[key])
+
+    def test_port_show_invalid_vlan_id(self):
+        """Prove VLAN IDs are included in port information when available."""
+        port_tags = [tags.VlanTag().serialize('invalid')]
+        port = dict(mac_address=int('AABBCCDDEEFF', 16), network_id=1,
+                    tenant_id=self.context.tenant_id, device_id=2,
+                    tags=port_tags)
+        expected = {'status': "ACTIVE",
+                    'device_owner': None,
+                    'mac_address': 'AA:BB:CC:DD:EE:FF',
+                    'network_id': 1,
+                    'tenant_id': self.context.tenant_id,
+                    'admin_state_up': None,
+                    'fixed_ips': [],
+                    'device_id': 2}
         with self._stubs(ports=port):
             result = self.plugin.get_port(self.context, 1)
             for key in expected.keys():
