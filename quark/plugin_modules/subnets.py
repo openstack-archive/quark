@@ -369,9 +369,10 @@ def get_subnets(context, limit=None, page_reverse=False, sorts=None,
     """
     LOG.info("get_subnets for tenant %s with filters %s fields %s" %
              (context.tenant_id, filters, fields))
+    filters = filters or {}
     subnets = db_api.subnet_find(context, limit=limit,
                                  page_reverse=page_reverse, sorts=sorts,
-                                 marker=marker,
+                                 marker_obj=marker,
                                  join_dns=True, join_routes=True, **filters)
     for subnet in subnets:
         cache = subnet.get("_allocation_pool_cache")

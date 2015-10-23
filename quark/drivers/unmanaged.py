@@ -57,7 +57,7 @@ class UnmanagedDriver(object):
     def create_port(self, context, network_id, port_id, **kwargs):
         LOG.info("create_port %s %s %s" % (context.tenant_id, network_id,
                                            port_id))
-        bridge_name = STRATEGY.get_network(context, network_id)["bridge"]
+        bridge_name = STRATEGY.get_network(network_id)["bridge"]
         return {"uuid": port_id, "bridge": bridge_name}
 
     def update_port(self, context, port_id, **kwargs):

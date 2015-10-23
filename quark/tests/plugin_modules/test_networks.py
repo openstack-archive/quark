@@ -92,9 +92,8 @@ class TestQuarkGetNetworksShared(test_quark_plugin.TestQuarkPlugin):
     def setUp(self):
         super(TestQuarkGetNetworksShared, self).setUp()
         self.strategy = {"public_network":
-                         {"required": True,
-                          "bridge": "xenbr0",
-                          "children": {"nova": "child_net"}}}
+                         {"bridge": "xenbr0",
+                          "subnets": ["public_v4", "public_v6"]}}
         self.strategy_json = json.dumps(self.strategy)
         self.old = plugin_views.STRATEGY
         plugin_views.STRATEGY = network_strategy.JSONStrategy(
@@ -150,7 +149,7 @@ class TestQuarkGetNetworksShared(test_quark_plugin.TestQuarkPlugin):
             """ Includes regression for RM8483. """
             for net in ret:
                 if net['shared']:
-                    self.assertEqual(0, len(net['subnets']))
+                    self.assertEqual(2, len(net['subnets']))
                 else:
                     self.assertEqual(1, len(net['subnets']))
             net_find.assert_called_with(self.context, None, None, None, False,
