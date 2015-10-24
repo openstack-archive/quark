@@ -1154,14 +1154,19 @@ class TestPortDiagnose(test_quark_plugin.TestQuarkPlugin):
 
 class TestPortNetworkPlugin(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
-    def _stubs(self, network=None, addr=None, mac=None, compat_map=None):
+    def _stubs(self, network=None, addr=None, mac=None,
+               compat_map=None, driver_res=None):
         network["ipam_strategy"] = "ANY"
+
+        # Response from the backend driver
+        if driver_res is None:
+            driver_res = {"uuid": 1}
 
         # Mock out the driver registry
         foo_driver = mock.Mock()
-        foo_driver.create_port.return_value = {"uuid": 1}
+        foo_driver.create_port.return_value = driver_res
         bar_driver = mock.Mock()
-        bar_driver.create_port.return_value = {"uuid": 1}
+        bar_driver.create_port.return_value = driver_res
         drivers = {"FOO": foo_driver,
                    "BAR": bar_driver}
         compat_map = compat_map or {}
@@ -1351,6 +1356,82 @@ class TestPortNetworkPlugin(test_quark_plugin.TestQuarkPlugin):
                 mac_address=mac["address"], device_id=2, backend_key=1,
                 security_groups=[], addresses=[],
                 network_plugin=expected_network_plugin)
+
+    def test_create_port_network_plugin_response_no_uuid_raises(self):
+        network_dict = dict(id=1, tenant_id=self.context.tenant_id)
+        port_name = "foobar"
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
+        ip = dict()
+        port = dict(port=dict(mac_address=mac["address"], network_id=1,
+                              tenant_id=self.context.tenant_id, device_id=2,
+                              name=port_name))
+        network = models.Network()
+        network.update(network_dict)
+        network["network_plugin"] = "FOO"
+        port_model = models.Port()
+        port_model.update(port)
+        port_models = port_model
+
+        with self._stubs(network=network, addr=ip,
+                         mac=mac, driver_res={}) as (port_create,
+                                                     alloc_mac,
+                                                     net_find):
+            port_create.return_value = port_models
+
+            exc = "uuid"
+            with self.assertRaisesRegexp(KeyError, exc):
+                self.plugin.create_port(self.context, port)
+
+    def test_create_port_network_plugin_response_is_filtered(self):
+        network = dict(id=1, tenant_id=self.context.tenant_id,
+                       network_plugin="FOO")
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
+        port_name = "foobar"
+        ip = dict()
+
+        port = dict(port=dict(mac_address=mac["address"], network_id=1,
+                              tenant_id=self.context.tenant_id, device_id=2,
+                              name=port_name, device_owner="quark_tests",
+                              bridge="quark_bridge", admin_state_up=False))
+
+        expected_mac = "DE:AD:BE:EF:00:00"
+        expected_bridge = "new_bridge"
+        expected_device_owner = "new_device_owner"
+        expected_admin_state = "new_state"
+
+        port_create_dict = {}
+        port_create_dict["port"] = port["port"].copy()
+        port_create_dict["port"]["mac_address"] = expected_mac
+        port_create_dict["port"]["device_owner"] = expected_device_owner
+        port_create_dict["port"]["bridge"] = expected_bridge
+        port_create_dict["port"]["admin_state_up"] = expected_admin_state
+
+        driver_res = {
+            "uuid": 5,
+            "vlan_id": 50,
+            "tags": [123, {"foo": "bar"}],
+            "id": "fail",
+            "randomkey": None
+        }
+
+        admin_ctx = self.context.elevated()
+        with self._stubs(network=network, addr=ip,
+                         mac=mac, driver_res=driver_res) as (port_create,
+                                                             alloc_mac,
+                                                             net_find):
+            self.plugin.create_port(admin_ctx, port_create_dict)
+
+            alloc_mac.assert_called_once_with(
+                admin_ctx, network["id"], 1,
+                cfg.CONF.QUARK.ipam_reuse_after,
+                mac_address=expected_mac, use_forbidden_mac_range=False)
+
+            port_create.assert_called_once_with(
+                admin_ctx, bridge=expected_bridge, uuid=5, name="foobar",
+                admin_state_up=expected_admin_state, network_id=1,
+                tenant_id="fake", id=1, device_owner=expected_device_owner,
+                mac_address=mac["address"], device_id=2, backend_key=5,
+                security_groups=[], addresses=[], vlan_id=50)
 
 
 class TestQuarkPortCreateFiltering(test_quark_plugin.TestQuarkPlugin):
