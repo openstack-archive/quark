@@ -60,10 +60,10 @@ class JSONStrategy(object):
         return self._split(self.is_provider_subnet, subnet_ids)
 
     def get_provider_networks(self):
-        return self.strategy.keys()
+        return sorted(self.strategy.keys())
 
     def get_provider_subnets(self):
-        return self.subnet_strategy.keys()
+        return sorted(self.subnet_strategy.keys())
 
     def get_network(self, net_id):
         return self.strategy.get(net_id)
