@@ -16,6 +16,7 @@
 import contextlib
 import copy
 from datetime import datetime
+import json
 import time
 import uuid
 
@@ -24,8 +25,11 @@ from neutron.api.v2 import attributes as neutron_attrs
 from neutron.common import exceptions
 from oslo_config import cfg
 
+from quark.db import api as db_api
 from quark.db import models
 from quark import exceptions as q_exc
+from quark import network_strategy
+from quark import plugin_views
 from quark.tests import test_quark_plugin
 
 
@@ -1591,3 +1595,90 @@ class TestQuarkUpdateSubnetAttrFilters(test_quark_plugin.TestQuarkPlugin):
                 tenant_id=subnet["subnet"]["tenant_id"],
                 enable_dhcp=subnet["subnet"]["enable_dhcp"],
                 do_not_use=subnet["subnet"]["do_not_use"])
+
+
+class TestQuarkGetSubnetsShared(test_quark_plugin.TestQuarkPlugin):
+    def setUp(self):
+        super(TestQuarkGetSubnetsShared, self).setUp()
+        self.strategy = {"public_network":
+                         {"bridge": "xenbr0",
+                          "subnets": ["public_v4", "public_v6"]}}
+        self.strategy_json = json.dumps(self.strategy)
+        self.old = plugin_views.STRATEGY
+        plugin_views.STRATEGY = network_strategy.JSONStrategy(
+            self.strategy_json)
+        cfg.CONF.set_override("default_net_strategy", self.strategy_json,
+                              "QUARK")
+
+    def tearDown(self):
+        plugin_views.STRATEGY = self.old
+
+    @contextlib.contextmanager
+    def _stubs(self, subnets=None):
+        subnet_mods = []
+
+        if isinstance(subnets, list):
+            for sub in subnets:
+                subnet_mod = models.Subnet()
+                subnet_mod.update(sub)
+                subnet_mods.append(subnet_mod)
+
+        db_mod = "quark.db.api"
+        db_api.STRATEGY = network_strategy.JSONStrategy(self.strategy_json)
+        network_strategy.STRATEGY = network_strategy.JSONStrategy(
+            self.strategy_json)
+
+        with mock.patch("%s._subnet_find" % db_mod) as subnet_find:
+            subnet_find.return_value = subnet_mods
+            yield subnet_find
+
+    def test_get_subnets_shared(self):
+        sub0 = dict(id='public_v4', tenant_id="provider", name="public_v4",
+                    _cidr="0.0.0.0/0", network_id="public_network")
+        sub1 = dict(id='public_v6', tenant_id="provider", name="public_v6",
+                    _cidr="::/0", network_id="public_network")
+
+        with self._stubs(subnets=[sub0, sub1]) as subnet_find:
+            ret = self.plugin.get_subnets(self.context, None, None, None,
+                                          False, {"shared": [True]})
+            for sub in ret:
+                self.assertEqual("public_network", sub["network_id"])
+
+            subnet_find.assert_called_with(self.context, None, None, False,
+                                           None, None,
+                                           join_routes=True,
+                                           defaults=["public_v4", "public_v6"],
+                                           join_dns=True,
+                                           provider_query=False)
+
+    def test_get_subnets_shared_false(self):
+        sub0 = dict(id='public_v4', tenant_id="provider", name="public_v4",
+                    _cidr="0.0.0.0/0", network_id="public_network")
+        sub1 = dict(id='public_v6', tenant_id="provider", name="public_v6",
+                    _cidr="::/0", network_id="public_network")
+
+        with self._stubs(subnets=[sub0, sub1]) as subnet_find:
+            self.plugin.get_subnets(self.context, None, None, None,
+                                    False, {"shared": [False]})
+            invert = db_api.INVERT_DEFAULTS
+            subnet_find.assert_called_with(self.context, None, None, False,
+                                           None, None,
+                                           defaults=[invert, "public_v4",
+                                                     "public_v6"],
+                                           provider_query=False,
+                                           join_routes=True, join_dns=True)
+
+    def test_get_subnets_no_shared(self):
+        sub0 = dict(id='public_v4', tenant_id="provider", name="public_v4",
+                    _cidr="0.0.0.0/0", network_id="public_network")
+        sub1 = dict(id='tenant_v4', tenant_id="tenant", name="tenant_v4",
+                    _cidr="0.0.0.0/0", network_id="tenant_network")
+
+        with self._stubs(subnets=[sub0, sub1]) as subnet_find:
+            self.plugin.get_subnets(self.context, None, None, None,
+                                    False)
+            subnet_find.assert_called_with(self.context, None, None, False,
+                                           None, None,
+                                           defaults=[],
+                                           provider_query=False,
+                                           join_routes=True, join_dns=True)

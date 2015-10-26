@@ -27,7 +27,8 @@ from quark.tests import test_base
 class TestUnmanagedDriver(test_base.TestBase):
     def setUp(self):
         super(TestUnmanagedDriver, self).setUp()
-        self.strategy = {"public_network": {"bridge": "xenbr0"}}
+        self.strategy = {"public_network": {"bridge": "xenbr0",
+                                            "subnets": ["public"]}}
         strategy_json = json.dumps(self.strategy)
         self.driver = unmanaged.UnmanagedDriver()
         unmanaged.STRATEGY = network_strategy.JSONStrategy(strategy_json)

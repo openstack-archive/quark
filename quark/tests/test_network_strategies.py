@@ -23,35 +23,85 @@ from quark.tests import test_base
 
 class TestJSONStrategy(test_base.TestBase):
     def setUp(self):
-        self.context = None
-        self.strategy = {"public_network":
-                         {"required": True,
-                          "bridge": "xenbr0"}}
+        self.strategy = {"public_network": {"bridge": "xenbr0",
+                                            "subnets": ["public_v4",
+                                                        "public_v6"]}}
         strategy_json = json.dumps(self.strategy)
         cfg.CONF.set_override("default_net_strategy", strategy_json, "QUARK")
 
-    def test_get_assignable_networks_default_strategy(self):
-        json_strategy = network_strategy.JSONStrategy()
-        net_ids = json_strategy.get_assignable_networks(self.context)
-        self.assertEqual("public_network", net_ids[0])
-
-    def test_get_assignable_networks_custom_strategy(self):
-        custom = {"private_network": self.strategy["public_network"]}
-        json_strategy = network_strategy.JSONStrategy(json.dumps(custom))
-        net_ids = json_strategy.get_assignable_networks(self.context)
-        self.assertEqual("private_network", net_ids[0])
-
     def test_get_network(self):
         json_strategy = network_strategy.JSONStrategy()
-        net = json_strategy.get_network(self.context, "public_network")
+        net = json_strategy.get_network("public_network")
         self.assertEqual(net["bridge"], "xenbr0")
 
     def test_split_network_ids(self):
         json_strategy = network_strategy.JSONStrategy()
         net_ids = ["foo_net", "public_network"]
-        tenant, assignable = json_strategy.split_network_ids(self.context,
-                                                             net_ids)
+        tenant, assignable = json_strategy.split_network_ids(net_ids)
         self.assertTrue("foo_net" in tenant)
         self.assertTrue("foo_net" not in assignable)
         self.assertTrue("public_network" not in tenant)
         self.assertTrue("public_network" in assignable)
+
+    def test_split_subnet_ids(self):
+        json_strategy = network_strategy.JSONStrategy()
+        subnet_ids = ["tenant_subnet", "public_v6"]
+        tenant, assignable = json_strategy.split_subnet_ids(subnet_ids)
+        self.assertTrue("tenant_subnet" in tenant)
+        self.assertTrue("tenant_subnet" not in assignable)
+        self.assertTrue("public_v6" not in tenant)
+        self.assertTrue("public_v6" in assignable)
+
+    def test_is_provider_network(self):
+        json_strategy = network_strategy.JSONStrategy()
+        self.assertTrue(json_strategy.is_provider_network("public_network"))
+
+    def test_is_not_provider_network(self):
+        json_strategy = network_strategy.JSONStrategy()
+        self.assertFalse(json_strategy.is_provider_network("tenant_network"))
+
+    def test_is_provider_subnet(self):
+        json_strategy = network_strategy.JSONStrategy()
+        self.assertTrue(json_strategy.is_provider_subnet("public_v4"))
+
+    def test_is_not_provider_subnet(self):
+        json_strategy = network_strategy.JSONStrategy()
+        self.assertFalse(json_strategy.is_provider_network("tenant_v4"))
+
+    def test_get_provider_networks(self):
+        json_strategy = network_strategy.JSONStrategy()
+        expected = "public_network"
+        nets = json_strategy.get_provider_networks()
+        self.assertTrue(expected in nets)
+        self.assertEqual(1, len(nets))
+
+    def test_get_provider_subnets(self):
+        json_strategy = network_strategy.JSONStrategy()
+        expected = ["public_v4", "public_v6"]
+        subs = json_strategy.get_provider_subnets()
+        for sub in expected:
+            self.assertTrue(sub in subs)
+        self.assertEqual(2, len(subs))
+
+    def test_get_network_for_subnet(self):
+        json_strategy = network_strategy.JSONStrategy()
+        net = json_strategy.get_network_for_subnet("public_v4")
+        self.assertEqual("public_network", net)
+
+    def test_get_network_for_subnet_matches_none(self):
+        json_strategy = network_strategy.JSONStrategy()
+        net = json_strategy.get_network_for_subnet("tenant_v4")
+        self.assertIsNone(net)
+
+    def test_subnet_ids_for_network(self):
+        json_strategy = network_strategy.JSONStrategy()
+        expected = ["public_v4", "public_v6"]
+        subs = json_strategy.subnet_ids_for_network("public_network")
+        for sub in expected:
+            self.assertTrue(sub in subs)
+        self.assertEqual(2, len(subs))
+
+    def test_subnet_ids_for_network_matches_none(self):
+        json_strategy = network_strategy.JSONStrategy()
+        subs = json_strategy.subnet_ids_for_network("tenant_network")
+        self.assertIsNone(subs)

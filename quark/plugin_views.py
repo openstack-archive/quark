@@ -71,16 +71,20 @@ def _make_network_dict(network, fields=None):
         else:
             res["subnets"] = [s["id"] for s in network.get("subnets", [])]
     else:
-        res["subnets"] = []
+        res["subnets"] = STRATEGY.subnet_ids_for_network(network["id"])
     return res
 
 
 def _make_subnet_dict(subnet, fields=None):
     dns_nameservers = [str(netaddr.IPAddress(dns["ip"]))
-                       for dns in subnet.get("dns_nameservers")]
-    net_id = subnet["network_id"]
+                       for dns in subnet.get("dns_nameservers", [])]
+    subnet_id = subnet.get("id")
+    if STRATEGY.is_provider_subnet(subnet_id):
+        net_id = STRATEGY.get_network_for_subnet(subnet_id)
+    else:
+        net_id = subnet["network_id"]
 
-    res = {"id": subnet.get("id"),
+    res = {"id": subnet_id,
            "name": subnet.get("name"),
            "tenant_id": subnet.get("tenant_id"),
            "network_id": net_id,
@@ -93,7 +97,8 @@ def _make_subnet_dict(subnet, fields=None):
     if CONF.QUARK.show_subnet_ip_policy_id:
         res['ip_policy_id'] = subnet.get("ip_policy_id")
 
-    if CONF.QUARK.show_allocation_pools:
+    if (CONF.QUARK.show_allocation_pools and not
+            STRATEGY.is_provider_subnet(subnet_id)):
         res["allocation_pools"] = subnet.allocation_pools
     else:
         res["allocation_pools"] = []
@@ -102,11 +107,10 @@ def _make_subnet_dict(subnet, fields=None):
         return {"destination": route["cidr"],
                 "nexthop": route["gateway"]}
 
-    # TODO(mdietz): really inefficient, should go away
     res["gateway_ip"] = None
     res["host_routes"] = []
     default_found = False
-    for route in subnet["routes"]:
+    for route in subnet.get("routes", []):
         netroute = netaddr.IPNetwork(route["cidr"])
         if _is_default_route(netroute):
             # NOTE(mdietz): This has the potential to find more than one
@@ -252,8 +256,7 @@ def _make_ports_list(query, fields=None):
 def _make_subnets_list(query, fields=None):
     subnets = []
     for subnet in query:
-        subnet_dict = _make_subnet_dict(subnet, fields=fields)
-        subnets.append(subnet_dict)
+        subnets.append(_make_subnet_dict(subnet, fields=fields))
     return subnets
 
 

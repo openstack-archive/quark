@@ -30,7 +30,7 @@ CONF.register_opts(quark_opts, "QUARK")
 
 class JSONStrategy(object):
     def __init__(self, strategy=None):
-        self.reverse_strategy = {}
+        self.subnet_strategy = {}
         self.strategy = {}
         if not strategy:
             self._compile_strategy(CONF.QUARK.default_net_strategy)
@@ -39,25 +39,47 @@ class JSONStrategy(object):
 
     def _compile_strategy(self, strategy):
         self.strategy = json.loads(strategy)
+        for net_id, meta in self.strategy.iteritems():
+            for subnet_id in meta["subnets"]:
+                self.subnet_strategy[subnet_id] = net_id
 
-    def split_network_ids(self, context, net_ids):
-        assignable = []
+    def _split(self, func, resource_ids):
+        provider = []
         tenant = []
-        for net_id in net_ids:
-            if self.is_provider_network(net_id):
-                assignable.append(net_id)
+        for res_id in resource_ids:
+            if func(res_id):
+                provider.append(res_id)
             else:
-                tenant.append(net_id)
-        return tenant, assignable
+                tenant.append(res_id)
+        return tenant, provider
 
-    def get_network(self, context, net_id):
-        return self.strategy.get(net_id)
+    def split_network_ids(self, net_ids):
+        return self._split(self.is_provider_network, net_ids)
 
-    def get_assignable_networks(self, context):
+    def split_subnet_ids(self, subnet_ids):
+        return self._split(self.is_provider_subnet, subnet_ids)
+
+    def get_provider_networks(self):
         return self.strategy.keys()
+
+    def get_provider_subnets(self):
+        return self.subnet_strategy.keys()
+
+    def get_network(self, net_id):
+        return self.strategy.get(net_id)
 
     def is_provider_network(self, net_id):
         return self.strategy.get(net_id) is not None
+
+    def is_provider_subnet(self, subnet_id):
+        return subnet_id in self.subnet_strategy
+
+    def subnet_ids_for_network(self, net_id):
+        if net_id in self.strategy:
+            return self.strategy.get(net_id)["subnets"]
+
+    def get_network_for_subnet(self, subnet_id):
+        return self.subnet_strategy.get(subnet_id)
 
 
 STRATEGY = JSONStrategy()
