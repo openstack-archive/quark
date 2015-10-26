@@ -28,10 +28,12 @@ from quark import exceptions as q_exc
 from quark import ipam
 from quark import network_strategy
 from quark import plugin_views as v
+from quark import tags
 from quark import utils
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
+PORT_TAG_REGISTRY = tags.PORT_TAG_REGISTRY
 STRATEGY = network_strategy.STRATEGY
 
 
@@ -54,6 +56,20 @@ def _get_net_driver(network, port=None):
     except Exception as e:
         raise exceptions.BadRequest(resource="ports",
                                     msg="invalid network_plugin: %s" % e)
+
+
+# NOTE(morgabra) Backend driver operations return a lot of stuff. We use a
+# small subset of this data, so we filter out things we don't care about
+# so we can avoid any collisions with real port data.
+def _filter_backend_port(backend_port):
+    # Collect a list of allowed keys in the driver response
+    required_keys = ["uuid"]
+    tag_keys = [tag for tag in PORT_TAG_REGISTRY.tags.keys()]
+
+    allowed_keys = required_keys + tag_keys
+    for k in backend_port.keys():
+        if k not in allowed_keys:
+            del backend_port[k]
 
 
 def split_and_validate_requested_subnets(context, net_id, segment_id,
@@ -230,6 +246,7 @@ def create_port(context, port):
                                                   port_id=port_id,
                                                   security_groups=group_ids,
                                                   device_id=device_id)
+            _filter_backend_port(backend_port)
             return backend_port
 
         @cmd_mgr.undo
