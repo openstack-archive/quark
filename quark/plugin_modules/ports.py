@@ -63,7 +63,7 @@ def _get_net_driver(network, port=None):
 # so we can avoid any collisions with real port data.
 def _filter_backend_port(backend_port):
     # Collect a list of allowed keys in the driver response
-    required_keys = ["uuid"]
+    required_keys = ["uuid", "bridge"]
     tag_keys = [tag for tag in PORT_TAG_REGISTRY.tags.keys()]
 
     allowed_keys = required_keys + tag_keys

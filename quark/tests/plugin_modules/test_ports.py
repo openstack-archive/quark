@@ -1159,8 +1159,9 @@ class TestPortNetworkPlugin(test_quark_plugin.TestQuarkPlugin):
         network["ipam_strategy"] = "ANY"
 
         # Response from the backend driver
+        self.expected_bridge = "backend-drivers-bridge"
         if driver_res is None:
-            driver_res = {"uuid": 1}
+            driver_res = {"uuid": 1, "bridge": self.expected_bridge}
 
         # Mock out the driver registry
         foo_driver = mock.Mock()
@@ -1304,14 +1305,14 @@ class TestPortNetworkPlugin(test_quark_plugin.TestQuarkPlugin):
                 mac_address=expected_mac, use_forbidden_mac_range=False)
 
             port_create.assert_called_once_with(
-                admin_ctx, bridge=expected_bridge, uuid=1, name="foobar",
+                admin_ctx, bridge=self.expected_bridge, uuid=1, name="foobar",
                 admin_state_up=expected_admin_state, network_id=1,
                 tenant_id="fake", id=1, device_owner=expected_device_owner,
                 mac_address=mac["address"], device_id=2, backend_key=1,
                 security_groups=[], addresses=[],
                 network_plugin=expected_network_plugin)
 
-    def test_create_port_with_compatable_port_network_plugin(self):
+    def test_create_port_with_compatible_port_network_plugin(self):
         network = dict(id=1, tenant_id=self.context.tenant_id,
                        network_plugin="FOO")
         mac = dict(address="AA:BB:CC:DD:EE:FF")
@@ -1350,7 +1351,7 @@ class TestPortNetworkPlugin(test_quark_plugin.TestQuarkPlugin):
                 mac_address=expected_mac, use_forbidden_mac_range=False)
 
             port_create.assert_called_once_with(
-                admin_ctx, bridge=expected_bridge, uuid=1, name="foobar",
+                admin_ctx, bridge=self.expected_bridge, uuid=1, name="foobar",
                 admin_state_up=expected_admin_state, network_id=1,
                 tenant_id="fake", id=1, device_owner=expected_device_owner,
                 mac_address=mac["address"], device_id=2, backend_key=1,
