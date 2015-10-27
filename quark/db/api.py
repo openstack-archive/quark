@@ -752,7 +752,7 @@ def _subnet_find(context, limit, sorts, marker, page_reverse, fields,
             query = query.filter(and_(not_(models.Subnet.id.in_(defaults)),
                                       and_(*model_filters)))
         elif not provider_query and filters and not invert_defaults:
-            query = query.filter(or_(models.Network.id.in_(defaults),
+            query = query.filter(or_(models.Subnet.id.in_(defaults),
                                      and_(*model_filters)))
 
         elif not invert_defaults:
