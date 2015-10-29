@@ -39,6 +39,13 @@ def main():
                    " the '--config-file' option!"))
     config.setup_logging()
 
+    # NOTE(asadoughi): Reload quark-based python modules to re-initialize
+    # singletons that depend on configuration,
+    # such as quark.network_strategy.JSONStrategy.
+    reload(db_api)
+    reload(ip_types)
+    reload(models)
+
     context = neutron_context.get_admin_context()
     network_ids = cfg.CONF.QUARK.null_routes_network_ids
     ipset = get_subnets_cidr_set(context, network_ids)
@@ -54,7 +61,7 @@ def main():
 def get_subnets_cidr_set(context, network_ids):
     ipset = netaddr.IPSet()
     subnets = db_api.subnet_find(context, network_id=network_ids,
-                                 scope=db_api.ALL)
+                                 shared=[False])
     for subnet in subnets:
         net = netaddr.IPNetwork(subnet["cidr"])
         ipset.add(net)
