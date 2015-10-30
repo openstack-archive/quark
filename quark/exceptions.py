@@ -145,7 +145,7 @@ class NoBackendConnectionsDefined(exceptions.NeutronException):
                 "definition. %(msg)")
 
 
-class FloatingIpNotFound(exceptions.NeutronException):
+class FloatingIpNotFound(exceptions.NotFound):
     message = _("Floating IP %(id)s not found.")
 
 

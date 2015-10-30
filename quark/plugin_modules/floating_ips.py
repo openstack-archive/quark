@@ -163,10 +163,11 @@ def update_floatingip(context, id, content):
     port = None
     fixed_ip = None
     current_port = None
-    flip = None
 
     with context.session.begin():
         flip = db_api.floating_ip_find(context, id=id, scope=db_api.ONE)
+        if not flip:
+            raise qex.FloatingIpNotFound(id=id)
 
         current_ports = flip.ports
 
