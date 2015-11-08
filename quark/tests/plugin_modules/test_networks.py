@@ -93,7 +93,8 @@ class TestQuarkGetNetworksShared(test_quark_plugin.TestQuarkPlugin):
         super(TestQuarkGetNetworksShared, self).setUp()
         self.strategy = {"public_network":
                          {"bridge": "xenbr0",
-                          "subnets": ["public_v4", "public_v6"]}}
+                          "subnets": {"4": "public_v4",
+                                      "6": "public_v6"}}}
         self.strategy_json = json.dumps(self.strategy)
         self.old = plugin_views.STRATEGY
         plugin_views.STRATEGY = network_strategy.JSONStrategy(

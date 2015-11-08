@@ -2167,10 +2167,12 @@ class QuarkIpamTestIpAddressFailure(test_base.TestBase):
         super(QuarkIpamTestIpAddressFailure, self).setUp()
         strategy = {"00000000-0000-0000-0000-000000000000":
                     {"bridge": "publicnet",
-                     "subnets": ["public_v4", "public_v6"]},
+                     "subnets": {"4": "public_v4",
+                                 "6": "public_v6"}},
                     "11111111-1111-1111-1111-111111111111":
                     {"bridge": "servicenet",
-                     "subnets": ["private_v4", "private_v6"]}}
+                     "subnets": {"4": "private_v4",
+                                 "6": "private_v6"}}}
         strategy_json = json.dumps(strategy)
         quark.ipam.STRATEGY = network_strategy.JSONStrategy(strategy_json)
 

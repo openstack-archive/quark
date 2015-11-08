@@ -28,7 +28,7 @@ class TestUnmanagedDriver(test_base.TestBase):
     def setUp(self):
         super(TestUnmanagedDriver, self).setUp()
         self.strategy = {"public_network": {"bridge": "xenbr0",
-                                            "subnets": ["public"]}}
+                                            "subnets": {"4": "public"}}}
         strategy_json = json.dumps(self.strategy)
         self.driver = unmanaged.UnmanagedDriver()
         unmanaged.STRATEGY = network_strategy.JSONStrategy(strategy_json)

@@ -268,10 +268,12 @@ class TestQuarkCreatePortRM9305(test_quark_plugin.TestQuarkPlugin):
         super(TestQuarkCreatePortRM9305, self).setUp()
         strategy = {"00000000-0000-0000-0000-000000000000":
                     {"bridge": "publicnet",
-                     "subnets": ["public_v4", "public_v6"]},
+                     "subnets": {"4": "public_v4",
+                                 "6": "public_v6"}},
                     "11111111-1111-1111-1111-111111111111":
                     {"bridge": "servicenet",
-                     "subnets": ["private_v4", "private_v6"]}}
+                     "subnets": {"4": "private_v4",
+                                 "6": "private_v6"}}}
         strategy_json = json.dumps(strategy)
         quark_ports.STRATEGY = network_strategy.JSONStrategy(strategy_json)
 
@@ -939,7 +941,8 @@ class TestQuarkCreatePortOnSharedNetworks(test_quark_plugin.TestQuarkPlugin):
     def _stubs(self, port=None, network=None, addr=None, mac=None):
         self.strategy = {"public_network":
                          {"bridge": "xenbr0",
-                          "subnets": ["public_v4", "public_v6"]}}
+                          "subnets": {"4": "public_v4",
+                                      "6": "public_v6"}}}
         strategy_json = json.dumps(self.strategy)
         quark_ports.STRATEGY = network_strategy.JSONStrategy(strategy_json)
 

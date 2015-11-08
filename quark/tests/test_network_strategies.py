@@ -24,8 +24,8 @@ from quark.tests import test_base
 class TestJSONStrategy(test_base.TestBase):
     def setUp(self):
         self.strategy = {"public_network": {"bridge": "xenbr0",
-                                            "subnets": ["public_v4",
-                                                        "public_v6"]}}
+                                            "subnets": {"4": "public_v4",
+                                                        "6": "public_v6"}}}
         strategy_json = json.dumps(self.strategy)
         cfg.CONF.set_override("default_net_strategy", strategy_json, "QUARK")
 
@@ -105,3 +105,17 @@ class TestJSONStrategy(test_base.TestBase):
         json_strategy = network_strategy.JSONStrategy()
         subs = json_strategy.subnet_ids_for_network("tenant_network")
         self.assertIsNone(subs)
+
+    def test_get_provider_subnet_id(self):
+        json_strategy = network_strategy.JSONStrategy()
+        net_id = "public_network"
+        ip_version = 4
+        sub = json_strategy.get_provider_subnet_id(net_id, ip_version)
+        self.assertEqual(sub, "public_v4")
+
+    def test_get_provider_subnet_id_matches_none(self):
+        json_strategy = network_strategy.JSONStrategy()
+        net_id = "tenant_network"
+        ip_version = 4
+        sub = json_strategy.get_provider_subnet_id(net_id, ip_version)
+        self.assertIsNone(sub)

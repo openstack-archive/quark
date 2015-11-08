@@ -205,7 +205,12 @@ def _port_dict(port, fields=None):
 
 def _make_port_address_dict(ip, port, fields=None):
     enabled = ip.enabled_for_port(port)
-    ip_addr = {"subnet_id": ip.get("subnet_id"),
+    subnet_id = ip.get("subnet_id")
+    net_id = ip.get("network_id")
+    if STRATEGY.is_provider_network(net_id):
+        subnet_id = STRATEGY.get_provider_subnet_id(net_id, ip["version"])
+
+    ip_addr = {"subnet_id": subnet_id,
                "ip_address": ip.formatted(),
                "enabled": enabled}
     if fields and "port_subnets" in fields:
