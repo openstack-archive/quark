@@ -384,6 +384,10 @@ class TestNVPDriverCreatePort(TestNVPDriver):
             get_net_dets.return_value = net_details
             yield connection
 
+    def test_select_ipam_strategy(self):
+        strategy = self.driver.select_ipam_strategy(1, "ANY")
+        self.assertEqual(strategy, "ANY")
+
     def test_create_port_switch_exists(self):
         with self._stubs(net_details=dict(foo=3)) as (connection):
             port = self.driver.create_port(self.context, self.net_id,
@@ -562,7 +566,8 @@ class TestNVPDriverLswitchesForNetwork(TestNVPDriver):
         with contextlib.nested(
             mock.patch("%s._connection" % self.d_pkg),
         ) as (conn,):
-            connection = self._create_connection(switch_count=1)
+            connection = self._create_connection(
+                has_switches=True, switch_count=1)
             conn.return_value = connection
             yield connection
 
@@ -574,6 +579,16 @@ class TestNVPDriverLswitchesForNetwork(TestNVPDriver):
             query_mock.tagscopes = mock.Mock()
             connection.query = mock.Mock(return_value=query_mock)
             self.driver._lswitches_for_network(self.context, "net_uuid")
+
+    def test_get_lswitch_ids_for_network(self):
+        with self._stubs() as connection:
+            query_mock = mock.Mock()
+            query_mock.tags = mock.Mock()
+            query_mock.tagscopes = mock.Mock()
+            connection.query = mock.Mock(return_value=query_mock)
+            lswitch_ids = self.driver.get_lswitch_ids_for_network(
+                self.context, "net_uuid")
+            self.assertEqual(lswitch_ids, ['abcd'])
 
 
 class TestSwitchCopying(TestNVPDriver):

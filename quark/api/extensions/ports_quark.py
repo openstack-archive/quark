@@ -49,7 +49,11 @@ EXTENDED_ATTRIBUTES_2_0 = {
             "is_visible": True},
         "network_plugin": {"allow_post": True, "allow_put": False,
                            "enforce_policy": True,
-                           "is_visible": False, "default": ''}}}
+                           "is_visible": False, "default": ''},
+        "instance_node_id": {"allow_post": True, "allow_put": False,
+                             "default": '', "is_visible": False},
+    }
+}
 
 
 class Ports_quark(extensions.ExtensionDescriptor):

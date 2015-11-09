@@ -44,6 +44,11 @@ quark_view_opts = [
                 default=True,
                 help=_('Controls whether or not to show ip_policy_id for'
                        'subnets')),
+    cfg.BoolOpt('show_provider_subnet_ids',
+                default=True,
+                help=_('Controls whether or not to show the provider subnet '
+                       'id specified in the network strategy or use the '
+                       'real id.')),
 ]
 
 CONF.register_opts(quark_view_opts, "QUARK")
@@ -207,8 +212,12 @@ def _make_port_address_dict(ip, port, fields=None):
     enabled = ip.enabled_for_port(port)
     subnet_id = ip.get("subnet_id")
     net_id = ip.get("network_id")
-    if STRATEGY.is_provider_network(net_id):
-        subnet_id = STRATEGY.get_provider_subnet_id(net_id, ip["version"])
+
+    subnet_id = ip.get("subnet_id")
+    show_provider_subnet_ids = CONF.QUARK.show_provider_subnet_ids
+    if STRATEGY.is_provider_network(net_id) and show_provider_subnet_ids:
+            subnet_id = STRATEGY.get_provider_subnet_id(
+                net_id, ip["version"])
 
     ip_addr = {"subnet_id": subnet_id,
                "ip_address": ip.formatted(),

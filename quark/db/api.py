@@ -641,8 +641,8 @@ def network_delete(context, network):
     context.session.delete(network)
 
 
-def subnet_find_ordered_by_most_full(context, net_id, lock_subnets=True,
-                                     **filters):
+def _subnet_find_ordered_by_used_ips(context, net_id, lock_subnets=True,
+                                     order="asc", unused=False, **filters):
     count = sql_func.count(models.IPAddress.address).label("count")
     size = (models.Subnet.last_ip - models.Subnet.first_ip)
     query = context.session.query(models.Subnet, count)
@@ -651,9 +651,16 @@ def subnet_find_ordered_by_most_full(context, net_id, lock_subnets=True,
     query = query.filter_by(do_not_use=False)
     query = query.outerjoin(models.Subnet.generated_ips)
     query = query.group_by(models.Subnet.id)
-    query = query.order_by(
-        asc(models.Subnet.ip_version),
-        asc(size - count))
+
+    query = query.order_by(asc(models.Subnet.ip_version))
+
+    if unused:  # find unused subnets
+        query = query.having(count == 0)
+    else:  # otherwise, order used subnets
+        if order == "desc":
+            query = query.order_by(desc(size - count))
+        else:  # default acending
+            query = query.order_by(asc(size - count))
 
     query = query.filter(models.Subnet.network_id == net_id)
     if "ip_version" in filters:
@@ -665,6 +672,24 @@ def subnet_find_ordered_by_most_full(context, net_id, lock_subnets=True,
     if "subnet_id" in filters and filters["subnet_id"]:
         query = query.filter(models.Subnet.id.in_(filters["subnet_id"]))
     return query
+
+
+def subnet_find_ordered_by_most_full(context, net_id, lock_subnets=True,
+                                     **filters):
+    return _subnet_find_ordered_by_used_ips(
+        context, net_id, lock_subnets=lock_subnets, order="asc", **filters)
+
+
+def subnet_find_ordered_by_least_full(context, net_id, lock_subnets=True,
+                                      **filters):
+    return _subnet_find_ordered_by_used_ips(
+        context, net_id, lock_subnets=lock_subnets, order="desc", **filters)
+
+
+def subnet_find_unused(context, net_id, lock_subnets=True,
+                       **filters):
+    return _subnet_find_ordered_by_used_ips(
+        context, net_id, lock_subnets=lock_subnets, unused=True, **filters)
 
 
 def subnet_update_next_auto_assign_ip(context, subnet):

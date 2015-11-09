@@ -226,6 +226,16 @@ class OptimizedNVPDriver(NVPDriver):
         context.session.add(new_switch)
         return new_switch
 
+    def get_lswitch_ids_for_network(self, context, network_id):
+        """Public interface for fetching lswitch ids for a given network.
+
+        NOTE(morgabra) This is here because calling private methods
+        from outside the class feels wrong, and we need to be able to
+        fetch lswitch ids for use in other drivers.
+        """
+        lswitches = self._lswitches_for_network(context, network_id)
+        return [s['nvp_id'] for s in lswitches]
+
     def _lswitches_for_network(self, context, network_id):
         switches = context.session.query(LSwitch).filter(
             LSwitch.network_id == network_id).all()

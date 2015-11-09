@@ -28,6 +28,10 @@ class TestBaseDriver(test_base.TestBase):
     def test_get_connection(self):
         self.driver.get_connection()
 
+    def test_select_ipam_strategy(self):
+        strategy = self.driver.select_ipam_strategy(1, "ANY")
+        self.assertEqual(strategy, "ANY")
+
     def test_create_network(self):
         self.driver.create_network(context=self.context, network_name="public")
 

@@ -298,6 +298,10 @@ class TestOptimizedNVPDriverCreatePort(TestOptimizedNVPDriver):
             get_net_dets.return_value = dict(foo=3)
             yield connection, create_opt
 
+    def test_select_ipam_strategy(self):
+        strategy = self.driver.select_ipam_strategy(1, "ANY")
+        self.assertEqual(strategy, "ANY")
+
     def test_create_port_and_maxed_switch_spanning(self):
         '''Testing to ensure a switch is made when maxed.'''
         with self._stubs(maxed_ports=True) as (
@@ -578,6 +582,14 @@ class TestQueryMethods(TestOptimizedNVPDriver):
         with self._stubs() as query_return:
             self.driver._lswitches_for_network(self.context, 1)
             self.assertTrue(query_return.filter.called)
+
+    def test_get_lswitch_ids_for_network(self):
+        with self._stubs() as query_return:
+            query_result = query_return.filter.return_value.all
+            query_result.return_value = [{"nvp_id": "foo"}]
+            ids = self.driver.get_lswitch_ids_for_network(self.context, 1)
+            self.assertTrue(query_return.filter.called)
+            self.assertEqual(ids, ["foo"])
 
     def test_lswitch_from_port(self):
         with self._stubs() as query_return:

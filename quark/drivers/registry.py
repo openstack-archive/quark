@@ -14,6 +14,7 @@
 #    under the License.
 
 from quark.drivers import base
+from quark.drivers import ironic_driver as ironic
 from quark.drivers import optimized_nvp_driver as optnvp
 from quark.drivers.registry_base import DriverRegistryBase
 from quark.drivers import unmanaged
@@ -30,7 +31,8 @@ class DriverRegistry(DriverRegistryBase):
         self.drivers.update({
             base.BaseDriver.get_name(): base.BaseDriver(),
             optnvp.OptimizedNVPDriver.get_name(): optnvp.OptimizedNVPDriver(),
-            unmanaged.UnmanagedDriver.get_name(): unmanaged.UnmanagedDriver()})
+            unmanaged.UnmanagedDriver.get_name(): unmanaged.UnmanagedDriver(),
+            ironic.IronicDriver.get_name(): ironic.IronicDriver()})
 
         # You may optionally specify a port-level driver name that will
         # be used intead of the underlying network driver. This map determines
@@ -40,7 +42,13 @@ class DriverRegistry(DriverRegistryBase):
         # specified to be used with networks that use "MY_OTHER_DRIVER",
         # but *not* the inverse.
         # Note that drivers are automatically compatible with themselves.
-        self.port_driver_compat_map = {}
+        self.port_driver_compat_map = {
+            ironic.IronicDriver.get_name(): [
+                base.BaseDriver.get_name(),
+                optnvp.OptimizedNVPDriver.get_name(),
+                unmanaged.UnmanagedDriver.get_name()
+            ]
+        }
 
     def get_driver(self, net_driver, port_driver=None):
         LOG.info("Selecting driver for net_driver:%s "
@@ -54,7 +62,7 @@ class DriverRegistry(DriverRegistryBase):
 
             # Net drivers are compatible with themselves
             if port_driver == net_driver:
-                LOG.info("Selecting port_driver:%s" % (port_driver))
+                LOG.info("Selected port_driver:%s" % (port_driver))
                 return self.drivers[port_driver]
 
             # Check port_driver is compatible with the given net_driver
@@ -64,11 +72,11 @@ class DriverRegistry(DriverRegistryBase):
                                 "underlying network driver %s."
                                 % (port_driver, net_driver))
 
-            LOG.info("Selecting port_driver:%s" % (port_driver))
+            LOG.info("Selected port_driver:%s" % (port_driver))
             return self.drivers[port_driver]
 
         elif net_driver in self.drivers:
-            LOG.info("Selecting net_driver:%s" % (net_driver))
+            LOG.info("Selected net_driver:%s" % (net_driver))
             return self.drivers[net_driver]
 
         raise Exception("Driver %s is not registered." % net_driver)

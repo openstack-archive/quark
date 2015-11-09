@@ -995,12 +995,63 @@ class QuarkIpamBOTHREQ(QuarkIpamBOTH):
         return subnets
 
 
+class IronicIpam(QuarkIpam):
+    """IPAM base class for the Ironic driver.
+
+    The idea here is that there are many small subnets created for a
+    particular segment for a provider network. And the Ironic IPAM
+    family selects unused ones, and only allows a single allocation
+    per subnet.
+    """
+    def _select_subnet(self, context, net_id, ip_address, segment_id,
+                       subnet_ids, **filters):
+
+        lock_subnets = True
+
+        select_api = db_api.subnet_find_unused
+        subnets = select_api(context, net_id, lock_subnets=lock_subnets,
+                             segment_id=segment_id, scope=db_api.ALL,
+                             subnet_id=subnet_ids, **filters)
+
+        if not subnets:
+            LOG.info("No subnets found given the search criteria!")
+            return
+
+        for subnet, ips_in_subnet in subnets:
+            # make sure we don't select subnets that have allocated ips.
+            if ips_in_subnet:
+                continue
+            yield subnet, ips_in_subnet
+
+
+class IronicIpamANY(IronicIpam, QuarkIpamANY):
+    @classmethod
+    def get_name(self):
+        return "IRONIC_ANY"
+
+
+class IronicIpamBOTH(IronicIpam, QuarkIpamBOTH):
+    @classmethod
+    def get_name(self):
+        return "IRONIC_BOTH"
+
+
+class IronicIpamBOTHREQ(IronicIpam, QuarkIpamBOTHREQ):
+    @classmethod
+    def get_name(self):
+        return "IRONIC_BOTH_REQUIRED"
+
+
 class IpamRegistry(object):
     def __init__(self):
         self.strategies = {
             QuarkIpamANY.get_name(): QuarkIpamANY(),
             QuarkIpamBOTH.get_name(): QuarkIpamBOTH(),
-            QuarkIpamBOTHREQ.get_name(): QuarkIpamBOTHREQ()}
+            QuarkIpamBOTHREQ.get_name(): QuarkIpamBOTHREQ(),
+            IronicIpamANY.get_name(): IronicIpamANY(),
+            IronicIpamBOTH.get_name(): IronicIpamBOTH(),
+            IronicIpamBOTHREQ.get_name(): IronicIpamBOTHREQ()
+        }
 
     def is_valid_strategy(self, strategy_name):
         if strategy_name in self.strategies:

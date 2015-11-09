@@ -23,9 +23,11 @@ from neutron.common import exceptions
 from oslo_config import cfg
 
 from quark.db import models
+from quark.drivers import registry
 from quark import exceptions as q_exc
 from quark import network_strategy
 from quark.plugin_modules import ports as quark_ports
+from quark import plugin_views
 from quark import tags
 from quark.tests import test_quark_plugin
 
@@ -164,6 +166,129 @@ class TestQuarkGetPorts(test_quark_plugin.TestQuarkPlugin):
                     'fixed_ips': [],
                     'device_id': 2}
         with self._stubs(ports=port):
+            result = self.plugin.get_port(self.context, 1)
+            for key in expected.keys():
+                self.assertEqual(result[key], expected[key])
+
+
+class TestQuarkGetPortsProviderSubnetIds(test_quark_plugin.TestQuarkPlugin):
+
+    def setUp(self):
+        super(TestQuarkGetPortsProviderSubnetIds, self).setUp()
+        self.strategy = {
+            "1": {
+                "bridge": "publicnet",
+                "subnets": {
+                    "4": "v4-provider-subnet-id",
+                    "6": "v6-provider-subnet-id"
+                }
+            }
+        }
+        self.strategy_json = json.dumps(self.strategy)
+        self.old = plugin_views.STRATEGY
+        plugin_views.STRATEGY = network_strategy.JSONStrategy(
+            self.strategy_json)
+        cfg.CONF.set_override("default_net_strategy", self.strategy_json,
+                              "QUARK")
+
+    def tearDown(self):
+        plugin_views.STRATEGY = self.old
+
+    def _port_associate_stub(self, ports, address, **kwargs):
+        if not isinstance(ports, list):
+            ports = [ports]
+
+        for port in ports:
+            assoc = models.PortIpAssociation()
+            assoc.port_id = port.id
+            assoc.ip_address_id = address.id
+            assoc.port = port
+            assoc.ip_address = address
+            assoc.enabled = address.address_type == "fixed"
+        return address
+
+    @contextlib.contextmanager
+    def _stubs(self, ports=None, addrs=None):
+        port_models = []
+        addr_models = None
+        if addrs:
+            addr_models = []
+            for address in addrs:
+                a = models.IPAddress(**address)
+                addr_models.append(a)
+
+        if isinstance(ports, list):
+            for port in ports:
+                port_model = models.Port(**port)
+                if addr_models:
+                    port_model.ip_addresses = addr_models
+                    for addr_model in addr_models:
+                        self._port_associate_stub(
+                            port_model, addr_model)
+                port_models.append(port_model)
+        elif ports is None:
+            port_models = None
+        else:
+            port_model = models.Port(**ports)
+            if addr_models:
+                port_model.ip_addresses = addr_models
+                for addr_model in addr_models:
+                        self._port_associate_stub(
+                            port_model, addr_model)
+            port_models = port_model
+
+        with contextlib.nested(
+            mock.patch("quark.db.api.port_find")
+        ) as (port_find,):
+            port_find.return_value = port_models
+            yield
+
+    def test_port_show_with_provider_subnet_ids(self):
+        """Prove provider subnets ids are shown on the port object."""
+        ip = dict(id=1, address=netaddr.IPAddress("192.168.1.100").value,
+                  address_readable="192.168.1.100", subnet_id="1",
+                  network_id="1", version=4, address_type="fixed")
+        port = dict(mac_address=int('AABBCCDDEEFF', 16), network_id="1",
+                    tenant_id=self.context.tenant_id, device_id=2)
+        expected = {'status': "ACTIVE",
+                    'device_owner': None,
+                    'mac_address': 'AA:BB:CC:DD:EE:FF',
+                    'network_id': "1",
+                    'tenant_id': self.context.tenant_id,
+                    'admin_state_up': None,
+                    'fixed_ips': [
+                        {'subnet_id': 'v4-provider-subnet-id', 'enabled': True,
+                         'ip_address': '192.168.1.100'}
+                    ],
+                    'device_id': 2}
+        with self._stubs(ports=port, addrs=[ip]):
+            result = self.plugin.get_port(self.context, 1)
+            for key in expected.keys():
+                self.assertEqual(result[key], expected[key])
+
+    def test_port_show_without_provider_subnet_ids(self):
+        """Prove provider subnets ids are shown on the port object."""
+        cfg.CONF.set_override('show_provider_subnet_ids', False, 'QUARK')
+        self.addCleanup(
+            cfg.CONF.clear_override, 'show_provider_subnet_ids', 'QUARK')
+
+        ip = dict(id=1, address=netaddr.IPAddress("192.168.1.100").value,
+                  address_readable="192.168.1.100", subnet_id="1",
+                  network_id="1", version=4, address_type="fixed")
+        port = dict(mac_address=int('AABBCCDDEEFF', 16), network_id="1",
+                    tenant_id=self.context.tenant_id, device_id=2)
+        expected = {'status': "ACTIVE",
+                    'device_owner': None,
+                    'mac_address': 'AA:BB:CC:DD:EE:FF',
+                    'network_id': "1",
+                    'tenant_id': self.context.tenant_id,
+                    'admin_state_up': None,
+                    'fixed_ips': [
+                        {'subnet_id': '1', 'enabled': True,
+                         'ip_address': '192.168.1.100'}
+                    ],
+                    'device_id': 2}
+        with self._stubs(ports=port, addrs=[ip]):
             result = self.plugin.get_port(self.context, 1)
             for key in expected.keys():
                 self.assertEqual(result[key], expected[key])
@@ -865,7 +990,8 @@ class TestQuarkUpdatePortSecurityGroups(test_quark_plugin.TestQuarkPlugin):
                 self.context, port_id=port_dict["backend_key"],
                 mac_address=port_dict["mac_address"],
                 device_id=port_dict["device_id"],
-                security_groups=[])
+                security_groups=[],
+                base_net_driver=registry.DRIVER_REGISTRY.get_driver('BASE'))
 
     def test_update_port_no_security_groups(self):
         port_dict = {"id": 1, "mac_address": "AA:BB:CC:DD:EE:FF",
@@ -879,7 +1005,8 @@ class TestQuarkUpdatePortSecurityGroups(test_quark_plugin.TestQuarkPlugin):
             driver_port_update.assert_called_once_with(
                 self.context, port_id=port_dict["backend_key"],
                 mac_address=port_dict["mac_address"],
-                device_id=port_dict["device_id"])
+                device_id=port_dict["device_id"],
+                base_net_driver=registry.DRIVER_REGISTRY.get_driver('BASE'))
 
     def test_update_port_security_groups_no_device_id_raises(self):
         with self._stubs(
@@ -1040,7 +1167,8 @@ class TestQuarkDeletePort(test_quark_plugin.TestQuarkPlugin):
             self.assertTrue(db_port_del.called)
             driver_port_del.assert_called_with(
                 self.context, "foo", mac_address=port["port"]["mac_address"],
-                device_id=port["port"]["device_id"])
+                device_id=port["port"]["device_id"],
+                base_net_driver=registry.DRIVER_REGISTRY.get_driver("BASE"))
 
     def test_port_delete_port_not_found_fails(self):
         with self._stubs(port=None) as (db_port_del, driver_port_del):
@@ -1155,11 +1283,11 @@ class TestPortDiagnose(test_quark_plugin.TestQuarkPlugin):
                 self.plugin.diagnose_port(self.context, 1, [])
 
 
-class TestPortNetworkPlugin(test_quark_plugin.TestQuarkPlugin):
+class TestPortDriverSelection(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, network=None, addr=None, mac=None,
-               compat_map=None, driver_res=None):
-        network["ipam_strategy"] = "ANY"
+               compat_map=None, driver_res=None, ipam="FOO"):
+        network["ipam_strategy"] = "FOO"
 
         # Response from the backend driver
         self.expected_bridge = "backend-drivers-bridge"
@@ -1169,17 +1297,26 @@ class TestPortNetworkPlugin(test_quark_plugin.TestQuarkPlugin):
         # Mock out the driver registry
         foo_driver = mock.Mock()
         foo_driver.create_port.return_value = driver_res
+        foo_driver.select_ipam_strategy.return_value = "FOO"
         bar_driver = mock.Mock()
         bar_driver.create_port.return_value = driver_res
+        bar_driver.select_ipam_strategy.return_value = "BAR"
         drivers = {"FOO": foo_driver,
                    "BAR": bar_driver}
         compat_map = compat_map or {}
 
+        # Mock out the IPAM registry
+        foo_ipam = mock.Mock()
+        foo_ipam.allocate_ip_address.return_value = addr
+        foo_ipam.allocate_mac_address.return_value = mac
+        bar_ipam = mock.Mock()
+        bar_ipam.allocate_ip_address.return_value = addr
+        bar_ipam.allocate_mac_address.return_value = mac
+        ipam = {"FOO": foo_ipam, "BAR": bar_ipam}
+
         with contextlib.nested(
             mock.patch("quark.db.api.port_create"),
             mock.patch("quark.db.api.network_find"),
-            mock.patch("quark.ipam.QuarkIpam.allocate_ip_address"),
-            mock.patch("quark.ipam.QuarkIpam.allocate_mac_address"),
             mock.patch("oslo_utils.uuidutils.generate_uuid"),
             mock.patch("quark.plugin_views._make_port_dict"),
             mock.patch("quark.db.api.port_count_all"),
@@ -1189,15 +1326,17 @@ class TestPortNetworkPlugin(test_quark_plugin.TestQuarkPlugin):
                        new_callable=mock.PropertyMock(return_value=drivers)),
             mock.patch("quark.plugin_modules.ports.registry."
                        "DRIVER_REGISTRY.port_driver_compat_map",
-                       new_callable=mock.PropertyMock(return_value=compat_map))
-        ) as (port_create, net_find, alloc_ip, alloc_mac, gen_uuid, make_port,
-              port_count, limit_check, _, _):
+                       new_callable=mock.PropertyMock(
+                           return_value=compat_map)),
+            mock.patch("quark.plugin_modules.ports.ipam."
+                       "IPAM_REGISTRY.strategies",
+                       new_callable=mock.PropertyMock(return_value=ipam))
+        ) as (port_create, net_find, gen_uuid, make_port,
+              port_count, limit_check, _, _, _):
             net_find.return_value = network
-            alloc_ip.return_value = addr
-            alloc_mac.return_value = mac
             gen_uuid.return_value = 1
             port_count.return_value = 0
-            yield port_create, alloc_mac, net_find
+            yield (port_create, ipam, net_find)
 
     def test_create_port_with_bad_network_plugin_fails(self):
         network_dict = dict(id=1, tenant_id=self.context.tenant_id)
@@ -1215,7 +1354,7 @@ class TestPortNetworkPlugin(test_quark_plugin.TestQuarkPlugin):
         port_models = port_model
 
         with self._stubs(network=network, addr=ip,
-                         mac=mac) as (port_create, alloc_mac, net_find):
+                         mac=mac) as (port_create, ipam, net_find):
             port_create.return_value = port_models
 
             exc = "Driver FAIL is not registered."
@@ -1238,7 +1377,7 @@ class TestPortNetworkPlugin(test_quark_plugin.TestQuarkPlugin):
         port_models = port_model
 
         with self._stubs(network=network, addr=ip,
-                         mac=mac) as (port_create, alloc_mac, net_find):
+                         mac=mac) as (port_create, ipam, net_find):
             port_create.return_value = port_models
 
             exc = "Driver FAIL is not registered."
@@ -1262,7 +1401,7 @@ class TestPortNetworkPlugin(test_quark_plugin.TestQuarkPlugin):
         port_models = port_model
 
         with self._stubs(network=network, addr=ip,
-                         mac=mac) as (port_create, alloc_mac, net_find):
+                         mac=mac) as (port_create, ipam, net_find):
             port_create.return_value = port_models
 
             exc = ("Port driver BAR not allowed for underlying network "
@@ -1270,6 +1409,56 @@ class TestPortNetworkPlugin(test_quark_plugin.TestQuarkPlugin):
             admin_ctx = self.context.elevated()
             with self.assertRaisesRegexp(exceptions.BadRequest, exc):
                 self.plugin.create_port(admin_ctx, port)
+
+    def test_create_port_with_no_port_network_plugin(self):
+        network = dict(id=1, tenant_id=self.context.tenant_id,
+                       network_plugin="FOO")
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
+        port_name = "foobar"
+        ip = dict()
+
+        port = dict(port=dict(mac_address=mac["address"], network_id=1,
+                              tenant_id=self.context.tenant_id, device_id=2,
+                              name=port_name, device_owner="quark_tests",
+                              bridge="quark_bridge", admin_state_up=False))
+
+        expected_mac = "DE:AD:BE:EF:00:00"
+        expected_bridge = "new_bridge"
+        expected_device_owner = "new_device_owner"
+        expected_admin_state = "new_state"
+
+        port_create_dict = {}
+        port_create_dict["port"] = port["port"].copy()
+        port_create_dict["port"]["mac_address"] = expected_mac
+        port_create_dict["port"]["device_owner"] = expected_device_owner
+        port_create_dict["port"]["bridge"] = expected_bridge
+        port_create_dict["port"]["admin_state_up"] = expected_admin_state
+
+        admin_ctx = self.context.elevated()
+        with self._stubs(network=network, addr=ip,
+                         mac=mac) as (port_create, ipam, net_find):
+            self.plugin.create_port(admin_ctx, port_create_dict)
+
+            ipam["BAR"].allocate_mac_address.assert_not_called()
+            ipam["BAR"].allocate_ip_address.assert_not_called()
+
+            ipam["FOO"].allocate_ip_address.assert_called_once_with(
+                admin_ctx, [], network["id"], 1,
+                cfg.CONF.QUARK.ipam_reuse_after,
+                segment_id=None, mac_address=mac)
+
+            ipam["FOO"].allocate_mac_address.assert_called_once_with(
+                admin_ctx, network["id"], 1,
+                cfg.CONF.QUARK.ipam_reuse_after,
+                mac_address=expected_mac, use_forbidden_mac_range=False)
+
+            port_create.assert_called_once_with(
+                admin_ctx, bridge=self.expected_bridge, uuid=1, name="foobar",
+                admin_state_up=expected_admin_state, network_id=1,
+                tenant_id="fake", id=1, device_owner=expected_device_owner,
+                mac_address=mac["address"], device_id=2, backend_key=1,
+                security_groups=[], addresses=[], instance_node_id='',
+                network_plugin="FOO")
 
     def test_create_port_with_port_network_plugin(self):
         network = dict(id=1, tenant_id=self.context.tenant_id,
@@ -1299,10 +1488,18 @@ class TestPortNetworkPlugin(test_quark_plugin.TestQuarkPlugin):
 
         admin_ctx = self.context.elevated()
         with self._stubs(network=network, addr=ip,
-                         mac=mac) as (port_create, alloc_mac, net_find):
+                         mac=mac) as (port_create, ipam, net_find):
             self.plugin.create_port(admin_ctx, port_create_dict)
 
-            alloc_mac.assert_called_once_with(
+            ipam["BAR"].allocate_mac_address.assert_not_called()
+            ipam["BAR"].allocate_ip_address.assert_not_called()
+
+            ipam["FOO"].allocate_ip_address.assert_called_once_with(
+                admin_ctx, [], network["id"], 1,
+                cfg.CONF.QUARK.ipam_reuse_after,
+                segment_id=None, mac_address=mac)
+
+            ipam["FOO"].allocate_mac_address.assert_called_once_with(
                 admin_ctx, network["id"], 1,
                 cfg.CONF.QUARK.ipam_reuse_after,
                 mac_address=expected_mac, use_forbidden_mac_range=False)
@@ -1312,7 +1509,7 @@ class TestPortNetworkPlugin(test_quark_plugin.TestQuarkPlugin):
                 admin_state_up=expected_admin_state, network_id=1,
                 tenant_id="fake", id=1, device_owner=expected_device_owner,
                 mac_address=mac["address"], device_id=2, backend_key=1,
-                security_groups=[], addresses=[],
+                security_groups=[], addresses=[], instance_node_id='',
                 network_plugin=expected_network_plugin)
 
     def test_create_port_with_compatible_port_network_plugin(self):
@@ -1344,11 +1541,19 @@ class TestPortNetworkPlugin(test_quark_plugin.TestQuarkPlugin):
         compat_map = {"BAR": ["FOO"]}
         admin_ctx = self.context.elevated()
         with self._stubs(network=network, addr=ip, mac=mac,
-                         compat_map=compat_map) as (port_create, alloc_mac,
+                         compat_map=compat_map) as (port_create, ipam,
                                                     net_find):
             self.plugin.create_port(admin_ctx, port_create_dict)
 
-            alloc_mac.assert_called_once_with(
+            ipam["FOO"].allocate_mac_address.assert_not_called()
+            ipam["FOO"].allocate_ip_address.assert_not_called()
+
+            ipam["BAR"].allocate_ip_address.assert_called_once_with(
+                admin_ctx, [], network["id"], 1,
+                cfg.CONF.QUARK.ipam_reuse_after,
+                segment_id=None, mac_address=mac)
+
+            ipam["BAR"].allocate_mac_address.assert_called_once_with(
                 admin_ctx, network["id"], 1,
                 cfg.CONF.QUARK.ipam_reuse_after,
                 mac_address=expected_mac, use_forbidden_mac_range=False)
@@ -1358,8 +1563,108 @@ class TestPortNetworkPlugin(test_quark_plugin.TestQuarkPlugin):
                 admin_state_up=expected_admin_state, network_id=1,
                 tenant_id="fake", id=1, device_owner=expected_device_owner,
                 mac_address=mac["address"], device_id=2, backend_key=1,
-                security_groups=[], addresses=[],
+                security_groups=[], addresses=[], instance_node_id='',
                 network_plugin=expected_network_plugin)
+
+    def test_create_port_ipam_selection(self):
+        network = dict(id=1, tenant_id=self.context.tenant_id,
+                       network_plugin="FOO")
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
+        port_name = "foobar"
+        ip = dict()
+
+        port = dict(port=dict(mac_address=mac["address"], network_id=1,
+                              tenant_id=self.context.tenant_id, device_id=2,
+                              name=port_name, device_owner="quark_tests",
+                              bridge="quark_bridge", admin_state_up=False))
+
+        expected_mac = "DE:AD:BE:EF:00:00"
+        expected_bridge = "new_bridge"
+        expected_device_owner = "new_device_owner"
+        expected_admin_state = "new_state"
+
+        port_create_dict = {}
+        port_create_dict["port"] = port["port"].copy()
+        port_create_dict["port"]["mac_address"] = expected_mac
+        port_create_dict["port"]["device_owner"] = expected_device_owner
+        port_create_dict["port"]["bridge"] = expected_bridge
+        port_create_dict["port"]["admin_state_up"] = expected_admin_state
+
+        admin_ctx = self.context.elevated()
+        with self._stubs(network=network, addr=ip,
+                         mac=mac) as (port_create, ipam, net_find):
+            self.plugin.create_port(admin_ctx, port_create_dict)
+
+            ipam["BAR"].allocate_mac_address.assert_not_called()
+            ipam["BAR"].allocate_ip_address.assert_not_called()
+
+            ipam["FOO"].allocate_ip_address.assert_called_once_with(
+                admin_ctx, [], network["id"], 1,
+                cfg.CONF.QUARK.ipam_reuse_after,
+                segment_id=None, mac_address=mac)
+
+            ipam["FOO"].allocate_mac_address.assert_called_once_with(
+                admin_ctx, network["id"], 1,
+                cfg.CONF.QUARK.ipam_reuse_after,
+                mac_address=expected_mac, use_forbidden_mac_range=False)
+
+            port_create.assert_called_once_with(
+                admin_ctx, bridge=self.expected_bridge, uuid=1, name="foobar",
+                admin_state_up=expected_admin_state, network_id=1,
+                tenant_id="fake", id=1, device_owner=expected_device_owner,
+                mac_address=mac["address"], device_id=2, backend_key=1,
+                security_groups=[], addresses=[], instance_node_id='',
+                network_plugin="FOO")
+
+    def test_create_port_ipam_selection_override_by_driver(self):
+        network = dict(id=1, tenant_id=self.context.tenant_id,
+                       network_plugin="BAR")
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
+        port_name = "foobar"
+        ip = dict()
+
+        port = dict(port=dict(mac_address=mac["address"], network_id=1,
+                              tenant_id=self.context.tenant_id, device_id=2,
+                              name=port_name, device_owner="quark_tests",
+                              bridge="quark_bridge", admin_state_up=False))
+
+        expected_mac = "DE:AD:BE:EF:00:00"
+        expected_bridge = "new_bridge"
+        expected_device_owner = "new_device_owner"
+        expected_admin_state = "new_state"
+
+        port_create_dict = {}
+        port_create_dict["port"] = port["port"].copy()
+        port_create_dict["port"]["mac_address"] = expected_mac
+        port_create_dict["port"]["device_owner"] = expected_device_owner
+        port_create_dict["port"]["bridge"] = expected_bridge
+        port_create_dict["port"]["admin_state_up"] = expected_admin_state
+
+        admin_ctx = self.context.elevated()
+        with self._stubs(network=network, addr=ip,
+                         mac=mac, ipam="BAR") as (port_create, ipam, net_find):
+            self.plugin.create_port(admin_ctx, port_create_dict)
+
+            ipam["FOO"].allocate_mac_address.assert_not_called()
+            ipam["FOO"].allocate_ip_address.assert_not_called()
+
+            ipam["BAR"].allocate_ip_address.assert_called_once_with(
+                admin_ctx, [], network["id"], 1,
+                cfg.CONF.QUARK.ipam_reuse_after,
+                segment_id=None, mac_address=mac)
+
+            ipam["BAR"].allocate_mac_address.assert_called_once_with(
+                admin_ctx, network["id"], 1,
+                cfg.CONF.QUARK.ipam_reuse_after,
+                mac_address=expected_mac, use_forbidden_mac_range=False)
+
+            port_create.assert_called_once_with(
+                admin_ctx, bridge=self.expected_bridge, uuid=1, name="foobar",
+                admin_state_up=expected_admin_state, network_id=1,
+                tenant_id="fake", id=1, device_owner=expected_device_owner,
+                mac_address=mac["address"], device_id=2, backend_key=1,
+                security_groups=[], addresses=[], instance_node_id='',
+                network_plugin="BAR")
 
     def test_create_port_network_plugin_response_no_uuid_raises(self):
         network_dict = dict(id=1, tenant_id=self.context.tenant_id)
@@ -1421,11 +1726,19 @@ class TestPortNetworkPlugin(test_quark_plugin.TestQuarkPlugin):
         admin_ctx = self.context.elevated()
         with self._stubs(network=network, addr=ip,
                          mac=mac, driver_res=driver_res) as (port_create,
-                                                             alloc_mac,
+                                                             ipam,
                                                              net_find):
             self.plugin.create_port(admin_ctx, port_create_dict)
 
-            alloc_mac.assert_called_once_with(
+            ipam["BAR"].allocate_mac_address.assert_not_called()
+            ipam["BAR"].allocate_ip_address.assert_not_called()
+
+            ipam["FOO"].allocate_ip_address.assert_called_once_with(
+                admin_ctx, [], network["id"], 1,
+                cfg.CONF.QUARK.ipam_reuse_after,
+                segment_id=None, mac_address=mac)
+
+            ipam["FOO"].allocate_mac_address.assert_called_once_with(
                 admin_ctx, network["id"], 1,
                 cfg.CONF.QUARK.ipam_reuse_after,
                 mac_address=expected_mac, use_forbidden_mac_range=False)
@@ -1435,7 +1748,8 @@ class TestPortNetworkPlugin(test_quark_plugin.TestQuarkPlugin):
                 admin_state_up=expected_admin_state, network_id=1,
                 tenant_id="fake", id=1, device_owner=expected_device_owner,
                 mac_address=mac["address"], device_id=2, backend_key=5,
-                security_groups=[], addresses=[], vlan_id=50)
+                security_groups=[], addresses=[], vlan_id=50,
+                network_plugin=network["network_plugin"], instance_node_id='')
 
 
 class TestQuarkPortCreateFiltering(test_quark_plugin.TestQuarkPlugin):
@@ -1491,7 +1805,8 @@ class TestQuarkPortCreateFiltering(test_quark_plugin.TestQuarkPlugin):
                 self.context, addresses=[], network_id=network["id"],
                 tenant_id="fake", uuid=1, name="foobar",
                 mac_address=alloc_mac()["address"], backend_key=1, id=1,
-                security_groups=[], device_id=2)
+                security_groups=[], network_plugin='BASE',
+                device_id=2, instance_node_id='')
 
     def test_create_port_attribute_filtering_admin(self):
         network = dict(id=1, tenant_id=self.context.tenant_id)
@@ -1534,7 +1849,7 @@ class TestQuarkPortCreateFiltering(test_quark_plugin.TestQuarkPlugin):
                 tenant_id="fake", id=1, device_owner=expected_device_owner,
                 mac_address=mac["address"], device_id=2, backend_key=1,
                 security_groups=[], addresses=[],
-                network_plugin=expected_network_plugin)
+                network_plugin=expected_network_plugin, instance_node_id='')
 
 
 class TestQuarkPortUpdateFiltering(test_quark_plugin.TestQuarkPlugin):
