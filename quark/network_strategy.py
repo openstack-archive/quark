@@ -32,6 +32,9 @@ class JSONStrategy(object):
     def __init__(self, strategy=None):
         self.subnet_strategy = {}
         self.strategy = {}
+        self.load(strategy)
+
+    def load(self, strategy=None):
         if not strategy:
             self._compile_strategy(CONF.QUARK.default_net_strategy)
         else:

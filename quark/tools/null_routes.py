@@ -39,12 +39,9 @@ def main():
                    " the '--config-file' option!"))
     config.setup_logging()
 
-    # NOTE(asadoughi): Reload quark-based python modules to re-initialize
-    # singletons that depend on configuration,
-    # such as quark.network_strategy.JSONStrategy.
-    reload(db_api)
-    reload(ip_types)
-    reload(models)
+    # Reload configuration for network strategy
+    from quark import network_strategy
+    network_strategy.STRATEGY.load()
 
     context = neutron_context.get_admin_context()
     network_ids = cfg.CONF.QUARK.null_routes_network_ids
