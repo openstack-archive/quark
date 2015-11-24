@@ -43,8 +43,9 @@ class JSONStrategy(object):
     def _compile_strategy(self, strategy):
         self.strategy = json.loads(strategy)
         for net_id, meta in self.strategy.iteritems():
-            for subnet_id in meta["subnets"]:
-                self.subnet_strategy[subnet_id] = net_id
+            for ip_version, subnet_id in meta["subnets"].iteritems():
+                self.subnet_strategy[subnet_id] = {"ip_version": ip_version,
+                                                   "network_id": net_id}
 
     def _split(self, func, resource_ids):
         provider = []
@@ -68,6 +69,11 @@ class JSONStrategy(object):
     def get_provider_subnets(self):
         return sorted(self.subnet_strategy.keys())
 
+    def get_provider_subnet_id(self, net_id, ip_version):
+        if net_id not in self.strategy:
+            return None
+        return self.strategy[net_id]["subnets"][str(ip_version)]
+
     def get_network(self, net_id):
         return self.strategy.get(net_id)
 
@@ -79,10 +85,13 @@ class JSONStrategy(object):
 
     def subnet_ids_for_network(self, net_id):
         if net_id in self.strategy:
-            return self.strategy.get(net_id)["subnets"]
+            subnets = self.strategy.get(net_id)["subnets"]
+            return [subnet_id for ip_version, subnet_id in subnets.iteritems()]
 
     def get_network_for_subnet(self, subnet_id):
-        return self.subnet_strategy.get(subnet_id)
+        if subnet_id not in self.subnet_strategy:
+            return None
+        return self.subnet_strategy.get(subnet_id)["network_id"]
 
 
 STRATEGY = JSONStrategy()
