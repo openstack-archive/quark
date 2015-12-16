@@ -767,7 +767,8 @@ class QuarkIpam(object):
             raise exceptions.NotFound(
                 message="No MAC address %s found" % netaddr.EUI(address))
 
-        if mac["mac_address_range"]["do_not_use"]:
+        if (mac["mac_address_range"] is None or
+                mac["mac_address_range"]["do_not_use"]):
             db_api.mac_address_delete(admin_context, mac)
         else:
             db_api.mac_address_update(admin_context, mac, deallocated=True,
