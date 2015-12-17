@@ -3,8 +3,12 @@ import sys
 from neutron.common import config
 from neutron.db import api as neutron_db_api
 from oslo_config import cfg
+from oslo_db.exception import DBDuplicateEntry
+from oslo_log import log as logging
 
 from quark.db import models
+
+LOG = logging.getLogger(__name__)
 
 
 def main():
@@ -45,7 +49,10 @@ def main():
                       segment_id="rackspace",
                       do_not_use=True,
                       _cidr="::/0")]
-    session.bulk_save_objects(subnets)
+    try:
+        session.bulk_save_objects(subnets)
+    except DBDuplicateEntry:
+        LOG.warn("Provider subnets previously inserted into database")
 
 
 if __name__ == "__main__":
