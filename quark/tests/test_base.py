@@ -30,6 +30,11 @@ class TestBase(unittest2.TestCase):
         cfg.CONF.set_override('state_path', tox_path)
 
         neutron_conf_path = "%s/etc/neutron/neutron.conf" % tox_path
+        try:
+            open(neutron_conf_path, "r")
+        except IOError:
+            open(neutron_conf_path, "w")
+
         args = ['--config-file', neutron_conf_path]
         config.init(args=args)
 
