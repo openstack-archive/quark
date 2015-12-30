@@ -2,8 +2,6 @@
 quark
 =====
 
-Creamy German Style
-
 Build Status
 ====================
 .. image:: https://travis-ci.org/rackerlabs/quark.svg?branch=master
