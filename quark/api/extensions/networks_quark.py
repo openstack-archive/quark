@@ -14,6 +14,8 @@
 # limitations under the License.
 
 
+from neutron.api import extensions
+
 RESOURCE_NAME = "network"
 RESOURCE_COLLECTION = RESOURCE_NAME + "s"
 EXTENDED_ATTRIBUTES_2_0 = {
@@ -25,7 +27,7 @@ EXTENDED_ATTRIBUTES_2_0 = {
         "id": {"allow_post": True, "is_visible": True, "default": False}}}
 
 
-class Networks_quark(object):
+class Networks_quark(extensions.ExtensionDescriptor):
     """Extends Networks for quark API purposes."""
 
     @classmethod

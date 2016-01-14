@@ -77,7 +77,7 @@ class RoutesController(wsgi.Controller):
             raise webob.exc.HTTPNotFound()
 
 
-class Routes(object):
+class Routes(extensions.ExtensionDescriptor):
     """Routes support."""
     @classmethod
     def get_name(cls):
