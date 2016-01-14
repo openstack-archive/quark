@@ -13,13 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from neutron.api import extensions
 
 RESOURCE_NAME = "floatingip"
 RESOURCE_COLLECTION = RESOURCE_NAME + "s"
 EXTENDED_ATTRIBUTES_2_0 = {}
 
 
-class Floatingip(object):
+class Floatingip(extensions.ExtensionDescriptor):
     """Extends Networks for quark API purposes."""
 
     @classmethod

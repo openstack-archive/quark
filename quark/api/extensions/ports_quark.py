@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from neutron.api import extensions
 from neutron.api.v2 import attributes as attrs
 from neutron.extensions import securitygroup
 
@@ -51,7 +52,7 @@ EXTENDED_ATTRIBUTES_2_0 = {
                            "is_visible": False, "default": ''}}}
 
 
-class Ports_quark(object):
+class Ports_quark(extensions.ExtensionDescriptor):
     """Extends ports for quark API purposes.
 
     """
