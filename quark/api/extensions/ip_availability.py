@@ -45,7 +45,7 @@ class IPAvailabilityController(wsgi.Controller):
         return self._plugin.get_ip_availability(**request.GET)
 
 
-class Ip_availability(object):
+class Ip_availability(extensions.ExtensionDescriptor):
     """IP Availability support."""
     @classmethod
     def get_name(cls):
