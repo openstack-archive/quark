@@ -62,7 +62,7 @@ class IPPoliciesController(wsgi.Controller):
         return self._plugin.delete_ip_policy(context, id)
 
 
-class Ip_policies(object):
+class Ip_policies(extensions.ExtensionDescriptor):
     """IP Policies support."""
     @classmethod
     def get_name(cls):

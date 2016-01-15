@@ -66,7 +66,7 @@ class MacAddressRangesController(wsgi.Controller):
         return self._plugin.delete_mac_address_range(context, id)
 
 
-class Mac_address_ranges(object):
+class Mac_address_ranges(extensions.ExtensionDescriptor):
     """Mac Address Range support."""
     @classmethod
     def get_name(cls):

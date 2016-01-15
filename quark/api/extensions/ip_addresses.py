@@ -144,7 +144,7 @@ class IpAddressPortController(wsgi.Controller):
         raise webob.exc.HTTPNotImplemented()
 
 
-class Ip_addresses(object):
+class Ip_addresses(extensions.ExtensionDescriptor):
     """IP Addresses support."""
     @classmethod
     def get_name(cls):
