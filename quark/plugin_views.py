@@ -270,6 +270,23 @@ def _make_mac_range_dict(mac_range):
             "cidr": mac_range["cidr"]}
 
 
+def _make_segment_allocation_range_dict(sa_range, allocations=None):
+    size = len(xrange(sa_range["first_id"], sa_range["last_id"] + 1))
+
+    sa_dict = {
+        "id": sa_range["id"],
+        "segment_id": sa_range["segment_id"],
+        "segment_type": sa_range["segment_type"],
+        "first_id": sa_range["first_id"],
+        "last_id": sa_range["last_id"],
+        "do_not_use": sa_range["do_not_use"],
+        "size": size}
+
+    if allocations is not None:
+        sa_dict["free_ids"] = sa_dict["size"] - allocations
+    return sa_dict
+
+
 def _make_route_dict(route):
     return {"id": route["id"],
             "cidr": route["cidr"],

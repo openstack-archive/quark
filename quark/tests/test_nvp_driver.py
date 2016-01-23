@@ -145,6 +145,72 @@ class TestNVPDriverCreateNetwork(TestNVPDriver):
             connection.lswitch().display_name.assert_called_with(long_n[:40])
 
 
+class TestNVPDriverDefaultTransportZoneBindings(TestNVPDriver):
+
+    def setUp(self):
+        super(TestNVPDriverDefaultTransportZoneBindings, self).setUp()
+        cfg.CONF.set_override(
+            'additional_default_tz_types', ['vxlan'], 'NVP')
+        cfg.CONF.set_override(
+            'default_tz', 'tz_uuid', 'NVP')
+        cfg.CONF.set_override(
+            'default_tz_type', 'stt', 'NVP')
+
+    def tearDown(self):
+        super(TestNVPDriverDefaultTransportZoneBindings, self).setUp()
+        cfg.CONF.clear_override('additional_default_tz_types', 'NVP')
+        cfg.CONF.clear_override('default_tz', 'NVP')
+        cfg.CONF.clear_override('default_tz_type', 'NVP')
+
+    @contextlib.contextmanager
+    def _stubs(self):
+        with contextlib.nested(
+            mock.patch("quark.drivers.nvp_driver.SA_REGISTRY."
+                       "get_strategy"),
+            mock.patch("%s._connection" % self.d_pkg),
+            mock.patch("%s._lswitches_for_network" % self.d_pkg),
+        ) as (sa_get_strategy, conn, switch_list):
+            connection = self._create_connection()
+            conn.return_value = connection
+
+            ret = {"results": [{"uuid": self.lswitch_uuid}]}
+            switch_list().results = mock.Mock(return_value=ret)
+
+            sa_strategy = mock.Mock()
+            sa_get_strategy.return_value = sa_strategy
+            sa_strategy.allocate.return_value = {"id": 123}
+
+            yield sa_get_strategy, sa_strategy, connection
+
+    def test_default_tz_bindings_net_create(self):
+        with self._stubs() as (sa_get_strategy, sa_strategy, connection):
+            self.driver.create_network(
+                self.context, "test", network_id="network_id")
+
+            self.assertTrue(connection.lswitch().create.called)
+
+            # assert vxlan tz manager was called
+            sa_strategy.allocate.assert_called_once_with(
+                self.context, 'tz_uuid', 'network_id')
+
+            # assert transport_zone was called:
+            # once for the default configured tz type (stt)
+            # once for the additional default tz type (vxlan)
+            self.assertEqual(
+                connection.lswitch().transport_zone.call_args_list,
+                [mock.call('tz_uuid', 'stt'),
+                 mock.call('tz_uuid', 'vxlan', vxlan_id=123)]
+            )
+
+    def test_default_tz_bindings_net_delete(self):
+        with self._stubs() as (sa_get_strategy, sa_strategy, connection):
+            self.driver.delete_network(self.context, "network_id")
+            self.assertTrue(connection.lswitch().delete.called)
+
+            sa_strategy.deallocate.assert_called_once_with(
+                self.context, 'tz_uuid', 'network_id')
+
+
 class TestNVPDriverProviderNetwork(TestNVPDriver):
     """Testing all of the network types is unnecessary, but a nice have."""
 

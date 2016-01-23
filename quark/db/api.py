@@ -1051,3 +1051,63 @@ def _lock_delete(context, target):
 def lock_holder_delete(context, target, lock_holder):
     context.session.delete(lock_holder)
     _lock_delete(context, target)
+
+
+@scoped
+def segment_allocation_range_find(context, lock_mode=False, **filters):
+    query = context.session.query(models.SegmentAllocationRange)
+    if lock_mode:
+        query = query.with_lockmode("update")
+
+    model_filters = _model_query(
+        context, models.SegmentAllocationRange, filters)
+
+    query = query.filter(*model_filters)
+    return query
+
+
+def segment_allocation_find(context, lock_mode=False, **filters):
+    """Query for segment allocations."""
+    range_ids = filters.pop("segment_allocation_range_ids", None)
+
+    query = context.session.query(models.SegmentAllocation)
+    if lock_mode:
+        query = query.with_lockmode("update")
+
+    query = query.filter_by(**filters)
+
+    # Optionally filter by given list of range ids
+    if range_ids:
+        query.filter(
+            models.SegmentAllocation.segment_allocation_range_id.in_(
+                range_ids))
+    return query
+
+
+def segment_allocation_update(context, sa, **sa_dict):
+    sa.update(sa_dict)
+    context.session.add(sa)
+    return sa
+
+
+def segment_allocation_range_populate_bulk(context, sa_dicts):
+    """Bulk-insert deallocated segment allocations.
+
+    NOTE(morgabra): This is quite performant when populating large ranges,
+    but you don't get any ORM conveniences or protections here.
+    """
+    context.session.bulk_insert_mappings(
+        models.SegmentAllocation,
+        sa_dicts
+    )
+
+
+def segment_allocation_range_create(context, **sa_range_dict):
+    new_range = models.SegmentAllocationRange()
+    new_range.update(sa_range_dict)
+    context.session.add(new_range)
+    return new_range
+
+
+def segment_allocation_range_delete(context, sa_range):
+    context.session.delete(sa_range)
