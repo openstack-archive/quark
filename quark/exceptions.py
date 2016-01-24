@@ -172,6 +172,10 @@ class FloatingIpNotFound(n_exc.NotFound):
     message = _("Floating IP %(id)s not found.")
 
 
+class ScalingIpNotFound(n_exc.NotFound):
+    message = _("Scaling IP %(id)s not found.")
+
+
 class RemoveFloatingIpFailure(n_exc.NeutronException):
     message = _("An error occurred when trying to remove the "
                 "floating IP %(id)s.")
@@ -188,6 +192,10 @@ class PortAlreadyContainsFloatingIp(n_exc.Conflict):
 
 class FixedIpDoesNotExistsForPort(n_exc.BadRequest):
     message = _("Fixed IP %(fixed_ip)s does not exist on Port %(port_id)s")
+
+
+class PortAlreadyContainsScalingIp(n_exc.Conflict):
+    message = _("Port %(port_id)s already has an associated scaling IP.")
 
 
 class NoAvailableFixedIpsForPort(n_exc.Conflict):

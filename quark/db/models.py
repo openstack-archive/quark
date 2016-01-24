@@ -167,7 +167,7 @@ class IPAddress(BASEV2, models.HasId):
     used_by_tenant_id = sa.Column(sa.String(255))
 
     address_type = sa.Column(sa.Enum(ip_types.FIXED, ip_types.FLOATING,
-                                     ip_types.SHARED,
+                                     ip_types.SHARED, ip_types.SCALING,
                              name="quark_ip_address_types"))
     associations = orm.relationship(PortIpAssociation, backref="ip_address")
     transaction_id = sa.Column(sa.Integer(),
@@ -246,19 +246,13 @@ flip_to_fixed_ip_assoc_tbl = sa.Table(
 
 orm.mapper(FloatingToFixedIPAssociation, flip_to_fixed_ip_assoc_tbl)
 
-IPAddress.fixed_ip = orm.relationship("IPAddress",
-                                      secondary=flip_to_fixed_ip_assoc_tbl,
-                                      primaryjoin=(IPAddress.id ==
-                                                   flip_to_fixed_ip_assoc_tbl
-                                                   .c.floating_ip_address_id
-                                                   and
-                                                   flip_to_fixed_ip_assoc_tbl
-                                                   .c.floating_ip_address_id ==
-                                                   1),
-                                      secondaryjoin=(IPAddress.id ==
-                                                     flip_to_fixed_ip_assoc_tbl
-                                                     .c.fixed_ip_address_id),
-                                      uselist=False)
+IPAddress.fixed_ips = orm.relationship(
+    "IPAddress", secondary=flip_to_fixed_ip_assoc_tbl,
+    primaryjoin=(IPAddress.id == flip_to_fixed_ip_assoc_tbl
+                 .c.floating_ip_address_id and flip_to_fixed_ip_assoc_tbl
+                 .c.floating_ip_address_id == 1),
+    secondaryjoin=(IPAddress.id == flip_to_fixed_ip_assoc_tbl
+                   .c.fixed_ip_address_id), uselist=True)
 
 
 class Route(BASEV2, models.HasTenant, models.HasId, IsHazTags):

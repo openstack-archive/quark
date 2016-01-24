@@ -130,7 +130,8 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
                                    "provider", "ip_policies", "quotas",
                                    "networks_quark", "router",
                                    "ip_availabilities", "ports_quark",
-                                   "floatingip", "segment_allocation_ranges"]
+                                   "floatingip", "segment_allocation_ranges",
+                                   "scalingip"]
 
     def __init__(self):
         LOG.info("Starting quark plugin")
@@ -472,3 +473,29 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
     def delete_segment_allocation_range(self, context, id):
         segment_allocation_ranges.delete_segment_allocation_range(
             context, id)
+
+    def create_scalingip(self, context, scalingip):
+        self._fix_missing_tenant_id(context, scalingip["scalingip"])
+        return floating_ips.create_scalingip(context, scalingip["scalingip"])
+
+    @sessioned
+    def update_scalingip(self, context, id, scalingip):
+        return floating_ips.update_scalingip(context, id,
+                                             scalingip["scalingip"])
+
+    @sessioned
+    def get_scalingip(self, context, id, fields=None):
+        return floating_ips.get_scalingip(context, id, fields)
+
+    @sessioned
+    def delete_scalingip(self, context, id):
+        return floating_ips.delete_scalingip(context, id)
+
+    @sessioned
+    def get_scalingips(self, context, filters=None, fields=None,
+                       sorts=None, limit=None, marker=None,
+                       page_reverse=False):
+        return floating_ips.get_scalingips(context, filters=filters,
+                                           fields=fields, sorts=sorts,
+                                           limit=limit, marker=marker,
+                                           page_reverse=page_reverse)
