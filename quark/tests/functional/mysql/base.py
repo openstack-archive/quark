@@ -20,6 +20,14 @@ class MySqlBaseFunctionalTest(test_base.TestBase):
             sql_string,
             'database')
         cfg.CONF.set_override(
+            'max_retries',
+            1,
+            'database')
+        cfg.CONF.set_override(
+            'retry_interval',
+            0,
+            'database')
+        cfg.CONF.set_override(
             'connection_debug',
             '0',
             'database')
