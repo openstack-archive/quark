@@ -17,7 +17,6 @@ from oslo_log import log as logging
 
 from quark.drivers import base
 from quark.drivers import security_groups as sg_driver
-
 from quark import network_strategy
 
 

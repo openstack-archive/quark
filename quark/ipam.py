@@ -999,7 +999,7 @@ class IronicIpam(QuarkIpam):
     """IPAM base class for the Ironic driver.
 
     The idea here is that there are many small subnets created for a
-    particular segment for a provider network. And the Ironic IPAM
+    particular segment for a provider network. The Ironic IPAM
     family selects unused ones, and only allows a single allocation
     per subnet.
     """

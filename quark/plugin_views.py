@@ -213,7 +213,6 @@ def _make_port_address_dict(ip, port, fields=None):
     subnet_id = ip.get("subnet_id")
     net_id = ip.get("network_id")
 
-    subnet_id = ip.get("subnet_id")
     show_provider_subnet_ids = CONF.QUARK.show_provider_subnet_ids
     if STRATEGY.is_provider_network(net_id) and show_provider_subnet_ids:
             subnet_id = STRATEGY.get_provider_subnet_id(
