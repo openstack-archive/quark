@@ -2185,3 +2185,86 @@ class QuarkIpamTestIpAddressFailure(test_base.TestBase):
         net_id = "8f6555ca-fbe7-49db-8240-1cb84202c1f7"
         with self.assertRaises(exceptions.IpAddressGenerationFailure):
             raise quark.ipam.ip_address_failure(net_id)
+
+
+class IronicIpamTestSelectSubnet(QuarkIpamBaseTest):
+
+    def setUp(self):
+        super(IronicIpamTestSelectSubnet, self).setUp()
+        self.ipam = quark.ipam.IronicIpamANY()
+
+    @contextlib.contextmanager
+    def _stubs(self, subnet, count, increments=True, marks_full=True):
+        with contextlib.nested(
+            mock.patch("quark.db.api.subnet_find_unused"),
+            mock.patch("quark.db.api.subnet_update_next_auto_assign_ip"),
+            mock.patch("quark.db.api.subnet_update_set_full"),
+            mock.patch("sqlalchemy.orm.session.Session.refresh"),
+        ) as (subnet_find, subnet_incr, subnet_set_full, refresh):
+            sub_mods = []
+            sub_mods.append((subnet_helper(subnet), count))
+
+            def subnet_increment(context, sub):
+                if increments:
+                    sub["next_auto_assign_ip"] += 1
+                    return True
+                return False
+
+            def set_full_mock(context, sub):
+                if marks_full:
+                    sub["next_auto_assign_ip"] = -1
+                    return True
+                return False
+
+            subnet_find.return_value = sub_mods
+            subnet_incr.side_effect = subnet_increment
+            subnet_set_full.side_effect = set_full_mock
+            yield sub_mods, subnet_find, refresh
+
+    def test_select_subnet_returns_unused(self):
+        subnet = dict(id=1, first_ip=2, last_ip=2, next_auto_assign_ip=2,
+                      cidr="0.0.0.0/30", ip_version=4, network_id=1,
+                      ip_policy=dict(size=3, exclude=[
+                          models.IPPolicyCIDR(cidr="0.0.0.4/32"),
+                          models.IPPolicyCIDR(cidr="0.0.0.0/31")]))
+
+        with self._stubs(subnet, 0) as (subnets, subnet_find, refresh):
+            s = self.ipam.select_subnet(self.context, subnet["network_id"],
+                                        None, None)
+            self.assertEqual(s, subnets[0][0])
+
+    def test_select_subnet_does_not_return_used(self):
+        subnet = dict(id=1, first_ip=2, last_ip=2, next_auto_assign_ip=2,
+                      cidr="0.0.0.0/30", ip_version=4, network_id=1,
+                      ip_policy=dict(exclude=[
+                          models.IPPolicyCIDR(cidr="0.0.0.4/32"),
+                          models.IPPolicyCIDR(cidr="0.0.0.0/31")]))
+
+        with self._stubs(subnet, 1) as (subnets, subnet_find, refresh):
+            s = self.ipam.select_subnet(self.context, subnet["network_id"],
+                                        None, None)
+            self.assertEqual(s, None)
+
+    def test_select_subnet_v4_locks(self):
+        subnet = dict(id=1, first_ip=0, last_ip=18446744073709551615L,
+                      cidr="::0/64", ip_version=6,
+                      next_auto_assign_ip=1,
+                      ip_policy=None, network_id=1)
+        with self._stubs(subnet, 0) as (subnets, subnet_find, refresh):
+            self.ipam.select_subnet(self.context, subnet["network_id"],
+                                    None, None, ip_version=6)
+            subnet_find.assert_called_with(self.context, 1, lock_subnets=True,
+                                           subnet_id=None, scope="all",
+                                           segment_id=None, ip_version=6)
+
+    def test_select_subnet_v6_locks(self):
+        subnet = dict(id=1, first_ip=0, last_ip=18446744073709551615L,
+                      cidr="::0/64", ip_version=6,
+                      next_auto_assign_ip=1,
+                      ip_policy=None, network_id=1)
+        with self._stubs(subnet, 0) as (subnets, subnet_find, refresh):
+            self.ipam.select_subnet(self.context, subnet["network_id"],
+                                    None, None, ip_version=6)
+            subnet_find.assert_called_with(self.context, 1, lock_subnets=True,
+                                           subnet_id=None, scope="all",
+                                           segment_id=None, ip_version=6)

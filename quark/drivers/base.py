@@ -36,6 +36,12 @@ class BaseDriver(object):
     def get_connection(self):
         LOG.info("get_connection")
 
+    def select_ipam_strategy(self, network_id, network_strategy, **kwargs):
+        LOG.info("Selecting IPAM strategy for network_id:%s "
+                 "network_strategy:%s" % (network_id, network_strategy))
+        LOG.info("Selected IPAM strategy: %s" % (network_strategy))
+        return network_strategy
+
     def create_network(self, context, network_name, tags=None,
                        network_id=None, **kwargs):
         LOG.info("create_network %s %s %s" % (context, network_name,

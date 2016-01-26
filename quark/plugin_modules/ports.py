@@ -58,6 +58,28 @@ def _get_net_driver(network, port=None):
                                     msg="invalid network_plugin: %s" % e)
 
 
+def _get_ipam_driver(network, port=None):
+    network_id = network["id"]
+    network_strategy = network["ipam_strategy"]
+
+    # Ask the net driver for a IPAM strategy to use
+    # with the given network/default strategy.
+    net_driver = _get_net_driver(network, port=port)
+    strategy = net_driver.select_ipam_strategy(
+        network_id, network_strategy)
+
+    # If the driver has no opinion about which strategy to use,
+    # we use the one specified by the network.
+    if not strategy:
+        strategy = network_strategy
+
+    try:
+        return ipam.IPAM_REGISTRY.get_strategy(strategy)
+    except Exception as e:
+        raise exceptions.BadRequest(resource="ports",
+                                    msg="invalid ipam_strategy: %s" % e)
+
+
 # NOTE(morgabra) Backend driver operations return a lot of stuff. We use a
 # small subset of this data, so we filter out things we don't care about
 # so we can avoid any collisions with real port data.
@@ -119,7 +141,8 @@ def create_port(context, port):
     port_attrs = port["port"]
 
     admin_only = ["mac_address", "device_owner", "bridge", "admin_state_up",
-                  "use_forbidden_mac_range", "network_plugin"]
+                  "use_forbidden_mac_range", "network_plugin",
+                  "instance_node_id"]
     utils.filter_body(context, port_attrs, admin_only=admin_only)
 
     port_attrs = port["port"]
@@ -128,9 +151,17 @@ def create_port(context, port):
                                               "use_forbidden_mac_range", False)
     segment_id = utils.pop_param(port_attrs, "segment_id")
     fixed_ips = utils.pop_param(port_attrs, "fixed_ips")
+
     if "device_id" not in port_attrs:
         port_attrs['device_id'] = ""
     device_id = port_attrs['device_id']
+
+    # NOTE(morgabra) This should be instance.node from nova, only needed
+    # for ironic_driver.
+    if "instance_node_id" not in port_attrs:
+        port_attrs['instance_node_id'] = ""
+    instance_node_id = port_attrs['instance_node_id']
+
     net_id = port_attrs["network_id"]
 
     port_id = uuidutils.generate_uuid()
@@ -171,9 +202,18 @@ def create_port(context, port):
         if not segment_id:
             raise q_exc.AmbiguousNetworkId(net_id=net_id)
 
-    ipam_driver = ipam.IPAM_REGISTRY.get_strategy(net["ipam_strategy"])
+    network_plugin = utils.pop_param(port_attrs, "network_plugin")
+    if not network_plugin:
+        network_plugin = net["network_plugin"]
+    port_attrs["network_plugin"] = network_plugin
 
+    ipam_driver = _get_ipam_driver(net, port=port_attrs)
     net_driver = _get_net_driver(net, port=port_attrs)
+    # NOTE(morgabra) It's possible that we select a driver different than
+    # the one specified by the network. However, we still might need to use
+    # this for some operations, so we also fetch it and pass it along to
+    # the backend driver we are actually using.
+    base_net_driver = _get_net_driver(net)
 
     # TODO(anyone): security groups are not currently supported on port create.
     #               Please see JIRA:NCP-801
@@ -242,10 +282,15 @@ def create_port(context, port):
 
         @cmd_mgr.do
         def _allocate_backend_port(mac, addresses, net, port_id):
-            backend_port = net_driver.create_port(context, net["id"],
-                                                  port_id=port_id,
-                                                  security_groups=group_ids,
-                                                  device_id=device_id)
+            backend_port = net_driver.create_port(
+                context, net["id"],
+                port_id=port_id,
+                security_groups=group_ids,
+                device_id=device_id,
+                instance_node_id=instance_node_id,
+                mac_address=mac,
+                addresses=addresses,
+                base_net_driver=base_net_driver)
             _filter_backend_port(backend_port)
             return backend_port
 
@@ -253,7 +298,10 @@ def create_port(context, port):
         def _allocate_back_port_undo(backend_port):
             LOG.info("Rolling back backend port...")
             try:
-                net_driver.delete_port(context, backend_port["uuid"])
+                backend_port_uuid = None
+                if backend_port:
+                    backend_port_uuid = backend_port.get("uuid")
+                net_driver.delete_port(context, backend_port_uuid)
             except Exception:
                 LOG.exception(
                     "Couldn't rollback backend port %s" % backend_port)
@@ -413,6 +461,7 @@ def update_port(context, id, port):
     # NOTE(morgabra) Updating network_plugin on port objects is explicitly
     # disallowed in the api, so we use whatever exists in the db.
     net_driver = _get_net_driver(port_db.network, port=port_db)
+    base_net_driver = _get_net_driver(port_db.network)
 
     # TODO(anyone): What do we want to have happen here if this fails? Is it
     #               ok to continue to keep the IPs but fail to apply security
@@ -425,6 +474,7 @@ def update_port(context, id, port):
     net_driver.update_port(context, port_id=port_db["backend_key"],
                            mac_address=port_db["mac_address"],
                            device_id=port_db["device_id"],
+                           base_net_driver=base_net_driver,
                            **kwargs)
 
     port_dict["security_groups"] = security_group_mods
@@ -545,15 +595,16 @@ def delete_port(context, id):
 
     backend_key = port["backend_key"]
     mac_address = netaddr.EUI(port["mac_address"]).value
-    ipam_driver = ipam.IPAM_REGISTRY.get_strategy(
-        port["network"]["ipam_strategy"])
+    ipam_driver = _get_ipam_driver(port["network"], port=port)
     ipam_driver.deallocate_mac_address(context, mac_address)
     ipam_driver.deallocate_ips_by_port(
         context, port, ipam_reuse_after=CONF.QUARK.ipam_reuse_after)
 
-    net_driver = _get_net_driver(port.network, port=port)
+    net_driver = _get_net_driver(port["network"], port=port)
+    base_net_driver = _get_net_driver(port["network"])
     net_driver.delete_port(context, backend_key, device_id=port["device_id"],
-                           mac_address=port["mac_address"])
+                           mac_address=port["mac_address"],
+                           base_net_driver=base_net_driver)
 
     with context.session.begin():
         db_api.port_delete(context, port)
