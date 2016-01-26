@@ -36,6 +36,7 @@ from quark.plugin_modules import ports
 from quark.plugin_modules import router
 from quark.plugin_modules import routes
 from quark.plugin_modules import security_groups
+from quark.plugin_modules import segment_allocation_ranges
 from quark.plugin_modules import subnets
 
 LOG = logging.getLogger(__name__)
@@ -129,7 +130,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
                                    "provider", "ip_policies", "quotas",
                                    "networks_quark", "router",
                                    "ip_availabilities", "ports_quark",
-                                   "floatingip"]
+                                   "floatingip", "segment_allocation_ranges"]
 
     def __init__(self):
         LOG.info("Starting quark plugin")
@@ -449,3 +450,25 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
     def get_ip_availability(self, **kwargs):
         return ip_availability.get_ip_availability(**kwargs)
+
+    @sessioned
+    def get_segment_allocation_range(self, context, id, fields=None):
+        return segment_allocation_ranges.get_segment_allocation_range(
+            context, id, fields)
+
+    @sessioned
+    def get_segment_allocation_ranges(self, context, **filters):
+        return segment_allocation_ranges.get_segment_allocation_ranges(
+            context, **filters)
+
+    @sessioned
+    def create_segment_allocation_range(self, context, sa_range):
+        self._fix_missing_tenant_id(
+            context, sa_range["segment_allocation_range"])
+        return segment_allocation_ranges.create_segment_allocation_range(
+            context, sa_range)
+
+    @sessioned
+    def delete_segment_allocation_range(self, context, id):
+        segment_allocation_ranges.delete_segment_allocation_range(
+            context, id)

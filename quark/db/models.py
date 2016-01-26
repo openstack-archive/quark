@@ -558,3 +558,37 @@ class LockHolder(BASEV2):
                         sa.ForeignKey("quark_locks.id"),
                         nullable=False)
     name = sa.Column(sa.String(255), nullable=True)
+
+
+class SegmentAllocation(BASEV2):
+    """A segment allocation."""
+    __tablename__ = "quark_segment_allocations"
+
+    # a particular segment id is unique across the segment and type - this data
+    # is denormalized to give us some safety around allocations, as well
+    # as allow us to look up allocations to reallocate without a join.
+    id = sa.Column(sa.BigInteger(), primary_key=True, autoincrement=False)
+    segment_id = sa.Column(sa.String(36), primary_key=True)
+    segment_type = sa.Column(sa.String(36), primary_key=True)
+
+    segment_allocation_range_id = sa.Column(
+        sa.String(36),
+        sa.ForeignKey("quark_segment_allocation_ranges.id",
+                      ondelete="CASCADE"))
+
+    network_id = sa.Column(sa.String(36), nullable=True)
+
+    deallocated = sa.Column(sa.Boolean(), index=True)
+    deallocated_at = sa.Column(sa.DateTime(), index=True)
+
+
+class SegmentAllocationRange(BASEV2, models.HasId):
+    """Ranges of space for segment ids available for allocation."""
+    __tablename__ = "quark_segment_allocation_ranges"
+    segment_id = sa.Column(sa.String(36), index=True)
+    segment_type = sa.Column(sa.String(36), index=True)
+
+    first_id = sa.Column(sa.BigInteger(), nullable=False)
+    last_id = sa.Column(sa.BigInteger(), nullable=False)
+
+    do_not_use = sa.Column(sa.Boolean(), default=False, nullable=False)

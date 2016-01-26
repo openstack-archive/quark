@@ -42,6 +42,8 @@ class OptimizedNVPDriver(NVPDriver):
         for switch in lswitches:
             try:
                 self._lswitch_delete(context, switch.nvp_id)
+                self._remove_default_tz_bindings(
+                    context, network_id)
             except aiclib.core.AICException as ae:
                 LOG.info("LSwitch/Network %s found in database."
                          " Adding to orphaned database table."

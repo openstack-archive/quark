@@ -29,6 +29,7 @@ from quark.drivers import base
 from quark.drivers import security_groups as sg_driver
 from quark.environment import Capabilities
 from quark import exceptions
+from quark import segment_allocations
 from quark import utils
 
 LOG = logging.getLogger(__name__)
@@ -42,6 +43,10 @@ nvp_opts = [
     cfg.StrOpt('default_tz_type',
                help=_('The type of connector to use for the default tz'),
                default="stt"),
+    cfg.ListOpt('additional_default_tz_types',
+                default=[],
+                help=_('List of additional default tz types to bind to the '
+                       'default tz')),
     cfg.StrOpt('default_tz',
                help=_('The default transport zone UUID')),
     cfg.ListOpt('controller_connection',
@@ -81,10 +86,43 @@ physical_net_type_map = {
     "flat": "bridge",
     "bridge": "bridge",
     "vlan": "bridge",
-    "local": "local"
+    "local": "local",
 }
 
 CONF.register_opts(nvp_opts, "NVP")
+SA_REGISTRY = segment_allocations.REGISTRY
+
+
+class TransportZoneBinding(object):
+
+    net_type = None
+
+    def add(self, context, switch, tz_id, network_id):
+        raise NotImplementedError()
+
+    def remove(self, context, tz_id, network_id):
+        raise NotImplementedError()
+
+
+class VXLanTransportZoneBinding(TransportZoneBinding):
+
+    net_type = 'vxlan'
+
+    def add(self, context, switch, tz_id, network_id):
+        driver = SA_REGISTRY.get_strategy(self.net_type)
+        alloc = driver.allocate(context, tz_id, network_id)
+        switch.transport_zone(
+            tz_id, self.net_type, vxlan_id=alloc["id"])
+
+    def remove(self, context, tz_id, network_id):
+        driver = SA_REGISTRY.get_strategy(self.net_type)
+        driver.deallocate(context, tz_id, network_id)
+
+
+# A map of net_type (vlan, vxlan) to TransportZoneBinding impl.
+TZ_BINDINGS = {
+    VXLanTransportZoneBinding.net_type: VXLanTransportZoneBinding()
+}
 
 
 def _tag_roll(tags):
@@ -105,6 +143,7 @@ class NVPDriver(base.BaseDriver):
         self.sg_driver = None
         if Capabilities.SECURITY_GROUPS in CONF.QUARK.environment_capabilities:
             self.sg_driver = sg_driver.SecurityGroupDriver()
+
         super(NVPDriver, self).__init__()
 
     @classmethod
@@ -234,6 +273,11 @@ class NVPDriver(base.BaseDriver):
         for switch in lswitches["results"]:
             try:
                 self._lswitch_delete(context, switch["uuid"])
+                # NOTE(morgabra) If we haven't thrown here, we can be sure the
+                # resource was deleted from NSX. So we give a chance for any
+                # previously allocated segment ids to deallocate.
+                self._remove_default_tz_bindings(
+                    context, network_id)
             except aiclib.core.AICException as ae:
                 if ae.code == 404:
                     LOG.info("LSwitch/Network %s not found in NVP."
@@ -570,7 +614,7 @@ class NVPDriver(base.BaseDriver):
         if phys_net and not net_type:
             raise exceptions.ProvidernetParamError(
                 msg="provider:network_type parameter required")
-        if net_type not in ("bridge", "vlan") and segment_id:
+        if net_type not in ("bridge", "vlan", "vxlan") and segment_id:
             raise exceptions.SegmentIdUnsupported(net_type=net_type)
         if net_type == "vlan" and not segment_id:
             raise exceptions.SegmentIdRequired(net_type=net_type)
@@ -587,6 +631,54 @@ class NVPDriver(base.BaseDriver):
         switch.transport_zone(zone_uuid=phys_net,
                               transport_type=phys_type,
                               vlan_id=segment_id)
+
+    def _add_default_tz_bindings(self, context, switch, network_id):
+        """Configure any additional default transport zone bindings."""
+        default_tz = CONF.NVP.default_tz
+
+        # If there is no default tz specified it's pointless to try
+        # and add any additional default tz bindings.
+        if not default_tz:
+            LOG.warn("additional_default_tz_types specified, "
+                     "but no default_tz. Skipping "
+                     "_add_default_tz_bindings().")
+            return
+
+        # This should never be called without a neutron network uuid,
+        # we require it to bind some segment allocations.
+        if not network_id:
+            LOG.warn("neutron network_id not specified, skipping "
+                     "_add_default_tz_bindings()")
+            return
+
+        for net_type in CONF.NVP.additional_default_tz_types:
+            if net_type in TZ_BINDINGS:
+                binding = TZ_BINDINGS[net_type]
+                binding.add(context, switch, default_tz, network_id)
+            else:
+                LOG.warn("Unknown default tz type %s" % (net_type))
+
+    def _remove_default_tz_bindings(self, context, network_id):
+        """Deconfigure any additional default transport zone bindings."""
+        default_tz = CONF.NVP.default_tz
+
+        if not default_tz:
+            LOG.warn("additional_default_tz_types specified, "
+                     "but no default_tz. Skipping "
+                     "_remove_default_tz_bindings().")
+            return
+
+        if not network_id:
+            LOG.warn("neutron network_id not specified, skipping "
+                     "_remove_default_tz_bindings()")
+            return
+
+        for net_type in CONF.NVP.additional_default_tz_types:
+            if net_type in TZ_BINDINGS:
+                binding = TZ_BINDINGS[net_type]
+                binding.remove(context, default_tz, network_id)
+            else:
+                LOG.warn("Unknown default tz type %s" % (net_type))
 
     @utils.retry_loop(CONF.NVP.operation_retries)
     def _lswitch_create(self, context, network_name=None, tags=None,
@@ -611,10 +703,16 @@ class NVPDriver(base.BaseDriver):
             if network_id:
                 tags.append({"tag": network_id, "scope": "neutron_net_id"})
             switch.tags(tags)
+            LOG.debug("Creating lswitch for network %s" % network_id)
+
+            # TODO(morgabra) It seems like this whole interaction here is
+            # broken. We force-add either the id/type from the network, or
+            # the config default, *then* we still call _config_provider_attrs?
+            # It seems like we should listen to the network then fall back
+            # to the config defaults, but I'm leaving this as-is for now.
             pnet = phys_net or CONF.NVP.default_tz
             ptype = phys_type or CONF.NVP.default_tz_type
             switch.transport_zone(pnet, ptype)
-            LOG.debug("Creating lswitch for network %s" % network_id)
 
             # When connecting to public or snet, we need switches that are
             # connected to their respective public/private transport zones
@@ -622,6 +720,14 @@ class NVPDriver(base.BaseDriver):
             # uses VLAN 122 in netdev. Probably need this to be configurable
             self._config_provider_attrs(connection, switch, phys_net,
                                         phys_type, segment_id)
+
+            # NOTE(morgabra) A hook for any statically-configured tz bindings
+            # that should be added to the switch before create()
+            # TODO(morgabra) I'm not sure the normal usage of provider net
+            # attrs, and which should superscede which. This all needs a
+            # refactor after some discovery probably.
+            self._add_default_tz_bindings(context, switch, network_id)
+
             res = switch.create()
             try:
                 uuid = res["uuid"]

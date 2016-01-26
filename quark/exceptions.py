@@ -21,6 +21,25 @@ class MacAddressRangeInUse(exceptions.InUse):
     message = _("MAC address range %(mac_address_range_id) in use.")
 
 
+class InvalidSegmentAllocationRange(exceptions.NeutronException):
+    message = _("Invalid segment allocation range: %(msg)s.")
+
+
+class SegmentAllocationRangeNotFound(exceptions.NotFound):
+    message = _(
+        "Segment allocation range %(segment_allocation_range_id)s not found.")
+
+
+class SegmentAllocationRangeInUse(exceptions.InUse):
+    message = _(
+        "Segment allocation range %(segment_allocation_range_id)s in use.")
+
+
+class SegmentAllocationFailure(exceptions.Conflict):
+    message = _("No more segment ids available for segment "
+                "type:%(segment_type)s id:%(segment_id)s.")
+
+
 class RouteNotFound(exceptions.NotFound):
     message = _("Route %(route_id)s not found.")
 
