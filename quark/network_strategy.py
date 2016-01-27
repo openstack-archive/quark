@@ -43,9 +43,14 @@ class JSONStrategy(object):
     def _compile_strategy(self, strategy):
         self.strategy = json.loads(strategy)
         for net_id, meta in self.strategy.iteritems():
-            for ip_version, subnet_id in meta["subnets"].iteritems():
-                self.subnet_strategy[subnet_id] = {"ip_version": ip_version,
-                                                   "network_id": net_id}
+            if "subnets" in meta:
+                for ip_version, subnet_id in meta["subnets"].iteritems():
+                    self.subnet_strategy[subnet_id] = {
+                        "ip_version": ip_version,
+                        "network_id": net_id}
+            else:
+                LOG.warning('net_id {} strategy has no "subnets" '
+                            'metadata.'.format(net_id))
 
     def _split(self, func, resource_ids):
         provider = []
