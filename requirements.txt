@@ -6,7 +6,7 @@ oslo.db
 oslo.middleware
 mysql-python==1.2.5
 Routes==2.1
-aiclib==0.84
+aiclib==0.86
 gunicorn==19.3.0
 pymysql==0.6.6
 twiceredis>=1.0.6
