@@ -195,6 +195,9 @@ class QuarkTestCreateSegmentAllocationRange(QuarkSegmentAllocationTest):
         # Find all ranges added in the db
         sa_range_models = db_api.segment_allocation_range_find(
             self.context, scope=db_api.ALL)
+        # ensure non-admins can fetch them as well
+        sa_range_models = db_api.segment_allocation_range_find(
+            self.old_context, scope=db_api.ALL)
 
         # Assert we actually added the range to the db with correct
         # values and returned the correct response.

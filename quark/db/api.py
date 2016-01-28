@@ -42,6 +42,11 @@ CONF = cfg.CONF
 ONE = "one"
 ALL = "all"
 
+_NO_TENANT_MODELS = (
+    models.PortIpAssociation,
+    models.LockHolder,
+    models.SegmentAllocationRange)
+
 
 # NOTE(jkoelker) init event listener that will ensure id is filled in
 #                on object creation (prior to commit).
@@ -150,8 +155,7 @@ def _model_query(context, model, filters, fields=None):
         elif key == "tenant_id":
             if model == models.IPAddress:
                 model_filters.append(model.used_by_tenant_id.in_(value))
-            elif (model == models.PortIpAssociation or
-                  model == models.LockHolder):
+            elif model in _NO_TENANT_MODELS:
                 pass
             else:
                 model_filters.append(model.tenant_id.in_(value))
