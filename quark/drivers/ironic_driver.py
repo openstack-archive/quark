@@ -347,6 +347,7 @@ class IronicDriver(base.BaseDriver):
             "device_id": device_id,
             "device_owner": kwargs.get('device_owner', ''),
             "tenant_id": context.tenant_id or "quark",
+            "roles": context.roles,
             "mac_address": mac_address,
             "fixed_ips": fixed_ips,
             "switch:hardware_id": instance_node_id,

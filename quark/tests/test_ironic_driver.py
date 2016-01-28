@@ -207,6 +207,7 @@ class TestIronicDriverCreatePort(TestIronicDriverBase):
                     'mac_address': '00:00:00:00:00:01',
                     'network_id': network_id,
                     'tenant_id': self.context.tenant_id,
+                    'roles': self.context.roles,
                     'dynamic_network': True,
                     'fixed_ips': [],
                     'id': port_id,
@@ -256,6 +257,59 @@ class TestIronicDriverCreatePort(TestIronicDriverBase):
                     'mac_address': '00:00:00:00:00:01',
                     'network_id': network_id,
                     'tenant_id': self.context.tenant_id,
+                    'roles': self.context.roles,
+                    'lswitch_id': 'lswitch1',
+                    'dynamic_network': True,
+                    'fixed_ips': [],
+                    'id': port_id,
+                    'device_id': kwargs["device_id"]
+                }
+            }
+
+            self.assertEqual(
+                res, {"uuid": create_response["port"]["id"],
+                      "vlan_id": create_response["port"]["vlan_id"]})
+            create.assert_called_once_with(body=expected_call)
+
+    def test_create_port_includes_roles(self):
+        create_response = {
+            "port": {
+                "id": "port1",
+                "vlan_id": 120
+            }
+        }
+        with self._stubs(create_port=[create_response]) as (driver, _,
+                                                            create, _):
+
+            self.context.roles = ["role1", "role2"]
+            network_id = "net1"
+            port_id = "port1"
+
+            # mock of the default driver class for the network
+            base_net_driver = self._create_base_net_driver(
+                "NVP")
+
+            kwargs = {
+                "device_id": "device1",
+                "instance_node_id": "nodeid1",
+                "mac_address": {"address": 1},
+                "base_net_driver": base_net_driver,
+                "addresses": [],
+                "security_groups": [],
+            }
+            res = driver.create_port(
+                self.context, network_id, port_id,
+                **kwargs)
+
+            expected_call = {
+                'port': {
+                    'switch:hardware_id': kwargs["instance_node_id"],
+                    'device_owner': '',
+                    'network_type': "NVP",
+                    'mac_address': '00:00:00:00:00:01',
+                    'network_id': network_id,
+                    'tenant_id': self.context.tenant_id,
+                    'roles': ["role1", "role2"],
                     'lswitch_id': 'lswitch1',
                     'dynamic_network': True,
                     'fixed_ips': [],
@@ -304,6 +358,7 @@ class TestIronicDriverCreatePort(TestIronicDriverBase):
                     'mac_address': '00:00:00:00:00:01',
                     'network_id': network_id,
                     'tenant_id': self.context.tenant_id,
+                    'roles': self.context.roles,
                     'dynamic_network': True,
                     'fixed_ips': [],
                     'id': port_id,
@@ -358,6 +413,7 @@ class TestIronicDriverCreatePort(TestIronicDriverBase):
                     'mac_address': '00:00:00:00:00:01',
                     'network_id': network_id,
                     'tenant_id': self.context.tenant_id,
+                    'roles': self.context.roles,
                     'dynamic_network': True,
                     'fixed_ips': [],
                     'id': port_id,
@@ -497,6 +553,7 @@ class TestIronicDriverCreatePort(TestIronicDriverBase):
                     'mac_address': '00:00:00:00:00:01',
                     'network_id': network_id,
                     'tenant_id': self.context.tenant_id,
+                    'roles': self.context.roles,
                     'dynamic_network': True,
                     'fixed_ips': fixed_ips,
                     'id': port_id,
