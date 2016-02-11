@@ -151,36 +151,36 @@ class FloatingIpNotFound(exceptions.NotFound):
 
 class RemoveFloatingIpFailure(exceptions.NeutronException):
     message = _("An error occurred when trying to remove the "
-                "floating IP %(id).")
+                "floating IP %(id)s.")
 
 
 class RegisterFloatingIpFailure(exceptions.NeutronException):
     message = _("An error occurred when trying to register the floating IP "
-                "%(id).")
+                "%(id)s.")
 
 
 class PortAlreadyContainsFloatingIp(exceptions.Conflict):
-    message = _("Port %(port_id) already has an associated floating IP.")
+    message = _("Port %(port_id)s already has an associated floating IP.")
 
 
 class FixedIpDoesNotExistsForPort(exceptions.BadRequest):
-    message = _("Fixed IP %(fixed_ip) does not exist on Port %(port_id)")
+    message = _("Fixed IP %(fixed_ip)s does not exist on Port %(port_id)")
 
 
-class NoAvailableFixedIPsForPort(exceptions.Conflict):
-    message = _("There are no available fixed IPs for port %(port_id)")
+class NoAvailableFixedIpsForPort(exceptions.Conflict):
+    message = _("There are no available fixed IPs for port %(port_id)s")
 
 
 class PortDoesNotHaveAGateway(exceptions.Conflict):
-    message = _("Port %(port_id) does not have a gateway")
+    message = _("Port %(port_id)s does not have a gateway")
 
 
-class PortAlreadyAssociatedToFloatingIP(exceptions.BadRequest):
-    message = _("Port %(port_id) is already associated with "
-                "floating IP %(flip_id)")
+class PortAlreadyAssociatedToFloatingIp(exceptions.BadRequest):
+    message = _("Port %(port_id)s is already associated with "
+                "floating IP %(flip_id)s")
 
 
-class FloatingIPUpdateNoPortIdSupplied(exceptions.BadRequest):
+class FloatingIpUpdateNoPortIdSupplied(exceptions.BadRequest):
     message = _("When no port is currently associated to the floating IP, "
                 "port_id is required but was not supplied")
 
