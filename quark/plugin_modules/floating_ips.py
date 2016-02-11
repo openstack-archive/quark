@@ -81,12 +81,12 @@ def create_floatingip(context, content):
             raise exceptions.PortNotFound(port_id=port_id)
 
         if not port.ip_addresses or len(port.ip_addresses) == 0:
-            raise qex.NoAvailableFixedIPsForPort(port_id=port_id)
+            raise qex.NoAvailableFixedIpsForPort(port_id=port_id)
 
         if not fixed_ip_address:
             fixed_ip = _get_next_available_fixed_ip(port)
             if not fixed_ip:
-                raise qex.NoAvailableFixedIPsForPort(
+                raise qex.NoAvailableFixedIpsForPort(
                     port_id=port_id)
         else:
             fixed_ip = next((ip for ip in port.ip_addresses
@@ -175,21 +175,25 @@ def update_floatingip(context, id, content):
             current_port = current_ports[0]
 
         if not port_id and not current_port:
-            raise qex.FloatingIPUpdateNoPortIdSupplied()
+            raise qex.FloatingIpUpdateNoPortIdSupplied()
 
         if port_id:
             port = db_api.port_find(context, id=port_id, scope=db_api.ONE)
             if not port:
                 raise exceptions.PortNotFound(port_id=port_id)
 
+            if any(ip for ip in port.ip_addresses
+                   if (ip.get('address_type') == ip_types.FLOATING)):
+                raise qex.PortAlreadyContainsFloatingIp(port_id=port_id)
+
             if current_port and current_port.id == port_id:
                 d = dict(flip_id=id, port_id=port_id)
-                raise qex.PortAlreadyAssociatedToFloatingIP(**d)
+                raise qex.PortAlreadyAssociatedToFloatingIp(**d)
 
             fixed_ip = _get_next_available_fixed_ip(port)
             LOG.info('new fixed ip: %s' % fixed_ip)
             if not fixed_ip:
-                raise qex.NoAvailableFixedIPsForPort(port_id=port_id)
+                raise qex.NoAvailableFixedIpsForPort(port_id=port_id)
 
         LOG.info('current ports: %s' % current_ports)
 
