@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
+
 from neutron.i18n import _
 from oslo_config import cfg
 
@@ -38,8 +40,12 @@ quark_opts = [
     cfg.StrOpt("default_ipam_strategy",
                default="ANY",
                help=_("Default IPAM strategy to use when"
-                      "none is provided."))
+                      "none is provided.")),
+    cfg.BoolOpt("log_warnings", default=False,
+                help=_("Redirect warnings to the logs."))
 ]
 
 
 CONF.register_opts(quark_opts, "QUARK")
+
+logging.captureWarnings(CONF.QUARK.log_warnings)
