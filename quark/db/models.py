@@ -316,7 +316,7 @@ class Subnet(BASEV2, models.HasId, IsHazTags):
     name = sa.Column(sa.String(255))
     network_id = sa.Column(sa.String(36), sa.ForeignKey('quark_networks.id'))
     _cidr = sa.Column(sa.String(64), nullable=False)
-    _allocation_pool_cache = sa.Column(sa.Text(), nullable=True)
+    _allocation_pool_cache = orm.deferred(sa.Column(sa.Text(), nullable=True))
     tenant_id = sa.Column(sa.String(255), index=True)
     segment_id = sa.Column(sa.String(255), index=True)
 
