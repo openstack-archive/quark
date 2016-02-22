@@ -1232,6 +1232,7 @@ class TestSubnetsQuotas(test_quark_plugin.TestQuarkPlugin):
             s["network"] = models.Network()
             s["network"]["created_at"] = s["created_at"]
             s["dns_nameservers"] = []
+            s["_allocation_pool_cache"] = None
             subnet = models.Subnet(**s)
             subnets.append(subnet)
         with contextlib.nested(
