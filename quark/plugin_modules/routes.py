@@ -22,7 +22,6 @@ from oslo_utils import importutils
 
 from quark import allocation_pool
 from quark.db import api as db_api
-from quark.db import models as db_models
 from quark import exceptions as q_exc
 from quark import plugin_views as v
 
@@ -60,7 +59,12 @@ def create_route(context, route):
         subnet = db_api.subnet_find(context, id=subnet_id, scope=db_api.ONE)
         if not subnet:
             raise n_exc.SubnetNotFound(subnet_id=subnet_id)
-        policies = db_models.IPPolicy.get_ip_policy_cidrs(subnet)
+
+        if subnet["ip_policy"]:
+            policies = subnet["ip_policy"].get_cidrs_ip_set()
+        else:
+            policies = netaddr.IPSet([])
+
         alloc_pools = allocation_pool.AllocationPools(subnet["cidr"],
                                                       policies=policies)
         alloc_pools.validate_gateway_excluded(route["gateway"])

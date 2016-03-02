@@ -18,10 +18,20 @@ import contextlib
 import mock
 import netaddr
 from neutron.common import rpc
+from neutron_lib import exceptions as n_exc
 
 from quark.db import api as db_api
+from quark.db import models
 import quark.ipam
+
+# import below necessary if file run by itself
+from quark import plugin  # noqa
+import quark.plugin_modules.ip_policies as policy_api
+import quark.plugin_modules.networks as network_api
+import quark.plugin_modules.subnets as subnet_api
 from quark.tests.functional.base import BaseFunctionalTest
+
+from oslo_config import cfg
 
 
 class QuarkIpamBaseFunctionalTest(BaseFunctionalTest):
@@ -66,6 +76,46 @@ class QuarkIPAddressAllocate(QuarkIpamBaseFunctionalTest):
             self.assertEqual(ipaddress[0]['address'], 281470681743362)
             self.assertEqual(ipaddress[0]['version'], 4)
             self.assertEqual(ipaddress[0]['used_by_tenant_id'], "fake")
+
+
+class TestQuarkIpamAllocateFromV6Subnet(QuarkIpamBaseFunctionalTest):
+    @contextlib.contextmanager
+    def _stubs(self, network, subnet, ip_policy):
+        self.ipam = quark.ipam.QuarkIpamANY()
+        with contextlib.nested(mock.patch("neutron.common.rpc.get_notifier")):
+            net = network_api.create_network(self.context, network)
+            subnet['subnet']['network_id'] = net['id']
+            sub = subnet_api.create_subnet(self.context, subnet)
+            ipp = policy_api.update_ip_policy(self.context,
+                                              sub["ip_policy_id"], ip_policy)
+            sub = subnet_api.get_subnet(self.context, sub['id'])
+        yield net, sub, ipp
+
+    def test_allocate_v6_with_mac_fails_policy_raises(self):
+        cidr = netaddr.IPNetwork("fe80::dead:beef/64")
+        allocation_pool = [{"start": cidr[-4], "end": cidr[-2]}]
+        subnet = dict(allocation_pools=allocation_pool,
+                      cidr="fe80::dead:beef/64", ip_version=6,
+                      next_auto_assign_ip=0, tenant_id="fake")
+        subnet = {"subnet": subnet}
+
+        network = dict(name="public", tenant_id="fake", network_plugin="BASE")
+        network = {"network": network}
+
+        ip_policy = {"exclude": ["fe80::dead:beef/64"]}
+        ip_policy = {"ip_policy": ip_policy}
+
+        mac = models.MacAddress()
+        mac["address"] = netaddr.EUI("AA:BB:CC:DD:EE:FF")
+
+        old_override = cfg.CONF.QUARK.v6_allocation_attempts
+        cfg.CONF.set_override('v6_allocation_attempts', 1, 'QUARK')
+
+        with self._stubs(network, subnet, ip_policy) as (net, sub, ipp):
+            with self.assertRaises(n_exc.IpAddressGenerationFailure):
+                self.ipam.allocate_ip_address(self.context, [], net["id"], 0,
+                                              0, subnets=[sub["id"]])
+        cfg.CONF.set_override('v6_allocation_attempts', old_override, 'QUARK')
 
 
 class QuarkIPAddressFindReallocatable(QuarkIpamBaseFunctionalTest):

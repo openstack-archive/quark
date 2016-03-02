@@ -402,9 +402,11 @@ def ip_address_reallocate_find(context, transaction_id):
     else:
         addr = addr.ipv6()
 
-    # TODO(amir): performance test replacing this with SQL in
-    #             ip_address_reallocate's UPDATE statement
-    policy = models.IPPolicy.get_ip_policy_cidrs(subnet)
+    if subnet and subnet["ip_policy"]:
+        policy = subnet["ip_policy"].get_cidrs_ip_set()
+    else:
+        policy = netaddr.IPSet([])
+
     if policy is not None and addr in policy:
         LOG.info("Deleting Address {0} due to policy "
                  "violation".format(

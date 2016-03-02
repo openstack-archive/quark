@@ -327,7 +327,11 @@ class Subnet(BASEV2, models.HasId, IsHazTags):
             pools = json.loads(_cache)
             return pools
         else:
-            ip_policy_cidrs = IPPolicy.get_ip_policy_cidrs(self)
+            if self["ip_policy"]:
+                ip_policy_cidrs = self["ip_policy"].get_cidrs_ip_set()
+            else:
+                ip_policy_cidrs = netaddr.IPSet([])
+
             cidr = netaddr.IPSet([netaddr.IPNetwork(self["cidr"])])
             allocatable = cidr - ip_policy_cidrs
             pools = _pools_from_cidr(allocatable)
@@ -506,12 +510,9 @@ class IPPolicy(BASEV2, models.HasId, models.HasTenant):
     description = sa.Column(sa.String(255), nullable=True)
     size = sa.Column(custom_types.INET())
 
-    @staticmethod
-    def get_ip_policy_cidrs(subnet):
-        ip_policy = subnet["ip_policy"] or {}
-        ip_policies = ip_policy.get("exclude", [])
-        ip_policy_cidrs = [ip_policy_cidr.cidr
-                           for ip_policy_cidr in ip_policies]
+    def get_cidrs_ip_set(self):
+        ip_policies = self.get("exclude", [])
+        ip_policy_cidrs = [ip_policy.cidr for ip_policy in ip_policies]
         return netaddr.IPSet(ip_policy_cidrs)
 
 
