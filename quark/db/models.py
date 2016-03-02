@@ -20,6 +20,7 @@ import netaddr
 from neutron.db import agentschedulers_db  # noqa
 import neutron.db.model_base
 from neutron.db import models_v2 as models
+from neutron.db.qos import models as qos_models  # noqa
 from neutron.db import rbac_db_models  # noqa
 from oslo_log import log as logging
 from oslo_utils import timeutils
