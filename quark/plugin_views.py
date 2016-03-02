@@ -338,5 +338,5 @@ def _make_floating_ip_dict(flip, port_id=None):
             "fixed_ip_address": None if not fixed_ip else fixed_ip.formatted(),
             "floating_ip_address": flip.formatted(),
             "tenant_id": flip.get("used_by_tenant_id"),
-            "status": flip.get("status"),
+            "status": "RESERVED" if not port_id else "ASSOCIATED",
             "port_id": port_id}
