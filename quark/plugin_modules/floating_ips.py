@@ -223,7 +223,7 @@ def update_floatingip(context, id, content):
     if not port:
         flip.ports = []
 
-    return v._make_floating_ip_dict(flip)
+    return v._make_floating_ip_dict(flip, port_id)
 
 
 def delete_floatingip(context, id):
