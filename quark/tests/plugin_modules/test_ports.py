@@ -1901,3 +1901,97 @@ class TestQuarkPortUpdateFiltering(test_quark_plugin.TestQuarkPlugin):
                 mac_address=new_port["port"]["mac_address"],
                 device_id=new_port["port"]["device_id"],
                 security_groups=[])
+
+
+class TestQuarkPortCreateAsAdvancedService(test_quark_plugin.TestQuarkPlugin):
+
+    @contextlib.contextmanager
+    def _stubs(self, port=None, network=None, addr=None, mac=None):
+        if network:
+            network["network_plugin"] = "BASE"
+            network["ipam_strategy"] = "ANY"
+        port_model = models.Port()
+        port_model.update(port['port'])
+        port_models = port_model
+        db_mod = "quark.db.api"
+        ipam = "quark.ipam.QuarkIpam"
+        with contextlib.nested(
+            mock.patch("%s.port_create" % db_mod),
+            mock.patch("%s.network_find" % db_mod),
+            mock.patch("%s.port_find" % db_mod),
+            mock.patch("%s.allocate_ip_address" % ipam),
+            mock.patch("%s.allocate_mac_address" % ipam),
+            mock.patch("%s.port_count_all" % db_mod),
+        ) as (port_create, net_find, port_find, alloc_ip, alloc_mac,
+              port_count):
+            port_create.return_value = port_models
+            net_find.return_value = network
+            port_find.return_value = None
+            alloc_ip.return_value = addr
+            alloc_mac.return_value = mac
+            port_count.return_value = 0
+            yield port_create
+
+    def test_advanced_service_create_port_other_tenant_network(self):
+        """NCP-1819 - Advanced service can create port on any network
+
+        Tests when an advanced service creating a port on another tenant's
+        network does not fail AND the tenant_id is that of the context's.
+        """
+        self.context.is_advsvc = True
+        network_id = "foobar"
+        network = dict(id=network_id,
+                       tenant_id="other_tenant")
+        ip = dict()
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
+        port_1 = dict(port=dict(mac_address="AA:BB:CC:DD:EE:00",
+                                network_id=network_id,
+                                tenant_id=self.context.tenant_id, device_id=5,
+                                name="Fake"))
+
+        with self._stubs(port=port_1, network=network, addr=ip, mac=mac):
+            port = self.plugin.create_port(self.context, port_1)
+            self.assertEqual(self.context.tenant_id, port['tenant_id'])
+
+    def test_advsvc_can_create_port_with_another_tenant_id(self):
+        """NCP-1819 - Advanced Service can create port on another tenant's net
+
+        Tests that an advanced service can create a port on another tenant's
+        network.
+        """
+        another_tenant_id = 'im-another-tenant'
+        self.context.is_advsvc = True
+        network_id = "foobar"
+        network = dict(id=network_id,
+                       tenant_id="other_tenant")
+        ip = dict()
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
+        port_1 = dict(port=dict(mac_address="AA:BB:CC:DD:EE:00",
+                                network_id=network_id,
+                                tenant_id=another_tenant_id, device_id=5,
+                                name="Fake"))
+
+        with self._stubs(port=port_1, network=network, addr=ip, mac=mac):
+            port = self.plugin.create_port(self.context, port_1)
+            self.assertEqual(another_tenant_id, port['tenant_id'])
+
+    def test_non_advsvc_cannot_create_port_another_network(self):
+        """NCP-1819 - Normal tenant port create should fail another's network
+
+        Tests that a normal tenant creating a port on another tenant's network
+        should not be allowed and throws an exception.
+        """
+        normal_tenant_id = "other_tenant"
+        network_id = "foobar"
+        network = dict(id=network_id,
+                       tenant_id=normal_tenant_id)
+        ip = dict()
+        mac = dict(address="AA:BB:CC:DD:EE:FF")
+        port_1 = dict(port=dict(mac_address="AA:BB:CC:DD:EE:00",
+                                network_id=network_id,
+                                tenant_id=normal_tenant_id, device_id=5,
+                                name="Fake"))
+
+        with self._stubs(port=port_1, network=network, addr=ip, mac=mac):
+            with self.assertRaises(exceptions.NotAuthorized):
+                self.plugin.create_port(self.context, port_1)

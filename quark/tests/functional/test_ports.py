@@ -497,3 +497,70 @@ class QuarkPortFixedIPOperations(BaseFunctionalTest):
             for ip in result['fixed_ips']:
                 self.assertTrue(ip in fixed_ips,
                                 '%s not in %s' % (ip, expected['fixed_ips']))
+
+
+class QuarkAdvancedServiceCreatePort(BaseFunctionalTest):
+
+    def __init__(self, *args, **kwargs):
+        super(QuarkAdvancedServiceCreatePort, self).__init__(*args, **kwargs)
+        cidr = "192.168.10.0/24"
+        ip_network = netaddr.IPNetwork(cidr)
+        network = dict(name="public",
+                       network_plugin="BASE",
+                       ipam_strategy="ANY")
+        self.net_info = {"network": network}
+        subnet_v4 = dict(ip_version=4, next_auto_assign_ip=2,
+                         cidr=cidr, first_ip=ip_network.first,
+                         last_ip=ip_network.last, ip_policy=None)
+        self.sub_info = {"subnet": subnet_v4}
+
+    @contextlib.contextmanager
+    def _stubs(self, network_info, subnet_info):
+        with contextlib.nested(
+                mock.patch("neutron.common.rpc.get_notifier"),
+                mock.patch("neutron.quota.QUOTAS.limit_check")):
+            mac = {'mac_address_range': dict(cidr="AA:BB:CC")}
+            self.context.is_admin = True
+            macrng_api.create_mac_address_range(self.context, mac)
+            self.context.is_admin = False
+            # Setting context's tenant_id because this network needs to belong
+            # to a regular tenant, and the network create method does not
+            # care about the tenant_id on the network
+            self.context.tenant_id = 'joetenant'
+            network = network_api.create_network(self.context, network_info)
+            subnet_info['subnet']['network_id'] = network['id']
+            subnet = subnet_api.create_subnet(self.context, subnet_info)
+            self.context.tenant_id = 'advsvc'
+            yield network, subnet
+
+    def test_can_create_port_with_adv_svc(self):
+        with self._stubs(self.net_info, self.sub_info) as (network, subnet):
+            port_info = {'port': {'network_id': network['id'],
+                                  'tenant_id': 'someoneelse'}}
+            self.context.is_admin = True
+            self.context.is_advsvc = True
+            port_mod = port_api.create_port(self.context, port_info)
+            self.assertIsNotNone(port_mod['id'])
+            self.assertNotEqual(port_mod['tenant_id'], network['tenant_id'])
+
+    def test_cant_create_port_without_adv_svc(self):
+        with self._stubs(self.net_info, self.sub_info) as (network, subnet):
+            port_info = {'port': {'network_id': network['id'],
+                                  'tenant_id': 'someoneelse'}}
+            self.context.is_admin = True
+            self.context.is_advsvc = False
+            self.assertRaises(q_exc.NotAuthorized,
+                              port_api.create_port, self.context, port_info)
+
+    def test_cant_create_port_without_admin(self):
+        with self._stubs(self.net_info, self.sub_info) as (network, subnet):
+            port_info = {'port': {'network_id': network['id'],
+                                  'tenant_id': 'someoneelse'}}
+            self.context.is_admin = False
+            self.context.is_advsvc = True
+            # This is NetworkNotFound because prior to doing the authorized
+            # check, quark will first attempt to retrieve the network but
+            # since networks are scoped by tenant when it is not an admin,
+            # it will not be found
+            self.assertRaises(q_exc.NetworkNotFound,
+                              port_api.create_port, self.context, port_info)

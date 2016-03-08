@@ -39,9 +39,12 @@ STRATEGY = network_strategy.STRATEGY
 
 # HACK(amir): RM9305: do not allow a tenant to associate a network to a port
 # that does not belong to them unless it is publicnet or servicenet
-def _raise_if_unauthorized(tenant_id, net):
+# NOTE(blogan): allow advanced services, such as lbaas, the ability
+# to associate a network to a port that does not belong to them
+def _raise_if_unauthorized(context, net):
     if (not STRATEGY.is_provider_network(net["id"]) and
-            net["tenant_id"] != tenant_id):
+            net["tenant_id"] != context.tenant_id and
+            not context.is_advsvc):
         raise exceptions.NotAuthorized()
 
 
@@ -171,7 +174,7 @@ def create_port(context, port):
 
     if not net:
         raise exceptions.NetworkNotFound(net_id=net_id)
-    _raise_if_unauthorized(context.tenant_id, net)
+    _raise_if_unauthorized(context, net)
 
     # NOTE (Perkins): If a device_id is given, try to prevent multiple ports
     # from being created for a device already attached to the network
