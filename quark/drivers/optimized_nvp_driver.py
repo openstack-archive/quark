@@ -103,6 +103,10 @@ class OptimizedNVPDriver(NVPDriver):
 
     def delete_port(self, context, port_id, **kwargs):
         port = self._lport_select_by_id(context, port_id)
+        if not port:
+            LOG.warning("Lost local reference to NVP lport %s" % port_id)
+            return  # we return here because there isn't anything else to do
+
         switch = port.switch
         try:
             self._lport_delete(context, port_id, switch)
@@ -128,9 +132,8 @@ class OptimizedNVPDriver(NVPDriver):
         context.session.delete(port)
         switch.port_count = switch.port_count - 1
         if switch.port_count == 0:
-            switches = self._lswitches_for_network(
-                context, switch.network_id)
-            if len(switches) > 1:
+            switches = self._lswitches_for_network(context, switch.network_id)
+            if len(switches) > 1:  # do not delete last lswitch on network
                 self._lswitch_delete(context, switch.nvp_id)
 
     def _lport_delete(self, context, port_id, switch=None):

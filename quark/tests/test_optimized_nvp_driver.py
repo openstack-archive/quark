@@ -242,6 +242,34 @@ class TestOptimizedNVPDriverDeletePortSingleSwitch(TestOptimizedNVPDriver):
     '''If ports on switch = 0, delete switch unless last on the network.'''
 
     @contextlib.contextmanager
+    def _stubs(self, port_count=1):
+        with contextlib.nested(
+            mock.patch("%s._connection" % self.d_pkg),
+            mock.patch("%s._lport_select_by_id" % self.d_pkg),
+            mock.patch("%s._lswitch_select_by_nvp_id" % self.d_pkg),
+            mock.patch("%s._lswitches_for_network" % self.d_pkg),
+        ) as (conn, select_port, select_switch, one_switch):
+            connection = self._create_connection()
+            switch = self._create_lswitch_mock()
+            conn.return_value = connection
+            select_port.return_value = None
+            select_switch.return_value = switch
+            one_switch.return_value = [switch]
+            self.context.session.delete = mock.Mock(return_value=None)
+            yield connection, self.context.session.delete
+
+    def test_delete_ports_is_empty(self):
+        '''Ensure that the switch is not deleted if it is the last.'''
+        with self._stubs(port_count=1) as (connection, context_delete):
+            self.driver.delete_port(self.context, self.port_id)
+            self.assertEqual(0, context_delete.call_count)
+            self.assertFalse(connection.lswitch_port().delete.called)
+
+
+class TestOptimizedNVPDriverDeletePortMissing(TestOptimizedNVPDriver):
+    '''If ports on switch = 0, delete switch unless last on the network.'''
+
+    @contextlib.contextmanager
     def _stubs(self, port_count=2):
         with contextlib.nested(
             mock.patch("%s._connection" % self.d_pkg),
