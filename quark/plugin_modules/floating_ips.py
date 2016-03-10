@@ -125,7 +125,8 @@ def create_floatingip(context, content):
     flip = new_addresses[0]
 
     if fixed_ip and port:
-        with context.session.begin():
+        context.session.begin()
+        try:
             flip = db_api.port_associate_ip(context, [port], flip, [port_id])
             flip = db_api.floating_ip_associate_fixed_ip(context, flip,
                                                          fixed_ip)
@@ -133,6 +134,10 @@ def create_floatingip(context, content):
             flip_driver = registry.DRIVER_REGISTRY.get_driver()
 
             flip_driver.register_floating_ip(flip, port, fixed_ip)
+            context.session.commit()
+        except Exception:
+            context.session.rollback()
+            raise
 
     return v._make_floating_ip_dict(flip, port_id)
 
@@ -164,7 +169,8 @@ def update_floatingip(context, id, content):
     fixed_ip = None
     current_port = None
 
-    with context.session.begin():
+    context.session.begin()
+    try:
         flip = db_api.floating_ip_find(context, id=id, scope=db_api.ONE)
         if not flip:
             raise qex.FloatingIpNotFound(id=id)
@@ -207,6 +213,7 @@ def update_floatingip(context, id, content):
             flip = db_api.port_associate_ip(context, [port], flip, [port_id])
             flip = db_api.floating_ip_associate_fixed_ip(context, flip,
                                                          fixed_ip)
+
         flip_driver = registry.DRIVER_REGISTRY.get_driver()
 
         if port:
@@ -216,6 +223,11 @@ def update_floatingip(context, id, content):
                 flip_driver.register_floating_ip(flip, port, fixed_ip)
         else:
             flip_driver.remove_floating_ip(flip)
+
+        context.session.commit()
+    except (qex.RegisterFloatingIpFailure, qex.RemoveFloatingIpFailure):
+        context.session.rollback()
+        raise
 
     # Note(alanquillin) The ports parameters on the model is not
     # properly getting cleaned up when removed.  Manually cleaning them up.
@@ -247,7 +259,8 @@ def delete_floatingip(context, id):
     if current_ports and len(current_ports) > 0:
         current_port = current_ports[0]
 
-    with context.session.begin():
+    context.session.begin()
+    try:
         strategy_name = flip.network.get('ipam_strategy')
         ipam_driver = ipam.IPAM_REGISTRY.get_strategy(strategy_name)
         ipam_driver.deallocate_ip_address(context, flip)
@@ -260,9 +273,13 @@ def delete_floatingip(context, id):
 
         db_api.ip_address_deallocate(context, flip)
 
-    if flip.fixed_ip:
-        driver = registry.DRIVER_REGISTRY.get_driver()
-        driver.remove_floating_ip(flip)
+        if flip.fixed_ip:
+            driver = registry.DRIVER_REGISTRY.get_driver()
+            driver.remove_floating_ip(flip)
+        context.session.commit()
+    except Exception:
+        context.session.rollback()
+        raise
 
 
 def get_floatingip(context, id, fields=None):

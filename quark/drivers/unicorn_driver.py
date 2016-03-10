@@ -50,8 +50,15 @@ class UnicornDriver(object):
         url = CONF.QUARK.floating_ip_base_url
         req = self._build_request_body(floating_ip, port, fixed_ip)
 
-        LOG.info("Calling unicorn to register floating ip: %s %s" % (url, req))
-        r = requests.post(url, data=json.dumps(req))
+        try:
+            LOG.info("Calling unicorn to register floating ip: %s %s"
+                     % (url, req))
+            r = requests.post(url, data=json.dumps(req))
+        except Exception as e:
+            LOG.error("Unhandled Exception caught when trying to register "
+                      "floating ip %s with the unicorn API.  Error: %s"
+                      % (floating_ip.id, e.message))
+            raise ex.RegisterFloatingIpFailure(id=floating_ip.id)
 
         if r.status_code != 200 and r.status_code != 201:
             msg = "Unexpected status from unicorn API: Status Code %s, " \
@@ -64,8 +71,15 @@ class UnicornDriver(object):
                          floating_ip["address_readable"])
         req = self._build_request_body(floating_ip, port, fixed_ip)
 
-        LOG.info("Calling unicorn to register floating ip: %s %s" % (url, req))
-        r = requests.put(url, data=json.dumps(req))
+        try:
+            LOG.info("Calling unicorn to register floating ip: %s %s"
+                     % (url, req))
+            r = requests.put(url, data=json.dumps(req))
+        except Exception as e:
+            LOG.error("Unhandled Exception caught when trying to update "
+                      "floating ip %s with the unicorn API.  Error: %s"
+                      % (floating_ip.id, e.message))
+            raise ex.RegisterFloatingIpFailure(id=floating_ip.id)
 
         if r.status_code != 200 and r.status_code != 201:
             msg = "Unexpected status from unicorn API: Status Code %s, " \
@@ -77,8 +91,14 @@ class UnicornDriver(object):
         url = "%s/%s" % (CONF.QUARK.floating_ip_base_url,
                          floating_ip.address_readable)
 
-        LOG.info("Calling unicorn to remove floating ip: %s" % url)
-        r = requests.delete(url)
+        try:
+            LOG.info("Calling unicorn to remove floating ip: %s" % url)
+            r = requests.delete(url)
+        except Exception as e:
+            LOG.error("Unhandled Exception caught when trying to un-register "
+                      "floating ip %s with the unicorn API.  Error: %s"
+                      % (floating_ip.id, e.message))
+            raise ex.RemoveFloatingIpFailure(id=floating_ip.id)
 
         if r.status_code == 404:
             LOG.warn("The floating IP %s does not exist in the unicorn system."
