@@ -372,8 +372,11 @@ def get_floatingips_count(context, filters=None):
 
     filters['_deallocated'] = False
     filters['address_type'] = ip_types.FLOATING
+    count = db_api.ip_address_count_all(context, filters)
 
-    return db_api.ip_address_count_all(context, filters)
+    LOG.info('Found %s floating ips for tenant %s' % (count,
+                                                      context.tenant_id))
+    return count
 
 
 def _get_next_available_fixed_ip(port):

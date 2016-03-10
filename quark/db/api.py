@@ -91,7 +91,8 @@ def _model_query(context, model, filters, fields=None):
     filters = filters or {}
     model_filters = []
     eq_filters = ["address", "cidr", "deallocated", "ip_version", "service",
-                  "mac_address_range_id", "transaction_id", "lock_id"]
+                  "mac_address_range_id", "transaction_id", "lock_id",
+                  "address_type"]
     in_filters = ["device_id", "device_owner", "group_id", "id", "mac_address",
                   "name", "network_id", "segment_id", "subnet_id",
                   "used_by_tenant_id", "version"]
@@ -355,10 +356,6 @@ def ip_address_find(context, lock_mode=False, **filters):
     if filters.get("port_id"):
         model_filters.append(models.IPAddress.ports.any(
             models.Port.id == filters['port_id']))
-
-    if filters.get("address_type"):
-        model_filters.append(
-            models.IPAddress.address_type == filters['address_type'])
 
     return query.filter(*model_filters)
 
@@ -1003,10 +1000,6 @@ def floating_ip_find(context, lock_mode=False, limit=None, sorts=None,
     if filters.get("port_id"):
         model_filters.append(models.IPAddress.ports.any(
             models.Port.id == filters['port_id']))
-
-    if filters.get("address_type"):
-        model_filters.append(
-            models.IPAddress.address_type == filters['address_type'])
 
     if filters.get("transaction_id"):
         model_filters.append(
