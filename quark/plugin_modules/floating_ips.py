@@ -271,11 +271,8 @@ def delete_floatingip(context, id):
         if flip.fixed_ip:
             flip = db_api.floating_ip_disassociate_fixed_ip(context, flip)
 
-        db_api.ip_address_deallocate(context, flip)
-
-        if flip.fixed_ip:
-            driver = registry.DRIVER_REGISTRY.get_driver()
-            driver.remove_floating_ip(flip)
+        driver = registry.DRIVER_REGISTRY.get_driver()
+        driver.remove_floating_ip(flip)
         context.session.commit()
     except Exception:
         context.session.rollback()
