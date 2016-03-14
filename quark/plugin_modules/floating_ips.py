@@ -271,12 +271,19 @@ def delete_floatingip(context, id):
         if flip.fixed_ip:
             flip = db_api.floating_ip_disassociate_fixed_ip(context, flip)
 
-        driver = registry.DRIVER_REGISTRY.get_driver()
-        driver.remove_floating_ip(flip)
         context.session.commit()
     except Exception:
         context.session.rollback()
         raise
+
+    try:
+        driver = registry.DRIVER_REGISTRY.get_driver()
+        driver.remove_floating_ip(flip)
+    except Exception as e:
+        LOG.error('There was an error when trying to delete the floating ip '
+                  'on the unicorn API.  The ip has been cleaned up, but '
+                  'may need to be handled manually in the unicorn API.  '
+                  'Error: %s' % e.message)
 
 
 def get_floatingip(context, id, fields=None):
