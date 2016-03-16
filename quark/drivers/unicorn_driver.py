@@ -32,7 +32,10 @@ LOG = logging.getLogger(__name__)
 quark_router_opts = [
     cfg.StrOpt('floating_ip_base_url',
                default='http://localhost:8080/v1.0/floating_ips',
-               help=_('floating ips base url'))
+               help=_('floating ips base url')),
+    cfg.IntOpt('unicorn_api_timeout_seconds', default=2,
+               help=_('Number of seconds to wait for a response from the '
+                      'server before failing the call'))
 ]
 
 CONF.register_opts(quark_router_opts, "QUARK")
@@ -48,12 +51,13 @@ class UnicornDriver(object):
 
     def register_floating_ip(self, floating_ip, port, fixed_ip):
         url = CONF.QUARK.floating_ip_base_url
+        timeout = CONF.QUARK.unicorn_api_timeout_seconds
         req = self._build_request_body(floating_ip, port, fixed_ip)
 
         try:
             LOG.info("Calling unicorn to register floating ip: %s %s"
                      % (url, req))
-            r = requests.post(url, data=json.dumps(req))
+            r = requests.post(url, data=json.dumps(req), timeout=timeout)
         except Exception as e:
             LOG.error("Unhandled Exception caught when trying to register "
                       "floating ip %s with the unicorn API.  Error: %s"
@@ -69,12 +73,13 @@ class UnicornDriver(object):
     def update_floating_ip(self, floating_ip, port, fixed_ip):
         url = "%s/%s" % (CONF.QUARK.floating_ip_base_url,
                          floating_ip["address_readable"])
+        timeout = CONF.QUARK.unicorn_api_timeout_seconds
         req = self._build_request_body(floating_ip, port, fixed_ip)
 
         try:
             LOG.info("Calling unicorn to register floating ip: %s %s"
                      % (url, req))
-            r = requests.put(url, data=json.dumps(req))
+            r = requests.put(url, data=json.dumps(req), timeout=timeout)
         except Exception as e:
             LOG.error("Unhandled Exception caught when trying to update "
                       "floating ip %s with the unicorn API.  Error: %s"
@@ -90,10 +95,11 @@ class UnicornDriver(object):
     def remove_floating_ip(self, floating_ip):
         url = "%s/%s" % (CONF.QUARK.floating_ip_base_url,
                          floating_ip.address_readable)
+        timeout = CONF.QUARK.unicorn_api_timeout_seconds
 
         try:
             LOG.info("Calling unicorn to remove floating ip: %s" % url)
-            r = requests.delete(url)
+            r = requests.delete(url, timeout=timeout)
         except Exception as e:
             LOG.error("Unhandled Exception caught when trying to un-register "
                       "floating ip %s with the unicorn API.  Error: %s"
