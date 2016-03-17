@@ -24,8 +24,9 @@ import time
 import uuid
 
 import netaddr
-from neutron.common import exceptions
+from neutron.common import exceptions as n_exc_ext
 from neutron.common import rpc as n_rpc
+from neutron_lib import exceptions as n_exc
 from oslo_concurrency import lockutils
 from oslo_config import cfg
 from oslo_db import exception as db_exception
@@ -126,7 +127,7 @@ def ip_address_failure(network_id):
     if STRATEGY.is_provider_network(network_id):
         return q_exc.ProviderNetworkOutOfIps(net_id=network_id)
     else:
-        return exceptions.IpAddressGenerationFailure(net_id=network_id)
+        return n_exc.IpAddressGenerationFailure(net_id=network_id)
 
 
 def generate_v6(mac, port_id, cidr):
@@ -332,7 +333,7 @@ class QuarkIpam(object):
                 LOG.exception("Error in creating mac. MAC possibly duplicate")
                 continue
 
-        raise exceptions.MacAddressGenerationFailure(net_id=net_id)
+        raise n_exc_ext.MacAddressGenerationFailure(net_id=net_id)
 
     @synchronized(named("reallocate_ip"))
     def attempt_to_reallocate_ip(self, context, net_id, port_id, reuse_after,
@@ -479,8 +480,7 @@ class QuarkIpam(object):
             # NOTE(mdietz): Our version of sqlalchemy incorrectly raises None
             #               here when there's an IP conflict
             if ip_address:
-                raise exceptions.IpAddressInUse(ip_address=next_ip,
-                                                net_id=net_id)
+                raise n_exc.IpAddressInUse(ip_address=next_ip, net_id=net_id)
             raise q_exc.IPAddressRetryableFailure(ip_addr=next_ip,
                                                   net_id=net_id)
 
@@ -765,8 +765,9 @@ class QuarkIpam(object):
         mac = db_api.mac_address_find(admin_context, address=address,
                                       scope=db_api.ONE)
         if not mac:
-            raise exceptions.NotFound(
-                message="No MAC address %s found" % netaddr.EUI(address))
+            raise q_exc.MacAddressNotFound(
+                mac_address_id=address,
+                readable_mac=netaddr.EUI(address))
 
         if (mac["mac_address_range"] is None or
                 mac["mac_address_range"]["do_not_use"]):

@@ -16,20 +16,17 @@
 """
 Ironic agent driver for Quark.
 """
+import json
 import netaddr
 
-from neutron.common import exceptions
-
+from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_utils import importutils
 
 from quark.drivers import base
-from quark import utils
-
-import json
-
 from quark import network_strategy
+from quark import utils
 
 STRATEGY = network_strategy.STRATEGY
 
@@ -112,7 +109,7 @@ class FakeIronicClient(object):
         return
 
 
-class IronicException(exceptions.NeutronException):
+class IronicException(n_exc.NeutronException):
     message = "ironic driver error: %(msg)s"
 
 

@@ -13,9 +13,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from neutron.common import exceptions
 from neutron.extensions import securitygroup as sg_ext
 from neutron import quota
+from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_utils import uuidutils
@@ -36,7 +36,7 @@ GROUP_DESCRIPTION_MAX_LENGTH = 255
 def _validate_security_group_rule(context, rule):
     # TODO(mdietz): As per RM8615, Remote groups are not currently supported
     if rule.get("remote_group_id"):
-        raise exceptions.InvalidInput(
+        raise n_exc.InvalidInput(
             error_message="Remote groups are not currently supported")
 
     direction = rule.get("direction")
@@ -71,7 +71,7 @@ def _validate_security_group_rule(context, rule):
 def _validate_security_group(security_group):
     if "name" in security_group:
         if len(security_group["name"]) > GROUP_NAME_MAX_LENGTH:
-            raise exceptions.InvalidInput(
+            raise n_exc.InvalidInput(
                 error_message="Group name must be 255 characters or less")
 
         if security_group["name"] == "default":
@@ -79,7 +79,7 @@ def _validate_security_group(security_group):
 
     if ("description" in security_group and
             len(security_group["description"]) > GROUP_DESCRIPTION_MAX_LENGTH):
-        raise exceptions.InvalidInput(
+        raise n_exc.InvalidInput(
             error_message="Group description must be 255 characters or less")
 
 

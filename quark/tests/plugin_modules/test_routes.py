@@ -17,10 +17,11 @@ import contextlib
 
 import mock
 import netaddr
-from neutron.common import exceptions
+from neutron.common import exceptions as n_exc_ext
+from neutron_lib import exceptions as n_exc
 
 from quark.db import api as db_api
-from quark import exceptions as quark_exceptions
+from quark import exceptions as q_exc
 from quark.tests import test_quark_plugin
 
 
@@ -49,7 +50,7 @@ class TestQuarkGetRoutes(test_quark_plugin.TestQuarkPlugin):
 
     def test_get_route_not_found_fails(self):
         with self._stubs(routes=None):
-            with self.assertRaises(quark_exceptions.RouteNotFound):
+            with self.assertRaises(q_exc.RouteNotFound):
                 self.plugin.get_route(self.context, 1)
 
 
@@ -95,7 +96,7 @@ class TestQuarkCreateRoutes(test_quark_plugin.TestQuarkPlugin):
         route = dict(id=1, cidr="192.168.0.0/24", gateway="192.168.0.1",
                      subnet_id=subnet["id"])
         with self._stubs(create_route=route, find_routes=[], subnet=None):
-            with self.assertRaises(exceptions.SubnetNotFound):
+            with self.assertRaises(n_exc.SubnetNotFound):
                 self.plugin.create_route(self.context, dict(route=route))
 
     def test_create_no_other_routes(self):
@@ -120,7 +121,7 @@ class TestQuarkCreateRoutes(test_quark_plugin.TestQuarkPlugin):
                      subnet_id=subnet["id"])
         with self._stubs(create_route=create_route, find_routes=[route],
                          subnet=subnet):
-            with self.assertRaises(quark_exceptions.RouteConflict):
+            with self.assertRaises(q_exc.RouteConflict):
                 self.plugin.create_route(self.context,
                                          dict(route=create_route))
 
@@ -131,7 +132,7 @@ class TestQuarkCreateRoutes(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(create_route=create_route, find_routes=[],
                          subnet=subnet):
             with self.assertRaises(
-                    exceptions.GatewayConflictWithAllocationPools):
+                    n_exc_ext.GatewayConflictWithAllocationPools):
                 self.plugin.create_route(self.context,
                                          dict(route=create_route))
 
@@ -141,8 +142,7 @@ class TestQuarkCreateRoutes(test_quark_plugin.TestQuarkPlugin):
                             subnet_id=subnet["id"])
         with self._stubs(create_route=create_route, find_routes=[],
                          subnet=subnet):
-            with self.assertRaises(
-                    exceptions.BadRequest):
+            with self.assertRaises(n_exc.BadRequest):
                 self.plugin.create_route(self.context,
                                          dict(route=create_route))
 
@@ -152,8 +152,7 @@ class TestQuarkCreateRoutes(test_quark_plugin.TestQuarkPlugin):
                             subnet_id=subnet["id"])
         with self._stubs(create_route=create_route, find_routes=[],
                          subnet=subnet):
-            with self.assertRaises(
-                    exceptions.BadRequest):
+            with self.assertRaises(n_exc.BadRequest):
                 self.plugin.create_route(self.context,
                                          dict(route=create_route))
 
@@ -162,8 +161,7 @@ class TestQuarkCreateRoutes(test_quark_plugin.TestQuarkPlugin):
         create_route = dict(id=1, cidr="192.168.0.0/24", gateway="192.168.0.1")
         with self._stubs(create_route=create_route, find_routes=[],
                          subnet=subnet):
-            with self.assertRaises(
-                    exceptions.BadRequest):
+            with self.assertRaises(n_exc.BadRequest):
                 self.plugin.create_route(self.context,
                                          dict(route=create_route))
 
@@ -188,7 +186,7 @@ class TestQuarkDeleteRoutes(test_quark_plugin.TestQuarkPlugin):
 
     def test_delete_route_not_found_fails(self):
         with self._stubs(route=None):
-            with self.assertRaises(quark_exceptions.RouteNotFound):
+            with self.assertRaises(q_exc.RouteNotFound):
                 self.plugin.delete_route(self.context, 1)
 
     def test_delete_route_deletes_correct_route(self):

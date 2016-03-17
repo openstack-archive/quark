@@ -14,13 +14,13 @@
 #    under the License.
 
 import netaddr
-from neutron.common import exceptions
+from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 from oslo_log import log as logging
 
 from quark import allocation_pool
 from quark.db import api as db_api
-from quark import exceptions as quark_exceptions
+from quark import exceptions as q_exc
 from quark import plugin_views as v
 
 CONF = cfg.CONF
@@ -49,19 +49,19 @@ def create_ip_policy(context, ip_policy):
     ipp = ip_policy['ip_policy']
 
     if not ipp.get("exclude"):
-        raise exceptions.BadRequest(resource="ip_policy",
-                                    msg="Empty ip_policy.exclude")
+        raise n_exc.BadRequest(resource="ip_policy",
+                               msg="Empty ip_policy.exclude")
 
     network_ids = ipp.get("network_ids")
     subnet_ids = ipp.get("subnet_ids")
 
     if subnet_ids and network_ids:
-        raise exceptions.BadRequest(
+        raise n_exc.BadRequest(
             resource="ip_policy",
             msg="network_ids and subnet_ids specified. only one allowed")
 
     if not subnet_ids and not network_ids:
-        raise exceptions.BadRequest(
+        raise n_exc.BadRequest(
             resource="ip_policy",
             msg="network_ids or subnet_ids not specified")
 
@@ -70,7 +70,7 @@ def create_ip_policy(context, ip_policy):
             subnets = db_api.subnet_find(
                 context, id=subnet_ids, scope=db_api.ALL)
             if not subnets:
-                raise exceptions.SubnetNotFound(id=subnet_ids)
+                raise n_exc.SubnetNotFound(subnet_id=subnet_ids)
             _check_for_pre_existing_policies_in(subnets)
             ensure_default_policy(ipp["exclude"], subnets)
             _validate_cidrs_fit_into_subnets(ipp["exclude"], subnets)
@@ -81,7 +81,7 @@ def create_ip_policy(context, ip_policy):
             nets = db_api.network_find(
                 context, id=network_ids, scope=db_api.ALL)
             if not nets:
-                raise exceptions.NetworkNotFound(net_id=network_ids)
+                raise n_exc.NetworkNotFound(net_id=network_ids)
             _check_for_pre_existing_policies_in(nets)
             subnets = [subnet for net in nets
                        for subnet in net.get("subnets", [])]
@@ -99,7 +99,7 @@ def _check_for_pre_existing_policies_in(models):
                                      if model.get('ip_policy', None)]
     if models_with_existing_policies:
         first_model = models_with_existing_policies[0]
-        raise quark_exceptions.IPPolicyAlreadyExists(
+        raise q_exc.IPPolicyAlreadyExists(
             id=first_model['ip_policy']['id'],
             n_id=first_model['id'])
 
@@ -108,7 +108,7 @@ def get_ip_policy(context, id):
     LOG.info("get_ip_policy %s for tenant %s" % (id, context.tenant_id))
     ipp = db_api.ip_policy_find(context, id=id, scope=db_api.ONE)
     if not ipp:
-        raise quark_exceptions.IPPolicyNotFound(id=id)
+        raise q_exc.IPPolicyNotFound(id=id)
     return v._make_ip_policy_dict(ipp)
 
 
@@ -126,14 +126,14 @@ def update_ip_policy(context, id, ip_policy):
     with context.session.begin():
         ipp_db = db_api.ip_policy_find(context, id=id, scope=db_api.ONE)
         if not ipp_db:
-            raise quark_exceptions.IPPolicyNotFound(id=id)
+            raise q_exc.IPPolicyNotFound(id=id)
 
         ip_policy_cidrs = ipp.get("exclude")
         network_ids = ipp.get("network_ids")
         subnet_ids = ipp.get("subnet_ids")
 
         if subnet_ids and network_ids:
-            raise exceptions.BadRequest(
+            raise n_exc.BadRequest(
                 resource="ip_policy",
                 msg="network_ids and subnet_ids specified. only one allowed")
 
@@ -145,7 +145,7 @@ def update_ip_policy(context, id, ip_policy):
             subnets = db_api.subnet_find(
                 context, id=subnet_ids, scope=db_api.ALL)
             if len(subnets) != len(subnet_ids):
-                raise exceptions.SubnetNotFound(id=subnet_ids)
+                raise n_exc.SubnetNotFound(subnet_id=subnet_ids)
             if ip_policy_cidrs is not None:
                 ensure_default_policy(ip_policy_cidrs, subnets)
                 _validate_cidrs_fit_into_subnets(ip_policy_cidrs, subnets)
@@ -158,7 +158,7 @@ def update_ip_policy(context, id, ip_policy):
             nets = db_api.network_find(context, id=network_ids,
                                        scope=db_api.ALL)
             if len(nets) != len(network_ids):
-                raise exceptions.NetworkNotFound(net_id=network_ids)
+                raise n_exc.NetworkNotFound(net_id=network_ids)
             subnets = [subnet for net in nets
                        for subnet in net.get("subnets", [])]
             if ip_policy_cidrs is not None:
@@ -174,7 +174,7 @@ def update_ip_policy(context, id, ip_policy):
 
         for model in models:
             if model["ip_policy"]:
-                raise quark_exceptions.IPPolicyAlreadyExists(
+                raise q_exc.IPPolicyAlreadyExists(
                     id=model["ip_policy"]["id"], n_id=model["id"])
             model["ip_policy"] = ipp_db
 
@@ -189,9 +189,9 @@ def delete_ip_policy(context, id):
     with context.session.begin():
         ipp = db_api.ip_policy_find(context, id=id, scope=db_api.ONE)
         if not ipp:
-            raise quark_exceptions.IPPolicyNotFound(id=id)
+            raise q_exc.IPPolicyNotFound(id=id)
         if ipp["networks"] or ipp["subnets"]:
-            raise quark_exceptions.IPPolicyInUse(id=id)
+            raise q_exc.IPPolicyInUse(id=id)
         db_api.ip_policy_delete(context, ipp)
 
 
@@ -203,7 +203,7 @@ def _validate_cidrs_fit_into_subnets(cidrs, subnets):
         for subnet in subnets:
             subnet_cidr = netaddr.IPNetwork(subnet["cidr"])
             if cidr.version == subnet_cidr.version and cidr not in subnet_cidr:
-                raise exceptions.BadRequest(
+                raise n_exc.BadRequest(
                     resource="ip_policy",
                     msg="CIDR %s not in subnet CIDR %s"
                     % (cidr, subnet_cidr))

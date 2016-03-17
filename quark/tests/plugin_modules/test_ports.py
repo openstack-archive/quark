@@ -19,7 +19,7 @@ import json
 import mock
 import netaddr
 from neutron.api.v2 import attributes as neutron_attrs
-from neutron.common import exceptions
+from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 
 from quark.db import models
@@ -128,7 +128,7 @@ class TestQuarkGetPorts(test_quark_plugin.TestQuarkPlugin):
 
     def test_port_show_not_found(self):
         with self._stubs(ports=None):
-            with self.assertRaises(exceptions.PortNotFound):
+            with self.assertRaises(n_exc.PortNotFound):
                 self.plugin.get_port(self.context, 1)
 
     def test_port_show_vlan_id(self):
@@ -332,7 +332,7 @@ class TestQuarkGetPortsByIPAddress(test_quark_plugin.TestQuarkPlugin):
     def test_port_list_by_ip_not_admin_raises(self):
         with self._stubs(ports=[]):
             filters = {"ip_address": ["192.168.0.1"]}
-            with self.assertRaises(exceptions.NotAuthorized):
+            with self.assertRaises(n_exc.NotAuthorized):
                 self.plugin.get_ports(self.context, filters=filters,
                                       fields=None)
 
@@ -340,7 +340,7 @@ class TestQuarkGetPortsByIPAddress(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(ports=[]):
             filters = {"ip_address": ["malformed-address-here"]}
             admin_ctx = self.context.elevated()
-            with self.assertRaises(exceptions.BadRequest):
+            with self.assertRaises(n_exc.BadRequest):
                 self.plugin.get_ports(admin_ctx, filters=filters, fields=None)
 
 
@@ -383,7 +383,7 @@ class TestQuarkCreatePortFailure(test_quark_plugin.TestQuarkPlugin):
                                 name="Faker"))
 
         with self._stubs(port=port_1, network=network, addr=ip, mac=mac):
-            with self.assertRaises(exceptions.BadRequest):
+            with self.assertRaises(n_exc.BadRequest):
                 self.plugin.create_port(self.context, port_1)
                 self.plugin.create_port(self.context, port_2)
 
@@ -485,7 +485,7 @@ class TestQuarkCreatePortRM9305(test_quark_plugin.TestQuarkPlugin):
                                 name="Fake"))
 
         with self._stubs(port=port_1, network=network, addr=ip, mac=mac):
-            with self.assertRaises(exceptions.NotAuthorized):
+            with self.assertRaises(n_exc.NotAuthorized):
                 self.plugin.create_port(self.context, port_1)
 
 
@@ -626,7 +626,7 @@ class TestQuarkCreatePortsSameDevBadRequest(test_quark_plugin.TestQuarkPlugin):
 
         with self._stubs(port=port["port"], network=network, addr=ip,
                          mac=mac, subnet=subnet):
-            with self.assertRaises(exceptions.NotAuthorized):
+            with self.assertRaises(n_exc.NotAuthorized):
                 self.plugin.create_port(self.context, port)
 
     @mock.patch("quark.network_strategy.JSONStrategy.is_provider_network")
@@ -667,7 +667,7 @@ class TestQuarkCreatePortsSameDevBadRequest(test_quark_plugin.TestQuarkPlugin):
 
         with self._stubs(port=port["port"], network=network, addr=ip,
                          mac=mac):
-            with self.assertRaises(exceptions.NotFound):
+            with self.assertRaises(n_exc.NotFound):
                 self.plugin.create_port(self.context.elevated(), port)
 
     def test_create_port_fixed_ip_subnet_not_in_network(self):
@@ -688,7 +688,7 @@ class TestQuarkCreatePortsSameDevBadRequest(test_quark_plugin.TestQuarkPlugin):
 
         with self._stubs(port=port["port"], network=network, addr=ip,
                          mac=mac, subnet=subnet):
-            with self.assertRaises(exceptions.InvalidInput):
+            with self.assertRaises(n_exc.InvalidInput):
                 self.plugin.create_port(self.context.elevated(), port)
 
     def test_create_port_fixed_ips_bad_request(self):
@@ -703,14 +703,14 @@ class TestQuarkCreatePortsSameDevBadRequest(test_quark_plugin.TestQuarkPlugin):
                               fixed_ips=fixed_ips, ip_addresses=[ip]))
         with self._stubs(port=port["port"], network=network, addr=ip,
                          mac=mac):
-            with self.assertRaises(exceptions.BadRequest):
+            with self.assertRaises(n_exc.BadRequest):
                 self.plugin.create_port(self.context, port)
 
     def test_create_port_no_network_found(self):
         port = dict(port=dict(network_id=1, tenant_id=self.context.tenant_id,
                               device_id=2))
         with self._stubs(network=None, port=port["port"]):
-            with self.assertRaises(exceptions.NetworkNotFound):
+            with self.assertRaises(n_exc.NetworkNotFound):
                 self.plugin.create_port(self.context, port)
 
     def test_create_port_security_groups_raises(self, groups=[1]):
@@ -755,7 +755,7 @@ class TestQuarkPortCreateQuota(test_quark_plugin.TestQuarkPlugin):
             alloc_ip.return_value = addr
             alloc_mac.return_value = mac
             port_count.return_value = len(network["ports"])
-            limit_check.side_effect = exceptions.OverQuota
+            limit_check.side_effect = n_exc.OverQuota
             yield port_create
 
     def test_create_port_net_at_max(self):
@@ -768,7 +768,7 @@ class TestQuarkPortCreateQuota(test_quark_plugin.TestQuarkPlugin):
                               tenant_id=self.context.tenant_id, device_id=2,
                               name=port_name))
         with self._stubs(port=port["port"], network=network, addr=ip, mac=mac):
-            with self.assertRaises(exceptions.OverQuota):
+            with self.assertRaises(n_exc.OverQuota):
                 self.plugin.create_port(self.context, port)
 
 
@@ -789,7 +789,7 @@ class TestQuarkPortCreateFixedIpsQuota(test_quark_plugin.TestQuarkPlugin):
         port = {"port": {"network_id": 1, "tenant_id": self.context.tenant_id,
                          "device_id": 2, "fixed_ips": fixed_ips}}
         with self._stubs(network=network):
-            with self.assertRaises(exceptions.OverQuota):
+            with self.assertRaises(n_exc.OverQuota):
                 self.plugin.create_port(self.context, port)
 
 
@@ -818,7 +818,7 @@ class TestQuarkUpdatePort(test_quark_plugin.TestQuarkPlugin):
 
     def test_update_port_not_found(self):
         with self._stubs(port=None):
-            with self.assertRaises(exceptions.PortNotFound):
+            with self.assertRaises(n_exc.PortNotFound):
                 self.plugin.update_port(self.context, 1, {})
 
     def test_update_port(self):
@@ -841,7 +841,7 @@ class TestQuarkUpdatePort(test_quark_plugin.TestQuarkPlugin):
             new_port = dict(port=dict(
                 fixed_ips=[dict(subnet_id=None,
                                 ip_address=None)]))
-            with self.assertRaises(exceptions.BadRequest):
+            with self.assertRaises(n_exc.BadRequest):
                 self.plugin.update_port(self.context, 1, new_port)
 
     def test_update_port_fixed_ip_bad_request_malformed_address(self):
@@ -851,7 +851,7 @@ class TestQuarkUpdatePort(test_quark_plugin.TestQuarkPlugin):
             new_port = dict(port=dict(
                 fixed_ips=[dict(subnet_id=1,
                                 ip_address="malformed-address-here")]))
-            with self.assertRaises(exceptions.BadRequest):
+            with self.assertRaises(n_exc.BadRequest):
                 self.plugin.update_port(self.context, 1, new_port)
 
     def test_update_port_fixed_ip(self):
@@ -870,7 +870,7 @@ class TestQuarkUpdatePort(test_quark_plugin.TestQuarkPlugin):
         ) as (port_find, port_update, alloc_ip, dealloc_ip):
             new_port = dict(port=dict(
                 fixed_ips=[dict(ip_address="1.1.1.1")]))
-            with self.assertRaises(exceptions.BadRequest):
+            with self.assertRaises(n_exc.BadRequest):
                 self.plugin.update_port(self.context, 1, new_port)
 
     def test_update_port_fixed_ip_subnet_only_allocates_ip(self):
@@ -914,7 +914,7 @@ class TestQuarkUpdatePort(test_quark_plugin.TestQuarkPlugin):
             port=dict(id=1, name="myport", mac_address="0:0:0:0:0:1")
         ) as (port_find, port_update, alloc_ip, dealloc_ip):
             new_port = {"port": fixed_ips}
-            with self.assertRaises(exceptions.OverQuota):
+            with self.assertRaises(n_exc.OverQuota):
                 self.plugin.update_port(self.context, 1, new_port)
 
 
@@ -1172,7 +1172,7 @@ class TestQuarkDeletePort(test_quark_plugin.TestQuarkPlugin):
 
     def test_port_delete_port_not_found_fails(self):
         with self._stubs(port=None) as (db_port_del, driver_port_del):
-            with self.assertRaises(exceptions.PortNotFound):
+            with self.assertRaises(n_exc.PortNotFound):
                 self.plugin.delete_port(self.context, 1)
 
 
@@ -1274,12 +1274,12 @@ class TestPortDiagnose(test_quark_plugin.TestQuarkPlugin):
 
     def test_port_diagnose_no_port_raises(self):
         with self._stubs(port=None):
-            with self.assertRaises(exceptions.PortNotFound):
+            with self.assertRaises(n_exc.PortNotFound):
                 self.plugin.diagnose_port(self.context.elevated(), 1, [])
 
     def test_port_diagnose_not_authorized(self):
         with self._stubs(port=None):
-            with self.assertRaises(exceptions.NotAuthorized):
+            with self.assertRaises(n_exc.NotAuthorized):
                 self.plugin.diagnose_port(self.context, 1, [])
 
 
@@ -1358,7 +1358,7 @@ class TestPortDriverSelection(test_quark_plugin.TestQuarkPlugin):
             port_create.return_value = port_models
 
             exc = "Driver FAIL is not registered."
-            with self.assertRaisesRegexp(exceptions.BadRequest, exc):
+            with self.assertRaisesRegexp(n_exc.BadRequest, exc):
                 self.plugin.create_port(self.context, port)
 
     def test_create_port_with_bad_port_network_plugin_fails(self):
@@ -1382,7 +1382,7 @@ class TestPortDriverSelection(test_quark_plugin.TestQuarkPlugin):
 
             exc = "Driver FAIL is not registered."
             admin_ctx = self.context.elevated()
-            with self.assertRaisesRegexp(exceptions.BadRequest, exc):
+            with self.assertRaisesRegexp(n_exc.BadRequest, exc):
                 self.plugin.create_port(admin_ctx, port)
 
     def test_create_port_with_incompatable_port_network_plugin_fails(self):
@@ -1407,7 +1407,7 @@ class TestPortDriverSelection(test_quark_plugin.TestQuarkPlugin):
             exc = ("Port driver BAR not allowed for underlying network "
                    "driver FOO.")
             admin_ctx = self.context.elevated()
-            with self.assertRaisesRegexp(exceptions.BadRequest, exc):
+            with self.assertRaisesRegexp(n_exc.BadRequest, exc):
                 self.plugin.create_port(admin_ctx, port)
 
     def test_create_port_with_no_port_network_plugin(self):
@@ -1993,5 +1993,5 @@ class TestQuarkPortCreateAsAdvancedService(test_quark_plugin.TestQuarkPlugin):
                                 name="Fake"))
 
         with self._stubs(port=port_1, network=network, addr=ip, mac=mac):
-            with self.assertRaises(exceptions.NotAuthorized):
+            with self.assertRaises(n_exc.NotAuthorized):
                 self.plugin.create_port(self.context, port_1)

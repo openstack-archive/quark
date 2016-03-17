@@ -28,7 +28,7 @@ from oslo_log import log as logging
 from quark.drivers import base
 from quark.drivers import security_groups as sg_driver
 from quark.environment import Capabilities
-from quark import exceptions
+from quark import exceptions as q_exc
 from quark import segment_allocations
 from quark import utils
 
@@ -199,7 +199,7 @@ class NVPDriver(base.BaseDriver):
 
     def _connection(self):
         if len(self.nvp_connections) == 0:
-            raise exceptions.NoBackendConnectionsDefined(
+            raise q_exc.NoBackendConnectionsDefined(
                 msg="No NVP connections defined cannot continue")
 
         conn = self.nvp_connections[self.conn_index]
@@ -488,7 +488,7 @@ class NVPDriver(base.BaseDriver):
 
             if (len(ingress_rules) + len(egress_rules) >
                     self.limits['max_rules_per_group']):
-                raise exceptions.DriverLimitReached(limit="rules per group")
+                raise q_exc.DriverLimitReached(limit="rules per group")
 
             if egress_rules:
                 profile.port_egress_rules(egress_rules)
@@ -518,7 +518,7 @@ class NVPDriver(base.BaseDriver):
 
             if (len(ingress_rules) + len(egress_rules) >
                     self.limits['max_rules_per_group']):
-                raise exceptions.DriverLimitReached(limit="rules per group")
+                raise q_exc.DriverLimitReached(limit="rules per group")
 
             if group.get('name', None):
                 profile.display_name(group['name'])
@@ -551,7 +551,7 @@ class NVPDriver(base.BaseDriver):
              (lambda x, y:
                  self._check_rule_count_per_port(context, group_id) <
                  self.limits['max_rules_per_port']):
-             exceptions.DriverLimitReached(limit="rules per port")})
+             q_exc.DriverLimitReached(limit="rules per port")})
 
     def delete_security_group_rule(self, context, group_id, rule):
         return self._update_security_group_rules(
@@ -571,7 +571,7 @@ class NVPDriver(base.BaseDriver):
         switch_details = self._get_network_details(context, network_id,
                                                    switches)
         if not switch_details:
-            raise exceptions.BadNVPState(net_id=network_id)
+            raise q_exc.BadNVPState(net_id=network_id)
 
         return self._lswitch_create(context, network_id=network_id,
                                     **switch_details)
@@ -609,25 +609,25 @@ class NVPDriver(base.BaseDriver):
         if not (phys_net or net_type):
             return
         if not phys_net and net_type:
-            raise exceptions.ProvidernetParamError(
+            raise q_exc.ProvidernetParamError(
                 msg="provider:physical_network parameter required")
         if phys_net and not net_type:
-            raise exceptions.ProvidernetParamError(
+            raise q_exc.ProvidernetParamError(
                 msg="provider:network_type parameter required")
         if net_type not in ("bridge", "vlan", "vxlan") and segment_id:
-            raise exceptions.SegmentIdUnsupported(net_type=net_type)
+            raise q_exc.SegmentIdUnsupported(net_type=net_type)
         if net_type == "vlan" and not segment_id:
-            raise exceptions.SegmentIdRequired(net_type=net_type)
+            raise q_exc.SegmentIdRequired(net_type=net_type)
 
         phys_type = physical_net_type_map.get(net_type.lower())
         if not phys_type:
-            raise exceptions.InvalidPhysicalNetworkType(net_type=net_type)
+            raise q_exc.InvalidPhysicalNetworkType(net_type=net_type)
 
         tz_query = connection.transportzone(phys_net).query()
         transport_zone = tz_query.results()
 
         if transport_zone["result_count"] == 0:
-            raise exceptions.PhysicalNetworkNotFound(phys_net=phys_net)
+            raise q_exc.PhysicalNetworkNotFound(phys_net=phys_net)
         switch.transport_zone(zone_uuid=phys_net,
                               transport_type=phys_type,
                               vlan_id=segment_id)
@@ -824,7 +824,7 @@ class NVPDriver(base.BaseDriver):
                 context,
                 (self._get_security_group(context, g) for g in groups))
                 > self.limits['max_rules_per_port']):
-            raise exceptions.DriverLimitReached(limit="rules per port")
+            raise q_exc.DriverLimitReached(limit="rules per port")
 
         return [self._get_security_group(context, group)['uuid']
                 for group in groups]

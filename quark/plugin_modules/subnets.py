@@ -15,9 +15,9 @@
 
 import netaddr
 from neutron.common import config as neutron_cfg
-from neutron.common import exceptions
 from neutron.common import rpc as n_rpc
 from neutron import quota
+from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_utils import importutils
@@ -81,7 +81,7 @@ def _validate_subnet_cidr(context, network_id, new_subnet_cidr):
                       {'new_cidr': new_subnet_cidr,
                        'subnet_id': subnet.id,
                        'cidr': subnet.cidr})
-            raise exceptions.InvalidInput(error_message=err_msg)
+            raise n_exc.InvalidInput(error_message=err_msg)
 
 
 def create_subnet(context, subnet):
@@ -102,7 +102,7 @@ def create_subnet(context, subnet):
         net = db_api.network_find(context, None, None, None, False,
                                   id=net_id, scope=db_api.ONE)
         if not net:
-            raise exceptions.NetworkNotFound(net_id=net_id)
+            raise n_exc.NetworkNotFound(net_id=net_id)
 
         sub_attrs = subnet["subnet"]
 
@@ -124,11 +124,11 @@ def create_subnet(context, subnet):
         if cidr.version == 6 and cidr.prefixlen > 64:
             err_vals["prefix"] = 65
             err_msg = err % err_vals
-            raise exceptions.InvalidInput(error_message=err_msg)
+            raise n_exc.InvalidInput(error_message=err_msg)
         elif cidr.version == 4 and cidr.prefixlen > 30:
             err_vals["prefix"] = 31
             err_msg = err % err_vals
-            raise exceptions.InvalidInput(error_message=err_msg)
+            raise n_exc.InvalidInput(error_message=err_msg)
         # Enforce subnet quotas
         net_subnets = get_subnets(context,
                                   filters=dict(network_id=net_id))
@@ -243,7 +243,7 @@ def update_subnet(context, id, subnet):
         subnet_db = db_api.subnet_find(context, None, None, None, False, id=id,
                                        scope=db_api.ONE)
         if not subnet_db:
-            raise exceptions.SubnetNotFound(id=id)
+            raise n_exc.SubnetNotFound(subnet_id=id)
 
         s = subnet["subnet"]
         always_pop = ["_cidr", "cidr", "first_ip", "last_ip", "ip_version",
@@ -258,7 +258,7 @@ def update_subnet(context, id, subnet):
         allocation_pools = utils.pop_param(s, "allocation_pools", None)
         if not CONF.QUARK.allow_allocation_pool_update:
             if allocation_pools:
-                raise exceptions.BadRequest(
+                raise n_exc.BadRequest(
                     resource="subnets",
                     msg="Allocation pools cannot be updated.")
             alloc_pools = allocation_pool.AllocationPools(
@@ -339,7 +339,7 @@ def get_subnet(context, id, fields=None):
                                 join_dns=True, join_routes=True,
                                 scope=db_api.ONE)
     if not subnet:
-        raise exceptions.SubnetNotFound(subnet_id=id)
+        raise n_exc.SubnetNotFound(subnet_id=id)
 
     cache = subnet.get("_allocation_pool_cache")
     if not cache:
@@ -407,7 +407,7 @@ def get_subnets_count(context, filters=None):
 
 def _delete_subnet(context, subnet):
     if subnet.allocated_ips:
-        raise exceptions.SubnetInUse(subnet_id=subnet["id"])
+        raise n_exc.SubnetInUse(subnet_id=subnet["id"])
     db_api.subnet_delete(context, subnet)
 
 
@@ -421,7 +421,7 @@ def delete_subnet(context, id):
     with context.session.begin():
         subnet = db_api.subnet_find(context, id=id, scope=db_api.ONE)
         if not subnet:
-            raise exceptions.SubnetNotFound(subnet_id=id)
+            raise n_exc.SubnetNotFound(subnet_id=id)
 
         payload = dict(tenant_id=subnet["tenant_id"],
                        ip_block_id=subnet["id"],
@@ -435,7 +435,7 @@ def delete_subnet(context, id):
 
 def diagnose_subnet(context, id, fields):
     if not context.is_admin:
-        raise exceptions.NotAuthorized()
+        raise n_exc.NotAuthorized()
 
     if id == "*":
         return {'subnets': get_subnets(context, filters={})}

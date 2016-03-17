@@ -16,8 +16,8 @@
 import functools
 
 from neutron.api import extensions
-from neutron.common import exceptions
 from neutron import manager
+from neutron_lib import exceptions as n_exc
 from oslo_log import log as logging
 LOG = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ class Diagnostician(object):
 
     def diag_not_implemented(self, res, id, input):
         LOG.warning("Diagnostics not implemented on resource %ss." % res)
-        raise exceptions.ServiceUnavailable()
+        raise n_exc.ServiceUnavailable()
 
     def diagnose(self, res, input, req, id):
         LOG.debug("Requested diagnostics fields %s on resource %s with id %s"

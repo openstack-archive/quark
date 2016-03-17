@@ -17,7 +17,7 @@
 Provide strategies for allocating network segments. (vlan, vxlan, etc)
 """
 from quark.db import api as db_api
-from quark import exceptions as quark_exceptions
+from quark import exceptions as q_exc
 
 from oslo_log import log as logging
 from oslo_utils import timeutils
@@ -115,7 +115,7 @@ class BaseSegmentAllocation(object):
                 [(r["first_id"], r["last_id"]) for r in existing_ranges])
 
             if collides:
-                raise quark_exceptions.InvalidSegmentAllocationRange(
+                raise q_exc.InvalidSegmentAllocationRange(
                     msg=("The specified allocation collides with existing "
                          "range"))
 
@@ -202,7 +202,7 @@ class BaseSegmentAllocation(object):
         if allocation:
             return allocation
 
-        raise quark_exceptions.SegmentAllocationFailure(
+        raise q_exc.SegmentAllocationFailure(
             segment_id=segment_id, segment_type=self.segment_type)
 
     def _try_deallocate(self, context, segment_id, network_id):
@@ -271,7 +271,7 @@ class VXLANSegmentAllocation(BaseSegmentAllocation):
             assert last_id <= self.VXLAN_MAX
             assert first_id <= last_id
         except Exception:
-            raise quark_exceptions.InvalidSegmentAllocationRange(
+            raise q_exc.InvalidSegmentAllocationRange(
                 msg="The specified allocation range is invalid")
 
 

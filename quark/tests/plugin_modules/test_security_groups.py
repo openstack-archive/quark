@@ -16,8 +16,8 @@
 import contextlib
 
 import mock
-from neutron.common import exceptions
 from neutron.extensions import securitygroup as sg_ext
+from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 
 from quark.db import models
@@ -213,7 +213,7 @@ class TestQuarkCreateSecurityGroup(test_quark_plugin.TestQuarkPlugin):
         group = {'name': 'a' * 256, 'description': 'bar',
                  'tenant_id': self.context.tenant_id}
         with self._stubs(group):
-            with self.assertRaises(exceptions.InvalidInput):
+            with self.assertRaises(n_exc.InvalidInput):
                 self.plugin.create_security_group(
                     self.context, {'security_group': group})
 
@@ -221,7 +221,7 @@ class TestQuarkCreateSecurityGroup(test_quark_plugin.TestQuarkPlugin):
         group = {'name': 'foo', 'description': 'b' * 256,
                  'tenant_id': self.context.tenant_id}
         with self._stubs(group):
-            with self.assertRaises(exceptions.InvalidInput):
+            with self.assertRaises(n_exc.InvalidInput):
                 self.plugin.create_security_group(
                     self.context, {'security_group': group})
 
@@ -317,7 +317,7 @@ class TestQuarkCreateSecurityGroupRule(test_quark_plugin.TestQuarkPlugin):
             rule_create.side_effect = _create_rule
             human.return_value = rule["protocol"]
             if limit_raise:
-                limit_check.side_effect = exceptions.OverQuota
+                limit_check.side_effect = n_exc.OverQuota
             yield rule_create
 
     def _test_create_security_rule(self, limit_raise=False, **ruleset):
@@ -380,15 +380,15 @@ class TestQuarkCreateSecurityGroupRule(test_quark_plugin.TestQuarkPlugin):
         self._test_create_security_rule(remote_ip_prefix='192.168.0.1')
 
     def test_create_security_rule_remote_group(self):
-        with self.assertRaises(exceptions.InvalidInput):
+        with self.assertRaises(n_exc.InvalidInput):
             self._test_create_security_rule(remote_group_id=2)
 
     def test_create_security_rule_port_range_invalid_ranges_fails(self):
-        with self.assertRaises(exceptions.InvalidInput):
+        with self.assertRaises(n_exc.InvalidInput):
             self._test_create_security_rule(protocol=6, port_range_min=0)
 
     def test_create_security_rule_min_under_port_min(self):
-        with self.assertRaises(exceptions.InvalidInput):
+        with self.assertRaises(n_exc.InvalidInput):
             self._test_create_security_rule(protocol=6, port_range_min=-1,
                                             port_range_max=10)
 
@@ -396,7 +396,7 @@ class TestQuarkCreateSecurityGroupRule(test_quark_plugin.TestQuarkPlugin):
         self._test_create_security_rule(protocol=6, direction="egress")
 
     def test_create_security_rule_max_over_port_max(self):
-        with self.assertRaises(exceptions.InvalidInput):
+        with self.assertRaises(n_exc.InvalidInput):
             self._test_create_security_rule(protocol=6, port_range_min=0,
                                             port_range_max=65537)
 
@@ -410,7 +410,7 @@ class TestQuarkCreateSecurityGroupRule(test_quark_plugin.TestQuarkPlugin):
             self._test_create_security_rule(group=None)
 
     def test_create_security_rule_group_at_max(self):
-        with self.assertRaises(exceptions.OverQuota):
+        with self.assertRaises(n_exc.OverQuota):
             self._test_create_security_rule(
                 group={'id': 1, 'rules': [models.SecurityGroupRule()]},
                 limit_raise=True)
@@ -538,7 +538,7 @@ class TestQuarkProtocolHandling(test_quark_plugin.TestQuarkPlugin):
             self.fail("Should not have raised")
 
     def test_validate_remote_ip_prefix_ethertype_remote_net_conflict(self):
-        with self.assertRaises(exceptions.InvalidInput):
+        with self.assertRaises(n_exc.InvalidInput):
             protocols.validate_remote_ip_prefix(0x86DD, "192.168.0.0/24")
 
 

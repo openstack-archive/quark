@@ -17,10 +17,10 @@ import contextlib
 
 import mock
 import netaddr
-from neutron.common import exceptions
+from neutron_lib import exceptions as n_exc
 
 from quark.db import api as db_api
-from quark import exceptions as quark_exceptions
+from quark import exceptions as q_exc
 from quark.plugin_modules import mac_address_ranges
 from quark.tests import test_quark_plugin
 
@@ -52,7 +52,7 @@ class TestQuarkGetMacAddressRanges(test_quark_plugin.TestQuarkPlugin):
 
     def test_find_mac_range_fail(self):
         with self._stubs(None):
-            with self.assertRaises(quark_exceptions.MacAddressRangeNotFound):
+            with self.assertRaises(q_exc.MacAddressRangeNotFound):
                 self.plugin.get_mac_address_range(self.context, 1)
 
 
@@ -115,16 +115,16 @@ class TestQuarkCreateMacAddressRanges(test_quark_plugin.TestQuarkPlugin):
         self.assertEqual(last_mac, "aa:bb:cc:8:0:0")
 
     def test_to_mac_prefix_too_short_fails(self):
-        with self.assertRaises(quark_exceptions.InvalidMacAddressRange):
+        with self.assertRaises(q_exc.InvalidMacAddressRange):
             cidr, first, last = mac_address_ranges._to_mac_range("AA-BB")
 
     def test_to_mac_prefix_too_long_fails(self):
-        with self.assertRaises(quark_exceptions.InvalidMacAddressRange):
+        with self.assertRaises(q_exc.InvalidMacAddressRange):
             cidr, first, last = mac_address_ranges._to_mac_range(
                 "AA-BB-CC-DD-EE-F0-00")
 
     def test_to_mac_prefix_is_garbage_fails(self):
-        with self.assertRaises(quark_exceptions.InvalidMacAddressRange):
+        with self.assertRaises(q_exc.InvalidMacAddressRange):
             cidr, first, last = mac_address_ranges._to_mac_range("F0-0-BAR")
 
     def test_create_range_with_do_not_use(self):
@@ -154,7 +154,7 @@ class TestQuarkDeleteMacAddressRanges(test_quark_plugin.TestQuarkPlugin):
 
     def test_mac_address_range_delete_not_found(self):
         with self._stubs(None):
-            with self.assertRaises(quark_exceptions.MacAddressRangeNotFound):
+            with self.assertRaises(q_exc.MacAddressRangeNotFound):
                 self.plugin.delete_mac_address_range(self.context, 1)
 
     def test_mac_address_range_delete_in_use(self):
@@ -162,7 +162,7 @@ class TestQuarkDeleteMacAddressRanges(test_quark_plugin.TestQuarkPlugin):
         mar.id = 1
         mar.allocated_macs = 1
         with self._stubs(mar):
-            with self.assertRaises(quark_exceptions.MacAddressRangeInUse):
+            with self.assertRaises(q_exc.MacAddressRangeInUse):
                 self.plugin.delete_mac_address_range(self.context, 1)
 
     def test_mac_address_range_delete_success(self):
@@ -177,18 +177,18 @@ class TestQuarkDeleteMacAddressRanges(test_quark_plugin.TestQuarkPlugin):
 
 class TestQuarkMacAddressCRUDNotAdminRaises(test_quark_plugin.TestQuarkPlugin):
     def test_mac_ranges_index_fails(self):
-        with self.assertRaises(exceptions.NotAuthorized):
+        with self.assertRaises(n_exc.NotAuthorized):
             self.plugin.get_mac_address_ranges(self.context)
 
     def test_show_mac_range_fails(self):
-        with self.assertRaises(exceptions.NotAuthorized):
+        with self.assertRaises(n_exc.NotAuthorized):
             self.plugin.get_mac_address_range(self.context, 1)
 
     def test_create_mac_range_fails(self):
-        with self.assertRaises(exceptions.NotAuthorized):
+        with self.assertRaises(n_exc.NotAuthorized):
             self.plugin.create_mac_address_range(
                 self.context, {"mac_address_range": 1})
 
     def test_delete_mac_range_fails(self):
-        with self.assertRaises(exceptions.NotAuthorized):
+        with self.assertRaises(n_exc.NotAuthorized):
             self.plugin.delete_mac_address_range(self.context, 1)

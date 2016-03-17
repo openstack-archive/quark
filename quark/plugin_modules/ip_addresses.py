@@ -13,14 +13,14 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from neutron.common import exceptions
+from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 from oslo_log import log as logging
 import webob
 
 from quark.db import api as db_api
 from quark.db import ip_types
-from quark import exceptions as quark_exceptions
+from quark import exceptions as q_exc
 from quark import ipam
 from quark import plugin_views as v
 
@@ -86,7 +86,7 @@ def get_ip_address(context, id):
     filters["_deallocated"] = False
     addr = db_api.ip_address_find(context, id=id, scope=db_api.ONE, **filters)
     if not addr:
-        raise quark_exceptions.IpAddressNotFound(addr_id=id)
+        raise q_exc.IpAddressNotFound(addr_id=id)
     return v._make_ip_dict(addr)
 
 
@@ -97,14 +97,14 @@ def validate_and_fetch_segment(ports, network_id):
         addresses = port.get("ip_addresses", [])
         for address in addresses:
             if address["network_id"] != network_id:
-                raise exceptions.BadRequest(resource="ip_addresses",
-                                            msg="Must have ports connected to"
-                                                " the requested network")
+                raise n_exc.BadRequest(resource="ip_addresses",
+                                       msg="Must have ports connected to"
+                                           " the requested network")
             segment_id = address.subnet.get("segment_id")
             first_segment = first_segment or segment_id
             if segment_id != first_segment:
-                raise exceptions.BadRequest(resource="ip_addresses",
-                                            msg="Segment id's do not match.")
+                raise n_exc.BadRequest(resource="ip_addresses",
+                                       msg="Segment id's do not match.")
     return segment_id
 
 
@@ -116,7 +116,7 @@ def validate_port_ip_quotas(context, network, ports):
         return
     for port in ports:
         if len(port.associations) + 1 > limit:
-            raise quark_exceptions.CannotAddMoreIPsToPort()
+            raise q_exc.CannotAddMoreIPsToPort()
 
 
 def validate_shared_ips_quotas(context, network, addresses):
@@ -126,7 +126,7 @@ def validate_shared_ips_quotas(context, network, addresses):
     if limit < 0:
         return
     if len(addresses) + 1 > limit:
-        raise quark_exceptions.CannotCreateMoreSharedIPs()
+        raise q_exc.CannotCreateMoreSharedIPs()
 
 
 def _shared_ip_request(ip_address):
@@ -151,12 +151,12 @@ def create_ip_address(context, body):
     iptype = (ip_types.SHARED if _shared_ip_request(body)
               else ip_types.FIXED)
     if 'ip_address' not in body:
-        raise exceptions.BadRequest(resource="ip_addresses",
-                                    msg="Invalid request body.")
+        raise n_exc.BadRequest(resource="ip_addresses",
+                               msg="Invalid request body.")
     if iptype == ip_types.FIXED and not CONF.QUARK.ipaddr_allow_fixed_ip:
-        raise exceptions.BadRequest(resource="ip_addresses",
-                                    msg="Only shared IPs may be made with "
-                                        "this resource.")
+        raise n_exc.BadRequest(resource="ip_addresses",
+                               msg="Only shared IPs may be made with "
+                                   "this resource.")
     ip_dict = body.get("ip_address")
     port_ids = ip_dict.get('port_ids', [])
     network_id = ip_dict.get('network_id')
@@ -167,20 +167,20 @@ def create_ip_address(context, body):
     # which could be both v4 and v6 addresses. Rather than allow for such
     # an ambiguous outcome, we'll raise instead
     if not ip_version:
-        raise exceptions.BadRequest(resource="ip_addresses",
-                                    msg="version is required.")
+        raise n_exc.BadRequest(resource="ip_addresses",
+                               msg="version is required.")
     if network_id is None:
-        raise exceptions.BadRequest(resource="ip_addresses",
-                                    msg="network_id is required.")
+        raise n_exc.BadRequest(resource="ip_addresses",
+                               msg="network_id is required.")
     if network_id == "":
-        raise exceptions.NetworkNotFound(net_id=network_id)
+        raise n_exc.NetworkNotFound(net_id=network_id)
     net = db_api.network_find(context, None, None, None, False,
                               id=network_id, scope=db_api.ONE)
     if not net:
-        raise exceptions.NetworkNotFound(net_id=network_id)
+        raise n_exc.NetworkNotFound(net_id=network_id)
     if not port_ids and not device_ids:
-        raise exceptions.BadRequest(resource="ip_addresses",
-                                    msg="port_ids or device_ids required.")
+        raise n_exc.BadRequest(resource="ip_addresses",
+                               msg="port_ids or device_ids required.")
 
     new_addresses = []
     ports = []
@@ -204,12 +204,12 @@ def create_ip_address(context, body):
                     ports.append(port)
 
         if not ports:
-            raise exceptions.PortNotFound(port_id=port_ids,
-                                          net_id=network_id)
+            raise n_exc.PortNotFoundOnNetwork(port_id=port_ids,
+                                              net_id=network_id)
 
     if ((by_device and len(device_ids) != len(ports)) or
             (not by_device and len(port_ids) != len(ports))):
-        raise quark_exceptions.NotAllPortOrDeviceFound()
+        raise q_exc.NotAllPortOrDeviceFound()
 
     segment_id = validate_and_fetch_segment(ports, network_id)
     if iptype == ip_types.SHARED:
@@ -248,7 +248,7 @@ def _get_deallocated_override():
 def _raise_if_shared_and_enabled(address_request, address_model):
     if (_shared_ip_request(address_request)
             and not _can_be_shared(address_model)):
-        raise exceptions.BadRequest(
+        raise n_exc.BadRequest(
             resource="ip_addresses",
             msg="This IP address is in use on another port and cannot be "
                 "shared")
@@ -259,16 +259,15 @@ def update_ip_address(context, id, ip_address):
     LOG.info("update_ip_address %s for tenant %s" % (id, context.tenant_id))
     ports = []
     if 'ip_address' not in ip_address:
-        raise exceptions.BadRequest(resource="ip_addresses",
-                                    msg="Invalid request body.")
+        raise n_exc.BadRequest(resource="ip_addresses",
+                               msg="Invalid request body.")
     with context.session.begin():
         address = db_api.ip_address_find(context, id=id, scope=db_api.ONE)
         if not address:
-            raise exceptions.NotFound(
-                message="No IP address found with id=%s" % id)
+            raise q_exc.IpAddressNotFound(addr_id=id)
         iptype = address.address_type
         if iptype == ip_types.FIXED and not CONF.QUARK.ipaddr_allow_fixed_ip:
-            raise exceptions.BadRequest(
+            raise n_exc.BadRequest(
                 resource="ip_addresses",
                 msg="Fixed ips cannot be updated using this interface.")
 
@@ -284,7 +283,7 @@ def update_ip_address(context, id, ip_address):
         port_ids = ip_address['ip_address'].get('port_ids', None)
 
         if port_ids is not None and not port_ids:
-            raise exceptions.BadRequest(
+            raise n_exc.BadRequest(
                 resource="ip_addresses",
                 msg="Cannot be updated with empty port_id list")
 
@@ -293,7 +292,7 @@ def update_ip_address(context, id, ip_address):
 
         if port_ids:
             if iptype == ip_types.FIXED and len(port_ids) > 1:
-                raise exceptions.BadRequest(
+                raise n_exc.BadRequest(
                     resource="ip_addresses",
                     msg="Fixed ips cannot be updated with more than one port.")
 
@@ -303,8 +302,7 @@ def update_ip_address(context, id, ip_address):
             # NOTE(name): could be considered inefficient because we're
             # converting to a list to check length. Maybe revisit
             if len(ports) != len(port_ids):
-                raise exceptions.NotFound(
-                    message="No ports not found with ids=%s" % port_ids)
+                raise n_exc.PortNotFound(port_id=port_ids)
 
             validate_and_fetch_segment(ports, address["network_id"])
             validate_port_ip_quotas(context, address.network_id, ports)
@@ -313,7 +311,7 @@ def update_ip_address(context, id, ip_address):
                 for assoc in address.associations:
                     pid = assoc.port_id
                     if pid not in port_ids and 'none' != assoc.service:
-                        raise quark_exceptions.PortRequiresDisassociation()
+                        raise q_exc.PortRequiresDisassociation()
 
             LOG.info("Updating IP address, %s, to only be used by the"
                      "following ports:  %s" % (address.address_readable,
@@ -322,7 +320,7 @@ def update_ip_address(context, id, ip_address):
                                                                  ports,
                                                                  address)
         elif iptype == ip_types.SHARED and has_owner:
-            raise quark_exceptions.PortRequiresDisassociation()
+            raise q_exc.PortRequiresDisassociation()
         else:
             ipam_driver.deallocate_ip_address(context, address)
             return v._make_ip_dict(address)
@@ -340,16 +338,16 @@ def delete_ip_address(context, id):
         ip_address = db_api.ip_address_find(
             context, id=id, scope=db_api.ONE)
         if not ip_address or ip_address.deallocated:
-            raise quark_exceptions.IpAddressNotFound(addr_id=id)
+            raise q_exc.IpAddressNotFound(addr_id=id)
 
         iptype = ip_address.address_type
         if iptype == ip_types.FIXED and not CONF.QUARK.ipaddr_allow_fixed_ip:
-            raise exceptions.BadRequest(
+            raise n_exc.BadRequest(
                 resource="ip_addresses",
                 msg="Fixed ips cannot be updated using this interface.")
 
         if ip_address.has_any_shared_owner():
-            raise quark_exceptions.PortRequiresDisassociation()
+            raise q_exc.PortRequiresDisassociation()
 
         db_api.update_port_associations_for_ip(context, [], ip_address)
 
@@ -381,7 +379,7 @@ def get_ports_for_ip_address(context, ip_id, limit=None, sorts=None,
              (context.tenant_id, filters, fields))
     addr = db_api.ip_address_find(context, id=ip_id, scope=db_api.ONE)
     if not addr:
-        raise quark_exceptions.IpAddressNotFound(addr_id=ip_id)
+        raise q_exc.IpAddressNotFound(addr_id=ip_id)
 
     if filters is None:
         filters = {}
@@ -408,14 +406,14 @@ def get_port_for_ip_address(context, ip_id, id, fields=None):
              (id, context.tenant_id, fields))
     addr = db_api.ip_address_find(context, id=ip_id, scope=db_api.ONE)
     if not addr:
-        raise quark_exceptions.IpAddressNotFound(addr_id=ip_id)
+        raise q_exc.IpAddressNotFound(addr_id=ip_id)
 
     filters = {'ip_address_id': [ip_id]}
     results = db_api.port_find(context, id=id, fields=fields,
                                scope=db_api.ONE, **filters)
 
     if not results:
-        raise exceptions.PortNotFound(port_id=id, net_id='')
+        raise n_exc.PortNotFound(port_id=id)
 
     return v._make_port_for_ip_dict(addr, results)
 
@@ -436,17 +434,17 @@ def update_port_for_ip_address(context, ip_id, id, port):
     with context.session.begin():
         addr = db_api.ip_address_find(context, id=ip_id, scope=db_api.ONE)
         if not addr:
-            raise quark_exceptions.IpAddressNotFound(addr_id=ip_id)
+            raise q_exc.IpAddressNotFound(addr_id=ip_id)
         port_db = db_api.port_find(context, id=id, scope=db_api.ONE)
         if not port_db:
-            raise quark_exceptions.PortNotFound(port_id=id)
+            raise q_exc.PortNotFound(port_id=id)
         port_dict = {k: port['port'][k] for k in sanitize_list}
 
         require_da = False
         service = port_dict.get('service')
 
         if require_da and _shared_ip_and_active(addr, except_port=id):
-            raise quark_exceptions.PortRequiresDisassociation()
+            raise q_exc.PortRequiresDisassociation()
         addr.set_service_for_port(port_db, service)
         context.session.add(addr)
     return v._make_port_for_ip_dict(addr, port_db)
