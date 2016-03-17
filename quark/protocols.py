@@ -14,8 +14,8 @@
 #    under the License.
 
 import netaddr
-from neutron.common import exceptions
 from neutron.extensions import securitygroup as sg_ext
+from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 from oslo_log import log as logging
 
@@ -101,7 +101,7 @@ def validate_remote_ip_prefix(ethertype, prefix):
         if ((ethertype == ETHERTYPES["IPv4"] and net.version == 6) or
                 (ethertype == ETHERTYPES["IPv6"] and net.version == 4)):
             human_ether = human_readable_ethertype(ethertype)
-            raise exceptions.InvalidInput(
+            raise n_exc.InvalidInput(
                 error_message="Etherytype %s does not match "
                               "remote_ip_prefix, which is IP version %s" %
                               (human_ether, net.version))
@@ -135,7 +135,7 @@ def validate_protocol_with_port_ranges(ethertype, protocol, port_range_min,
             if (port_range_min is None) != (port_range_max is None):
                 # TODO(anyone): what exactly is a TCP or UDP rule withouts
                 #               ports?
-                raise exceptions.InvalidInput(
+                raise n_exc.InvalidInput(
                     error_message="For TCP/UDP rules, port_range_min and"
                                   "port_range_max must either both be supplied"
                                   ", or neither of them")
@@ -145,7 +145,7 @@ def validate_protocol_with_port_ranges(ethertype, protocol, port_range_min,
                     raise sg_ext.SecurityGroupInvalidPortRange()
 
                 if port_range_min < MIN_PORT or port_range_max > MAX_PORT:
-                    raise exceptions.InvalidInput(
+                    raise n_exc.InvalidInput(
                         error_message="port_range_min and port_range_max must "
                                       "be >= %s and <= %s" % (MIN_PORT,
                                                               MAX_PORT))

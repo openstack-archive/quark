@@ -17,8 +17,8 @@ import contextlib
 
 import mock
 import netaddr
-from neutron.common import exceptions
 from neutron.common import rpc
+from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 
 from quark.db import api as db_api
@@ -90,7 +90,7 @@ class QuarkDeleteNetworKDeallocatedIPs(QuarkNetworkFunctionalTest):
                       cidr="0.0.0.0/24",
                       ip_policy=None, tenant_id="fake")
         with self._stubs(network, subnet, dealloc=False) as net_mod:
-            with self.assertRaises(exceptions.SubnetInUse):
+            with self.assertRaises(n_exc.SubnetInUse):
                 self.plugin.delete_network(self.context, net_mod["id"])
 
     def test_delete_network_with_deallocated_ips(self):

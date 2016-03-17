@@ -13,10 +13,10 @@
 # License for# the specific language governing permissions and limitations
 #  under the License.
 
-from neutron.common import exceptions
+from neutron_lib import exceptions as n_exc
 
 from quark.db import api as db_api
-from quark import exceptions as quark_exceptions
+from quark import exceptions as q_exc
 import quark.plugin_modules.segment_allocation_ranges as sa_ranges_api
 from quark import segment_allocations
 from quark.tests.functional.base import BaseFunctionalTest
@@ -167,7 +167,7 @@ class QuarkTestVXLANSegmentAllocation(QuarkSegmentAllocationTest):
         self._allocate_segment(sa_range, count=5)
 
         self.assertRaises(
-            quark_exceptions.SegmentAllocationFailure,
+            q_exc.SegmentAllocationFailure,
             self.driver.allocate,
             self.context, sa_range['segment_id'], 'network_id_2')
 
@@ -179,7 +179,7 @@ class QuarkTestCreateSegmentAllocationRange(QuarkSegmentAllocationTest):
         sa_range_request = {"segment_allocation_range": sa_range_dict}
 
         self.assertRaises(
-            exceptions.NotAuthorized,
+            n_exc.NotAuthorized,
             sa_ranges_api.create_segment_allocation_range,
             self.old_context, sa_range_request)
 
@@ -220,7 +220,7 @@ class QuarkTestCreateSegmentAllocationRange(QuarkSegmentAllocationTest):
             sa_range_dict['first_id'] = first_id
             sa_range_dict['last_id'] = last_id
             self.assertRaises(
-                quark_exceptions.InvalidSegmentAllocationRange,
+                q_exc.InvalidSegmentAllocationRange,
                 sa_ranges_api.create_segment_allocation_range,
                 self.context, sa_range_request)
 
@@ -312,7 +312,7 @@ class QuarkTestCreateSegmentAllocationRange(QuarkSegmentAllocationTest):
             sa_range_dict['first_id'] = first_id
             sa_range_dict['last_id'] = last_id
             self.assertRaises(
-                quark_exceptions.InvalidSegmentAllocationRange,
+                q_exc.InvalidSegmentAllocationRange,
                 sa_ranges_api.create_segment_allocation_range,
                 self.context, sa_range_request)
 
@@ -323,7 +323,7 @@ class QuarkTestGetSegmentAllocationRange(QuarkSegmentAllocationTest):
         sa_range = self._create_segment_allocation_range()
 
         self.assertRaises(
-            exceptions.NotAuthorized,
+            n_exc.NotAuthorized,
             sa_ranges_api.get_segment_allocation_range,
             self.old_context, sa_range["id"])
 
@@ -331,7 +331,7 @@ class QuarkTestGetSegmentAllocationRange(QuarkSegmentAllocationTest):
         self._create_segment_allocation_range()
 
         self.assertRaises(
-            exceptions.NotFound,
+            n_exc.NotFound,
             sa_ranges_api.get_segment_allocation_range,
             self.context, "some_id")
 
@@ -360,7 +360,7 @@ class QuarkTestGetSegmentAllocationRanges(QuarkSegmentAllocationTest):
 
     def test_get_segment_allocation_ranges_unauthorized(self):
         self.assertRaises(
-            exceptions.NotAuthorized,
+            n_exc.NotAuthorized,
             sa_ranges_api.get_segment_allocation_ranges,
             self.old_context)
 
@@ -385,7 +385,7 @@ class QuarkTestDeleteSegmentAllocationRange(QuarkSegmentAllocationTest):
         self._create_segment_allocation_range()
 
         self.assertRaises(
-            exceptions.NotFound,
+            n_exc.NotFound,
             sa_ranges_api.delete_segment_allocation_range,
             self.context, "some_id")
 
@@ -394,7 +394,7 @@ class QuarkTestDeleteSegmentAllocationRange(QuarkSegmentAllocationTest):
 
         # assert non-admins are not authorized
         self.assertRaises(
-            exceptions.NotAuthorized,
+            n_exc.NotAuthorized,
             sa_ranges_api.delete_segment_allocation_range,
             self.old_context, sa_range["id"])
 
@@ -408,7 +408,7 @@ class QuarkTestDeleteSegmentAllocationRange(QuarkSegmentAllocationTest):
         self._allocate_segment(sa_range, count=1)
 
         self.assertRaises(
-            exceptions.InUse,
+            n_exc.InUse,
             sa_ranges_api.delete_segment_allocation_range,
             self.context, sa_range["id"])
 

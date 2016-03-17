@@ -14,7 +14,7 @@
 #    under the License.
 
 import netaddr
-from neutron.common import exceptions
+from neutron.common import exceptions as n_exc_ext
 from oslo_log import log as logging
 
 LOG = logging.getLogger(__name__)
@@ -65,24 +65,24 @@ class AllocationPools(object):
                            "%(start)s - %(end)s:"),
                          {'start': ip_pool['start'],
                           'end': ip_pool['end']})
-                raise exceptions.InvalidAllocationPool(pool=ip_pool)
+                raise n_exc_ext.InvalidAllocationPool(pool=ip_pool)
             if (start_ip.version != self._subnet_cidr.version or
                     end_ip.version != self._subnet_cidr.version):
                 LOG.info(_("Specified IP addresses do not match "
                            "the subnet IP version"))
-                raise exceptions.InvalidAllocationPool(pool=ip_pool)
+                raise n_exc_ext.InvalidAllocationPool(pool=ip_pool)
             if end_ip < start_ip:
                 LOG.info(_("Start IP (%(start)s) is greater than end IP "
                            "(%(end)s)"),
                          {'start': ip_pool['start'], 'end': ip_pool['end']})
-                raise exceptions.InvalidAllocationPool(pool=ip_pool)
+                raise n_exc_ext.InvalidAllocationPool(pool=ip_pool)
             if (start_ip < self._subnet_first_ip or
                     end_ip > self._subnet_last_ip):
                 LOG.info(_("Found pool larger than subnet "
                            "CIDR:%(start)s - %(end)s"),
                          {'start': ip_pool['start'],
                           'end': ip_pool['end']})
-                raise exceptions.OutOfBoundsAllocationPool(
+                raise n_exc_ext.OutOfBoundsAllocationPool(
                     pool=ip_pool,
                     subnet_cidr=subnet_cidr)
             # Valid allocation pool
@@ -105,7 +105,7 @@ class AllocationPools(object):
                     LOG.info(_("Found overlapping ranges: %(l_range)s and "
                                "%(r_range)s"),
                              {'l_range': l_range, 'r_range': r_range})
-                    raise exceptions.OverlappingAllocationPools(
+                    raise n_exc_ext.OverlappingAllocationPools(
                         pool_1=l_range,
                         pool_2=r_range,
                         subnet_cidr=subnet_cidr)
@@ -155,7 +155,7 @@ class AllocationPools(object):
             if (not self._exclude_cidrs or
                     (self._exclude_cidrs and gateway_ip_addr
                      not in self._exclude_cidrs)):
-                raise exceptions.GatewayConflictWithAllocationPools(
+                raise n_exc_ext.GatewayConflictWithAllocationPools(
                     ip_address=gateway_ip, pool=self._alloc_pools)
 
     def get_policy_cidrs(self):

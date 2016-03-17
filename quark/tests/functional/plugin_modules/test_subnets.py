@@ -15,7 +15,7 @@
 
 import mock
 import netaddr
-from neutron.common import exceptions
+from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 
 import contextlib
@@ -111,7 +111,7 @@ class QuarkCreateSubnets(BaseFunctionalTest):
                       last_ip=ip_network.last, ip_policy=None,
                       tenant_id="fake", allocation_pools=pools)
         subnet = {"subnet": subnet}
-        with self.assertRaises(exceptions.OverQuota):
+        with self.assertRaises(n_exc.OverQuota):
             cfg.CONF.set_override('quota_alloc_pools_per_subnet', 1, "QUOTAS")
             with self._stubs(network, subnet) as (net, sub):
                 self.assertTrue(sub)

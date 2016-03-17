@@ -19,8 +19,9 @@ import time
 
 import mock
 import netaddr
-from neutron.common import exceptions
+from neutron.common import exceptions as n_exc_ext
 from neutron.common import rpc
+from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 from oslo_db import exception as db_exc
 
@@ -220,13 +221,13 @@ class QuarkNewMacAddressAllocation(QuarkIpamBaseTest):
 
     def test_allocate_mac_no_ranges_fails(self):
         with self._stubs(ranges=(None, 0)):
-            with self.assertRaises(exceptions.MacAddressGenerationFailure):
+            with self.assertRaises(n_exc_ext.MacAddressGenerationFailure):
                 self.ipam.allocate_mac_address(self.context, 0, 0, 0)
 
     def test_allocate_mac_no_available_range_fails(self):
         ranges = (None, 0)
         with self._stubs(ranges=ranges):
-            with self.assertRaises(exceptions.MacAddressGenerationFailure):
+            with self.assertRaises(n_exc_ext.MacAddressGenerationFailure):
                 self.ipam.allocate_mac_address(self.context, 0, 0, 0)
 
     def test_allocate_mac_next_to_last_in_range(self):
@@ -249,7 +250,7 @@ class QuarkNewMacAddressAllocation(QuarkIpamBaseTest):
         mar = dict(id=1, first_address=0, last_address=1,
                    next_auto_assign_mac=1)
         with self._stubs(ranges=(mar, 4), addresses=[None, None]) as mr:
-            with self.assertRaises(exceptions.MacAddressGenerationFailure):
+            with self.assertRaises(n_exc_ext.MacAddressGenerationFailure):
                 self.ipam.allocate_mac_address(self.context, 0, 0, 0)
             self.assertEqual(mr[0]["next_auto_assign_mac"], -1)
 
@@ -308,7 +309,7 @@ class QuarkNewMacAddressReallocationDeadlocks(QuarkIpamBaseTest):
         mac = dict(id=1, address=254)
         with self._stubs(ranges=(mar, 0), addresses=[Exception, mac]) as (
                 mac_realloc):
-            with self.assertRaises(exceptions.MacAddressGenerationFailure):
+            with self.assertRaises(n_exc_ext.MacAddressGenerationFailure):
                 self.ipam.allocate_mac_address(self.context, 0, 0, 0)
             self.assertEqual(mac_realloc.call_count, 1)
 
@@ -348,7 +349,7 @@ class QuarkMacAddressDeallocation(QuarkIpamBaseTest):
 
     def test_deallocate_mac_mac_not_found_fails(self):
         with self._stubs(mac=None, mac_range=None) as (mac_update, mac_delete):
-            self.assertRaises(exceptions.NotFound,
+            self.assertRaises(n_exc.NotFound,
                               self.ipam.deallocate_mac_address, self.context,
                               0)
             self.assertFalse(mac_update.called)
@@ -550,7 +551,7 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
                                    (subnet4_3, 255)],
                                   [(subnet6, self.v6_lip.value - 1)]],
                          addresses=[None, None, None, None]):
-            with self.assertRaises(exceptions.IpAddressGenerationFailure):
+            with self.assertRaises(n_exc.IpAddressGenerationFailure):
                 self.ipam.allocate_ip_address(self.context, [], 0, 0, 0)
 
     def test_allocate_new_ip_address_two_empty_subnets(self):
@@ -625,7 +626,7 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
     def test_allocate_new_ip_address_no_avail_subnets(self):
         with self._stubs(subnets=[[], []],
                          addresses=[None, None, None, None]):
-            with self.assertRaises(exceptions.IpAddressGenerationFailure):
+            with self.assertRaises(n_exc.IpAddressGenerationFailure):
                 addr = []
                 self.ipam.allocate_ip_address(self.context, addr, 0, 0, 0)
 
@@ -726,7 +727,7 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
 
     def test_reallocate_deallocated_v4_ip_shared_net_no_subs_raises(self):
         with self._stubs(subnets=[], addresses=[None]):
-            with self.assertRaises(exceptions.IpAddressGenerationFailure):
+            with self.assertRaises(n_exc.IpAddressGenerationFailure):
                 addr = []
                 self.ipam.allocate_ip_address(self.context, addr, 0, 0, 0,
                                               segment_id="cell01")
@@ -800,7 +801,7 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
 
         with self._stubs(subnets=[[(subnet6, 0)]],
                          addresses=[address, None, None]):
-            with self.assertRaises(exceptions.IpAddressGenerationFailure):
+            with self.assertRaises(n_exc.IpAddressGenerationFailure):
                 addr = []
                 self.ipam.allocate_ip_address(self.context, addr, 0, 0, 0,
                                               mac_address=mac)
@@ -948,7 +949,7 @@ class QuarkIpamTestBothRequiredIpAllocation(QuarkIpamBaseTest):
                        ip_policy=None)
         with self._stubs(subnets=[[(subnet4, 0)], []],
                          addresses=[None, None, None, None]):
-            with self.assertRaises(exceptions.IpAddressGenerationFailure):
+            with self.assertRaises(n_exc.IpAddressGenerationFailure):
                 self.ipam.allocate_ip_address(self.context, [], 0, 0, 0)
 
     def test_allocate_new_ip_address_one_v6_subnet_open(self):
@@ -959,14 +960,14 @@ class QuarkIpamTestBothRequiredIpAllocation(QuarkIpamBaseTest):
                        ip_policy=None)
         with self._stubs(subnets=[[], [(subnet6, 0)]],
                          addresses=[None, None, None, None]):
-            with self.assertRaises(exceptions.IpAddressGenerationFailure):
+            with self.assertRaises(n_exc.IpAddressGenerationFailure):
                 self.ipam.allocate_ip_address(self.context, [], 0, 0, 0,
                                               mac_address=mac_address)
 
     def test_allocate_new_ip_address_no_avail_subnets(self):
         with self._stubs(subnets=[[], []],
                          addresses=[None, None, None, None]):
-            with self.assertRaises(exceptions.IpAddressGenerationFailure):
+            with self.assertRaises(n_exc.IpAddressGenerationFailure):
                 addr = []
                 self.ipam.allocate_ip_address(self.context, addr, 0, 0, 0)
 
@@ -1048,7 +1049,7 @@ class QuarkIpamTestBothRequiredIpAllocation(QuarkIpamBaseTest):
         with self._stubs(subnets=[[(subnet4, 0)], [(subnet6, 0)]],
                          addresses=[None, None, None, None]):
             address = []
-            with self.assertRaises(exceptions.IpAddressGenerationFailure):
+            with self.assertRaises(n_exc.IpAddressGenerationFailure):
                 self.ipam.allocate_ip_address(self.context, address, 0,
                                               port_id, 0, mac_address=0)
             self.assertEqual(address[0]["address"],
@@ -1139,7 +1140,7 @@ class QuarkIpamAllocateFromV6Subnet(QuarkIpamBaseTest):
 
         policy = netaddr.IPSet(["feed::/64"])
         with self._stubs(policies=policy):
-            with self.assertRaises(exceptions.IpAddressGenerationFailure):
+            with self.assertRaises(n_exc.IpAddressGenerationFailure):
                 self.ipam._allocate_from_v6_subnet(self.context, 0, subnet6,
                                                    port_id, self.reuse_after,
                                                    mac_address=mac)
@@ -1427,7 +1428,7 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
 
     def test_allocate_ip_no_subnet_fails(self):
         with self._stubs(subnets=[]):
-            with self.assertRaises(exceptions.IpAddressGenerationFailure):
+            with self.assertRaises(n_exc.IpAddressGenerationFailure):
                 self.ipam.allocate_ip_address(self.context, [], 0, 0, 0)
 
     def test_allocate_ip_no_available_subnet_fails(self):
@@ -1437,7 +1438,7 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
                            size=1,
                            exclude=[models.IPPolicyCIDR(cidr="0.0.0.0/32")]))
         with self._stubs(subnets=[(subnet1, 1)]):
-            with self.assertRaises(exceptions.IpAddressGenerationFailure):
+            with self.assertRaises(n_exc.IpAddressGenerationFailure):
                 self.ipam.allocate_ip_address(self.context, [], 0, 0, 0)
 
     def test_allocate_ip_two_open_subnets_choses_first(self):
@@ -1479,7 +1480,7 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
                        cidr="0.0.1.0/24", ip_version=4)
         subnets = [(subnet1, 1)]
         with self._stubs(subnets=subnets, addresses=[None, None]):
-            with self.assertRaises(exceptions.IpAddressGenerationFailure):
+            with self.assertRaises(n_exc.IpAddressGenerationFailure):
                 self.ipam.allocate_ip_address(
                     self.context, [], 0, 0, 0, ip_addresses=["0.0.0.240"])
 
@@ -1563,7 +1564,7 @@ class QuarkIPAddressAllocationTestRetries(QuarkIpamBaseTest):
         with self._stubs(subnets=subnets,
                          address=[q_exc.IPAddressRetryableFailure,
                                   addr_found]):
-            with self.assertRaises(exceptions.IpAddressInUse):
+            with self.assertRaises(n_exc.IpAddressInUse):
                 self.ipam.allocate_ip_address(
                     self.context, [], 0, 0, 0, ip_addresses=["0.0.0.1"])
 
@@ -1610,7 +1611,7 @@ class QuarkIPAddressAllocationTestRetries(QuarkIpamBaseTest):
         with self._stubs(subnets=subnets,
                          address=[q_exc.IPAddressRetryableFailure,
                                   addr_found]) as (sub_mods, addr_mods):
-            with self.assertRaises(exceptions.IpAddressGenerationFailure):
+            with self.assertRaises(n_exc.IpAddressGenerationFailure):
                 self.ipam.allocate_ip_address(
                     self.context, [], 0, 0, 0, ip_addresses=["0.0.1.0"],
                     subnets=subnet1)
@@ -1750,7 +1751,7 @@ class TestQuarkIpPoliciesIpAllocation(QuarkIpamBaseTest):
                       ip_policy=dict(size=256, exclude=[
                           models.IPPolicyCIDR(cidr="0.0.0.0/24")]))
         with self._stubs(subnets=[(subnet, 0)], addresses=[None, None]):
-            with self.assertRaises(exceptions.IpAddressGenerationFailure):
+            with self.assertRaises(n_exc.IpAddressGenerationFailure):
                 self.ipam.allocate_ip_address(self.context, [], 0, 0, 0,
                                               version=4)
 
@@ -2183,7 +2184,7 @@ class QuarkIpamTestIpAddressFailure(test_base.TestBase):
 
     def test_ip_failure_tenant_net(self):
         net_id = "8f6555ca-fbe7-49db-8240-1cb84202c1f7"
-        with self.assertRaises(exceptions.IpAddressGenerationFailure):
+        with self.assertRaises(n_exc.IpAddressGenerationFailure):
             raise quark.ipam.ip_address_failure(net_id)
 
 

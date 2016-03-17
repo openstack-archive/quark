@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from neutron.common import exceptions
+from neutron_lib import exceptions as n_exc
 
 from quark.db import models
 from quark import tags
@@ -114,7 +114,7 @@ class TestTagBase(test_base.TestBase):
         kwargs = {self.foo_tag.get_name(): "foo",
                   self.tag.get_name(): self.invalid_value}
 
-        with self.assertRaises(exceptions.BadRequest):
+        with self.assertRaises(n_exc.BadRequest):
             self.registry.set_all(model, **kwargs)
 
     def test_tag_get(self):

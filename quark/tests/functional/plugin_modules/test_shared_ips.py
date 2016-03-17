@@ -18,11 +18,11 @@ import netaddr
 
 import contextlib
 
-from neutron.common import exceptions
+from neutron_lib import exceptions as n_exc
 from quark.db import ip_types
 
 from quark.db import api as db_api
-from quark import exceptions as q_exceptions
+from quark import exceptions as q_exc
 import quark.ipam
 import quark.plugin
 import quark.plugin_modules.ip_addresses as ip_api
@@ -36,7 +36,7 @@ from quark.tests.functional.base import BaseFunctionalTest
 class QuarkSharedIPs(BaseFunctionalTest):
     def __init__(self, *args, **kwargs):
         super(QuarkSharedIPs, self).__init__(*args, **kwargs)
-        self.disassociate_exception = q_exceptions.PortRequiresDisassociation
+        self.disassociate_exception = q_exc.PortRequiresDisassociation
         self.cidr = "192.168.2.0/24"
         self.ip_network = netaddr.IPNetwork(self.cidr)
         network = dict(name="public", tenant_id="fake", network_plugin="BASE")
@@ -115,7 +115,7 @@ class QuarkSharedIPs(BaseFunctionalTest):
             port_ids = [ports[0]['id'], ports[3]['id']]
             shared_ip = {'ip_addresses': dict(port_ids=port_ids)}
 
-            with self.assertRaises(exceptions.BadRequest):
+            with self.assertRaises(n_exc.BadRequest):
                 ip_api.update_ip_address(self.context, ip['id'], shared_ip)
 
     def test_update_shared_ip_with_empty_port_id_list_will_error(self):
@@ -132,7 +132,7 @@ class QuarkSharedIPs(BaseFunctionalTest):
             port_ids = []
             shared_ip = {'ip_addresses': dict(port_ids=port_ids)}
 
-            with self.assertRaises(exceptions.BadRequest):
+            with self.assertRaises(n_exc.BadRequest):
                 ip_api.update_ip_address(self.context, ip['id'], shared_ip)
 
     def test_update_shared_ip_with_garbage_will_error(self):
@@ -149,7 +149,7 @@ class QuarkSharedIPs(BaseFunctionalTest):
             port_ids = [ports[0]['id'], ports[3]['id']]
             shared_ip = {'delasdfkj': dict(port_ids=port_ids)}
 
-            with self.assertRaises(exceptions.BadRequest):
+            with self.assertRaises(n_exc.BadRequest):
                 ip_api.update_ip_address(self.context, ip['id'], shared_ip)
 
     def test_update_shared_ip_with_unowned_ports_is_okay(self):
@@ -334,7 +334,7 @@ class QuarkSharedIPs(BaseFunctionalTest):
             shared_ip = {'ip_addresses': dict(port_ids=port_ids,
                                               network_id=net['id'],
                                               version=4)}
-            with self.assertRaises(exceptions.BadRequest):
+            with self.assertRaises(n_exc.BadRequest):
                 ip_api.create_ip_address(self.context, shared_ip)
 
     def test_create_shared_ips_fails_with_garbage_body(self):
@@ -346,7 +346,7 @@ class QuarkSharedIPs(BaseFunctionalTest):
             shared_ip = {'derpie_derp': dict(port_ids=port_ids,
                                              network_id=net['id'],
                                              version=4)}
-            with self.assertRaises(exceptions.BadRequest):
+            with self.assertRaises(n_exc.BadRequest):
                 ip_api.create_ip_address(self.context, shared_ip)
 
     def test_shared_ip_in_fixed_ip_list(self):
@@ -414,7 +414,7 @@ class QuarkSharedIPs(BaseFunctionalTest):
                                             version=4)}
             ip = ip_api.create_ip_address(self.context, shared_ip)
             ip_api.delete_ip_address(self.context, ip['id'])
-            with self.assertRaises(q_exceptions.IpAddressNotFound):
+            with self.assertRaises(q_exc.IpAddressNotFound):
                 ip_api.get_ip_address(self.context, ip['id'])
 
     def test_cannot_delete_ip_with_active_port(self):
@@ -437,7 +437,7 @@ class QuarkSharedIPs(BaseFunctionalTest):
 class QuarkSharedIPsQuotaCheck(BaseFunctionalTest):
     def __init__(self, *args, **kwargs):
         super(QuarkSharedIPsQuotaCheck, self).__init__(*args, **kwargs)
-        self.disassociate_exception = q_exceptions.PortRequiresDisassociation
+        self.disassociate_exception = q_exc.PortRequiresDisassociation
         self.cidr = "192.168.2.0/24"
         self.ip_network = netaddr.IPNetwork(self.cidr)
         network = dict(name="public", tenant_id="fake", network_plugin="BASE")
@@ -503,7 +503,7 @@ class QuarkSharedIPsQuotaCheck(BaseFunctionalTest):
                 else:
                     ip_api.create_ip_address(self.context, shared_ip2)
 
-            with self.assertRaises(q_exceptions.CannotCreateMoreSharedIPs):
+            with self.assertRaises(q_exc.CannotCreateMoreSharedIPs):
                 ip_api.create_ip_address(self.context, shared_ip)
 
     def test_create_shared_ip_over_isolated_network_quota(self):
@@ -544,7 +544,7 @@ class QuarkSharedIPsQuotaCheck(BaseFunctionalTest):
                                             version=4)}
 
             # NOTE(roaet): this is hardcoded to 0 so should fail instantly
-            with self.assertRaises(q_exceptions.CannotCreateMoreSharedIPs):
+            with self.assertRaises(q_exc.CannotCreateMoreSharedIPs):
                 ip_api.create_ip_address(self.context, shared_ip)
 
     def test_create_shared_ip_over_public_total_ip_on_port_quota(self):
@@ -564,7 +564,7 @@ class QuarkSharedIPsQuotaCheck(BaseFunctionalTest):
             for i in xrange(5):
                 ip_api.create_ip_address(self.context, shared_ip)
 
-            with self.assertRaises(exceptions.OverQuota):
+            with self.assertRaises(n_exc.OverQuota):
                 ip_api.create_ip_address(self.context, shared_ip)
 
     def test_create_shared_ip_over_isolated_total_ip_on_port_quota(self):
@@ -580,7 +580,7 @@ class QuarkSharedIPsQuotaCheck(BaseFunctionalTest):
             for i in xrange(4):
                 ip_api.create_ip_address(self.context, shared_ip)
 
-            with self.assertRaises(exceptions.OverQuota):
+            with self.assertRaises(n_exc.OverQuota):
                 ip_api.create_ip_address(self.context, shared_ip)
 
     def test_create_shared_ip_over_service_total_ip_on_port_quota(self):
@@ -596,5 +596,5 @@ class QuarkSharedIPsQuotaCheck(BaseFunctionalTest):
                                             network_id=net['id'],
                                             version=4)}
             # NOTE(roaet): this is hardcoded to 1 so should fail immediately
-            with self.assertRaises(exceptions.OverQuota):
+            with self.assertRaises(n_exc.OverQuota):
                 ip_api.create_ip_address(self.context, shared_ip)

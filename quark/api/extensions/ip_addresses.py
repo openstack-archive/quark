@@ -14,9 +14,9 @@
 # limitations under the License.
 
 from neutron.api import extensions
-from neutron.common import exceptions
 from neutron import manager
 from neutron import wsgi
+from neutron_lib import exceptions as n_exc
 from oslo_log import log as logging
 import webob
 
@@ -57,7 +57,7 @@ class IpAddressesController(wsgi.Controller):
         try:
             return {"ip_address":
                     self._plugin.get_ip_address(context, id)}
-        except exceptions.NotFound as e:
+        except n_exc.NotFound as e:
             raise webob.exc.HTTPNotFound(e)
 
     def create(self, request, body=None):
@@ -65,11 +65,11 @@ class IpAddressesController(wsgi.Controller):
         try:
             return {"ip_address": self._plugin.create_ip_address(
                     request.context, body)}
-        except exceptions.NotFound as e:
+        except n_exc.NotFound as e:
             raise webob.exc.HTTPNotFound(e)
-        except exceptions.Conflict as e:
+        except n_exc.Conflict as e:
             raise webob.exc.HTTPConflict(e)
-        except exceptions.BadRequest as e:
+        except n_exc.BadRequest as e:
             raise webob.exc.HTTPBadRequest(e)
 
     def update(self, request, id, body=None):
@@ -77,18 +77,18 @@ class IpAddressesController(wsgi.Controller):
         try:
             return {"ip_address": self._plugin.update_ip_address(
                     request.context, id, body)}
-        except exceptions.NotFound as e:
+        except n_exc.NotFound as e:
             raise webob.exc.HTTPNotFound(e)
-        except exceptions.BadRequest as e:
+        except n_exc.BadRequest as e:
             raise webob.exc.HTTPBadRequest(e)
 
     def delete(self, request, id):
         context = request.context
         try:
             return self._plugin.delete_ip_address(context, id)
-        except exceptions.NotFound as e:
+        except n_exc.NotFound as e:
             raise webob.exc.HTTPNotFound(e)
-        except exceptions.BadRequest as e:
+        except n_exc.BadRequest as e:
             raise webob.exc.HTTPBadRequest(e)
 
 
@@ -113,7 +113,7 @@ class IpAddressPortController(wsgi.Controller):
         try:
             ports = fx(context, ip_address_id, filters=filters, **request.GET)
             return {"ports": ports}
-        except exceptions.NotFound as e:
+        except n_exc.NotFound as e:
             raise webob.exc.HTTPNotFound(e)
 
     def create(self, request, **kwargs):
@@ -126,7 +126,7 @@ class IpAddressPortController(wsgi.Controller):
             return {"port":
                     self._plugin.get_port_for_ip_address(context,
                                                          ip_address_id, id)}
-        except exceptions.NotFound as e:
+        except n_exc.NotFound as e:
             raise webob.exc.HTTPNotFound(e)
 
     def update(self, ip_address_id, request, id, body=None):
@@ -135,9 +135,9 @@ class IpAddressPortController(wsgi.Controller):
             return {"port": self._plugin.update_port_for_ip(request.context,
                                                             ip_address_id,
                                                             id, body)}
-        except exceptions.NotFound as e:
+        except n_exc.NotFound as e:
             raise webob.exc.HTTPNotFound(e)
-        except exceptions.BadRequest as e:
+        except n_exc.BadRequest as e:
             raise webob.exc.HTTPBadRequest(e)
 
     def delete(self, request, id, **kwargs):

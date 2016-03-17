@@ -14,8 +14,8 @@
 #    under the License.
 
 import netaddr
-from neutron.common import exceptions
 from neutron import quota
+from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_utils import importutils
@@ -23,7 +23,7 @@ from oslo_utils import importutils
 from quark import allocation_pool
 from quark.db import api as db_api
 from quark.db import models as db_models
-from quark import exceptions as quark_exceptions
+from quark import exceptions as q_exc
 from quark import plugin_views as v
 
 CONF = cfg.CONF
@@ -37,7 +37,7 @@ def get_route(context, id):
     LOG.info("get_route %s for tenant %s" % (id, context.tenant_id))
     route = db_api.route_find(context, id=id, scope=db_api.ONE)
     if not route:
-        raise quark_exceptions.RouteNotFound(route_id=id)
+        raise q_exc.RouteNotFound(route_id=id)
     return v._make_route_dict(route)
 
 
@@ -52,14 +52,14 @@ def create_route(context, route):
     route = route["route"]
     for key in ["gateway", "cidr", "subnet_id"]:
         if key not in route:
-            raise exceptions.BadRequest(resource="routes",
-                                        msg="%s is required" % key)
+            raise n_exc.BadRequest(resource="routes",
+                                   msg="%s is required" % key)
 
     subnet_id = route["subnet_id"]
     with context.session.begin():
         subnet = db_api.subnet_find(context, id=subnet_id, scope=db_api.ONE)
         if not subnet:
-            raise exceptions.SubnetNotFound(subnet_id=subnet_id)
+            raise n_exc.SubnetNotFound(subnet_id=subnet_id)
         policies = db_models.IPPolicy.get_ip_policy_cidrs(subnet)
         alloc_pools = allocation_pool.AllocationPools(subnet["cidr"],
                                                       policies=policies)
@@ -79,8 +79,8 @@ def create_route(context, route):
             if sub_route_cidr.value == DEFAULT_ROUTE.value:
                 continue
             if route_cidr in sub_route_cidr or sub_route_cidr in route_cidr:
-                raise quark_exceptions.RouteConflict(
-                    route_id=sub_route["id"], cidr=str(route_cidr))
+                raise q_exc.RouteConflict(route_id=sub_route["id"],
+                                          cidr=str(route_cidr))
         new_route = db_api.route_create(context, **route)
     return v._make_route_dict(new_route)
 
@@ -93,5 +93,5 @@ def delete_route(context, id):
     with context.session.begin():
         route = db_api.route_find(context, id=id, scope=db_api.ONE)
         if not route:
-            raise quark_exceptions.RouteNotFound(route_id=id)
+            raise q_exc.RouteNotFound(route_id=id)
         db_api.route_delete(context, route)

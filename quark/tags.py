@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from neutron.common import exceptions
+from neutron_lib import exceptions as n_exc
 
 
 class TagValidationError(Exception):
@@ -160,7 +160,7 @@ class TagRegistry(object):
                     try:
                         tag.set(model, value)
                     except TagValidationError as e:
-                        raise exceptions.BadRequest(
+                        raise n_exc.BadRequest(
                             resource="tags",
                             msg="%s" % (e.message))
 

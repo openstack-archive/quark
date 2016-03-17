@@ -14,9 +14,9 @@
 #    under the License.
 
 import netaddr
-from neutron.common import exceptions
 from neutron.extensions import securitygroup as sg_ext
 from neutron import quota
+from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_utils import uuidutils
@@ -45,7 +45,7 @@ def _raise_if_unauthorized(context, net):
     if (not STRATEGY.is_provider_network(net["id"]) and
             net["tenant_id"] != context.tenant_id and
             not context.is_advsvc):
-        raise exceptions.NotAuthorized()
+        raise n_exc.NotAuthorized()
 
 
 def _get_net_driver(network, port=None):
@@ -57,8 +57,8 @@ def _get_net_driver(network, port=None):
         return registry.DRIVER_REGISTRY.get_driver(
             network["network_plugin"], port_driver=port_driver)
     except Exception as e:
-        raise exceptions.BadRequest(resource="ports",
-                                    msg="invalid network_plugin: %s" % e)
+        raise n_exc.BadRequest(resource="ports",
+                               msg="invalid network_plugin: %s" % e)
 
 
 def _get_ipam_driver(network, port=None):
@@ -79,8 +79,8 @@ def _get_ipam_driver(network, port=None):
     try:
         return ipam.IPAM_REGISTRY.get_strategy(strategy)
     except Exception as e:
-        raise exceptions.BadRequest(resource="ports",
-                                    msg="invalid ipam_strategy: %s" % e)
+        raise n_exc.BadRequest(resource="ports",
+                               msg="invalid ipam_strategy: %s" % e)
 
 
 # NOTE(morgabra) Backend driver operations return a lot of stuff. We use a
@@ -105,8 +105,8 @@ def split_and_validate_requested_subnets(context, net_id, segment_id,
         subnet_id = fixed_ip.get("subnet_id")
         ip_address = fixed_ip.get("ip_address")
         if not subnet_id:
-            raise exceptions.BadRequest(resource="fixed_ips",
-                                        msg="subnet_id required")
+            raise n_exc.BadRequest(resource="fixed_ips",
+                                   msg="subnet_id required")
         if ip_address:
             ip_addresses[ip_address] = subnet_id
         else:
@@ -116,11 +116,11 @@ def split_and_validate_requested_subnets(context, net_id, segment_id,
 
     sub_models = db_api.subnet_find(context, id=subnets, scope=db_api.ALL)
     if len(sub_models) == 0:
-        raise exceptions.NotFound(msg="Requested subnet(s) not found")
+        raise n_exc.SubnetNotFound(subnet_id=subnets)
 
     for s in sub_models:
         if s["network_id"] != net_id:
-            raise exceptions.InvalidInput(
+            raise n_exc.InvalidInput(
                 error_message="Requested subnet doesn't belong to requested "
                               "network")
 
@@ -173,7 +173,7 @@ def create_port(context, port):
                               scope=db_api.ONE)
 
     if not net:
-        raise exceptions.NetworkNotFound(net_id=net_id)
+        raise n_exc.NetworkNotFound(net_id=net_id)
     _raise_if_unauthorized(context, net)
 
     # NOTE (Perkins): If a device_id is given, try to prevent multiple ports
@@ -184,7 +184,7 @@ def create_port(context, port):
                                           device_id=device_id,
                                           scope=db_api.ONE)
         if existing_ports:
-            raise exceptions.BadRequest(
+            raise n_exc.BadRequest(
                 resource="port", msg="This device is already connected to the "
                 "requested network via another port")
 
@@ -238,7 +238,7 @@ def create_port(context, port):
             if fixed_ips:
                 if (STRATEGY.is_provider_network(net_id) and
                         not context.is_admin):
-                    raise exceptions.NotAuthorized()
+                    raise n_exc.NotAuthorized()
 
                 ips, subnets = split_and_validate_requested_subnets(context,
                                                                     net_id,
@@ -359,7 +359,7 @@ def update_port(context, id, port):
     LOG.info("update_port %s for tenant %s" % (id, context.tenant_id))
     port_db = db_api.port_find(context, id=id, scope=db_api.ONE)
     if not port_db:
-        raise exceptions.PortNotFound(port_id=id)
+        raise n_exc.PortNotFound(port_id=id)
 
     port_dict = port["port"]
     fixed_ips = port_dict.pop("fixed_ips", None)
@@ -406,12 +406,12 @@ def update_port(context, id, port):
             subnet_id = fixed_ip.get("subnet_id")
             ip_address = fixed_ip.get("ip_address")
             if not (subnet_id or ip_address):
-                raise exceptions.BadRequest(
+                raise n_exc.BadRequest(
                     resource="fixed_ips",
                     msg="subnet_id or ip_address required")
 
             if ip_address and not subnet_id:
-                raise exceptions.BadRequest(
+                raise n_exc.BadRequest(
                     resource="fixed_ips",
                     msg="subnet_id required for ip_address allocation")
 
@@ -420,7 +420,7 @@ def update_port(context, id, port):
                 try:
                     ip_netaddr = netaddr.IPAddress(ip_address).ipv6()
                 except netaddr.AddrFormatError:
-                    raise exceptions.InvalidInput(
+                    raise n_exc.InvalidInput(
                         error_message="Invalid format provided for ip_address")
                 ip_addresses[ip_netaddr] = subnet_id
             else:
@@ -510,7 +510,7 @@ def get_port(context, id, fields=None):
                                scope=db_api.ONE)
 
     if not results:
-        raise exceptions.PortNotFound(port_id=id, net_id='')
+        raise n_exc.PortNotFound(port_id=id)
 
     return v._make_port_dict(results)
 
@@ -542,12 +542,12 @@ def get_ports(context, limit=None, sorts=None, marker=None, page_reverse=False,
 
     if "ip_address" in filters:
         if not context.is_admin:
-            raise exceptions.NotAuthorized()
+            raise n_exc.NotAuthorized()
         ips = []
         try:
             ips = [netaddr.IPAddress(ip) for ip in filters.pop("ip_address")]
         except netaddr.AddrFormatError:
-            raise exceptions.InvalidInput(
+            raise n_exc.InvalidInput(
                 error_message="Invalid format provided for ip_address")
         query = db_api.port_find_by_ip_address(context, ip_address=ips,
                                                scope=db_api.ALL, **filters)
@@ -594,7 +594,7 @@ def delete_port(context, id):
 
     port = db_api.port_find(context, id=id, scope=db_api.ONE)
     if not port:
-        raise exceptions.PortNotFound(net_id=id)
+        raise n_exc.PortNotFound(port_id=id)
 
     backend_key = port["backend_key"]
     mac_address = netaddr.EUI(port["mac_address"]).value
@@ -624,14 +624,14 @@ def _diag_port(context, port, fields):
 
 def diagnose_port(context, id, fields):
     if not context.is_admin:
-        raise exceptions.NotAuthorized()
+        raise n_exc.NotAuthorized()
 
     if id == "*":
         return {'ports': [_diag_port(context, port, fields) for
                 port in db_api.port_find(context).all()]}
     db_port = db_api.port_find(context, id=id, scope=db_api.ONE)
     if not db_port:
-        raise exceptions.PortNotFound(port_id=id, net_id='')
+        raise n_exc.PortNotFound(port_id=id)
     port = _diag_port(context, db_port, fields)
     return {'ports': port}
 

@@ -14,9 +14,9 @@
 # limitations under the License.
 
 from neutron.api import extensions
-from neutron.common import exceptions
 from neutron import manager
 from neutron import wsgi
+from neutron_lib import exceptions as n_exc
 from oslo_log import log as logging
 import webob
 
@@ -66,14 +66,14 @@ class RoutesController(wsgi.Controller):
         context = request.context
         try:
             return {"route": self._plugin.get_route(context, id)}
-        except exceptions.NotFound:
+        except n_exc.NotFound:
             raise webob.exc.HTTPNotFound()
 
     def delete(self, request, id):
         context = request.context
         try:
             self._plugin.delete_route(context, id)
-        except exceptions.NotFound:
+        except n_exc.NotFound:
             raise webob.exc.HTTPNotFound()
 
 

@@ -14,11 +14,11 @@
 #    under the License.
 
 import netaddr
-from neutron.common import exceptions
+from neutron_lib import exceptions as n_exc
 from oslo_log import log as logging
 
 from quark.db import api as db_api
-from quark import exceptions as quark_exceptions
+from quark import exceptions as q_exc
 from quark import plugin_views as v
 
 LOG = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ def _to_mac_range(val):
     prefix = prefix.replace('-', '')
     prefix_length = len(prefix)
     if prefix_length < 6 or prefix_length > 12:
-        raise quark_exceptions.InvalidMacAddressRange(cidr=val)
+        raise q_exc.InvalidMacAddressRange(cidr=val)
 
     diff = 12 - len(prefix)
     if len(cidr_parts) > 1:
@@ -46,7 +46,7 @@ def _to_mac_range(val):
     try:
         cidr = "%s/%s" % (str(netaddr.EUI(prefix)).replace("-", ":"), mask)
     except netaddr.AddrFormatError:
-        raise quark_exceptions.InvalidMacAddressRange(cidr=val)
+        raise q_exc.InvalidMacAddressRange(cidr=val)
     prefix_int = int(prefix, base=16)
     return cidr, prefix_int, prefix_int + mask_size
 
@@ -65,13 +65,13 @@ def get_mac_address_range(context, id, fields=None):
              (id, context.tenant_id, fields))
 
     if not context.is_admin:
-        raise exceptions.NotAuthorized()
+        raise n_exc.NotAuthorized()
 
     mac_address_range = db_api.mac_address_range_find(
         context, id=id, scope=db_api.ONE)
 
     if not mac_address_range:
-        raise quark_exceptions.MacAddressRangeNotFound(
+        raise q_exc.MacAddressRangeNotFound(
             mac_address_range_id=id)
     return v._make_mac_range_dict(mac_address_range)
 
@@ -79,7 +79,7 @@ def get_mac_address_range(context, id, fields=None):
 def get_mac_address_ranges(context):
     LOG.info("get_mac_address_ranges for tenant %s" % context.tenant_id)
     if not context.is_admin:
-        raise exceptions.NotAuthorized()
+        raise n_exc.NotAuthorized()
 
     ranges = db_api.mac_address_range_find(context)
     return [v._make_mac_range_dict(m) for m in ranges]
@@ -88,7 +88,7 @@ def get_mac_address_ranges(context):
 def create_mac_address_range(context, mac_range):
     LOG.info("create_mac_address_range for tenant %s" % context.tenant_id)
     if not context.is_admin:
-        raise exceptions.NotAuthorized()
+        raise n_exc.NotAuthorized()
 
     cidr = mac_range["mac_address_range"]["cidr"]
     do_not_use = mac_range["mac_address_range"].get("do_not_use", "0")
@@ -103,7 +103,7 @@ def create_mac_address_range(context, mac_range):
 
 def _delete_mac_address_range(context, mac_address_range):
     if mac_address_range.allocated_macs:
-        raise quark_exceptions.MacAddressRangeInUse(
+        raise q_exc.MacAddressRangeInUse(
             mac_address_range_id=mac_address_range["id"])
     db_api.mac_address_range_delete(context, mac_address_range)
 
@@ -117,11 +117,11 @@ def delete_mac_address_range(context, id):
     LOG.info("delete_mac_address_range %s for tenant %s" %
              (id, context.tenant_id))
     if not context.is_admin:
-        raise exceptions.NotAuthorized()
+        raise n_exc.NotAuthorized()
 
     with context.session.begin():
         mar = db_api.mac_address_range_find(context, id=id, scope=db_api.ONE)
         if not mar:
-            raise quark_exceptions.MacAddressRangeNotFound(
+            raise q_exc.MacAddressRangeNotFound(
                 mac_address_range_id=id)
         _delete_mac_address_range(context, mar)

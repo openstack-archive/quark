@@ -3,8 +3,9 @@ import datetime
 
 import mock
 import netaddr
-from neutron.common import exceptions
+from neutron.common import exceptions as n_exc_ext
 from neutron.common import rpc
+from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 from oslo_utils import timeutils
 
@@ -89,7 +90,7 @@ class QuarkIPAddressReallocate(QuarkIpamBaseFunctionalTest):
                           deallocated_at=deallocated_at)
 
         with self._stubs(network, subnet, ip_address) as net:
-            with self.assertRaises(exceptions.IpAddressGenerationFailure):
+            with self.assertRaises(n_exc.IpAddressGenerationFailure):
                 self.ipam.allocate_ip_address(self.context, [], net["id"],
                                               0, 0)
 
@@ -151,6 +152,6 @@ class MacAddressReallocate(QuarkIpamBaseFunctionalTest):
             scope=db_api.ALL)
         with self._stubs(do_not_use=True) as mar:
             self.assertEqual(len(macs(mar)), 1)
-            with self.assertRaises(exceptions.MacAddressGenerationFailure):
+            with self.assertRaises(n_exc_ext.MacAddressGenerationFailure):
                 self.ipam.allocate_mac_address(self.context, 0, 0, 0)
             self.assertEqual(len(macs(mar)), 0)

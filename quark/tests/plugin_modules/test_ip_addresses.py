@@ -17,13 +17,13 @@ import contextlib
 
 import mock
 from mock import patch
-from neutron.common import exceptions
+from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 import webob
 
 from quark.db import ip_types
 from quark.db import models
-from quark import exceptions as quark_exceptions
+from quark import exceptions as q_exc
 from quark.plugin_modules import ip_addresses
 from quark.tests import test_quark_plugin
 
@@ -136,7 +136,7 @@ class TestIpAddresses(test_quark_plugin.TestQuarkPlugin):
             ip_address = dict(port_ids=[port["id"]])
             ip_address['version'] = 4
             ip_address['network_id'] = 2
-            with self.assertRaises(exceptions.BadRequest):
+            with self.assertRaises(n_exc.BadRequest):
                 self.plugin.create_ip_address(self.context,
                                               dict(ip_address=ip_address))
         cfg.CONF.set_override('ipaddr_allow_fixed_ip', old_cfg, "QUARK")
@@ -144,13 +144,13 @@ class TestIpAddresses(test_quark_plugin.TestQuarkPlugin):
     def test_create_ip_address_by_device_no_network_fails(self):
         with self._stubs(port={}, addr=None):
             ip_address = dict(device_ids=[4], version=4)
-            with self.assertRaises(exceptions.BadRequest):
+            with self.assertRaises(n_exc.BadRequest):
                 self.plugin.create_ip_address(self.context,
                                               dict(ip_address=ip_address))
 
     def test_create_ip_address_invalid_missing_port_and_device_list(self):
         with self._stubs(port=None, addr=None):
-            with self.assertRaises(exceptions.BadRequest):
+            with self.assertRaises(n_exc.BadRequest):
                 ip_address = {'ip_address': {'network_id': 'fake',
                                              'version': 4}}
                 self.plugin.create_ip_address(self.context, ip_address)
@@ -159,7 +159,7 @@ class TestIpAddresses(test_quark_plugin.TestQuarkPlugin):
         old_cfg = cfg.CONF.QUARK.ipaddr_allow_fixed_ip
         cfg.CONF.set_override('ipaddr_allow_fixed_ip', True, "QUARK")
         with self._stubs(port=None, addr=None):
-            with self.assertRaises(exceptions.PortNotFound):
+            with self.assertRaises(n_exc.PortNotFoundOnNetwork):
                 ip_address = {
                     'ip_address': {
                         'port_ids': ['fake'],
@@ -287,7 +287,7 @@ class TestQuarkSharedIPAddressPortsValid(test_quark_plugin.TestQuarkPlugin):
             mock_address.subnet = subnet
             mock_ports[i].ip_addresses.append(mock_address)
 
-        with self.assertRaises(exceptions.BadRequest):
+        with self.assertRaises(n_exc.BadRequest):
             ip_addresses.validate_and_fetch_segment(
                 mock_ports, "2")
 
@@ -302,7 +302,7 @@ class TestQuarkSharedIPAddressPortsValid(test_quark_plugin.TestQuarkPlugin):
             for x in xrange(i + 1):
                 mock_ports[x].ip_addresses.append(mock_address)
 
-        with self.assertRaises(exceptions.BadRequest):
+        with self.assertRaises(n_exc.BadRequest):
             ip_addresses.validate_and_fetch_segment(
                 mock_ports, "2")
 
@@ -316,7 +316,7 @@ class TestQuarkSharedIPAddressPortsValid(test_quark_plugin.TestQuarkPlugin):
             ip_address.subnet = models.Subnet(id="1", segment_id="2")
             mock_ports[i].ip_addresses.append(ip_address)
 
-        with self.assertRaises(exceptions.BadRequest):
+        with self.assertRaises(n_exc.BadRequest):
             ip_addresses.validate_and_fetch_segment(
                 mock_ports, "2")
 
@@ -380,7 +380,7 @@ class TestQuarkSharedIPAddress(test_quark_plugin.TestQuarkPlugin):
         can_be_shared_mock.return_value = False
         shared_ip_request_mock.return_value = True
         obj = mock.MagicMock()
-        with self.assertRaises(exceptions.BadRequest):
+        with self.assertRaises(n_exc.BadRequest):
             ip_addresses._raise_if_shared_and_enabled(obj, obj)
 
     @mock.patch("quark.plugin_modules.ip_addresses._shared_ip_request")
@@ -453,7 +453,7 @@ class TestQuarkUpdateIPAddress(test_quark_plugin.TestQuarkPlugin):
 
     def test_update_ip_address_does_not_exist(self):
         with self._stubs(ports=[], addr=None):
-            with self.assertRaises(exceptions.NotFound):
+            with self.assertRaises(n_exc.NotFound):
                 self.plugin.update_ip_address(self.context,
                                               'no_ip_address_id',
                                               {'ip_address': {'port_ids': []}})
@@ -462,7 +462,7 @@ class TestQuarkUpdateIPAddress(test_quark_plugin.TestQuarkPlugin):
         ip = dict(id=1, address=3232235876, address_readable="192.168.1.100",
                   subnet_id=1, network_id=2, version=4)
         with self._stubs(ports=[], addr=ip):
-            with self.assertRaises(exceptions.NotFound):
+            with self.assertRaises(n_exc.NotFound):
                 ip_address = {'ip_address': {'port_ids': ['fake']}}
                 self.plugin.update_ip_address(self.context,
                                               ip["id"],
@@ -490,7 +490,7 @@ class TestQuarkUpdateIPAddress(test_quark_plugin.TestQuarkPlugin):
             ip_address = {'ip_address': {'port_ids': [port1['id'],
                                                       port2['id']],
                                          'network_id': 2}}
-            with self.assertRaises(exceptions.BadRequest):
+            with self.assertRaises(n_exc.BadRequest):
                 self.plugin.update_ip_address(self.context, ip['id'],
                                               ip_address)
 
@@ -559,7 +559,7 @@ class TestQuarkUpdateIPAddress(test_quark_plugin.TestQuarkPlugin):
                   subnet_id=1, network_id=2, version=4)
         with self._stubs(ports=[port], addr=ip, addr_ports=True):
             ip_address = {'ip_address': {'port_ids': []}}
-            with self.assertRaises(exceptions.BadRequest):
+            with self.assertRaises(n_exc.BadRequest):
                 self.plugin.update_ip_address(self.context, ip['id'],
                                               ip_address)
 
@@ -605,7 +605,7 @@ class TestQuarkGetIpAddress(test_quark_plugin.TestQuarkPlugin):
     def test_get_ip_address_no_ip_fails(self):
         port = dict(id=100)
         with self._stubs(ips=None, ports=[port]):
-            with self.assertRaises(quark_exceptions.IpAddressNotFound):
+            with self.assertRaises(q_exc.IpAddressNotFound):
                 self.plugin.get_ip_address(self.context, 1)
 
 
@@ -762,10 +762,10 @@ class TestQuarkGetIpAddressPort(test_quark_plugin.TestQuarkPlugin):
 
     def test_get_ip_address_no_ip_fails(self, mock_dbapi, mock_ipam, *args):
         mock_dbapi.ip_address_find.return_value = []
-        with self.assertRaises(quark_exceptions.IpAddressNotFound):
+        with self.assertRaises(q_exc.IpAddressNotFound):
             self.plugin.get_port_for_ip_address(self.context, 123, 100)
 
     def test_get_ip_address_no_port_fails(self, mock_dbapi, mock_ipam, *args):
         mock_dbapi.port_find.return_value = []
-        with self.assertRaises(exceptions.PortNotFound):
+        with self.assertRaises(n_exc.PortNotFound):
             self.plugin.get_port_for_ip_address(self.context, 123, 100)

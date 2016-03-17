@@ -13,11 +13,11 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from neutron.common import exceptions
+from neutron_lib import exceptions as n_exc
 from oslo_log import log as logging
 
 from quark.db import api as db_api
-from quark import exceptions as quark_exceptions
+from quark import exceptions as q_exc
 from quark import plugin_views as v
 
 from quark import segment_allocations
@@ -32,13 +32,13 @@ def get_segment_allocation_range(context, id, fields=None):
              (id, context.tenant_id, fields))
 
     if not context.is_admin:
-        raise exceptions.NotAuthorized()
+        raise n_exc.NotAuthorized()
 
     sa_range = db_api.segment_allocation_range_find(
         context, id=id, scope=db_api.ONE)
 
     if not sa_range:
-        raise quark_exceptions.SegmentAllocationRangeNotFound(
+        raise q_exc.SegmentAllocationRangeNotFound(
             segment_allocation_range_id=id)
 
     # Count up allocations so we can calculate how many are free.
@@ -53,7 +53,7 @@ def get_segment_allocation_range(context, id, fields=None):
 def get_segment_allocation_ranges(context, **filters):
     LOG.info("get_segment_allocation_ranges for tenant %s" % context.tenant_id)
     if not context.is_admin:
-        raise exceptions.NotAuthorized()
+        raise n_exc.NotAuthorized()
 
     sa_ranges = db_api.segment_allocation_range_find(
         context, scope=db_api.ALL, **filters)
@@ -64,13 +64,13 @@ def create_segment_allocation_range(context, sa_range):
     LOG.info("create_segment_allocation_range for tenant %s"
              % context.tenant_id)
     if not context.is_admin:
-        raise exceptions.NotAuthorized()
+        raise n_exc.NotAuthorized()
 
     sa_range = sa_range.get("segment_allocation_range")
     if not sa_range:
-        raise exceptions.BadRequest(resource="segment_allocation_range",
-                                    msg=("segment_allocation_range not in "
-                                         "request body."))
+        raise n_exc.BadRequest(resource="segment_allocation_range",
+                               msg=("segment_allocation_range not in "
+                                    "request body."))
 
     # TODO(morgabra) Figure out how to get the api extension to validate this
     # for us.
@@ -78,7 +78,7 @@ def create_segment_allocation_range(context, sa_range):
     for k in ["first_id", "last_id", "segment_id", "segment_type"]:
         sa_range[k] = sa_range.get(k, None)
         if sa_range[k] is None:
-            raise exceptions.BadRequest(
+            raise n_exc.BadRequest(
                 resource="segment_allocation_range",
                 msg=("Missing required key %s in request body." % (k)))
 
@@ -88,7 +88,7 @@ def create_segment_allocation_range(context, sa_range):
 
     # use the segment registry to validate and create/populate the range
     if not SA_REGISTRY.is_valid_strategy(sa_range["segment_type"]):
-        raise exceptions.BadRequest(
+        raise n_exc.BadRequest(
             resource="segment_allocation_range",
             msg=("Unknown segment type '%s'" % (k)))
     strategy = SA_REGISTRY.get_strategy(sa_range["segment_type"])
@@ -119,7 +119,7 @@ def _delete_segment_allocation_range(context, sa_range):
         deallocated=False).count()
 
     if allocs:
-        raise quark_exceptions.SegmentAllocationRangeInUse(
+        raise q_exc.SegmentAllocationRangeInUse(
             segment_allocation_range_id=sa_range["id"])
     db_api.segment_allocation_range_delete(context, sa_range)
 
@@ -133,12 +133,12 @@ def delete_segment_allocation_range(context, sa_id):
     LOG.info("delete_segment_allocation_range %s for tenant %s" %
              (sa_id, context.tenant_id))
     if not context.is_admin:
-        raise exceptions.NotAuthorized()
+        raise n_exc.NotAuthorized()
 
     with context.session.begin():
         sa_range = db_api.segment_allocation_range_find(
             context, id=sa_id, scope=db_api.ONE)
         if not sa_range:
-            raise quark_exceptions.SegmentAllocationRangeNotFound(
+            raise q_exc.SegmentAllocationRangeNotFound(
                 segment_allocation_range_id=sa_id)
         _delete_segment_allocation_range(context, sa_range)

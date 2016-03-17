@@ -13,14 +13,14 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from neutron.common import exceptions
+from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 from oslo_log import log as logging
 
 from quark.db import api as db_api
 from quark.db import ip_types
 from quark.drivers import floating_ip_registry as registry
-from quark import exceptions as qex
+from quark import exceptions as q_exc
 from quark import ipam
 from quark import plugin_views as v
 
@@ -64,13 +64,13 @@ def create_floatingip(context, content):
         tenant_id = context.tenant_id
 
     if not network_id:
-        raise exceptions.BadRequest(resource='floating_ip',
-                                    msg='floating_network_id is required.')
+        raise n_exc.BadRequest(resource='floating_ip',
+                               msg='floating_network_id is required.')
 
     network = db_api.network_find(context, id=network_id, scope=db_api.ONE)
 
     if not network:
-        raise exceptions.NetworkNotFound(net_id=network_id)
+        raise n_exc.NetworkNotFound(net_id=network_id)
 
     fixed_ip = None
     port = None
@@ -78,15 +78,15 @@ def create_floatingip(context, content):
         port = db_api.port_find(context, id=port_id, scope=db_api.ONE)
 
         if not port:
-            raise exceptions.PortNotFound(port_id=port_id)
+            raise n_exc.PortNotFound(port_id=port_id)
 
         if not port.ip_addresses or len(port.ip_addresses) == 0:
-            raise qex.NoAvailableFixedIpsForPort(port_id=port_id)
+            raise q_exc.NoAvailableFixedIpsForPort(port_id=port_id)
 
         if not fixed_ip_address:
             fixed_ip = _get_next_available_fixed_ip(port)
             if not fixed_ip:
-                raise qex.NoAvailableFixedIpsForPort(
+                raise q_exc.NoAvailableFixedIpsForPort(
                     port_id=port_id)
         else:
             fixed_ip = next((ip for ip in port.ip_addresses
@@ -95,13 +95,13 @@ def create_floatingip(context, content):
                             None)
 
             if not fixed_ip:
-                raise qex.FixedIpDoesNotExistsForPort(
+                raise q_exc.FixedIpDoesNotExistsForPort(
                     fixed_ip=fixed_ip_address, port_id=port_id)
 
             if any(ip for ip in port.ip_addresses
                    if (ip.get('address_type') == ip_types.FLOATING and
                        ip.fixed_ip['address_readable'] == fixed_ip_address)):
-                raise qex.PortAlreadyContainsFloatingIp(
+                raise q_exc.PortAlreadyContainsFloatingIp(
                     port_id=port_id)
 
     new_addresses = []
@@ -161,8 +161,8 @@ def update_floatingip(context, id, content):
              (id, context.tenant_id, content))
 
     if 'port_id' not in content:
-        raise exceptions.BadRequest(resource='floating_ip',
-                                    msg='port_id is required.')
+        raise n_exc.BadRequest(resource='floating_ip',
+                               msg='port_id is required.')
 
     port_id = content.get('port_id')
     port = None
@@ -173,7 +173,7 @@ def update_floatingip(context, id, content):
     try:
         flip = db_api.floating_ip_find(context, id=id, scope=db_api.ONE)
         if not flip:
-            raise qex.FloatingIpNotFound(id=id)
+            raise q_exc.FloatingIpNotFound(id=id)
 
         current_ports = flip.ports
 
@@ -181,25 +181,25 @@ def update_floatingip(context, id, content):
             current_port = current_ports[0]
 
         if not port_id and not current_port:
-            raise qex.FloatingIpUpdateNoPortIdSupplied()
+            raise q_exc.FloatingIpUpdateNoPortIdSupplied()
 
         if port_id:
             port = db_api.port_find(context, id=port_id, scope=db_api.ONE)
             if not port:
-                raise exceptions.PortNotFound(port_id=port_id)
+                raise n_exc.PortNotFound(port_id=port_id)
 
             if any(ip for ip in port.ip_addresses
                    if (ip.get('address_type') == ip_types.FLOATING)):
-                raise qex.PortAlreadyContainsFloatingIp(port_id=port_id)
+                raise q_exc.PortAlreadyContainsFloatingIp(port_id=port_id)
 
             if current_port and current_port.id == port_id:
                 d = dict(flip_id=id, port_id=port_id)
-                raise qex.PortAlreadyAssociatedToFloatingIp(**d)
+                raise q_exc.PortAlreadyAssociatedToFloatingIp(**d)
 
             fixed_ip = _get_next_available_fixed_ip(port)
             LOG.info('new fixed ip: %s' % fixed_ip)
             if not fixed_ip:
-                raise qex.NoAvailableFixedIpsForPort(port_id=port_id)
+                raise q_exc.NoAvailableFixedIpsForPort(port_id=port_id)
 
         LOG.info('current ports: %s' % current_ports)
 
@@ -225,7 +225,7 @@ def update_floatingip(context, id, content):
             flip_driver.remove_floating_ip(flip)
 
         context.session.commit()
-    except (qex.RegisterFloatingIpFailure, qex.RemoveFloatingIpFailure):
+    except (q_exc.RegisterFloatingIpFailure, q_exc.RemoveFloatingIpFailure):
         context.session.rollback()
         raise
 
@@ -251,7 +251,7 @@ def delete_floatingip(context, id):
 
     flip = db_api.floating_ip_find(context, id=id, scope=db_api.ONE, **filters)
     if not flip:
-        raise qex.FloatingIpNotFound(id=id)
+        raise q_exc.FloatingIpNotFound(id=id)
 
     current_ports = flip.ports
     current_port = None
@@ -308,7 +308,7 @@ def get_floatingip(context, id, fields=None):
                                           **filters)
 
     if not floating_ip:
-        raise qex.FloatingIpNotFound(id=id)
+        raise q_exc.FloatingIpNotFound(id=id)
 
     return v._make_floating_ip_dict(floating_ip)
 

@@ -22,7 +22,8 @@ import uuid
 
 import mock
 from neutron.api.v2 import attributes as neutron_attrs
-from neutron.common import exceptions
+from neutron.common import exceptions as n_exc_ext
+from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 
 from quark.db import api as db_api
@@ -113,7 +114,7 @@ class TestQuarkGetSubnets(test_quark_plugin.TestQuarkPlugin):
 
     def test_subnet_show_fail(self):
         with self._stubs():
-            with self.assertRaises(exceptions.SubnetNotFound):
+            with self.assertRaises(n_exc.SubnetNotFound):
                 self.plugin.get_subnet(self.context, 1)
 
     def test_subnet_show(self):
@@ -219,7 +220,7 @@ class TestQuarkCreateSubnetOverlapping(test_quark_plugin.TestQuarkPlugin):
     def test_create_subnet_overlapping_conflict(self):
         cfg.CONF.set_override('allow_overlapping_ips', False)
         with self._stubs(subnets=[dict(cidr="192.168.10.1/24")]):
-            with self.assertRaises(exceptions.InvalidInput):
+            with self.assertRaises(n_exc.InvalidInput):
                 s = dict(subnet=dict(cidr="192.168.1.1/8",
                                      network_id=1))
                 self.plugin.create_subnet(self.context, s)
@@ -301,7 +302,7 @@ class TestQuarkCreateSubnetAllocationPools(test_quark_plugin.TestQuarkPlugin):
                              network_id=1))
         with self._stubs(s["subnet"]):
             with self.assertRaises(
-                    exceptions.GatewayConflictWithAllocationPools):
+                    n_exc_ext.GatewayConflictWithAllocationPools):
                 self.plugin.create_subnet(self.context, s)
 
     def test_create_subnet_allocation_pools_invalid_outside(self):
@@ -311,7 +312,7 @@ class TestQuarkCreateSubnetAllocationPools(test_quark_plugin.TestQuarkPlugin):
             cidr="192.168.1.1/24",
             network_id=1))
         with self._stubs(s["subnet"]):
-            with self.assertRaises(exceptions.OutOfBoundsAllocationPool):
+            with self.assertRaises(n_exc_ext.OutOfBoundsAllocationPool):
                 self.plugin.create_subnet(self.context, s)
 
     def test_create_subnet_allocation_pools_invalid_overlaps(self):
@@ -321,7 +322,7 @@ class TestQuarkCreateSubnetAllocationPools(test_quark_plugin.TestQuarkPlugin):
             cidr="192.168.1.1/24",
             network_id=1))
         with self._stubs(s["subnet"]):
-            with self.assertRaises(exceptions.OutOfBoundsAllocationPool):
+            with self.assertRaises(n_exc_ext.OutOfBoundsAllocationPool):
                 self.plugin.create_subnet(self.context, s)
 
     def test_create_subnet_allocation_pools_two(self):
@@ -470,7 +471,7 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
             subnet_request = copy.deepcopy(subnet)
             subnet_request["subnet"]["dns_nameservers"] = dns_nameservers
             subnet_request["subnet"]["host_routes"] = host_routes
-            with self.assertRaises(exceptions.InvalidInput):
+            with self.assertRaises(n_exc.InvalidInput):
                 self.plugin.create_subnet(self.context, subnet_request)
 
     def test_create_subnet_v4_too_small(self):
@@ -491,7 +492,7 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
             subnet_request = copy.deepcopy(subnet)
             subnet_request["subnet"]["dns_nameservers"] = dns_nameservers
             subnet_request["subnet"]["host_routes"] = host_routes
-            with self.assertRaises(exceptions.InvalidInput):
+            with self.assertRaises(n_exc.InvalidInput):
                 self.plugin.create_subnet(self.context, subnet_request)
 
     def test_create_subnet_not_admin_segment_id_ignored(self):
@@ -530,7 +531,7 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
     def test_create_subnet_no_network_fails(self):
         subnet = dict(subnet=dict(network_id=1))
         with self._stubs(subnet=dict(), network=False):
-            with self.assertRaises(exceptions.NetworkNotFound):
+            with self.assertRaises(n_exc.NetworkNotFound):
                 self.plugin.create_subnet(self.context, subnet)
 
     def test_create_subnet_no_gateway_ip_defaults(self):
@@ -774,7 +775,7 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                    "host_routes": host_routes, "id": 1, "ip_version": 4,
                    "network_id": 1, "tenant_id": self.context.tenant_id}}
         with self._stubs(subnet=subnet.get("subnet"), routes=stub_routes):
-            with self.assertRaises(exceptions.OverQuota):
+            with self.assertRaises(n_exc.OverQuota):
                 self.plugin.create_subnet(self.context, subnet)
 
     def test_create_subnet_dns_quota_pass(self):
@@ -793,7 +794,7 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                    "dns_nameservers": nameservers, "id": 1, "ip_version": 4,
                    "network_id": 1, "tenant_id": self.context.tenant_id}}
         with self._stubs(subnet=subnet.get("subnet"), dns=nameservers):
-            with self.assertRaises(exceptions.OverQuota):
+            with self.assertRaises(n_exc.OverQuota):
                 self.plugin.create_subnet(self.context, subnet)
 
 
@@ -987,7 +988,7 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
 
     def test_update_subnet_not_found(self):
         with self._stubs(has_subnet=False):
-            with self.assertRaises(exceptions.SubnetNotFound):
+            with self.assertRaises(n_exc.SubnetNotFound):
                 self.plugin.update_subnet(self.context, 1, {})
 
     def test_update_subnet_dns_nameservers(self):
@@ -1089,7 +1090,7 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
         pools = [dict(start="172.16.1.10", end="172.16.1.20")]
         s = dict(subnet=dict(allocation_pools=pools))
         with self._stubs() as (dns_create, route_update, route_create):
-            with self.assertRaises(exceptions.OutOfBoundsAllocationPool):
+            with self.assertRaises(n_exc_ext.OutOfBoundsAllocationPool):
                 self.plugin.update_subnet(self.context, 1, s)
         cfg.CONF.set_override('allow_allocation_pool_update', og, 'QUARK')
 
@@ -1164,7 +1165,7 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
         pools = [dict(start="172.16.0.1", end="172.16.0.250")]
         s = dict(subnet=dict(allocation_pools=pools))
         with self._stubs() as (dns_create, route_update, route_create):
-            with self.assertRaises(exceptions.BadRequest):
+            with self.assertRaises(n_exc.BadRequest):
                 self.plugin.update_subnet(self.context, 1, s)
 
     def test_update_subnet_conflicting_gateway(self):
@@ -1176,7 +1177,7 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
             new_ip_policy=['172.16.0.0/30', '172.16.0.4/32', '172.16.0.255/32']
         ) as (dns_create, route_update, route_create):
             with self.assertRaises(
-                    exceptions.GatewayConflictWithAllocationPools):
+                    n_exc_ext.GatewayConflictWithAllocationPools):
                 self.plugin.update_subnet(self.context, 1, s)
         cfg.CONF.set_override('allow_allocation_pool_update', og, 'QUARK')
 
@@ -1212,13 +1213,13 @@ class TestQuarkDeleteSubnet(test_quark_plugin.TestQuarkPlugin):
 
     def test_delete_subnet_no_subnet_fails(self):
         with self._stubs(subnet=None, ips=[]):
-            with self.assertRaises(exceptions.SubnetNotFound):
+            with self.assertRaises(n_exc.SubnetNotFound):
                 self.plugin.delete_subnet(self.context, 1)
 
     def test_delete_subnet_has_allocated_ips_fails(self):
         subnet = dict(id=1)
         with self._stubs(subnet=subnet, ips=[{}]):
-            with self.assertRaises(exceptions.SubnetInUse):
+            with self.assertRaises(n_exc.SubnetInUse):
                 self.plugin.delete_subnet(self.context, 1)
 
 
@@ -1299,7 +1300,7 @@ class TestSubnetsQuotas(test_quark_plugin.TestQuarkPlugin):
                   tenant_id=1, id=2, created_at="124")]
         with self._stubs(s):
             cfg.CONF.set_override('quota_v4_subnets_per_network', 1, "QUOTAS")
-            with self.assertRaises(exceptions.OverQuota):
+            with self.assertRaises(n_exc.OverQuota):
                 self.plugin.create_subnet(self.context, dict(subnet=s[0]))
             cfg.CONF.set_override('quota_v4_subnets_per_network', original_4,
                                   "QUOTAS")
@@ -1312,7 +1313,7 @@ class TestSubnetsQuotas(test_quark_plugin.TestQuarkPlugin):
                   tenant_id=1, id=2, created_at="124")]
         with self._stubs(s):
             cfg.CONF.set_override('quota_v6_subnets_per_network', 1, "QUOTAS")
-            with self.assertRaises(exceptions.OverQuota):
+            with self.assertRaises(n_exc.OverQuota):
                 self.plugin.create_subnet(self.context, dict(subnet=s[0]))
             cfg.CONF.set_override('quota_v6_subnets_per_network', original_6,
                                   "QUOTAS")
@@ -1323,7 +1324,7 @@ class TestSubnetsQuotas(test_quark_plugin.TestQuarkPlugin):
                   tenant_id=1, id=1, created_at="123")]
         with self._stubs(s):
             cfg.CONF.set_override('quota_v4_subnets_per_network', 0, "QUOTAS")
-            with self.assertRaises(exceptions.OverQuota):
+            with self.assertRaises(n_exc.OverQuota):
                 self.plugin.create_subnet(self.context, dict(subnet=s[0]))
             cfg.CONF.set_override('quota_v4_subnets_per_network', original_4,
                                   "QUOTAS")
@@ -1334,7 +1335,7 @@ class TestSubnetsQuotas(test_quark_plugin.TestQuarkPlugin):
                   tenant_id=1, id=1, created_at="123")]
         with self._stubs(s):
             cfg.CONF.set_override('quota_v4_subnets_per_network', 0, "QUOTAS")
-            with self.assertRaises(exceptions.OverQuota):
+            with self.assertRaises(n_exc.OverQuota):
                 self.plugin.create_subnet(self.context, dict(subnet=s[0]))
             cfg.CONF.set_override('quota_v4_subnets_per_network', -1, "QUOTAS")
             self.plugin.create_subnet(self.context, dict(subnet=s[0]))
@@ -1445,7 +1446,7 @@ class TestQuarkDiagnoseSubnets(test_quark_plugin.TestQuarkPlugin):
 
     def test_diagnose_subnet_not_authorized(self):
         with self._stubs(subnets=[], routes=[]):
-            with self.assertRaises(exceptions.NotAuthorized):
+            with self.assertRaises(n_exc.NotAuthorized):
                 self.plugin.diagnose_subnet(self.context, "*", None)
 
     def test_diagnose_subnet_with_wildcard_with_existing_subnets(self):

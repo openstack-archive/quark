@@ -14,9 +14,9 @@
 # limitations under the License.
 
 from neutron.api import extensions
-from neutron.common import exceptions
 from neutron import manager
 from neutron import wsgi
+from neutron_lib import exceptions as n_exc
 from oslo_log import log as logging
 
 RESOURCE_NAME = "ip_availability"
@@ -41,7 +41,7 @@ class IPAvailabilityController(wsgi.Controller):
     def index(self, request):
         context = request.context
         if not context.is_admin:
-            raise exceptions.NotAuthorized()
+            raise n_exc.NotAuthorized()
         return self._plugin.get_ip_availability(**request.GET)
 
 

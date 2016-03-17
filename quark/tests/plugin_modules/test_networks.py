@@ -17,8 +17,8 @@ import contextlib
 import json
 
 import mock
-from neutron.common import exceptions
 from neutron import context
+from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 
 from quark.db import api as db_api
@@ -84,7 +84,7 @@ class TestQuarkGetNetworks(test_quark_plugin.TestQuarkPlugin):
 
     def test_get_network_no_network_fails(self):
         with self._stubs(nets=None, subnets=[]):
-            with self.assertRaises(exceptions.NetworkNotFound):
+            with self.assertRaises(n_exc.NetworkNotFound):
                 self.plugin.get_network(self.context, 1)
 
 
@@ -219,7 +219,7 @@ class TestQuarkUpdateNetwork(test_quark_plugin.TestQuarkPlugin):
 
     def test_update_network_not_found_fails(self):
         with self._stubs(net=None):
-            with self.assertRaises(exceptions.NetworkNotFound):
+            with self.assertRaises(n_exc.NetworkNotFound):
                 self.plugin.update_network(self.context, 1, None)
 
     def test_update_network_admin_set_ipam_strategy(self):
@@ -280,12 +280,12 @@ class TestQuarkDeleteNetwork(test_quark_plugin.TestQuarkPlugin):
         net = dict(id=1, tenant_id=self.context.tenant_id)
         port = dict(id=2)
         with self._stubs(net=net, ports=[port]):
-            with self.assertRaises(exceptions.NetworkInUse):
+            with self.assertRaises(n_exc.NetworkInUse):
                 self.plugin.delete_network(self.context, 1)
 
     def test_delete_network_not_found_fails(self):
         with self._stubs(net=None, ports=[]):
-            with self.assertRaises(exceptions.NetworkNotFound):
+            with self.assertRaises(n_exc.NetworkNotFound):
                 self.plugin.delete_network(self.context, 1)
 
     def test_delete_network_with_subnets_passes(self):
@@ -436,13 +436,13 @@ class TestQuarkDiagnoseNetworks(test_quark_plugin.TestQuarkPlugin):
 
     def test_diagnose_network_no_network_found(self):
         with self._stubs():
-            with self.assertRaises(exceptions.NetworkNotFound):
+            with self.assertRaises(n_exc.NetworkNotFound):
                 self.plugin.diagnose_network(self.context.elevated(), "12345",
                                              None)
 
     def test_diagnose_network_not_authorized(self):
         with self._stubs():
-            with self.assertRaises(exceptions.NotAuthorized):
+            with self.assertRaises(n_exc.NotAuthorized):
                 self.plugin.diagnose_network(self.context, "12345",
                                              None)
 

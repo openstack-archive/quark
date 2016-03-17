@@ -14,9 +14,9 @@
 #    under the License.
 
 import netaddr
-from neutron.common import exceptions
 from neutron.extensions import providernet as pnet
 from neutron import quota
+from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_utils import importutils
@@ -164,7 +164,7 @@ def update_network(context, id, network):
     with context.session.begin():
         net = db_api.network_find(context, id=id, scope=db_api.ONE)
         if not net:
-            raise exceptions.NetworkNotFound(net_id=id)
+            raise n_exc.NetworkNotFound(net_id=id)
         net_dict = network["network"]
         utils.pop_param(net_dict, "network_plugin")
         if not context.is_admin and "ipam_strategy" in net_dict:
@@ -190,7 +190,7 @@ def get_network(context, id, fields=None):
     network = db_api.network_find(context, None, None, None, False,
                                   id=id, join_subnets=True, scope=db_api.ONE)
     if not network:
-        raise exceptions.NetworkNotFound(net_id=id)
+        raise n_exc.NetworkNotFound(net_id=id)
     return v._make_network_dict(network, fields=fields)
 
 
@@ -256,9 +256,9 @@ def delete_network(context, id):
         net = db_api.network_find(context, None, None, None, False, id=id,
                                   scope=db_api.ONE)
         if not net:
-            raise exceptions.NetworkNotFound(net_id=id)
+            raise n_exc.NetworkNotFound(net_id=id)
         if net.ports:
-            raise exceptions.NetworkInUse(net_id=id)
+            raise n_exc.NetworkInUse(net_id=id)
         net_driver = registry.DRIVER_REGISTRY.get_driver(net["network_plugin"])
         net_driver.delete_network(context, id)
         for subnet in net["subnets"]:
@@ -286,13 +286,13 @@ def _diag_network(context, network, fields):
 
 def diagnose_network(context, id, fields):
     if not context.is_admin:
-        raise exceptions.NotAuthorized()
+        raise n_exc.NotAuthorized()
 
     if id == "*":
         return {'networks': [_diag_network(context, net, fields) for
                 net in db_api.network_find(context, scope=db_api.ALL)]}
     db_net = db_api.network_find(context, id=id, scope=db_api.ONE)
     if not db_net:
-        raise exceptions.NetworkNotFound(net_id=id)
+        raise n_exc.NetworkNotFound(net_id=id)
     net = _diag_network(context, db_net, fields)
     return {'networks': net}
