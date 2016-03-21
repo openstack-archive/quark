@@ -10,7 +10,7 @@ Routes==2.1
 aiclib
 gunicorn==19.3.0
 pymysql==0.6.6
-twiceredis>=1.0.6
+twiceredis==1.0.7
 docopt==0.6.2
 
 # agent deps
