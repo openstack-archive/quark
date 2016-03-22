@@ -112,7 +112,7 @@ class IpAddressPortController(wsgi.Controller):
         fx = self._plugin.get_ports_for_ip_address
         try:
             ports = fx(context, ip_address_id, filters=filters, **request.GET)
-            return {"ports": ports}
+            return {"ip_addresses_ports": ports}
         except n_exc.NotFound as e:
             raise webob.exc.HTTPNotFound(e)
 
@@ -123,7 +123,7 @@ class IpAddressPortController(wsgi.Controller):
         context = request.context
         # TODO(jlh): need to ensure ip_address_id is used to filter port
         try:
-            return {"port":
+            return {"ip_addresses_port":
                     self._plugin.get_port_for_ip_address(context,
                                                          ip_address_id, id)}
         except n_exc.NotFound as e:
@@ -132,9 +132,8 @@ class IpAddressPortController(wsgi.Controller):
     def update(self, ip_address_id, request, id, body=None):
         body = self._deserialize(request.body, request.get_content_type())
         try:
-            return {"port": self._plugin.update_port_for_ip(request.context,
-                                                            ip_address_id,
-                                                            id, body)}
+            return {"ip_addresses_port": self._plugin.update_port_for_ip(
+                request.context, ip_address_id, id, body)}
         except n_exc.NotFound as e:
             raise webob.exc.HTTPNotFound(e)
         except n_exc.BadRequest as e:
