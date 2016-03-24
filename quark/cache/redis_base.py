@@ -79,12 +79,16 @@ class ClientBase(object):
         sentinels = [tuple(str.split(host_pair, ':'))
                      for host_pair in CONF.QUARK.redis_sentinel_hosts]
 
+        pool_kwargs = TwiceRedis.DEFAULT_POOL_KWARGS
+        sentinel_kwargs = TwiceRedis.DEFAULT_SENTINEL_KWARGS
+        pool_kwargs['socket_timeout'] = CONF.QUARK.redis_socket_timeout
+        pool_kwargs['socket_keepalive'] = False
+        sentinel_kwargs['min_other_sentinels'] = 2
         return TwiceRedis(master_name=CONF.QUARK.redis_sentinel_master,
                           sentinels=sentinels,
                           password=CONF.QUARK.redis_password,
-                          check_connection=True,
-                          socket_timeout=CONF.QUARK.redis_socket_timeout,
-                          min_other_sentinels=2)
+                          pool_kwargs=pool_kwargs,
+                          sentinel_kwargs=sentinel_kwargs)
 
     def vif_key(self, device_id, mac_address):
         mac = str(netaddr.EUI(mac_address))
