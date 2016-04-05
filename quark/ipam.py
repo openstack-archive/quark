@@ -749,9 +749,9 @@ class QuarkIpam(object):
         #                 fixed IP address.
         context.session.flush()
         for ip in ips_to_remove:
-            if ip["address_type"] == ip_types.FLOATING:
-                if ip.fixed_ip:
-                    db_api.floating_ip_disassociate_fixed_ip(context, ip)
+            if ip["address_type"] in (ip_types.FLOATING, ip_types.SCALING):
+                if ip.fixed_ips:
+                    db_api.floating_ip_disassociate_all_fixed_ips(context, ip)
                     driver = registry.DRIVER_REGISTRY.get_driver()
                     driver.remove_floating_ip(ip)
             else:

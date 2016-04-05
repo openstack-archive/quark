@@ -1010,12 +1010,22 @@ def floating_ip_find(context, lock_mode=False, limit=None, sorts=None,
 
 
 def floating_ip_associate_fixed_ip(context, floating_ip, fixed_ip):
-    floating_ip.fixed_ip = fixed_ip
+    floating_ip.fixed_ips.append(fixed_ip)
     return floating_ip
 
 
-def floating_ip_disassociate_fixed_ip(context, floating_ip):
-    floating_ip.fixed_ip = None
+def floating_ip_disassociate_fixed_ip(context, floating_ip, fixed_ip):
+    found_index = None
+    for index, flip_fixed_ip in enumerate(floating_ip.fixed_ips):
+        if flip_fixed_ip.id == fixed_ip.id:
+            found_index = index
+            break
+    floating_ip.fixed_ips.pop(found_index)
+    return floating_ip
+
+
+def floating_ip_disassociate_all_fixed_ips(context, floating_ip):
+    floating_ip.fixed_ips = []
     return floating_ip
 
 

@@ -222,7 +222,7 @@ class TestCreateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
             return addr
 
         def _flip_fixed_ip_assoc(context, addr, fixed_ip):
-            addr.fixed_ip = fixed_ip
+            addr.fixed_ips.append(fixed_ip)
             return addr
 
         with contextlib.nested(
@@ -463,6 +463,19 @@ class TestCreateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
 
 
 class TestUpdateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
+
+    def setUp(self):
+        super(TestUpdateFloatingIPs, self).setUp()
+        # NOTE(blogan): yuck yuck yuck, but since the models are being mocked
+        # and not attached to the session, the refresh call will fail.
+        old_refresh = self.context.session.refresh
+
+        def reset_refresh(context):
+            context.session.refresh = old_refresh
+
+        self.context.session.refresh = mock.Mock()
+        self.addCleanup(reset_refresh, self.context)
+
     @contextlib.contextmanager
     def _stubs(self, flip=None, curr_port=None, new_port=None, ips=None):
         curr_port_model = None
@@ -508,7 +521,7 @@ class TestUpdateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
                     else new_port_model)
 
         def _flip_assoc(context, addr, fixed_ip):
-            addr.fixed_ip = fixed_ip
+            addr.fixed_ips.append(fixed_ip)
             return addr
 
         def _flip_disassoc(context, addr):
