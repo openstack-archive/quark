@@ -44,6 +44,20 @@ def _sleep():
     time.sleep(CONF.AGENT.polling_interval + random.random() * 2)
 
 
+def is_isonet_vif(vif):
+    """Determine if a vif is on isonet
+
+    Returns True if a vif belongs to an isolated network by checking
+    for a nicira interface id.
+    """
+    nicira_iface_id = vif.record.get('other_config').get('nicira-iface-id')
+
+    if nicira_iface_id:
+        return True
+
+    return False
+
+
 def partition_vifs(xapi_client, interfaces, security_group_states):
     """Splits VIFs into three explicit categories and one implicit
 
@@ -67,6 +81,11 @@ def partition_vifs(xapi_client, interfaces, security_group_states):
     removed = []
 
     for vif in interfaces:
+        # Quark should not action on isonet vifs in regions that use FLIP
+        if ('floating_ip' in CONF.QUARK.environment_capabilities and
+                is_isonet_vif(vif)):
+            continue
+
         vif_has_groups = vif in security_group_states
         if vif.tagged and vif_has_groups and security_group_states[vif]:
             # Already ack'd these groups and VIF is tagged, reapply.
