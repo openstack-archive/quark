@@ -863,6 +863,8 @@ class QuarkIpam(object):
                                                              segment_id,
                                                              subnet_ids,
                                                              **filters):
+                if subnet is None:
+                    continue
                 ipnet = netaddr.IPNetwork(subnet["cidr"])
                 LOG.info("Trying subnet ID: {0} - CIDR: {1}".format(
                     subnet["id"], subnet["_cidr"]))
