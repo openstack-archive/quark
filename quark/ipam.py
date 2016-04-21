@@ -748,15 +748,53 @@ class QuarkIpam(object):
         #                 the tenant, instead we will disassociate floating's
         #                 fixed IP address.
         context.session.flush()
+        deallocated_ips = []
+        flip = None
         for ip in ips_to_remove:
             if ip["address_type"] in (ip_types.FLOATING, ip_types.SCALING):
-                if ip.fixed_ips:
-                    db_api.floating_ip_disassociate_all_fixed_ips(context, ip)
-                    driver = registry.DRIVER_REGISTRY.get_driver()
-                    driver.remove_floating_ip(ip)
+                flip = ip
             else:
                 if len(ip["ports"]) == 0:
                     self.deallocate_ip_address(context, ip)
+                    deallocated_ips.append(ip.id)
+        if flip:
+            if flip.fixed_ips and len(flip.fixed_ips) == 1:
+                # This is a FLIP or SCIP that is only associated with one
+                # port and fixed_ip, so we can safely just disassociate all
+                # and remove the flip from unicorn.
+                db_api.floating_ip_disassociate_all_fixed_ips(context, flip)
+                # NOTE(blogan): I'm not too happy about having do another
+                # flush but some test runs showed inconsistent state based on
+                # SQLAlchemy caching.
+                context.session.add(flip)
+                context.session.flush()
+                driver = registry.DRIVER_REGISTRY.get_driver()
+                driver.remove_floating_ip(flip)
+            elif len(flip.fixed_ips) > 1:
+                # This is a SCIP and we need to diassociate the one fixed_ip
+                # from the SCIP and update unicorn with the remaining
+                # ports and fixed_ips
+                remaining_fixed_ips = []
+                for fix_ip in flip.fixed_ips:
+                    if fix_ip.id in deallocated_ips:
+                        db_api.floating_ip_disassociate_fixed_ip(
+                            context, flip, fix_ip)
+                        context.session.add(flip)
+                        context.session.flush()
+                    else:
+                        remaining_fixed_ips.append(fix_ip)
+                port_fixed_ips = {}
+                for fix_ip in remaining_fixed_ips:
+                    # NOTE(blogan): Since this is the flip's fixed_ips it
+                    # should be safe to assume there is only one port
+                    # associated with it.
+                    remaining_port = fix_ip.ports[0]
+                    port_fixed_ips[remaining_port.id] = {
+                        'port': remaining_port,
+                        'fixed_ip': fix_ip
+                    }
+                driver = registry.DRIVER_REGISTRY.get_driver()
+                driver.update_floating_ip(flip, port_fixed_ips)
 
     # NCP-1509(roaet):
     # - started using admin_context due to tenant not claiming when realloc

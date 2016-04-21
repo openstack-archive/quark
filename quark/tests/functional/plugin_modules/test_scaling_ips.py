@@ -246,3 +246,52 @@ class TestScalingIP(test_floating_ips.BaseFloatingIPTest):
         self.plugin.create_floatingip(self.context, floating_ip)
         scips = self.plugin.get_scalingips(self.context)
         self.assertEqual(0, len(scips))
+
+    def test_delete_port_associated_with_scip_with_multiple_ports(self):
+        scaling_ip = dict(
+            scaling_network_id=self.scaling_network.id,
+            ports=[dict(port_id=self.user_port1['id']),
+                   dict(port_id=self.user_port2['id'])]
+        )
+        scip = self.plugin.create_scalingip(
+            self.context, {"scalingip": scaling_ip})
+        self.mock_requests.reset_mock()
+        self.context.session.expire_all()
+        self.plugin.delete_port(self.context, self.user_port1['id'])
+        after_scip = self.plugin.get_scalingip(self.context, scip['id'])
+        self.assertEqual(1, len(after_scip['ports']))
+        self.assertEqual(self.user_port2['id'],
+                         after_scip['ports'][0]['port_id'])
+        expected_url = '/'.join([self.FAKE_UNICORN_URL,
+                                 scip['scaling_ip_address']])
+        self.assertFalse(self.mock_requests.post.called)
+        self.assertFalse(self.mock_requests.delete.called)
+        self.mock_requests.put.assert_called_once_with(
+            expected_url, data=mock.ANY, timeout=2)
+        actual_body = json.loads(self.mock_requests.put.call_args[1]['data'])
+        unicorn_body = self._build_expected_unicorn_request_body(
+            scip['scaling_ip_address'], [self.user_port2],
+            actual_body=actual_body
+        )
+        self.assertEqual(unicorn_body, actual_body,
+                         msg="Request to the unicorn API is not what is "
+                             "expected.")
+
+    def test_delete_port_associated_with_scip_with_one_port(self):
+        scaling_ip = dict(
+            scaling_network_id=self.scaling_network.id,
+            ports=[dict(port_id=self.user_port1['id'])]
+        )
+        scip = self.plugin.create_scalingip(
+            self.context, {"scalingip": scaling_ip})
+        self.mock_requests.reset_mock()
+        self.context.session.expire_all()
+        self.plugin.delete_port(self.context, self.user_port1['id'])
+        after_scip = self.plugin.get_scalingip(self.context, scip['id'])
+        self.assertEqual(0, len(after_scip['ports']))
+        expected_url = '/'.join([self.FAKE_UNICORN_URL,
+                                 scip['scaling_ip_address']])
+        self.assertFalse(self.mock_requests.post.called)
+        self.assertFalse(self.mock_requests.put.called)
+        self.mock_requests.delete.assert_called_once_with(
+            expected_url, timeout=2)
