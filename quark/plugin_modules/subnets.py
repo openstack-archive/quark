@@ -41,8 +41,12 @@ STRATEGY = network_strategy.STRATEGY
 quark_subnet_opts = [
     cfg.BoolOpt('allow_allocation_pool_update',
                 default=False,
-                help=_('Controls whether or not to allow allocation_pool'
-                       'updates'))
+                help=_('Controls whether or not to allow allocation_pool '
+                       'updates')),
+    cfg.BoolOpt('allow_allocation_pool_growth',
+                default=False,
+                help=_('Controls whether or not to allow allocation_pool '
+                       'growing. Otherwise shrinking is only allowed'))
 ]
 
 CONF.register_opts(quark_subnet_opts, "QUARK")
@@ -226,6 +230,21 @@ def create_subnet(context, subnet):
     return subnet_dict
 
 
+def _pool_is_growing(original_pool, new_pool):
+    # create IPSet for original pool
+    ori_set = netaddr.IPSet()
+    for rng in original_pool._alloc_pools:
+        ori_set.add(netaddr.IPRange(rng['start'], rng['end']))
+
+    # create IPSet for net pool
+    new_set = netaddr.IPSet()
+    for rng in new_pool._alloc_pools:
+        new_set.add(netaddr.IPRange(rng['start'], rng['end']))
+
+    # we are growing the original set is not a superset of the new set
+    return not ori_set.issuperset(new_set)
+
+
 def update_subnet(context, id, subnet):
     """Update values of a subnet.
 
@@ -267,6 +286,16 @@ def update_subnet(context, id, subnet):
         else:
             alloc_pools = allocation_pool.AllocationPools(subnet_db["cidr"],
                                                           allocation_pools)
+            original_pools = subnet_db.allocation_pools
+            ori_pools = allocation_pool.AllocationPools(subnet_db["cidr"],
+                                                        original_pools)
+            # Check if the pools are growing or shrinking
+            is_growing = _pool_is_growing(ori_pools, alloc_pools)
+            if not CONF.QUARK.allow_allocation_pool_growth and is_growing:
+                raise n_exc.BadRequest(
+                    resource="subnets",
+                    msg="Allocation pools may not be updated to be larger "
+                        "do to configuration settings")
 
         quota.QUOTAS.limit_check(
             context,

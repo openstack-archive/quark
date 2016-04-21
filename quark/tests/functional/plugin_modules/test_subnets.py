@@ -200,6 +200,19 @@ class QuarkCreateSubnets(BaseFunctionalTest):
 
 
 class QuarkUpdateSubnets(BaseFunctionalTest):
+
+    def setUp(self):
+        super(QuarkUpdateSubnets, self).setUp()
+        self.og = CONF.QUARK.allow_allocation_pool_update
+        self.og1 = CONF.QUARK.allow_allocation_pool_growth
+        CONF.set_override('allow_allocation_pool_update', True, 'QUARK')
+        CONF.set_override('allow_allocation_pool_growth', True, 'QUARK')
+
+    def tearDown(self):
+        super(QuarkUpdateSubnets, self).tearDown()
+        CONF.set_override('allow_allocation_pool_update', self.og, 'QUARK')
+        CONF.set_override('allow_allocation_pool_growth', self.og1, 'QUARK')
+
     @contextlib.contextmanager
     def _stubs(self, network, subnet):
         self.ipam = quark.ipam.QuarkIpamANY()
@@ -210,8 +223,6 @@ class QuarkUpdateSubnets(BaseFunctionalTest):
             yield net, sub1
 
     def test_update_allocation_pools(self):
-        og = CONF.QUARK.allow_allocation_pool_update
-        CONF.set_override('allow_allocation_pool_update', True, 'QUARK')
         cidr = "192.168.1.0/24"
         ip_network = netaddr.IPNetwork(cidr)
         network = dict(name="public", tenant_id="fake", network_plugin="BASE")
@@ -250,4 +261,115 @@ class QuarkUpdateSubnets(BaseFunctionalTest):
                     for ip in netaddr.IPRange(extent['start'], extent['end']):
                         self.assertFalse(ip in ip_set)
                 prev_pool = pool
-        CONF.set_override('allow_allocation_pool_update', og, 'QUARK')
+
+    def test_allow_allocation_pool_growth(self):
+        CONF.set_override('allow_allocation_pool_growth', True, 'QUARK')
+        cidr = "192.168.1.0/24"
+        ip_network = netaddr.IPNetwork(cidr)
+        network = dict(name="public", tenant_id="fake", network_plugin="BASE")
+        network = {"network": network}
+        pool = [dict(start='192.168.1.15', end='192.168.1.30')]
+        subnet = dict(id=1, ip_version=4, next_auto_assign_ip=2,
+                      cidr=cidr, first_ip=ip_network.first,
+                      last_ip=ip_network.last, ip_policy=None,
+                      allocation_pools=pool, tenant_id="fake")
+        subnet = {"subnet": subnet}
+        with self._stubs(network, subnet) as (net, sub1):
+            subnet = subnet_api.get_subnet(self.context, 1)
+            start_pools = subnet['allocation_pools']
+            new_pool = [dict(start='192.168.1.10', end='192.168.1.50')]
+
+            subnet_update = {"subnet": dict(allocation_pools=new_pool)}
+            subnet = subnet_api.update_subnet(self.context, 1,
+                                              subnet_update)
+            self.assertNotEqual(start_pools, subnet['allocation_pools'])
+            self.assertEqual(new_pool, subnet['allocation_pools'])
+            policies = policy_api.get_ip_policies(self.context)
+            self.assertEqual(1, len(policies))
+            policy = policies[0]
+            ip_set = netaddr.IPSet()
+            for ip in policy['exclude']:
+                ip_set.add(netaddr.IPNetwork(ip))
+            for extent in new_pool:
+                for ip in netaddr.IPRange(extent['start'], extent['end']):
+                    self.assertFalse(ip in ip_set)
+
+            start_ip_set = netaddr.IPSet()
+            for rng in start_pools:
+                start_ip_set.add(netaddr.IPRange(rng['start'], rng['end']))
+
+            new_ip_set = netaddr.IPSet()
+            for rng in subnet['allocation_pools']:
+                new_ip_set.add(netaddr.IPRange(rng['start'], rng['end']))
+
+            self.assertTrue(start_ip_set | new_ip_set != start_ip_set)
+
+    def test_do_not_allow_allocation_pool_growth(self):
+        CONF.set_override('allow_allocation_pool_growth', False, 'QUARK')
+        cidr = "192.168.1.0/24"
+        ip_network = netaddr.IPNetwork(cidr)
+        network = dict(name="public", tenant_id="fake", network_plugin="BASE")
+        network = {"network": network}
+        pool = [dict(start='192.168.1.15', end='192.168.1.30')]
+        subnet = dict(id=1, ip_version=4, next_auto_assign_ip=2,
+                      cidr=cidr, first_ip=ip_network.first,
+                      last_ip=ip_network.last, ip_policy=None,
+                      allocation_pools=pool, tenant_id="fake")
+        subnet = {"subnet": subnet}
+        with self._stubs(network, subnet) as (net, sub1):
+            subnet = subnet_api.get_subnet(self.context, 1)
+            start_pools = subnet['allocation_pools']
+            new_pool = [dict(start='192.168.1.10', end='192.168.1.50')]
+
+            start_ip_set = netaddr.IPSet()
+            for rng in start_pools:
+                start_ip_set.add(netaddr.IPRange(rng['start'], rng['end']))
+
+            new_ip_set = netaddr.IPSet()
+            for rng in new_pool:
+                new_ip_set.add(netaddr.IPRange(rng['start'], rng['end']))
+
+            self.assertTrue(start_ip_set | new_ip_set != start_ip_set)
+
+            subnet_update = {"subnet": dict(allocation_pools=new_pool)}
+            with self.assertRaises(n_exc.BadRequest):
+                subnet = subnet_api.update_subnet(self.context, 1,
+                                                  subnet_update)
+
+    def _test_allow_allocation_pool_identity(self, conf_flag):
+        CONF.set_override('allow_allocation_pool_growth', conf_flag, 'QUARK')
+        cidr = "192.168.1.0/24"
+        ip_network = netaddr.IPNetwork(cidr)
+        network = dict(name="public", tenant_id="fake", network_plugin="BASE")
+        network = {"network": network}
+        pool = [dict(start='192.168.1.15', end='192.168.1.30')]
+        subnet = dict(id=1, ip_version=4, next_auto_assign_ip=2,
+                      cidr=cidr, first_ip=ip_network.first,
+                      last_ip=ip_network.last, ip_policy=None,
+                      allocation_pools=pool, tenant_id="fake")
+        subnet = {"subnet": subnet}
+        with self._stubs(network, subnet) as (net, sub1):
+            subnet = subnet_api.get_subnet(self.context, 1)
+            start_pools = subnet['allocation_pools']
+            new_pool = [dict(start='192.168.1.15', end='192.168.1.30')]
+
+            start_ip_set = netaddr.IPSet()
+            for rng in start_pools:
+                start_ip_set.add(netaddr.IPRange(rng['start'], rng['end']))
+
+            new_ip_set = netaddr.IPSet()
+            for rng in new_pool:
+                new_ip_set.add(netaddr.IPRange(rng['start'], rng['end']))
+
+            self.assertTrue(start_ip_set == new_ip_set)
+
+            subnet_update = {"subnet": dict(allocation_pools=new_pool)}
+            subnet = subnet_api.update_subnet(self.context, 1, subnet_update)
+            self.assertEqual(start_pools, subnet['allocation_pools'])
+            self.assertEqual(new_pool, subnet['allocation_pools'])
+
+    def test_allow_allocation_pool_identity_when_growth_false(self):
+        self._test_allow_allocation_pool_identity(False)
+
+    def test_allow_allocation_pool_identity_when_growth_true(self):
+        self._test_allow_allocation_pool_identity(True)
