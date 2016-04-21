@@ -589,12 +589,15 @@ def delete_port(context, id):
     : param context: neutron api request context
     : param id: UUID representing the port to delete.
     """
-    LOG.info("delete_port %s for tenant %s" %
-             (id, context.tenant_id))
+    LOG.info("delete_port %s for tenant %s" % (id, context.tenant_id))
 
     port = db_api.port_find(context, id=id, scope=db_api.ONE)
     if not port:
         raise n_exc.PortNotFound(port_id=id)
+
+    if 'device_id' in port:  # false is weird, but ignore that
+        LOG.info("delete_port %s for tenant %s has device %s" %
+                 (id, context.tenant_id, port['device_id']))
 
     backend_key = port["backend_key"]
     mac_address = netaddr.EUI(port["mac_address"]).value
