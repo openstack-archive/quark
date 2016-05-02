@@ -1,4 +1,4 @@
-"""remove new subnet index make new mac
+"""Create new port indexes
 
 Revision ID: 41837dc547ce3
 Revises: 3f0c11478a5d
