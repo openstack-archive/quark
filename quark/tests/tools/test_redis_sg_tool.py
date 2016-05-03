@@ -173,10 +173,10 @@ class QuarkRedisSgToolPurgeOrphans(QuarkRedisSgToolBase):
             cli = sg_client()
             cli.purge_orphans(dryrun=True)
 
-            get_conn.assert_called_with(use_master=False)
             connection_mock.vif_key.assert_any_call(1, 1)
             db_ports_groups.assert_called_with(ctxt_mock)
             connection_mock.delete_key.assert_not_called()
+            self.assertTrue(get_conn.call_count, 1)
 
     def test_purge_orphans(self):
         with self._stubs() as (get_conn, connection_mock, db_ports_groups,
@@ -185,7 +185,6 @@ class QuarkRedisSgToolPurgeOrphans(QuarkRedisSgToolBase):
             cli.purge_orphans(dryrun=False)
 
             db_ports_groups.assert_called_with(ctxt_mock)
-            get_conn.assert_called_with(use_master=True)
             connection_mock.vif_key.assert_any_call(1, 1)
             connection_mock.delete_key.assert_any_call("2.2")
             connection_mock.delete_key.assert_any_call("3.3")
@@ -203,7 +202,7 @@ class QuarkRedisSgToolPurgeOrphans(QuarkRedisSgToolBase):
             cli.purge_orphans(dryrun=False)
 
             db_ports_groups.assert_called_with(ctxt_mock)
-            get_conn.assert_called_with(giveup=False, use_master=True)
+            get_conn.assert_called_with(giveup=False)
             connection_mock.vif_key.assert_any_call(1, 1)
             connection_mock.delete_key.assert_any_call("2.2")
             connection_mock.delete_key.assert_any_call("3.3")
@@ -255,7 +254,6 @@ class QuarkRedisSgToolWriteGroups(QuarkRedisSgToolBase):
             connection_mock.get_rules_for_port.assert_called_with(1, 1)
 
             self.assertTrue(get_conn.call_count, 1)
-            get_conn.assert_called_with(use_master=False)
 
     def test_write_groups(self):
         with self._stubs() as (get_conn, connection_mock, db_ports_groups,
@@ -269,7 +267,6 @@ class QuarkRedisSgToolWriteGroups(QuarkRedisSgToolBase):
             connection_mock.apply_rules.assert_called_with(1, 1, "rules")
 
             self.assertTrue(get_conn.call_count, 1)
-            get_conn.assert_called_with(use_master=True)
 
     @mock.patch("time.sleep")
     def test_write_groups_raises(self, sleep):
@@ -289,5 +286,4 @@ class QuarkRedisSgToolWriteGroups(QuarkRedisSgToolBase):
             connection_mock.serialize_rules.assert_called_with([sg_rule])
             sleep.assert_called_with(1)
             self.assertTrue(get_conn.call_count, 2)
-            get_conn.assert_any_call(giveup=False, use_master=True)
-            get_conn.assert_any_call(use_master=True)
+            get_conn.assert_any_call(giveup=False)
