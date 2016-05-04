@@ -37,11 +37,6 @@ Available commands are:
     redis_sg_tool --version
 
 """
-
-VERSION = 0.1
-RETRIES = 5
-RETRY_DELAY = 1
-
 import sys
 import time
 
@@ -54,6 +49,10 @@ from oslo_config import cfg
 from quark.cache import security_groups_client as sg_client
 from quark.db import api as db_api
 from quark import exceptions as q_exc
+
+VERSION = 0.1
+RETRIES = 5
+RETRY_DELAY = 1
 
 
 class QuarkRedisTool(object):
@@ -133,7 +132,7 @@ class QuarkRedisTool(object):
         print(db_api.ports_with_security_groups_count(ctx))
 
     def purge_orphans(self, dryrun=False):
-        client = self._get_connection(use_master=not dryrun)
+        client = self._get_connection()
         ctx = neutron.context.get_admin_context()
         ports_with_groups = db_api.ports_with_security_groups_find(ctx).all()
         if dryrun:
@@ -174,8 +173,7 @@ class QuarkRedisTool(object):
                         break
                     except q_exc.RedisConnectionFailure:
                         time.sleep(self._retry_delay)
-                        client = self._get_connection(use_master=True,
-                                                      giveup=False)
+                        client = self._get_connection(giveup=False)
         if dryrun:
             print('=' * 80)
             print()
@@ -184,7 +182,7 @@ class QuarkRedisTool(object):
         print("Done!")
 
     def write_groups(self, dryrun=False):
-        client = self._get_connection(use_master=not dryrun)
+        client = self._get_connection()
         ctx = neutron.context.get_admin_context()
         ports_with_groups = db_api.ports_with_security_groups_find(ctx).all()
         if dryrun:
@@ -236,8 +234,7 @@ class QuarkRedisTool(object):
                         break
                     except q_exc.RedisConnectionFailure:
                         time.sleep(self._retry_delay)
-                        client = self._get_connection(use_master=True,
-                                                      giveup=False)
+                        client = self._get_connection(giveup=False)
 
         if dryrun:
             print()
