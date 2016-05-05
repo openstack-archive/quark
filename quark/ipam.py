@@ -565,8 +565,12 @@ class QuarkIpam(object):
                      new_addresses=new_addresses, ip_address=ip_address)))
 
         subnets = subnets or []
+        allocated_ips = [ip.get("address_readable") for ip in new_addresses]
         for subnet in subnets:
             if not subnet:
+                continue
+
+            if str(ip_address) in allocated_ips:
                 continue
 
             LOG.info("Attempting to allocate from {0} - {1}".format(
