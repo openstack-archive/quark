@@ -345,7 +345,7 @@ class QuarkIpam(object):
         LOG.info("Attempting to reallocate an IP (step 1 of 3) - [{0}]".format(
             utils.pretty_kwargs(network_id=net_id, port_id=port_id,
                                 version=version, segment_id=segment_id,
-                                subnets=subnets)))
+                                subnets=subnets, ip_address=ip_address)))
 
         if version == 6:
             # Defers to the create case. The reason why is we'd have to look
@@ -480,11 +480,9 @@ class QuarkIpam(object):
                     port_id=port_id,
                     address_type=kwargs.get('address_type', ip_types.FIXED))
                 address["deallocated"] = 0
-        except Exception:
-            # NOTE(mdietz): Our version of sqlalchemy incorrectly raises None
-            #               here when there's an IP conflict
-            if ip_address:
-                raise n_exc.IpAddressInUse(ip_address=next_ip, net_id=net_id)
+        except db_exception.DBDuplicateEntry:
+            raise q_exc.CannotAllocateReallocateableIP(ip_address=next_ip)
+        except db_exception.DBError:
             raise q_exc.IPAddressRetryableFailure(ip_addr=next_ip,
                                                   net_id=net_id)
 
