@@ -796,6 +796,9 @@ def _subnet_find(context, limit, sorts, marker, page_reverse, fields,
     if "join_routes" in filters:
         query = query.options(orm.joinedload(models.Subnet.routes))
 
+    if "join_pool" in filters:
+        query = query.options(orm.undefer('_allocation_pool_cache'))
+
     return paginate_query(query, models.Subnet, limit, sorts, marker)
 
 

@@ -402,8 +402,8 @@ def get_subnets(context, limit=None, page_reverse=False, sorts=None,
     filters = filters or {}
     subnets = db_api.subnet_find(context, limit=limit,
                                  page_reverse=page_reverse, sorts=sorts,
-                                 marker_obj=marker,
-                                 join_dns=True, join_routes=True, **filters)
+                                 marker_obj=marker, join_dns=True,
+                                 join_routes=True, join_pool=True, **filters)
     for subnet in subnets:
         cache = subnet.get("_allocation_pool_cache")
         if not cache:
