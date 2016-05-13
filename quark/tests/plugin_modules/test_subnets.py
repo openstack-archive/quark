@@ -1660,6 +1660,7 @@ class TestQuarkGetSubnetsShared(test_quark_plugin.TestQuarkPlugin):
                                            join_routes=True,
                                            defaults=["public_v4", "public_v6"],
                                            join_dns=True,
+                                           join_pool=True,
                                            provider_query=False)
 
     def test_get_subnets_shared_false(self):
@@ -1677,7 +1678,8 @@ class TestQuarkGetSubnetsShared(test_quark_plugin.TestQuarkPlugin):
                                            defaults=[invert, "public_v4",
                                                      "public_v6"],
                                            provider_query=False,
-                                           join_routes=True, join_dns=True)
+                                           join_routes=True, join_dns=True,
+                                           join_pool=True)
 
     def test_get_subnets_no_shared(self):
         sub0 = dict(id='public_v4', tenant_id="provider", name="public_v4",
@@ -1692,4 +1694,5 @@ class TestQuarkGetSubnetsShared(test_quark_plugin.TestQuarkPlugin):
                                            None, None,
                                            defaults=[],
                                            provider_query=False,
-                                           join_routes=True, join_dns=True)
+                                           join_routes=True, join_dns=True,
+                                           join_pool=True)
