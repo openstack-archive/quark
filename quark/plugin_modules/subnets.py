@@ -25,7 +25,6 @@ from oslo_utils import timeutils
 
 from quark import allocation_pool
 from quark.db import api as db_api
-from quark.db import models
 from quark import exceptions as q_exc
 from quark import network_strategy
 from quark.plugin_modules import ip_policies
@@ -280,9 +279,15 @@ def update_subnet(context, id, subnet):
                 raise n_exc.BadRequest(
                     resource="subnets",
                     msg="Allocation pools cannot be updated.")
+
+            if subnet_db["ip_policy"] is not None:
+                ip_policy_cidrs = subnet_db["ip_policy"].get_cidrs_ip_set()
+            else:
+                ip_policy_cidrs = netaddr.IPSet([])
+
             alloc_pools = allocation_pool.AllocationPools(
                 subnet_db["cidr"],
-                policies=models.IPPolicy.get_ip_policy_cidrs(subnet_db))
+                policies=ip_policy_cidrs)
         else:
             alloc_pools = allocation_pool.AllocationPools(subnet_db["cidr"],
                                                           allocation_pools)

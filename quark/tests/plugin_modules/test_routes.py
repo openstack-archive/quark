@@ -17,7 +17,6 @@ import contextlib
 
 import mock
 import netaddr
-from neutron.common import exceptions as n_exc_ext
 from neutron_lib import exceptions as n_exc
 
 from quark.db import api as db_api
@@ -74,65 +73,13 @@ class TestQuarkCreateRoutes(test_quark_plugin.TestQuarkPlugin):
             subnet_find.return_value = subnet
             yield
 
-    def test_create_route(self):
-        excluded_net = netaddr.IPNetwork("192.168.0.1/32")
-        ip_policy = {"exclude": [excluded_net]}
-        subnet = dict(id=2, ip_policy=ip_policy, cidr="192.168.0.0/24")
-        create_route = dict(id=1, cidr="172.16.0.0/24", gateway="172.16.0.1",
-                            subnet_id=subnet["id"])
-        route = dict(id=1, cidr="0.0.0.0/0", gateway="192.168.0.1",
-                     subnet_id=subnet["id"])
-        with self._stubs(create_route=create_route, find_routes=[route],
-                         subnet=subnet):
-            res = self.plugin.create_route(self.context,
-                                           dict(route=create_route))
-            for key in create_route.keys():
-                self.assertEqual(res[key], create_route[key])
-
-    def test_create_route_no_subnet_fails(self):
-        excluded_net = netaddr.IPNetwork("192.168.0.1/32")
-        ip_policy = {"exclude": [excluded_net]}
-        subnet = dict(id=2, ip_policy=ip_policy, cidr="192.168.0.0/24")
-        route = dict(id=1, cidr="192.168.0.0/24", gateway="192.168.0.1",
-                     subnet_id=subnet["id"])
-        with self._stubs(create_route=route, find_routes=[], subnet=None):
-            with self.assertRaises(n_exc.SubnetNotFound):
-                self.plugin.create_route(self.context, dict(route=route))
-
-    def test_create_no_other_routes(self):
-        excluded_net = netaddr.IPNetwork("192.168.0.1/32")
-        ip_policy = {"exclude": [excluded_net]}
-        subnet = dict(id=2, ip_policy=ip_policy, cidr="192.168.0.0/24")
-        create_route = dict(id=1, cidr="192.168.0.0/24", gateway="192.168.0.1",
-                            subnet_id=subnet["id"])
-        with self._stubs(create_route=create_route, find_routes=[],
-                         subnet=subnet):
-            res = self.plugin.create_route(self.context,
-                                           dict(route=create_route))
-            self.assertEqual(res["cidr"], create_route["cidr"])
-
-    def test_create_conflicting_route_raises(self):
-        excluded_net = netaddr.IPNetwork("192.168.0.1/32")
-        ip_policy = {"exclude": [excluded_net]}
-        subnet = dict(id=2, ip_policy=ip_policy, cidr="192.168.0.0/24")
-        create_route = dict(id=1, cidr="192.168.0.0/24", gateway="192.168.0.1",
-                            subnet_id=subnet["id"])
-        route = dict(id=1, cidr="192.168.0.0/24", gateway="192.168.0.1",
-                     subnet_id=subnet["id"])
-        with self._stubs(create_route=create_route, find_routes=[route],
-                         subnet=subnet):
-            with self.assertRaises(q_exc.RouteConflict):
-                self.plugin.create_route(self.context,
-                                         dict(route=create_route))
-
-    def test_create_route_gateway_conflict_raises(self):
+    def test_create_route_no_cidr_raises(self):
         subnet = dict(id=2, ip_policy=[], cidr="192.168.0.0/24")
-        create_route = dict(id=1, cidr="192.168.0.0/24", gateway="192.168.0.1",
+        create_route = dict(id=1, gateway="192.168.0.1",
                             subnet_id=subnet["id"])
         with self._stubs(create_route=create_route, find_routes=[],
                          subnet=subnet):
-            with self.assertRaises(
-                    n_exc_ext.GatewayConflictWithAllocationPools):
+            with self.assertRaises(n_exc.BadRequest):
                 self.plugin.create_route(self.context,
                                          dict(route=create_route))
 
@@ -146,15 +93,15 @@ class TestQuarkCreateRoutes(test_quark_plugin.TestQuarkPlugin):
                 self.plugin.create_route(self.context,
                                          dict(route=create_route))
 
-    def test_create_route_no_cidr_raises(self):
-        subnet = dict(id=2, ip_policy=[], cidr="192.168.0.0/24")
-        create_route = dict(id=1, gateway="192.168.0.1",
-                            subnet_id=subnet["id"])
-        with self._stubs(create_route=create_route, find_routes=[],
-                         subnet=subnet):
-            with self.assertRaises(n_exc.BadRequest):
-                self.plugin.create_route(self.context,
-                                         dict(route=create_route))
+    def test_create_route_no_subnet_fails(self):
+        excluded_net = netaddr.IPNetwork("192.168.0.1/32")
+        ip_policy = {"exclude": [excluded_net]}
+        subnet = dict(id=2, ip_policy=ip_policy, cidr="192.168.0.0/24")
+        route = dict(id=1, cidr="192.168.0.0/24", gateway="192.168.0.1",
+                     subnet_id=subnet["id"])
+        with self._stubs(create_route=route, find_routes=[], subnet=None):
+            with self.assertRaises(n_exc.SubnetNotFound):
+                self.plugin.create_route(self.context, dict(route=route))
 
     def test_create_route_no_subnet_raises(self):
         subnet = dict(id=2, ip_policy=[], cidr="192.168.0.0/24")

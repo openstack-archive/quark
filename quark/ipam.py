@@ -452,7 +452,11 @@ class QuarkIpam(object):
                                                  port_id=port_id,
                                                  ip_address=ip_address)))
 
-        ip_policy_cidrs = models.IPPolicy.get_ip_policy_cidrs(subnet)
+        if subnet and subnet["ip_policy"]:
+            ip_policy_cidrs = subnet["ip_policy"].get_cidrs_ip_set()
+        else:
+            ip_policy_cidrs = netaddr.IPSet([])
+
         next_ip = ip_address
         if not next_ip:
             if subnet["next_auto_assign_ip"] != -1:
@@ -518,7 +522,11 @@ class QuarkIpam(object):
             if mac:
                 mac = kwargs["mac_address"].get("address")
 
-            ip_policy_cidrs = models.IPPolicy.get_ip_policy_cidrs(subnet)
+            if subnet and subnet["ip_policy"]:
+                ip_policy_cidrs = subnet["ip_policy"].get_cidrs_ip_set()
+            else:
+                ip_policy_cidrs = netaddr.IPSet([])
+
             for tries, ip_address in enumerate(
                     generate_v6(mac, port_id, subnet["cidr"])):
 
