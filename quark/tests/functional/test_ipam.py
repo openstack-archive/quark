@@ -182,3 +182,56 @@ class QuarkIPAddressAllocateWithFullSubnetsNotMarkedAsFull(
                 self.assertEqual(available_subnets[0].cidr, "2.2.2.0/30")
                 self.assertEqual(available_subnets[0].next_auto_assign_ip,
                                  netaddr.IPAddress("2.2.2.2").ipv6().value)
+
+
+class QuarkIPAddressReallocateDeallocated(QuarkIpamBaseFunctionalTest):
+    @contextlib.contextmanager
+    def _stubs(self, network, subnets, ipam_strategy):
+        self.ipam = ipam_strategy
+        with self.context.session.begin():
+            net_mod = db_api.network_create(self.context, **network)
+            next_ip = []
+            sub_mod = []
+            for sub in subnets:
+                next_ip.append(sub.pop("next_auto_assign_ip", 0))
+                sub["network"] = net_mod
+                sub_mod.append(db_api.subnet_create(self.context, **sub))
+            for sub, ip_next in zip(sub_mod, next_ip):
+                # NOTE(asadoughi): update after cidr constructor has been
+                # invoked
+                db_api.subnet_update(self.context,
+                                     sub,
+                                     next_auto_assign_ip=ip_next)
+        yield net_mod, sub_mod
+        with self.context.session.begin():
+            for sub in sub_mod:
+                db_api.subnet_delete(self.context, sub)
+            db_api.network_delete(self.context, net_mod)
+
+    def test_allocate_deallocated_ips_ipam_both_req(self):
+        network = dict(name="public", tenant_id="fake")
+        ipnet = netaddr.IPNetwork("0.0.0.0/24")
+        next_ip = ipnet.ipv6().first + 2
+        subnet1 = dict(id=1, cidr="0.0.0.0/24", next_auto_assign_ip=next_ip,
+                       ip_policy=None, tenant_id="fake", version=4)
+        subnet2 = dict(id=2, cidr="fe80::dead:beef/64",
+                       next_auto_assign_ip=next_ip,
+                       ip_policy=None, tenant_id="fake", version=6)
+        subnets = [subnet1, subnet2]
+        ipam_strategy = quark.ipam.QuarkIpamBOTHREQ()
+        with self._stubs(network, subnets, ipam_strategy) as (net, sub):
+            ipaddress = []
+            self.ipam.allocate_ip_address(self.context, ipaddress,
+                                          net["id"], 0, 0, subnets=[1, 2])
+            self.assertEqual(len(ipaddress), 2)
+            for ip in ipaddress:
+                self.assertTrue(ip['version'] in [4, 6])
+                self.assertIsNotNone(ip['id'])
+                self.assertEqual(ip['used_by_tenant_id'], 'fake')
+            # Deallocate both given ip's
+            for ip in ipaddress:
+                self.ipam.deallocate_ip_address(self.context, ip)
+
+            # Now attempt to reallocate
+            self.ipam.allocate_ip_address(self.context, ipaddress,
+                                          net["id"], 0, 0, subnets=[1, 2])
