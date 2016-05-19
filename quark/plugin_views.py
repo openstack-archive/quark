@@ -344,9 +344,11 @@ def _make_floating_ip_dict(flip, port_id=None):
 
 def _make_scaling_ip_dict(flip):
     # Can an IPAddress.fixed_ip have more than one port associated with it?
-    ports = [{"port_id": fixed_ip.ports[0].id,
-              "fixed_ip_address": fixed_ip.address_readable}
-             for fixed_ip in flip.fixed_ips]
+    ports = []
+    for fixed_ip in flip.fixed_ips:
+        if fixed_ip.ports:
+            ports.append({"port_id": fixed_ip.ports[0].id,
+                          "fixed_ip_address": fixed_ip.address_readable})
     return {"id": flip.get("id"),
             "scaling_ip_address": None if not flip else flip.formatted(),
             "scaling_network_id": flip.get("network_id"),
