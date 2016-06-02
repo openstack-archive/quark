@@ -38,6 +38,9 @@ nosetests.xml
 # virtualenv
 .venv
 
+# unit testing
+.noseids
+
 *.swp
 
 # PBR stuff
