@@ -990,13 +990,13 @@ class QuarkIpamBOTH(QuarkIpam):
                                  reuse_after, version=None,
                                  ip_address=None, segment_id=None,
                                  subnets=None, **kwargs):
-        both_versions = []
-        for ver in (4, 6):
-            address = super(QuarkIpamBOTH, self).attempt_to_reallocate_ip(
-                context, net_id, port_id, reuse_after, ver, ip_address,
-                segment_id, subnets=subnets, **kwargs)
-            both_versions.extend(address)
-        return both_versions
+        ip_address_version = 4 if not ip_address else ip_address.version
+        # NOTE(quade): We do not attempt to reallocate ipv6, so just return
+        if ip_address_version == 6:
+            return []
+        return super(QuarkIpamBOTH, self).attempt_to_reallocate_ip(
+            context, net_id, port_id, reuse_after, ip_address_version,
+            ip_address, segment_id, subnets=subnets, **kwargs)
 
     def _choose_available_subnet(self, context, net_id, version=None,
                                  segment_id=None, ip_address=None,
