@@ -182,10 +182,13 @@ class TestFloatingIPs(BaseFloatingIPTest):
         self.assertEqual(flip['floating_ip_address'],
                          get_flip['floating_ip_address'])
 
-    def test_delete_floating_ip(self):
+    @mock.patch('quark.billing.notify')
+    @mock.patch('quark.billing.build_payload', return_value={})
+    def test_delete_floating_ip(self, notify, build_payload):
         floating_ip = dict(
             floating_network_id=self.floating_network.id,
-            port_id=self.user_port1['id']
+            port_id=self.user_port1['id'],
+            address_type='floating'
         )
         flip = self.plugin.create_floatingip(
             self.context, {"floatingip": floating_ip})

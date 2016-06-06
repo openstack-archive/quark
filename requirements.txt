@@ -1,5 +1,6 @@
 SQLAlchemy<1.1.0,>=1.0.10
 alembic==0.8.2
+click>=6.6
 neutron-lib>=0.0.1
 oslo.concurrency
 oslo.config

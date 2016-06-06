@@ -208,7 +208,9 @@ class TestScalingIP(test_floating_ips.BaseFloatingIPTest):
                          msg="Request to the unicorn API is not what is "
                              "expected.")
 
-    def test_delete_scaling_ip(self):
+    @mock.patch('quark.billing.notify')
+    @mock.patch('quark.billing.build_payload', return_value={})
+    def test_delete_scaling_ip(self, notify, build_payload):
         scaling_ip = dict(
             scaling_network_id=self.scaling_network.id,
             ports=[dict(port_id=self.user_port1['id']),

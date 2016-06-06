@@ -24,6 +24,7 @@ from neutron.common import rpc
 from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 from oslo_db import exception as db_exc
+from oslo_utils import timeutils
 
 from quark.db import models
 from quark import exceptions as q_exc
@@ -359,7 +360,8 @@ class QuarkIPAddressDeallocation(QuarkIpamBaseTest):
     def test_deallocate_ips_by_port(self):
         port_dict = dict(ip_addresses=[], device_id="foo")
         addr_dict = dict(subnet_id=1, address_readable=None,
-                         created_at=None, used_by_tenant_id=1)
+                         created_at=None, used_by_tenant_id=1,
+                         version=4)
 
         port = models.Port()
         port.update(port_dict)
@@ -379,7 +381,7 @@ class QuarkIPAddressDeallocation(QuarkIpamBaseTest):
         port_dict = dict(ip_addresses=[], device_id="foo")
         addr_dict = dict(subnet_id=1, address_readable="0.0.0.0",
                          created_at=None, used_by_tenant_id=1,
-                         address=0)
+                         address=0, version=4)
 
         port = models.Port()
         port.update(port_dict)
@@ -650,6 +652,7 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
         address["subnet"] = models.Subnet(cidr="0.0.0.0/24", first_ip=first,
                                           last_ip=last,
                                           next_auto_assign_ip=first)
+        address["allocated_at"] = timeutils.utcnow()
         with self._stubs(subnets=[[(subnet6, 0)]],
                          addresses=[address, None, None]) as addr_realloc:
             address = []
@@ -682,6 +685,7 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
         address["address"] = self.v46_val
         address["version"] = 4
         address["subnet"] = models.Subnet(cidr="0.0.0.0/24")
+        address["allocated_at"] = timeutils.utcnow()
         with self._stubs(subnets=[[(subnet6, 0)]],
                          addresses=[address, None, None]) as addr_realloc:
             address = []
@@ -709,6 +713,7 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
         address["address"] = self.v46_val
         address["version"] = 4
         address["subnet"] = models.Subnet(cidr="0.0.0.0/24")
+        address["allocated_at"] = timeutils.utcnow()
         with self._stubs(subnets=[[(subnet6, 0)]],
                          addresses=[address, None, None]) as addr_realloc:
             address = []
@@ -737,6 +742,7 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
         address["address"] = self.v46_val
         address["version"] = 4
         address["subnet"] = models.Subnet(cidr="0.0.0.0/24")
+        address["allocated_at"] = timeutils.utcnow()
         with self._stubs(subnets=[[]],
                          addresses=[address, None, None]) as addr_realloc:
             address = []
@@ -758,6 +764,7 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
         address["address"] = self.v46_val
         address["version"] = 4
         address["subnet"] = models.Subnet(cidr="::ffff:0:0/96")
+        address["allocated_at"] = timeutils.utcnow()
 
         mac = models.MacAddress()
         mac["address"] = netaddr.EUI("AA:BB:CC:DD:EE:FF")
@@ -792,6 +799,7 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
         address["address"] = self.v46_val
         address["version"] = 4
         address["subnet"] = models.Subnet(cidr="::ffff:0:0/96")
+        address["allocated_at"] = timeutils.utcnow()
 
         mac = models.MacAddress()
         mac["address"] = netaddr.EUI("AA:BB:CC:DD:EE:FF")
@@ -816,6 +824,7 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
         address["address"] = str(self.v46_val)
         address["version"] = 6
         address["subnet"] = models.Subnet(cidr="::ffff:0:0/96")
+        address["allocated_at"] = timeutils.utcnow()
         with self._stubs(subnets=[[(subnet4, 0)]],
                          addresses=[address, None, None]) as addr_realloc:
             addresses = []
@@ -842,6 +851,7 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
         address1["address"] = self.v46_val
         address1["version"] = 4
         address1["subnet"] = models.Subnet(cidr="0.0.0.0/24")
+        address1["allocated_at"] = timeutils.utcnow()
 
         with self._stubs(subnets=[[(subnet6, 1)]],
                          addresses=[address1]) as addr_realloc:
@@ -982,6 +992,7 @@ class QuarkIpamTestBothRequiredIpAllocation(QuarkIpamBaseTest):
         address["address"] = 4
         address["version"] = 4
         address["subnet"] = models.Subnet(cidr="0.0.0.0/24")
+        address["allocated_at"] = timeutils.utcnow()
         with self._stubs(subnets=[[(subnet6, 0)]],
                          addresses=[address, None, None]) as addr_realloc:
             address = []
@@ -1007,6 +1018,7 @@ class QuarkIpamTestBothRequiredIpAllocation(QuarkIpamBaseTest):
         address1["address"] = self.v46_val
         address1["version"] = 4
         address1["subnet"] = models.Subnet(cidr="0.0.0.0/24")
+        address1["allocated_at"] = timeutils.utcnow()
 
         with self._stubs(subnets=[[(subnet6, 0)]],
                          addresses=[address1]) as addr_realloc:
@@ -1111,6 +1123,8 @@ class QuarkIpamAllocateFromV6Subnet(QuarkIpamBaseTest):
             ip_mod = models.IPAddress()
             ip_mod["address"] = ip_address.value
             ip_mod["deallocated"] = deallocated
+            ip_mod["allocated_at"] = timeutils.utcnow()
+            ip_mod["version"] = ip_address.version
 
         with contextlib.nested(
             mock.patch("quark.db.models.IPPolicy.get_cidrs_ip_set"),
@@ -1156,7 +1170,7 @@ class QuarkIpamAllocateFromV6Subnet(QuarkIpamBaseTest):
     def test_allocate_v6_with_ip_and_no_mac(self):
         fip = netaddr.IPAddress('fe80::')
         ip_address = netaddr.IPAddress("fe80::7")
-        lip = netaddr.IPAddress('fe80::FF:FFFF')
+        lip = netaddr.IPAddress('feed::FF:FFFF')
         port_id = "945af340-ed34-4fec-8c87-853a2df492b4"
         subnet6 = dict(id=1, first_ip=fip, last_ip=lip,
                        cidr="feed::/104", ip_version=6,
@@ -1482,12 +1496,11 @@ class QuarkIPAddressAllocationTestRetries(QuarkIpamBaseTest):
         with contextlib.nested(
             mock.patch("quark.db.api.ip_address_find"),
             mock.patch("quark.db.api.ip_address_create"),
-            mock.patch("quark.ipam.QuarkIpam._notify_new_addresses"),
             mock.patch("quark.db.api.subnet_find_ordered_by_most_full"),
             mock.patch("quark.db.api.subnet_update_next_auto_assign_ip"),
             mock.patch("quark.db.api.subnet_update_set_full"),
             mock.patch("sqlalchemy.orm.session.Session.refresh")
-        ) as (addr_find, addr_create, notify, subnet_find, subnet_update,
+        ) as (addr_find, addr_create, subnet_find, subnet_update,
               subnet_set_full, refresh):
             addr_find.side_effect = [None, None, None]
             addr_mods = []
@@ -1520,7 +1533,10 @@ class QuarkIPAddressAllocationTestRetries(QuarkIpamBaseTest):
                        cidr="0.0.0.0/24", ip_version=4,
                        ip_policy=None)
         subnets = [(subnet1, 1)]
-        addr_found = dict(id=1, address=2)
+        addr_found = dict(id=1,
+                          address=2,
+                          allocated_at=timeutils.utcnow(),
+                          version=4)
         with self._stubs(subnets=subnets,
                          address=[q_exc.IPAddressRetryableFailure,
                                   addr_found]) as (sub_mods, addr_mods):
@@ -1550,7 +1566,8 @@ class QuarkIPAddressAllocationTestRetries(QuarkIpamBaseTest):
                        cidr="::/64", ip_version=6,
                        ip_policy=None)
         subnets = [(subnet1, 1), (subnet1, 1)]
-        addr_found = dict(id=1, address=1)
+        addr_found = dict(id=1, address=1, version=4,
+                          allocated_at=timeutils.utcnow())
 
         with self._stubs(
             subnets=subnets,
@@ -1569,7 +1586,8 @@ class QuarkIPAddressAllocationTestRetries(QuarkIpamBaseTest):
                        cidr="0.0.0.0/24", ip_version=4,
                        ip_policy=None)
         subnets = [(subnet1, 1), (subnet1, 1)]
-        addr_found = dict(id=1, address=256)
+        addr_found = dict(id=1, address=256, version=4,
+                          allocated_at=timeutils.utcnow())
         with self._stubs(subnets=subnets,
                          address=[q_exc.IPAddressRetryableFailure,
                                   addr_found]) as (sub_mods, addr_mods):
@@ -1584,7 +1602,8 @@ class QuarkIPAddressAllocationTestRetries(QuarkIpamBaseTest):
                        ip_policy=None,
                        do_not_use=1)
         subnets = []
-        addr_found = dict(id=1, address=256)
+        addr_found = dict(id=1, address=256, version=4,
+                          allocated_at=timeutils.utcnow())
         with self._stubs(subnets=subnets,
                          address=[q_exc.IPAddressRetryableFailure,
                                   addr_found]) as (sub_mods, addr_mods):
@@ -1600,7 +1619,8 @@ class QuarkIPAddressAllocationTestRetries(QuarkIpamBaseTest):
                        cidr="0.0.0.0/31", ip_version=4,
                        ip_policy=None)
         subnets = [(subnet1, 1)]
-        addr_found = dict(id=1, address=1)
+        addr_found = dict(id=1, address=1, version=4,
+                          allocated_at=timeutils.utcnow())
         with self._stubs(subnets=subnets, address=[addr_found]) as (sub_mods,
                                                                     addr_mods):
             addr = []
@@ -1810,12 +1830,35 @@ class QuarkIPAddressAllocationNotifications(QuarkIpamBaseTest):
             yield notify
 
     def test_allocation_notification(self):
+        """Tests IP allocation
+
+        Notification payload looks like this:
+            {
+                'ip_type': u'fixed',
+                'id': u'ee267779-e513-4132-a9ba-55148eab584f',
+                'event_type': u'CREATE',
+                'eventTime': u'2016-05-26T21:47:45.722735Z',
+                'network_id': u'None',
+                'tenant_id': u'1',
+                'subnet_id': u'1',
+                'public': False,
+                'ip_address': u'0.0.0.0',
+                'ip_version': 4
+            }
+            But for simplicity replaced it with mock.ANY
+        """
+
         subnet = dict(id=1, first_ip=0, last_ip=255,
                       cidr="0.0.0.0/24", ip_version=4,
                       next_auto_assign_ip=1,
                       ip_policy=None)
+        allocated_at = timeutils.utcnow()
+        deallocated_at = timeutils.utcnow()
         address = dict(address=0, created_at="123", subnet_id=1,
-                       address_readable="0.0.0.0", used_by_tenant_id=1)
+                       address_readable="0.0.0.0", used_by_tenant_id=1,
+                       version=4, allocated_at=allocated_at,
+                       deallocated_at=deallocated_at,
+                       address_type='fixed')
         with self._stubs(
             address,
             subnets=[(subnet, 1)],
@@ -1827,16 +1870,13 @@ class QuarkIPAddressAllocationNotifications(QuarkIpamBaseTest):
             notify.assert_called_once_with("network")
             notify.return_value.info.assert_called_once_with(
                 self.context,
-                "ip_block.address.create",
-                dict(ip_block_id=address["subnet_id"],
-                     ip_address="0.0.0.0",
-                     device_ids=[],
-                     created_at=address["created_at"],
-                     used_by_tenant_id=1))
+                "ip.add",
+                mock.ANY)
 
     def test_deallocation_notification(self):
         addr_dict = dict(address=0, created_at="123", subnet_id=1,
-                         address_readable="0.0.0.0", used_by_tenant_id=1)
+                         address_readable="0.0.0.0", used_by_tenant_id=1,
+                         version=4)
         address = models.IPAddress()
         address.update(addr_dict)
 
@@ -1847,16 +1887,15 @@ class QuarkIPAddressAllocationNotifications(QuarkIpamBaseTest):
 
         with self._stubs(dict(), deleted_at="456") as notify:
             self.ipam.deallocate_ips_by_port(self.context, port)
-            notify.assert_called_once_with("network")
-            notify.return_value.info.assert_called_once_with(
-                self.context,
-                "ip_block.address.delete",
-                dict(ip_block_id=address["subnet_id"],
-                     ip_address="0.0.0.0",
-                     device_ids=[],
-                     created_at=address["created_at"],
-                     deleted_at="456",
-                     used_by_tenant_id=1))
+            notify.assert_called_with('network')
+            self.assertEqual(notify.call_count, 2,
+                             'Should have called notify twice')
+            # When we deallocate an IP we must send a usage message as well
+            # Verify that we called both methods. Order matters.
+            call_list = [mock.call(self.context, 'ip.delete', mock.ANY),
+                         mock.call(self.context, 'ip.exists', mock.ANY)]
+            notify.return_value.info.assert_has_calls(call_list,
+                                                      any_order=False)
 
 
 class QuarkIpamTestV6IpGeneration(QuarkIpamBaseTest):

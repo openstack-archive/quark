@@ -17,6 +17,7 @@ from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 from oslo_log import log as logging
 
+from quark import billing
 from quark.db import api as db_api
 from quark.db import ip_types
 from quark.drivers import floating_ip_registry as registry
@@ -164,6 +165,9 @@ def _create_flip(context, flip, port_fixed_ips):
             context.session.rollback()
             raise
 
+    # alexm: Notify from this method for consistency with _delete_flip
+    billing.notify(context, 'ip.associate', flip)
+
 
 def _get_flip_fixed_ip_by_port_id(flip, port_id):
     for fixed_ip in flip.fixed_ips:
@@ -181,6 +185,13 @@ def _update_flip(context, flip_id, ip_type, requested_ports):
     {"port_id": "<id of port>", "fixed_ip": "<fixed ip address>"}
     :return: quark.models.IPAddress
     """
+    # This list will hold flips that require notifications.
+    # Using sets to avoid dups, if any.
+    notifications = {
+        'ip.associate': set(),
+        'ip.disassociate': set()
+    }
+
     context.session.begin()
     try:
         flip = db_api.floating_ip_find(context, id=flip_id, scope=db_api.ONE)
@@ -222,6 +233,7 @@ def _update_flip(context, flip_id, ip_type, requested_ports):
         for port_id in removed_port_ids:
             port = db_api.port_find(context, id=port_id, scope=db_api.ONE)
             flip = db_api.port_disassociate_ip(context, [port], flip)
+            notifications['ip.disassociate'].add(flip)
             fixed_ip = _get_flip_fixed_ip_by_port_id(flip, port_id)
             if fixed_ip:
                 flip = db_api.floating_ip_disassociate_fixed_ip(
@@ -245,6 +257,7 @@ def _update_flip(context, flip_id, ip_type, requested_ports):
                 raise q_exc.NoAvailableFixedIpsForPort(port_id=port_id)
             port_fixed_ips[port_id] = {'port': port, 'fixed_ip': fixed_ip}
             flip = db_api.port_associate_ip(context, [port], flip, [port_id])
+            notifications['ip.associate'].add(flip)
             flip = db_api.floating_ip_associate_fixed_ip(context, flip,
                                                          fixed_ip)
 
@@ -264,6 +277,12 @@ def _update_flip(context, flip_id, ip_type, requested_ports):
     except Exception:
         context.session.rollback()
         raise
+
+    # Send notifications for possible associate/disassociate events
+    for notif_type, flip_set in notifications.iteritems():
+        for flip in flip_set:
+            billing.notify(context, notif_type, flip)
+
     # NOTE(blogan): ORM does not seem to update the model to the real state
     # of the database, so I'm doing an explicit refresh for now.
     context.session.refresh(flip)
@@ -308,6 +327,10 @@ def _delete_flip(context, id, address_type):
                   'on the unicorn API.  The ip has been cleaned up, but '
                   'may need to be handled manually in the unicorn API.  '
                   'Error: %s' % e.message)
+
+    # alexm: Notify from this method because we don't have the flip object
+    # in the callers
+    billing.notify(context, 'ip.disassociate', flip)
 
 
 def create_floatingip(context, content):

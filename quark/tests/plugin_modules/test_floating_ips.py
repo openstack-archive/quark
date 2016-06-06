@@ -41,10 +41,13 @@ class TestRemoveFloatingIPs(test_quark_plugin.TestQuarkPlugin):
             mock.patch("quark.db.api.ip_address_deallocate"),
             mock.patch("quark.ipam.QuarkIpam.deallocate_ip_address"),
             mock.patch("quark.drivers.unicorn_driver.UnicornDriver"
-                       ".remove_floating_ip")
+                       ".remove_floating_ip"),
+            mock.patch("quark.billing.notify"),
+            mock.patch("quark.billing.build_payload")
         ) as (flip_find, db_fixed_ip_disassoc, db_port_disassoc, db_dealloc,
-              mock_dealloc, mock_remove_flip):
+              mock_dealloc, mock_remove_flip, notify, build_payload):
             flip_find.return_value = flip_model
+            build_payload.return_value = {'respek': '4reelz'}
             yield
 
     def test_delete_floating_by_ip_address_id(self):
@@ -233,15 +236,18 @@ class TestCreateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
             mock.patch("quark.drivers.unicorn_driver.UnicornDriver"
                        ".register_floating_ip"),
             mock.patch("quark.db.api.port_associate_ip"),
-            mock.patch("quark.db.api.floating_ip_associate_fixed_ip")
+            mock.patch("quark.db.api.floating_ip_associate_fixed_ip"),
+            mock.patch("quark.billing.notify"),
+            mock.patch("quark.billing.build_payload")
         ) as (flip_find, net_find, port_find, alloc_ip, mock_reg_flip,
-              port_assoc, fixed_ip_assoc):
+              port_assoc, fixed_ip_assoc, notify, build_payload):
             flip_find.return_value = flip_model
             net_find.return_value = net_model
             port_find.return_value = port_model
             alloc_ip.side_effect = _alloc_ip
             port_assoc.side_effect = _port_assoc
             fixed_ip_assoc.side_effect = _flip_fixed_ip_assoc
+            build_payload.return_value = {}
             yield
 
     def test_create_with_a_port(self):
@@ -537,6 +543,10 @@ class TestUpdateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
             addr.ports = []
             return addr
 
+        def mock_notify(context, notif_type, flip):
+            """We don't want to notify from tests"""
+            pass
+
         with contextlib.nested(
             mock.patch("quark.db.api.floating_ip_find"),
             mock.patch("quark.db.api.port_find"),
@@ -549,16 +559,20 @@ class TestUpdateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
             mock.patch("quark.db.api.port_associate_ip"),
             mock.patch("quark.db.api.port_disassociate_ip"),
             mock.patch("quark.db.api.floating_ip_associate_fixed_ip"),
-            mock.patch("quark.db.api.floating_ip_disassociate_fixed_ip")
+            mock.patch("quark.db.api.floating_ip_disassociate_fixed_ip"),
+            mock.patch("quark.billing.notify")
         ) as (flip_find, port_find, reg_flip, update_flip, rem_flip,
-              port_assoc, port_dessoc, flip_assoc, flip_dessoc):
+              port_assoc, port_dessoc, flip_assoc, flip_dessoc, notify):
             flip_find.return_value = flip_model
             port_find.side_effect = _find_port
             port_assoc.side_effect = _port_assoc
             port_dessoc.side_effect = _port_dessoc
             flip_assoc.side_effect = _flip_assoc
             flip_dessoc.side_effect = _flip_disassoc
-            yield
+            notify.side_effect = mock_notify
+            # We'll yield a notify to check how many times and with which
+            # arguments it was called.
+            yield notify
 
     def test_update_with_new_port_and_no_previous_port(self):
         new_port = dict(id="2")
@@ -575,12 +589,14 @@ class TestUpdateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
         flip = dict(id="3", fixed_ip_address="172.16.1.1", address=int(addr),
                     address_readable=str(addr))
 
-        with self._stubs(flip=flip, new_port=new_port, ips=ips):
+        with self._stubs(flip=flip, new_port=new_port, ips=ips) as notify:
             content = dict(port_id=new_port["id"])
             ret = self.plugin.update_floatingip(self.context, flip["id"],
                                                 dict(floatingip=content))
             self.assertEqual(ret["fixed_ip_address"], "192.168.0.1")
             self.assertEqual(ret["port_id"], new_port["id"])
+            notify.assert_called_once_with(self.context, 'ip.associate',
+                                           mock.ANY)
 
     def test_update_with_new_port(self):
         curr_port = dict(id="1")
@@ -598,12 +614,16 @@ class TestUpdateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
                     address_readable=str(addr))
 
         with self._stubs(flip=flip, curr_port=curr_port,
-                         new_port=new_port, ips=ips):
+                         new_port=new_port, ips=ips) as notify:
             content = dict(port_id=new_port["id"])
             ret = self.plugin.update_floatingip(self.context, flip["id"],
                                                 dict(floatingip=content))
             self.assertEqual(ret["fixed_ip_address"], "192.168.0.1")
             self.assertEqual(ret["port_id"], new_port["id"])
+            self.assertEqual(notify.call_count, 2, 'Should notify twice here')
+            call_list = [mock.call(self.context, 'ip.disassociate', mock.ANY),
+                         mock.call(self.context, 'ip.associate', mock.ANY)]
+            notify.assert_has_calls(call_list, any_order=True)
 
     def test_update_with_no_port(self):
         curr_port = dict(id="1")
@@ -611,12 +631,14 @@ class TestUpdateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
         flip = dict(id="3", fixed_ip_address="172.16.1.1", address=int(addr),
                     address_readable=str(addr))
 
-        with self._stubs(flip=flip, curr_port=curr_port):
+        with self._stubs(flip=flip, curr_port=curr_port) as notify:
             content = dict(port_id=None)
             ret = self.plugin.update_floatingip(self.context, flip["id"],
                                                 dict(floatingip=content))
             self.assertEqual(ret.get("fixed_ip_address"), None)
             self.assertEqual(ret.get("port_id"), None)
+            notify.assert_called_once_with(self.context, 'ip.disassociate',
+                                           mock.ANY)
 
     def test_update_with_non_existent_port_should_fail(self):
         addr = netaddr.IPAddress("10.0.0.1")
