@@ -1555,9 +1555,9 @@ class QuarkIPAddressAllocationTestRetries(QuarkIpamBaseTest):
         subnets = [(subnet1, 1), (subnet1, 1)]
         addr_found = dict(id=1, address=1)
         with self._stubs(subnets=subnets,
-                         address=[q_exc.CannotAllocateReallocateableIP,
+                         address=[n_exc.IpAddressInUse,
                                   addr_found]):
-            with self.assertRaises(q_exc.CannotAllocateReallocateableIP):
+            with self.assertRaises(n_exc.IpAddressInUse):
                 self.ipam.allocate_ip_address(
                     self.context, [], 0, 0, 0, ip_addresses=["0.0.0.1"])
 

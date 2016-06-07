@@ -230,7 +230,3 @@ class CannotAddMoreIPsToPort(n_exc.OverQuota):
 
 class CannotCreateMoreSharedIPs(n_exc.OverQuota):
     message = _("Cannot create more shared IPs on selected network")
-
-
-class CannotAllocateReallocateableIP(n_exc.NeutronException):
-    message = _("Failed to allocate a reallocatable ip %(ip_address)s")

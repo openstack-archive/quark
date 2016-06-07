@@ -22,7 +22,6 @@ from neutron_lib import exceptions as n_exc
 
 from quark.db import api as db_api
 from quark.db import models
-from quark import exceptions as q_exc
 import quark.ipam
 
 # import below necessary if file run by itself
@@ -276,7 +275,7 @@ class QuarkIPAddressReallocateAllocated(QuarkIpamBaseFunctionalTest):
             self.assertEqual(ipaddress[0]['version'], 4)
             self.assertEqual(ipaddress[0]['used_by_tenant_id'], "fake")
             # Attempt to allocate the same IP
-            with self.assertRaises(q_exc.CannotAllocateReallocateableIP):
+            with self.assertRaises(n_exc.IpAddressInUse):
                 allocated_ip = [ipaddress[0]['address']]
                 self.ipam.allocate_ip_address(self.context, [],
                                               net["id"], 0, 0,
@@ -299,7 +298,7 @@ class QuarkIPAddressReallocateAllocated(QuarkIpamBaseFunctionalTest):
             self.assertEqual(ipaddress[0]['version'], 6)
             self.assertEqual(ipaddress[0]['used_by_tenant_id'], "fake")
             # Attempt to allocate the same IP
-            with self.assertRaises(q_exc.CannotAllocateReallocateableIP):
+            with self.assertRaises(n_exc.IpAddressInUse):
                 allocated_ip = [ipaddress[0]['address']]
                 self.ipam.allocate_ip_address(self.context, [],
                                               net["id"], 0, 0,
@@ -326,7 +325,7 @@ class QuarkIPAddressReallocateAllocated(QuarkIpamBaseFunctionalTest):
                 self.assertIsNotNone(ip['id'])
                 self.assertEqual(ip['used_by_tenant_id'], 'fake')
             # Attempt to allocate the same IP
-            with self.assertRaises(q_exc.CannotAllocateReallocateableIP):
+            with self.assertRaises(n_exc.IpAddressInUse):
                 allocated_ip = [ip['address_readable'] for ip in ipaddress]
                 self.ipam.allocate_ip_address(self.context, [],
                                               net["id"], 0, 0,

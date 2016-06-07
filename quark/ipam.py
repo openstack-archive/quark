@@ -484,7 +484,7 @@ class QuarkIpam(object):
                 # allocate_ip_address() when it's clear that the IP
                 # allocation was successful
         except db_exception.DBDuplicateEntry:
-            raise q_exc.CannotAllocateReallocateableIP(ip_address=next_ip)
+            raise n_exc.IpAddressInUse(ip_address=next_ip, net_id=net_id)
         except db_exception.DBError:
             raise q_exc.IPAddressRetryableFailure(ip_addr=next_ip,
                                                   net_id=net_id)
