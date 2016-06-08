@@ -244,3 +244,7 @@ class CannotAddMoreIPsToPort(n_exc.OverQuota):
 
 class CannotCreateMoreSharedIPs(n_exc.OverQuota):
     message = _("Cannot create more shared IPs on selected network")
+
+
+class JobNotFound(n_exc.NotFound):
+    message = _("Job %(job_id)s not found")
