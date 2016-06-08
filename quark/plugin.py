@@ -30,6 +30,7 @@ from quark import ip_availability
 from quark.plugin_modules import floating_ips
 from quark.plugin_modules import ip_addresses
 from quark.plugin_modules import ip_policies
+from quark.plugin_modules import jobs
 from quark.plugin_modules import mac_address_ranges
 from quark.plugin_modules import networks
 from quark.plugin_modules import ports
@@ -131,7 +132,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
                                    "networks_quark", "router",
                                    "ip_availabilities", "ports_quark",
                                    "floatingip", "segment_allocation_ranges",
-                                   "scalingip"]
+                                   "scalingip", "jobs"]
 
     def __init__(self):
         LOG.info("Starting quark plugin")
@@ -499,3 +500,25 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
                                            fields=fields, sorts=sorts,
                                            limit=limit, marker=marker,
                                            page_reverse=page_reverse)
+
+    @sessioned
+    def get_jobs(self, context, **filters):
+        return jobs.get_jobs(context, **filters)
+
+    @sessioned
+    def get_job(self, context, id):
+        return jobs.get_job(context, id)
+
+    @sessioned
+    def create_job(self, context, job):
+        self._fix_missing_tenant_id(context, job['job'])
+        return jobs.create_job(context, job)
+
+    @sessioned
+    def update_job(self, context, id, job):
+        self._fix_missing_tenant_id(context, job['job'])
+        return jobs.update_job(context, id, job)
+
+    @sessioned
+    def delete_job(self, context, id):
+        return jobs.delete_job(context, id)
