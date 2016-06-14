@@ -483,7 +483,8 @@ class TestUpdateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
         self.addCleanup(reset_refresh, self.context)
 
     @contextlib.contextmanager
-    def _stubs(self, flip=None, curr_port=None, new_port=None, ips=None):
+    def _stubs(self, flip=None, curr_port=None, new_port=None, ips=None,
+               subnet=None, network=None):
         curr_port_model = None
         if curr_port:
             curr_port_model = models.Port()
@@ -520,6 +521,16 @@ class TestUpdateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
                                            address=int(addr), version=4,
                                            address_type="fixed"))
                 flip_model.fixed_ip = fixed_ip_model
+            if subnet:
+                subnet_model = models.Subnet()
+                subnet_model.update(subnet)
+                flip_model.subnet = subnet
+
+        net_model = None
+        if network:
+            net_model = models.Network()
+            net_model.update(network)
+            net_model.ports = [new_port_model]
 
         def _find_port(context, id, **kwargs):
             return (curr_port_model if (curr_port_model and
@@ -573,6 +584,35 @@ class TestUpdateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
             # We'll yield a notify to check how many times and with which
             # arguments it was called.
             yield notify
+
+    def test_create_with_conflicted_fixed_ip_and_gateway(self):
+        floating_ip_addr = netaddr.IPAddress("10.0.0.1")
+        flip = dict(id=1, address=int(floating_ip_addr), version=4,
+                    address_readable=str(floating_ip_addr), subnet_id=1,
+                    network_id=2, used_by_tenant_id=1)
+        network = dict(id="00000000-0000-0000-0000-000000000000",
+                       ipam_strategy="ANY")
+        subnet = dict(id=1, network_id=1, name=1,
+                      tenant_id=1, ip_version=4,
+                      routes=[models.Route(cidr='0.0.0.0',
+                                           gateway='192.168.0.1')],
+                      cidr="192.168.0.0/24",
+                      dns_nameservers=[],
+                      enable_dhcp=None)
+
+        fixed_ip_addr = netaddr.IPAddress("192.168.0.1")
+        fixed_ips = [dict(address_type="fixed", address=int(fixed_ip_addr),
+                          version=4, address_readable=str(fixed_ip_addr),
+                          allocated_at=datetime.datetime.now())]
+        new_port = dict(id="abcdefgh-1111-2222-3333-1234567890ab")
+
+        with self._stubs(flip=flip, new_port=new_port,
+                         ips=fixed_ips, subnet=subnet, network=network):
+            with self.assertRaises(
+                    q_ex.FixedIpAllocatedToGatewayIp):
+                content = dict(port_id=new_port["id"])
+                self.plugin.update_floatingip(self.context, flip["id"],
+                                              dict(floatingip=content))
 
     def test_update_with_new_port_and_no_previous_port(self):
         new_port = dict(id="2")
