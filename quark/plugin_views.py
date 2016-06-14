@@ -104,7 +104,7 @@ def _make_subnet_dict(subnet, fields=None):
 
     if (CONF.QUARK.show_allocation_pools and not
             STRATEGY.is_provider_subnet(subnet_id)):
-        res["allocation_pools"] = subnet.allocation_pools
+        res["allocation_pools"] = subnet.get('allocation_pools', [])
     else:
         res["allocation_pools"] = []
 
