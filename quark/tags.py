@@ -1,4 +1,4 @@
-# Copyright 2015 Rackspace
+# Copyright 2015 Rackspace Hosting Inc.
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
