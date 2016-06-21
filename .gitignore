@@ -46,3 +46,6 @@ nosetests.xml
 # PBR stuff
 AUTHORS
 ChangeLog
+
+# Docs
+docs/build

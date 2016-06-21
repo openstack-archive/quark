@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from neutron.i18n import _
+from neutron._i18n import _
 from oslo_config import cfg
 
 CONF = cfg.CONF
