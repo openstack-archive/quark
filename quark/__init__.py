@@ -15,7 +15,7 @@
 
 import logging
 
-from neutron.i18n import _
+from neutron._i18n import _
 from oslo_config import cfg
 
 CONF = cfg.CONF
