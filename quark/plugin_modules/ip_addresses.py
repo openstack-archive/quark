@@ -160,6 +160,7 @@ def create_ip_address(context, body):
     ip_dict = body.get("ip_address")
     port_ids = ip_dict.get('port_ids', [])
     network_id = ip_dict.get('network_id')
+    tenant_id = ip_dict.get('tenant_id')
     device_ids = ip_dict.get('device_ids')
     ip_version = ip_dict.get('version')
     ip_address = ip_dict.get('ip_address')
@@ -191,14 +192,14 @@ def create_ip_address(context, body):
             for device_id in device_ids:
                 port = db_api.port_find(
                     context, network_id=network_id, device_id=device_id,
-                    tenant_id=context.tenant_id, scope=db_api.ONE)
+                    tenant_id=tenant_id, scope=db_api.ONE)
                 if port is not None:
                     ports.append(port)
         elif port_ids:
             for port_id in port_ids:
 
                 port = db_api.port_find(context, id=port_id,
-                                        tenant_id=context.tenant_id,
+                                        tenant_id=tenant_id,
                                         scope=db_api.ONE)
                 if port is not None:
                     ports.append(port)
@@ -215,6 +216,7 @@ def create_ip_address(context, body):
     if iptype == ip_types.SHARED:
         old_addresses = db_api.ip_address_find(context,
                                                network_id=network_id,
+                                               tenant_id=tenant_id,
                                                address_type=ip_types.SHARED,
                                                scope=db_api.ALL)
         validate_shared_ips_quotas(context, network_id, old_addresses)
