@@ -103,7 +103,7 @@ class TestIpAddresses(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(response["subnet_id"], ip["subnet_id"])
             self.assertEqual(response['type'], None)
             self.assertEqual(response["version"], 4)
-            self.assertEqual(response["address"], "192.168.1.100")
+            self.assertEqual(response["ip_address"], "192.168.1.100")
             self.assertEqual(response["tenant_id"], 1)
         cfg.CONF.set_override('ipaddr_allow_fixed_ip', old_cfg, "QUARK")
 
@@ -599,7 +599,7 @@ class TestQuarkGetIpAddress(test_quark_plugin.TestQuarkPlugin):
             res = self.plugin.get_ip_address(self.context, 1)
             self.assertEqual(ip["id"], res["id"])
             self.assertEqual(ip["subnet_id"], res["subnet_id"])
-            self.assertEqual(ip["address_readable"], res["address"])
+            self.assertEqual(ip["address_readable"], res["ip_address"])
             self.assertEqual(res["port_ids"][0], port["id"])
 
     def test_get_ip_address_no_ip_fails(self):
@@ -645,7 +645,7 @@ class TestQuarkGetIpAddresses(test_quark_plugin.TestQuarkPlugin):
             addr_res = res[0]
             self.assertEqual(ip["id"], addr_res["id"])
             self.assertEqual(ip["subnet_id"], addr_res["subnet_id"])
-            self.assertEqual(ip["address_readable"], addr_res["address"])
+            self.assertEqual(ip["address_readable"], addr_res["ip_address"])
             self.assertEqual(addr_res["port_ids"][0], port["id"])
 
     def test_get_ip_addresses_multiple(self):
@@ -660,7 +660,8 @@ class TestQuarkGetIpAddresses(test_quark_plugin.TestQuarkPlugin):
             for i, addr in enumerate(sorted(res, key=lambda x: x['id'])):
                 self.assertEqual(ips[i]["id"], addr["id"])
                 self.assertEqual(ips[i]["subnet_id"], addr["subnet_id"])
-                self.assertEqual(ips[i]["address_readable"], addr["address"])
+                self.assertEqual(ips[i]["address_readable"],
+                                 addr["ip_address"])
 
 
 @mock.patch("quark.plugin_modules.ip_addresses"
