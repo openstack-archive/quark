@@ -305,7 +305,7 @@ def _make_route_dict(route):
 def _make_ip_dict(address):
     return {"id": address["id"],
             "network_id": address["network_id"],
-            "address": address.formatted(),
+            "ip_address": address.formatted(),
             "port_ids": [assoc.port_id
                          for assoc in address["associations"]],
             "subnet_id": address["subnet_id"],
