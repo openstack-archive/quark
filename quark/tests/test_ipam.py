@@ -33,6 +33,8 @@ import quark.ipam
 from quark import network_strategy
 from quark.tests import test_base
 
+SLEEP_INTERVAL = 10 / 1000.0
+
 
 def subnet_helper(sub):
     if sub:
@@ -2110,12 +2112,16 @@ class QuarkIpamTestLog(test_base.TestBase):
     def test_ipam_log_entry_timing(self):
         log = quark.ipam.QuarkIPAMLog()
         entry1 = log.make_entry("test1")
-        w = 10 / 1000.0
-        t = 0.005
-        time.sleep(w)
+        time.sleep(SLEEP_INTERVAL)
         entry1.end()
         time_taken = entry1.get_time()
-        self.assertTrue(time_taken < w + t and time_taken > w - t)
+        # Can only assume that it took longer than the sleep time
+        self.assertTrue(time_taken >= SLEEP_INTERVAL)
+        # Retrieved the entry - it's the first and only one
+        stored_entry = log.entries['test1'].pop()
+        # the start time should be before the end time
+        self.assertTrue(stored_entry.start_time < stored_entry.end_time,
+                        "Entry's start_time should be before end_time")
 
     def test_ipam_main_log_success(self):
         log = quark.ipam.QuarkIPAMLog()
@@ -2130,10 +2136,9 @@ class QuarkIpamTestLog(test_base.TestBase):
 
         log = quark.ipam.QuarkIPAMLog()
         entry1 = log.make_entry("test1")
-        w = 10 / 1000.0
-        time.sleep(w)
+        time.sleep(SLEEP_INTERVAL)
         entry1.end()
-        time.sleep(w)
+        time.sleep(SLEEP_INTERVAL)
         entry2 = log.make_entry("test1")
         entry2.end()
         log.end()
