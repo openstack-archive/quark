@@ -2,11 +2,6 @@
 quark
 =====
 
-Build Status
-====================
-.. image:: https://travis-ci.org/rackerlabs/quark.svg?branch=master
-    :target: https://travis-ci.org/rackerlabs/quark
-
 Caution
 =======
 Quark is not currently designed to work with `DevStack <http://devstack.org>`_ (but it can with the instructions below).  We mention this because these instructions can become invalid if and when changes are pushed to DevStack.  Please also not that once Quark+Neutron+DevStack+Tempest are wired up, the Tempest tests are failing. Please watch `this Quark Github Issue <https://github.com/rackerlabs/quark/issues/50>`_ for updates on this.
