@@ -49,13 +49,14 @@ class RoutesController(wsgi.Controller):
 
     def create(self, request, body=None):
         body = self._deserialize(request.body, request.get_content_type())
-        keys = ["subnet_id", "gateway", "cidr"]
-        for k in keys:
-            if k not in body[RESOURCE_NAME]:
-                raise webob.exc.HTTPUnprocessableEntity()
-
-        return {"route":
-                self._plugin.create_route(request.context, body)}
+        try:
+            return {"route": self._plugin.create_route(request.context, body)}
+        except n_exc.NotFound as e:
+            raise webob.exc.HTTPNotFound(e)
+        except n_exc.Conflict as e:
+            raise webob.exc.HTTPConflict(e)
+        except n_exc.BadRequest as e:
+            raise webob.exc.HTTPBadRequest(e)
 
     def index(self, request):
         context = request.context

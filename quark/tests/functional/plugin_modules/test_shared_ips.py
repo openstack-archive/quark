@@ -22,7 +22,6 @@ from neutron import context
 from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 from oslo_log import log as logging
-from webob import exc as w_exc
 
 from quark.db import api as db_api
 from quark.db import ip_types
@@ -341,7 +340,7 @@ class QuarkSharedIPs(BaseFunctionalTest):
                                             network_id=net['id'],
                                             version=4)}
             api = plugin.Plugin()
-            with self.assertRaises(w_exc.HTTPBadRequest):
+            with self.assertRaises(n_exc.BadRequest):
                 api.create_ip_address(no_tenant_context, shared_ip)
 
     def test_create_shared_ips_fails_with_plural_body(self):

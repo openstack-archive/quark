@@ -16,6 +16,7 @@
 import contextlib
 import mock
 from neutron.common import exceptions as n_exc_ext
+from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 from quark import exceptions as q_exc
 
@@ -64,6 +65,26 @@ class QuarkCreateRoutes(BaseFunctionalTest):
             self.assertIsNotNone(new_route["id"])
             for key in create_route.keys():
                 self.assertEqual(new_route[key], create_route[key])
+
+    def test_create_route_with_garbage_bad_request(self):
+        cidr = "192.168.0.0/24"
+        ip_policy = dict(exclude=["192.168.0.1/32"])
+        ip_policy = {"ip_policy": ip_policy}
+        network = dict(name="public", tenant_id="fake", network_plugin="BASE")
+        network = {"network": network}
+        subnet = dict(ip_version=4, next_auto_assign_ip=2,
+                      cidr=cidr, ip_policy=None,
+                      tenant_id="fake")
+        subnet = {"subnet": subnet}
+        create_route = dict(cidr="172.16.0.0/24", gateway="172.16.0.1")
+        with self._stubs(network, subnet, ip_policy) as (net, sub, ipp):
+            self.assertIsNotNone(net)
+            self.assertIsNotNone(sub)
+            self.assertIsNotNone(ipp)
+            create_route["subnet_id"] = sub["id"]
+            with self.assertRaises(n_exc.BadRequest):
+                routes_api.create_route(
+                    self.context, dict(routes=create_route))
 
     def test_create_route_gateway_conflict_raises(self):
         cidr = "192.168.0.0/24"

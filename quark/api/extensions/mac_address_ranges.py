@@ -16,6 +16,7 @@
 from neutron.api import extensions
 from neutron import manager
 from neutron import wsgi
+from neutron_lib import exceptions as n_exc
 from oslo_log import log as logging
 import webob
 
@@ -46,10 +47,16 @@ class MacAddressRangesController(wsgi.Controller):
 
     def create(self, request, body=None):
         body = self._deserialize(request.body, request.get_content_type())
-        if "cidr" not in body[RESOURCE_NAME]:
-            raise webob.exc.HTTPUnprocessableEntity()
-        return {"mac_address_range":
-                self._plugin.create_mac_address_range(request.context, body)}
+        try:
+            return {"mac_address_range":
+                    self._plugin.create_mac_address_range(request.context,
+                                                          body)}
+        except n_exc.NotFound as e:
+            raise webob.exc.HTTPNotFound(e)
+        except n_exc.Conflict as e:
+            raise webob.exc.HTTPConflict(e)
+        except n_exc.BadRequest as e:
+            raise webob.exc.HTTPBadRequest(e)
 
     def index(self, request):
         context = request.context
@@ -63,7 +70,10 @@ class MacAddressRangesController(wsgi.Controller):
 
     def delete(self, request, id, **kwargs):
         context = request.context
-        return self._plugin.delete_mac_address_range(context, id)
+        try:
+            return self._plugin.delete_mac_address_range(context, id)
+        except n_exc.NotFound as e:
+            raise webob.exc.HTTPNotFound(e)
 
 
 class Mac_address_ranges(extensions.ExtensionDescriptor):

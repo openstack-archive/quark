@@ -16,7 +16,9 @@
 from neutron.api import extensions
 from neutron import manager
 from neutron import wsgi
+from neutron_lib import exceptions as n_exc
 from oslo_log import log as logging
+import webob
 
 RESOURCE_NAME = "ip_policy"
 RESOURCE_COLLECTION = "ip_policies"
@@ -39,13 +41,27 @@ class IPPoliciesController(wsgi.Controller):
 
     def create(self, request, body=None):
         body = self._deserialize(request.body, request.get_content_type())
-        return {RESOURCE_NAME:
-                self._plugin.create_ip_policy(request.context, body)}
+        try:
+            return {RESOURCE_NAME:
+                    self._plugin.create_ip_policy(request.context, body)}
+        except n_exc.NotFound as e:
+            raise webob.exc.HTTPNotFound(e)
+        except n_exc.Conflict as e:
+            raise webob.exc.HTTPConflict(e)
+        except n_exc.BadRequest as e:
+            raise webob.exc.HTTPBadRequest(e)
 
     def update(self, request, id, body=None):
         body = self._deserialize(request.body, request.get_content_type())
-        return {RESOURCE_NAME:
-                self._plugin.update_ip_policy(request.context, id, body)}
+        try:
+            return {RESOURCE_NAME:
+                    self._plugin.update_ip_policy(request.context, id, body)}
+        except n_exc.NotFound as e:
+            raise webob.exc.HTTPNotFound(e)
+        except n_exc.Conflict as e:
+            raise webob.exc.HTTPConflict(e)
+        except n_exc.BadRequest as e:
+            raise webob.exc.HTTPBadRequest(e)
 
     def index(self, request):
         context = request.context
@@ -54,12 +70,26 @@ class IPPoliciesController(wsgi.Controller):
 
     def show(self, request, id):
         context = request.context
-        return {RESOURCE_NAME:
-                self._plugin.get_ip_policy(context, id)}
+        try:
+            return {RESOURCE_NAME:
+                    self._plugin.get_ip_policy(context, id)}
+        except n_exc.NotFound as e:
+            raise webob.exc.HTTPNotFound(e)
+        except n_exc.Conflict as e:
+            raise webob.exc.HTTPConflict(e)
+        except n_exc.BadRequest as e:
+            raise webob.exc.HTTPBadRequest(e)
 
     def delete(self, request, id, **kwargs):
         context = request.context
-        return self._plugin.delete_ip_policy(context, id)
+        try:
+            return self._plugin.delete_ip_policy(context, id)
+        except n_exc.NotFound as e:
+            raise webob.exc.HTTPNotFound(e)
+        except n_exc.Conflict as e:
+            raise webob.exc.HTTPConflict(e)
+        except n_exc.BadRequest as e:
+            raise webob.exc.HTTPBadRequest(e)
 
 
 class Ip_policies(extensions.ExtensionDescriptor):

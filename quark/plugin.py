@@ -21,9 +21,9 @@ from neutron.extensions import securitygroup as sg_ext
 from neutron import neutron_plugin_base_v2
 from neutron.quota import resource as qres
 from neutron.quota import resource_registry as qres_reg
+from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 from oslo_log import log as logging
-import webob.exc
 
 from quark.api import extensions
 from quark import ip_availability
@@ -137,18 +137,25 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
     def __init__(self):
         LOG.info("Starting quark plugin")
 
-    def _fix_missing_tenant_id(self, context, resource):
+    def _fix_missing_tenant_id(self, context, body, key):
         """Will add the tenant_id to the context from body.
 
         It is assumed that the body must have a tenant_id because neutron
         core could never have gotten here otherwise.
         """
+        if not body:
+            raise n_exc.BadRequest(resource=key,
+                                   msg="Body malformed")
+        resource = body.get(key)
+        if not resource:
+            raise n_exc.BadRequest(resource=key,
+                                   msg="Body malformed")
         if context.tenant_id is None:
             context.tenant_id = resource.get("tenant_id")
         if context.tenant_id is None:
             msg = _("Running without keystone AuthN requires "
                     "that tenant_id is specified")
-            raise webob.exc.HTTPBadRequest(msg)
+            raise n_exc.BadRequest(resource=key, msg=msg)
 
     @sessioned
     def get_mac_address_range(self, context, id, fields=None):
@@ -160,7 +167,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
     @sessioned
     def create_mac_address_range(self, context, mac_range):
-        self._fix_missing_tenant_id(context, mac_range["mac_address_range"])
+        self._fix_missing_tenant_id(context, mac_range, "mac_address_range")
         return mac_address_ranges.create_mac_address_range(context, mac_range)
 
     @sessioned
@@ -169,13 +176,13 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
     @sessioned
     def create_security_group(self, context, security_group):
-        self._fix_missing_tenant_id(context, security_group["security_group"])
+        self._fix_missing_tenant_id(context, security_group, "security_group")
         return security_groups.create_security_group(context, security_group)
 
     @sessioned
     def create_security_group_rule(self, context, security_group_rule):
-        self._fix_missing_tenant_id(context,
-                                    security_group_rule["security_group_rule"])
+        self._fix_missing_tenant_id(
+            context, security_group_rule, "security_group_rule")
         return security_groups.create_security_group_rule(context,
                                                           security_group_rule)
 
@@ -218,7 +225,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
     @sessioned
     def create_ip_policy(self, context, ip_policy):
-        self._fix_missing_tenant_id(context, ip_policy["ip_policy"])
+        self._fix_missing_tenant_id(context, ip_policy, "ip_policy")
         return ip_policies.create_ip_policy(context, ip_policy)
 
     @sessioned
@@ -247,7 +254,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
     @sessioned
     def create_ip_address(self, context, ip_address):
-        self._fix_missing_tenant_id(context, ip_address["ip_address"])
+        self._fix_missing_tenant_id(context, ip_address, "ip_address")
         return ip_addresses.create_ip_address(context, ip_address)
 
     @sessioned
@@ -260,7 +267,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
     @sessioned
     def create_port(self, context, port):
-        self._fix_missing_tenant_id(context, port["port"])
+        self._fix_missing_tenant_id(context, port, "port")
         return ports.create_port(context, port)
 
     @sessioned
@@ -320,7 +327,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
     @sessioned
     def create_route(self, context, route):
-        self._fix_missing_tenant_id(context, route["route"])
+        self._fix_missing_tenant_id(context, route, "route")
         return routes.create_route(context, route)
 
     @sessioned
@@ -329,7 +336,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
     @sessioned
     def create_subnet(self, context, subnet):
-        self._fix_missing_tenant_id(context, subnet["subnet"])
+        self._fix_missing_tenant_id(context, subnet, "subnet")
         return subnets.create_subnet(context, subnet)
 
     @sessioned
@@ -360,7 +367,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
     @sessioned
     def create_network(self, context, network):
-        self._fix_missing_tenant_id(context, network["network"])
+        self._fix_missing_tenant_id(context, network, "network")
         return networks.create_network(context, network)
 
     @sessioned
@@ -418,7 +425,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
     @sessioned
     def create_floatingip(self, context, floatingip):
-        self._fix_missing_tenant_id(context, floatingip["floatingip"])
+        self._fix_missing_tenant_id(context, floatingip, "floatingip")
         return floating_ips.create_floatingip(context,
                                               floatingip["floatingip"])
 
@@ -466,7 +473,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
     @sessioned
     def create_segment_allocation_range(self, context, sa_range):
         self._fix_missing_tenant_id(
-            context, sa_range["segment_allocation_range"])
+            context, sa_range, "segment_allocation_range")
         return segment_allocation_ranges.create_segment_allocation_range(
             context, sa_range)
 
@@ -476,7 +483,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
             context, id)
 
     def create_scalingip(self, context, scalingip):
-        self._fix_missing_tenant_id(context, scalingip["scalingip"])
+        self._fix_missing_tenant_id(context, scalingip, "scalingip")
         return floating_ips.create_scalingip(context, scalingip["scalingip"])
 
     @sessioned
@@ -511,12 +518,12 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
     @sessioned
     def create_job(self, context, job):
-        self._fix_missing_tenant_id(context, job['job'])
+        self._fix_missing_tenant_id(context, job, 'job')
         return jobs.create_job(context, job)
 
     @sessioned
     def update_job(self, context, id, job):
-        self._fix_missing_tenant_id(context, job['job'])
+        self._fix_missing_tenant_id(context, job, 'job')
         return jobs.update_job(context, id, job)
 
     @sessioned

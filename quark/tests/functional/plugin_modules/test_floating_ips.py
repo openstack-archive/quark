@@ -2,6 +2,7 @@ import json
 import mock
 import netaddr
 from neutron import context
+from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 
 from quark.db import api as db_api
@@ -146,6 +147,15 @@ class TestFloatingIPs(BaseFloatingIPTest):
         get_flip = self.plugin.get_floatingip(self.context, flip['id'])
         self.assertEqual(flip['floating_ip_address'],
                          get_flip['floating_ip_address'])
+
+    def test_create_raises_missing_key(self):
+        flip_req = dict(
+            floating_network_id=self.floating_network['id'],
+            port_id=self.user_port1['id']
+        )
+        flip_req = {'floatingipz': flip_req}
+        with self.assertRaises(n_exc.BadRequest):
+            self.plugin.create_floatingip(self.context, flip_req)
 
     def test_update_floating_ip(self):
         floating_ip = dict(
