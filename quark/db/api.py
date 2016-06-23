@@ -92,7 +92,7 @@ def _model_query(context, model, filters, fields=None):
     model_filters = []
     eq_filters = ["address", "cidr", "deallocated", "ip_version", "service",
                   "mac_address_range_id", "transaction_id", "lock_id",
-                  "address_type"]
+                  "address_type", "completed"]
     in_filters = ["device_id", "device_owner", "group_id", "id", "mac_address",
                   "name", "network_id", "segment_id", "subnet_id",
                   "used_by_tenant_id", "version"]
@@ -1148,3 +1148,33 @@ def segment_allocation_range_create(context, **sa_range_dict):
 
 def segment_allocation_range_delete(context, sa_range):
     context.session.delete(sa_range)
+
+
+@scoped
+def async_transaction_find(context, lock_mode=False, **filters):
+    query = context.session.query(models.AsyncTransactions)
+    if lock_mode:
+        query = query.with_lockmode("update")
+
+    model_filters = _model_query(
+        context, models.AsyncTransactions, filters)
+
+    query = query.filter(*model_filters)
+    return query
+
+
+def async_transaction_create(context, **transaction_dict):
+    tx = models.AsyncTransactions()
+    tx.update(transaction_dict)
+    context.session.add(tx)
+    return tx
+
+
+def async_transaction_update(context, transaction, **kwargs):
+    transaction.update(kwargs)
+    context.session.add(transaction)
+    return transaction
+
+
+def async_transaction_delete(context, transaction):
+    context.session.delete(transaction)

@@ -589,3 +589,10 @@ class SegmentAllocationRange(BASEV2, models.HasId):
     last_id = sa.Column(sa.BigInteger(), nullable=False)
 
     do_not_use = sa.Column(sa.Boolean(), default=False, nullable=False)
+
+
+class AsyncTransactions(BASEV2, models.HasId):
+    __tablename__ = "quark_async_transactions"
+    tenant_id = sa.Column(sa.String(255), index=True)
+    action = sa.Column(sa.String(255))
+    completed = sa.Column(sa.Boolean(), default=False)

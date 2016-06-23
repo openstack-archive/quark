@@ -355,3 +355,11 @@ def _make_scaling_ip_dict(flip):
             "tenant_id": flip.get("used_by_tenant_id"),
             "status": flip.get("status"),
             "ports": ports}
+
+
+def _make_job_dict(job):
+    return {"id": job.get('id'),
+            "action": job.get('action'),
+            "completed": job.get('completed'),
+            "tenant_id": job.get('tenant_id'),
+            "created_at": job.get('created_at')}
