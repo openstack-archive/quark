@@ -32,10 +32,7 @@ from oslo_db import exception as db_exception
 from oslo_log import log as logging
 from oslo_utils import timeutils
 
-from quark.billing import IP_ADD
-from quark.billing import IP_DEL
-from quark.billing import IP_DISASSOC
-from quark.billing import notify
+from quark import billing
 from quark.db import api as db_api
 from quark.db import ip_types
 from quark.db import models
@@ -561,7 +558,7 @@ class QuarkIpam(object):
                                                     ip_types.FIXED))
                         # alexm: need to notify from here because this code
                         # does not go through the _allocate_from_subnet() path.
-                        notify(context, IP_ADD, address)
+                        billing.notify(context, billing.IP_ADD, address)
                         return address
                 except db_exception.DBDuplicateEntry:
                     # This shouldn't ever happen, since we hold a unique MAC
@@ -704,7 +701,7 @@ class QuarkIpam(object):
         if self.is_strategy_satisfied(new_addresses, allocate_complete=True):
             # Only notify when all went well
             for address in new_addresses:
-                notify(context, IP_ADD, address)
+                billing.notify(context, billing.IP_ADD, address)
             LOG.info("IPAM for port ID {0} completed with addresses "
                      "{1}".format(port_id,
                                   [a["address_readable"]
@@ -721,7 +718,7 @@ class QuarkIpam(object):
             address["deallocated"] = 1
             address["address_type"] = None
 
-        notify(context, IP_DEL, address, send_usage=True)
+        billing.notify(context, billing.IP_DEL, address, send_usage=True)
 
     def deallocate_ips_by_port(self, context, port=None, **kwargs):
         ips_to_remove = []
@@ -771,7 +768,7 @@ class QuarkIpam(object):
                 # SQLAlchemy caching.
                 context.session.add(flip)
                 context.session.flush()
-                notify(context, IP_DISASSOC, flip)
+                billing.notify(context, billing.IP_DISASSOC, flip)
                 driver = registry.DRIVER_REGISTRY.get_driver()
                 driver.remove_floating_ip(flip)
             elif len(flip.fixed_ips) > 1:
@@ -785,7 +782,7 @@ class QuarkIpam(object):
                             context, flip, fix_ip)
                         context.session.add(flip)
                         context.session.flush()
-                        notify(context, IP_DISASSOC, flip)
+                        billing.notify(context, billing.IP_DISASSOC, flip)
                     else:
                         remaining_fixed_ips.append(fix_ip)
                 port_fixed_ips = {}
