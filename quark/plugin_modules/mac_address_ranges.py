@@ -90,8 +90,17 @@ def create_mac_address_range(context, mac_range):
     if not context.is_admin:
         raise n_exc.NotAuthorized()
 
-    cidr = mac_range["mac_address_range"]["cidr"]
-    do_not_use = mac_range["mac_address_range"].get("do_not_use", "0")
+    if not mac_range or "mac_address_range" not in mac_range:
+        raise n_exc.BadRequest(resource="mac_address_range",
+                               msg="Malformed body")
+
+    rng = mac_range.get("mac_address_range")
+    cidr = rng.get("cidr")
+
+    if not cidr:
+        raise n_exc.BadRequest(resource="mac_address_range",
+                               msg="Missing cidr")
+    do_not_use = rng.get("do_not_use", "0")
     cidr, first_address, last_address = _to_mac_range(cidr)
     with context.session.begin():
         new_range = db_api.mac_address_range_create(

@@ -16,7 +16,9 @@
 from neutron.api import extensions
 from neutron import manager
 from neutron import wsgi
+from neutron_lib import exceptions as n_exc
 from oslo_log import log as logging
+import webob
 
 RESOURCE_NAME = 'segment_allocation_range'
 RESOURCE_COLLECTION = RESOURCE_NAME + "s"
@@ -40,9 +42,16 @@ class SegmentAllocationRangesController(wsgi.Controller):
 
     def create(self, request, body=None):
         body = self._deserialize(request.body, request.get_content_type())
-        return {"segment_allocation_range":
-                self._plugin.create_segment_allocation_range(
-                    request.context, body)}
+        try:
+            return {"segment_allocation_range":
+                    self._plugin.create_segment_allocation_range(
+                        request.context, body)}
+        except n_exc.NotFound as e:
+            raise webob.exc.HTTPNotFound(e)
+        except n_exc.Conflict as e:
+            raise webob.exc.HTTPConflict(e)
+        except n_exc.BadRequest as e:
+            raise webob.exc.HTTPBadRequest(e)
 
     def index(self, request):
         context = request.context
@@ -52,12 +61,18 @@ class SegmentAllocationRangesController(wsgi.Controller):
 
     def show(self, request, id):
         context = request.context
-        return {"segment_allocation_range":
-                self._plugin.get_segment_allocation_range(context, id)}
+        try:
+            return {"segment_allocation_range":
+                    self._plugin.get_segment_allocation_range(context, id)}
+        except n_exc.NotFound as e:
+            raise webob.exc.HTTPNotFound(e)
 
     def delete(self, request, id, **kwargs):
         context = request.context
-        return self._plugin.delete_segment_allocation_range(context, id)
+        try:
+            return self._plugin.delete_segment_allocation_range(context, id)
+        except n_exc.NotFound as e:
+            raise webob.exc.HTTPNotFound(e)
 
 
 class Segment_allocation_ranges(extensions.ExtensionDescriptor):

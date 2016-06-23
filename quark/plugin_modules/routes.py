@@ -48,7 +48,11 @@ def get_routes(context):
 
 def create_route(context, route):
     LOG.info("create_route for tenant %s" % context.tenant_id)
-    route = route["route"]
+    if not route:
+        raise n_exc.BadRequest(resource="routes", msg="Malformed body")
+    route = route.get("route")
+    if not route:
+        raise n_exc.BadRequest(resource="routes", msg="Malformed body")
     for key in ["gateway", "cidr", "subnet_id"]:
         if key not in route:
             raise n_exc.BadRequest(resource="routes",
