@@ -44,6 +44,7 @@ NOTE: assumes that the beginning of a billing cycle is midnight.
 
 import datetime
 from neutron.common import rpc as n_rpc
+from oslo_config import cfg
 from oslo_log import log as logging
 from sqlalchemy import and_, or_, null
 from quark.db import models
@@ -51,17 +52,29 @@ from quark.db import models
 from quark import network_strategy
 
 LOG = logging.getLogger(__name__)
+CONF = cfg.CONF
+
+quark_opts = [
+    cfg.StrOpt('notify_ip_add', default=False,
+               help=_("Sends notifications when IP is added")),
+    cfg.StrOpt('notify_ip_delete', default=False,
+               help=_("Sends notifications when IP is deleted")),
+    cfg.StrOpt('notify_flip_associate', default=False,
+               help=_("Sends notifications when FLIP is associated")),
+    cfg.StrOpt('notify_flip_disassociate', default=False,
+               help=_("Sends notifications when FLIP is disassociated")),
+    cfg.StrOpt('notify_ip_exists', default=False,
+               help=_("Sends 'ip.exists' notifications"))
+]
+CONF.register_opts(quark_opts, 'QUARK')
 
 PUBLIC_NETWORK_ID = network_strategy.STRATEGY.get_public_net_id()
 
-# NOTE: this will most likely go away to be done in yagi
-EVENT_TYPE_2_CLOUDFEEDS = {
-    'ip.exists': 'USAGE',
-    'ip.add': 'CREATE',
-    'ip.delete': 'DELETE',
-    'ip.associate': 'UP',
-    'ip.disassociate': 'DOWN'
-}
+IP_ADD = 'ip.add'
+IP_DEL = 'ip.delete'
+IP_ASSOC = 'ip.associate'
+IP_DISASSOC = 'ip.disassociate'
+IP_EXISTS = 'ip.exists'
 
 
 def do_notify(context, event_type, payload):
@@ -92,9 +105,17 @@ def notify(context, event_type, ipaddress, send_usage=False):
         nothing
     Notes: this may live in the billing module
     """
+    if (event_type == IP_ADD and not CONF.QUARK.notify_ip_add) or \
+       (event_type == IP_DEL and not CONF.QUARK.notify_ip_delete) or \
+       (event_type == IP_ASSOC and not CONF.QUARK.notify_flip_associate) or \
+       (event_type == IP_DISASSOC and not CONF.QUARK.notify_flip_disassociate)\
+       or (event_type == IP_EXISTS and not CONF.QUARK.notify_ip_exists):
+        LOG.debug('IP_BILL: notification {} is disabled by config'.
+                  format(event_type))
+
     # ip.add needs the allocated_at time.
     # All other events need the current time.
-    ts = ipaddress.allocated_at if event_type == 'ip.add' else _now()
+    ts = ipaddress.allocated_at if event_type == IP_ADD else _now()
     payload = build_payload(ipaddress, event_type, event_time=ts)
 
     # Send the notification with the payload
@@ -115,10 +136,10 @@ def notify(context, event_type, ipaddress, send_usage=False):
         else:
             start_time = _midnight_today()
         payload = build_payload(ipaddress,
-                                'ip.exists',
+                                IP_EXISTS,
                                 start_time=start_time,
                                 end_time=ts)
-        do_notify(context, 'ip.exists', payload)
+        do_notify(context, IP_EXISTS, payload)
 
 
 def build_payload(ipaddress,
@@ -144,19 +165,16 @@ def build_payload(ipaddress,
     """
     # This is the common part of all message types
     payload = {
-        'event_type': unicode(EVENT_TYPE_2_CLOUDFEEDS[event_type]),
+        'event_type': unicode(event_type),
         'tenant_id': unicode(ipaddress.used_by_tenant_id),
         'ip_address': unicode(ipaddress.address_readable),
-        'subnet_id': unicode(ipaddress.subnet_id),
-        'network_id': unicode(ipaddress.network_id),
-        'public': True if ipaddress.network_id == PUBLIC_NETWORK_ID else False,
         'ip_version': int(ipaddress.version),
         'ip_type': unicode(ipaddress.address_type),
         'id': unicode(ipaddress.id)
     }
 
     # Depending on the message type add the appropriate fields
-    if event_type == 'ip.exists':
+    if event_type == IP_EXISTS:
         if start_time is None or end_time is None:
             raise ValueError('IP_BILL: {} start_time/end_time cannot be empty'
                              .format(event_type))
@@ -164,31 +182,17 @@ def build_payload(ipaddress,
             'startTime': unicode(convert_timestamp(start_time)),
             'endTime': unicode(convert_timestamp(end_time))
         })
-    elif event_type == 'ip.add':
+    elif event_type in [IP_ADD, IP_DEL, IP_ASSOC, IP_DISASSOC]:
         if event_time is None:
             raise ValueError('IP_BILL: {}: event_time cannot be NULL'
                              .format(event_type))
         payload.update({
             'eventTime': unicode(convert_timestamp(event_time)),
+            'subnet_id': unicode(ipaddress.subnet_id),
+            'network_id': unicode(ipaddress.network_id),
+            'public': True if ipaddress.network_id == PUBLIC_NETWORK_ID
+            else False,
         })
-    elif event_type == 'ip.delete':
-        if event_time is None:
-            raise ValueError('IP_BILL: {}: event_time cannot be NULL'
-                             .format(event_type))
-        payload.update({
-            'eventTime': unicode(convert_timestamp(event_time))
-        })
-    elif event_type == 'ip.associate' or event_type == 'ip.disassociate':
-        if event_time is None:
-            raise ValueError('IP_BILL: {}: event_time cannot be NULL'
-                             .format(event_type))
-        # only pass floating ip addresses through this
-        if ipaddress.address_type not in ['floating', 'scaling']:
-            raise ValueError('IP_BILL: {} only valid for floating IPs'.
-                             format(event_type),
-                             ' got {} instead'.format(ipaddress.address_type))
-
-        payload.update({'eventTime': unicode(convert_timestamp(event_time))})
     else:
         raise ValueError('IP_BILL: bad event_type: {}'.format(event_type))
 

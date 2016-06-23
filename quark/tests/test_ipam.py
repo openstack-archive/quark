@@ -26,6 +26,9 @@ from oslo_config import cfg
 from oslo_db import exception as db_exc
 from oslo_utils import timeutils
 
+from quark.billing import IP_ADD
+from quark.billing import IP_DEL
+from quark.billing import IP_EXISTS
 from quark.db import models
 from quark import exceptions as q_exc
 import quark.ipam
@@ -1870,7 +1873,7 @@ class QuarkIPAddressAllocationNotifications(QuarkIpamBaseTest):
             notify.assert_called_once_with("network")
             notify.return_value.info.assert_called_once_with(
                 self.context,
-                "ip.add",
+                IP_ADD,
                 mock.ANY)
 
     def test_deallocation_notification(self):
@@ -1892,8 +1895,8 @@ class QuarkIPAddressAllocationNotifications(QuarkIpamBaseTest):
                              'Should have called notify twice')
             # When we deallocate an IP we must send a usage message as well
             # Verify that we called both methods. Order matters.
-            call_list = [mock.call(self.context, 'ip.delete', mock.ANY),
-                         mock.call(self.context, 'ip.exists', mock.ANY)]
+            call_list = [mock.call(self.context, IP_DEL, mock.ANY),
+                         mock.call(self.context, IP_EXISTS, mock.ANY)]
             notify.return_value.info.assert_has_calls(call_list,
                                                       any_order=False)
 

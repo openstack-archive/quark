@@ -166,7 +166,7 @@ def _create_flip(context, flip, port_fixed_ips):
             raise
 
     # alexm: Notify from this method for consistency with _delete_flip
-    billing.notify(context, 'ip.associate', flip)
+    billing.notify(context, billing.IP_ASSOC, flip)
 
 
 def _get_flip_fixed_ip_by_port_id(flip, port_id):
@@ -188,8 +188,8 @@ def _update_flip(context, flip_id, ip_type, requested_ports):
     # This list will hold flips that require notifications.
     # Using sets to avoid dups, if any.
     notifications = {
-        'ip.associate': set(),
-        'ip.disassociate': set()
+        billing.IP_ASSOC: set(),
+        billing.IP_DISASSOC: set()
     }
 
     context.session.begin()
@@ -233,7 +233,7 @@ def _update_flip(context, flip_id, ip_type, requested_ports):
         for port_id in removed_port_ids:
             port = db_api.port_find(context, id=port_id, scope=db_api.ONE)
             flip = db_api.port_disassociate_ip(context, [port], flip)
-            notifications['ip.disassociate'].add(flip)
+            notifications[billing.IP_DISASSOC].add(flip)
             fixed_ip = _get_flip_fixed_ip_by_port_id(flip, port_id)
             if fixed_ip:
                 flip = db_api.floating_ip_disassociate_fixed_ip(
@@ -257,7 +257,7 @@ def _update_flip(context, flip_id, ip_type, requested_ports):
                 raise q_exc.NoAvailableFixedIpsForPort(port_id=port_id)
             port_fixed_ips[port_id] = {'port': port, 'fixed_ip': fixed_ip}
             flip = db_api.port_associate_ip(context, [port], flip, [port_id])
-            notifications['ip.associate'].add(flip)
+            notifications[billing.IP_ASSOC].add(flip)
             flip = db_api.floating_ip_associate_fixed_ip(context, flip,
                                                          fixed_ip)
 
@@ -330,7 +330,7 @@ def _delete_flip(context, id, address_type):
 
     # alexm: Notify from this method because we don't have the flip object
     # in the callers
-    billing.notify(context, 'ip.disassociate', flip)
+    billing.notify(context, billing.IP_DISASSOC, flip)
 
 
 def create_floatingip(context, content):

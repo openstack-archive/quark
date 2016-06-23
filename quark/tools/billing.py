@@ -84,27 +84,27 @@ def main(notify, hour, minute):
         for ipaddress in full_day_ips:
             click.echo('start: {}, end: {}'.format(period_start, period_end))
             payload = billing.build_payload(ipaddress,
-                                            'ip.exists',
+                                            billing.IP_EXISTS,
                                             start_time=period_start,
                                             end_time=period_end)
             billing.do_notify(context,
-                              'ip.exists',
+                              billing.IP_EXISTS,
                               payload)
         # '==================== Part Day ============================='
         for ipaddress in partial_day_ips:
             click.echo('start: {}, end: {}'.format(period_start, period_end))
             payload = billing.build_payload(ipaddress,
-                                            'ip.exists',
+                                            billing.IP_EXISTS,
                                             start_time=ipaddress.allocated_at,
                                             end_time=period_end)
             billing.do_notify(context,
-                              'ip.exists',
+                              billing.IP_EXISTS,
                               payload)
     else:
         click.echo('Case 1 ({}):\n'.format(len(full_day_ips)))
         for ipaddress in full_day_ips:
             pp(billing.build_payload(ipaddress,
-                                     'ip.exists',
+                                     billing.IP_EXISTS,
                                      start_time=period_start,
                                      end_time=period_end))
 
@@ -113,7 +113,7 @@ def main(notify, hour, minute):
         click.echo('Case 2 ({}):\n'.format(len(partial_day_ips)))
         for ipaddress in partial_day_ips:
             pp(billing.build_payload(ipaddress,
-                                     'ip.exists',
+                                     billing.IP_EXISTS,
                                      start_time=ipaddress.allocated_at,
                                      end_time=period_end))
 

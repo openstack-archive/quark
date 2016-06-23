@@ -20,6 +20,8 @@ import mock
 import netaddr
 from neutron.common import exceptions as ex
 
+from quark.billing import IP_ASSOC
+from quark.billing import IP_DISASSOC
 from quark.db import models
 from quark import exceptions as q_ex
 from quark.plugin_modules import floating_ips
@@ -595,7 +597,7 @@ class TestUpdateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
                                                 dict(floatingip=content))
             self.assertEqual(ret["fixed_ip_address"], "192.168.0.1")
             self.assertEqual(ret["port_id"], new_port["id"])
-            notify.assert_called_once_with(self.context, 'ip.associate',
+            notify.assert_called_once_with(self.context, IP_ASSOC,
                                            mock.ANY)
 
     def test_update_with_new_port(self):
@@ -621,8 +623,8 @@ class TestUpdateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
             self.assertEqual(ret["fixed_ip_address"], "192.168.0.1")
             self.assertEqual(ret["port_id"], new_port["id"])
             self.assertEqual(notify.call_count, 2, 'Should notify twice here')
-            call_list = [mock.call(self.context, 'ip.disassociate', mock.ANY),
-                         mock.call(self.context, 'ip.associate', mock.ANY)]
+            call_list = [mock.call(self.context, IP_DISASSOC, mock.ANY),
+                         mock.call(self.context, IP_ASSOC, mock.ANY)]
             notify.assert_has_calls(call_list, any_order=True)
 
     def test_update_with_no_port(self):
@@ -637,7 +639,7 @@ class TestUpdateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
                                                 dict(floatingip=content))
             self.assertEqual(ret.get("fixed_ip_address"), None)
             self.assertEqual(ret.get("port_id"), None)
-            notify.assert_called_once_with(self.context, 'ip.disassociate',
+            notify.assert_called_once_with(self.context, IP_DISASSOC,
                                            mock.ANY)
 
     def test_update_with_non_existent_port_should_fail(self):

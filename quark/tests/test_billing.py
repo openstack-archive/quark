@@ -84,21 +84,15 @@ class QuarkBillingPayloadTest(QuarkBillingBaseTest):
         ipaddress.allocated_at = start_time
         ipaddress.deallocated_at = end_time
         ipaddress.address_type = 'fixed'
-        payload = billing.build_payload(ipaddress, 'ip.exists',
+        payload = billing.build_payload(ipaddress, billing.IP_EXISTS,
                                         start_time=start_time,
                                         end_time=end_time)
-        self.assertEqual(payload['event_type'], u'USAGE',
+        self.assertEqual(payload['event_type'], billing.IP_EXISTS,
                          'event_type is wrong')
         self.assertEqual(payload['tenant_id'], TENANT_ID,
                          'tenant_id is wrong')
         self.assertEqual(payload['ip_address'], IP_READABLE,
                          'ip_address is wrong')
-        self.assertEqual(payload['subnet_id'], SUBNET_ID,
-                         'subnet_id is wrong')
-        self.assertEqual(payload['network_id'], PUB_NETWORK_ID,
-                         'network_id is wrong')
-        self.assertEqual(payload['public'], True,
-                         'public should be true')
         self.assertEqual(payload['ip_version'], 4,
                          'ip_version should be 4')
         self.assertEqual(payload['ip_type'], 'fixed',
@@ -118,9 +112,10 @@ class QuarkBillingPayloadTest(QuarkBillingBaseTest):
         ipaddress.allocated_at = event_time
         ipaddress.deallocated_at = event_time
         ipaddress.address_type = 'floating'
-        payload = billing.build_payload(ipaddress, 'ip.associate',
+        payload = billing.build_payload(ipaddress, billing.IP_ASSOC,
                                         event_time=event_time)
-        self.assertEqual(payload['event_type'], u'UP', 'event_type is wrong')
+        self.assertEqual(payload['event_type'], billing.IP_ASSOC,
+                         'event_type is wrong')
         self.assertEqual(payload['tenant_id'], TENANT_ID, 'tenant_id is wrong')
         self.assertEqual(payload['ip_address'], IP_READABLE,
                          'ip_address is wrong')
@@ -143,9 +138,10 @@ class QuarkBillingPayloadTest(QuarkBillingBaseTest):
         ipaddress.allocated_at = event_time
         ipaddress.deallocated_at = event_time
         ipaddress.address_type = 'floating'
-        payload = billing.build_payload(ipaddress, 'ip.disassociate',
+        payload = billing.build_payload(ipaddress, billing.IP_DISASSOC,
                                         event_time=event_time)
-        self.assertEqual(payload['event_type'], u'DOWN', 'event_type is wrong')
+        self.assertEqual(payload['event_type'], billing.IP_DISASSOC,
+                         'event_type is wrong')
         self.assertEqual(payload['tenant_id'], TENANT_ID, 'tenant_id is wrong')
         self.assertEqual(payload['ip_address'], IP_READABLE,
                          'ip_address is wrong')
