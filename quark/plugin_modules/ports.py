@@ -478,6 +478,9 @@ def update_port(context, id, port):
     #               a future patch where we have time to solve it well.
     kwargs = {}
     if new_security_groups is not None:
+        # TODO(anyone): this is kind of silly (when testing), because it will
+        #               modify the incoming dict. Probably should be a copy or
+        #               something.
         kwargs["security_groups"] = security_group_mods
     net_driver.update_port(context, port_id=port_db["backend_key"],
                            mac_address=port_db["mac_address"],
