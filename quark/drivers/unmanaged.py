@@ -62,6 +62,7 @@ class UnmanagedDriver(base.BaseDriver):
         return {"uuid": port_id, "bridge": bridge_name}
 
     def update_port(self, context, port_id, **kwargs):
+        LOG.debug("ZZ" * 100)
         LOG.info("update_port %s %s" % (context.tenant_id, port_id))
         self.sg_driver.update_port(**kwargs)
         return {"uuid": port_id}

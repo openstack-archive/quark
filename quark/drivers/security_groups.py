@@ -24,6 +24,9 @@ LOG = logging.getLogger(__name__)
 class SecurityGroupDriver(object):
     @env.has_capability(env.Capabilities.SECURITY_GROUPS)
     def update_port(self, **kwargs):
+        LOG.debug("XX" * 100)
+        LOG.debug("update_port security groups")
+        LOG.debug(kwargs)
         client = sg_client.SecurityGroupsClient()
         if "security_groups" in kwargs:
             device_id = kwargs.get('device_id')
