@@ -21,16 +21,21 @@ from oslo_log import log as logging
 from oslo_utils import uuidutils
 
 from quark.db import api as db_api
-from quark.environment import Capabilities
+from quark import environment as env
 from quark import exceptions as q_exc
+from quark.plugin_modules import jobs as job_api
 from quark import plugin_views as v
 from quark import protocols
+
+from quark.worker_plugins import sg_update_worker as sg_rpc_api
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 DEFAULT_SG_UUID = "00000000-0000-0000-0000-000000000000"
 GROUP_NAME_MAX_LENGTH = 255
 GROUP_DESCRIPTION_MAX_LENGTH = 255
+RULE_CREATE = 'create'
+RULE_DELETE = 'delete'
 
 
 def _validate_security_group_rule(context, rule):
@@ -40,8 +45,8 @@ def _validate_security_group_rule(context, rule):
             error_message="Remote groups are not currently supported")
 
     direction = rule.get("direction")
-    if direction == Capabilities.EGRESS:
-        if Capabilities.EGRESS not in CONF.QUARK.environment_capabilities:
+    if direction == env.Capabilities.EGRESS:
+        if env.Capabilities.EGRESS not in CONF.QUARK.environment_capabilities:
             raise q_exc.EgressSecurityGroupRulesNotEnabled()
 
     protocol = rule.pop('protocol')
@@ -100,26 +105,17 @@ def create_security_group(context, security_group):
     return v._make_security_group_dict(dbgroup)
 
 
-def create_security_group_rule(context, security_group_rule):
-    LOG.info("create_security_group for tenant %s" %
-             (context.tenant_id))
+def update_security_group(context, id, security_group):
+    if id == DEFAULT_SG_UUID:
+        raise sg_ext.SecurityGroupCannotUpdateDefault()
+    new_group = security_group["security_group"]
+    _validate_security_group(new_group)
+
     with context.session.begin():
-        rule = _validate_security_group_rule(
-            context, security_group_rule["security_group_rule"])
-        rule["id"] = uuidutils.generate_uuid()
+        group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
+        db_group = db_api.security_group_update(context, group, **new_group)
 
-        group_id = rule["security_group_id"]
-        group = db_api.security_group_find(context, id=group_id,
-                                           scope=db_api.ONE)
-        if not group:
-            raise sg_ext.SecurityGroupNotFound(id=group_id)
-
-        quota.QUOTAS.limit_check(
-            context, context.tenant_id,
-            security_rules_per_group=len(group.get("rules", [])) + 1)
-
-        new_rule = db_api.security_group_rule_create(context, **rule)
-    return v._make_security_group_rule_dict(new_rule)
+    return v._make_security_group_dict(db_group)
 
 
 def delete_security_group(context, id):
@@ -139,6 +135,73 @@ def delete_security_group(context, id):
         db_api.security_group_delete(context, group)
 
 
+def get_security_group(context, id, fields=None):
+    LOG.info("get_security_group %s for tenant %s" %
+             (id, context.tenant_id))
+    group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
+    if not group:
+        raise sg_ext.SecurityGroupNotFound(id=id)
+    return v._make_security_group_dict(group, fields)
+
+
+def get_security_groups(context, filters=None, fields=None,
+                        sorts=None, limit=None, marker=None,
+                        page_reverse=False):
+    LOG.info("get_security_groups for tenant %s" %
+             (context.tenant_id))
+    groups = db_api.security_group_find(context, **filters)
+    return [v._make_security_group_dict(group) for group in groups]
+
+
+@env.has_capability(env.Capabilities.SG_UPDATE_ASYNC)
+def _perform_async_update_rule(context, id, db_sg_group, rule_id, action):
+    rpc_reply = None
+    sg_rpc = sg_rpc_api.QuarkSGAsyncProcessClient()
+    ports = db_api.sg_gather_associated_ports(context, db_sg_group)
+    if len(ports) > 0:
+        rpc_reply = sg_rpc.start_update(context, id, rule_id, action)
+        if rpc_reply:
+            job_id = rpc_reply['job_id']
+            job_api.add_job_to_context(context, job_id)
+        else:
+            LOG.error("Async update failed. Is the worker running?")
+
+
+def create_security_group_rule(context, security_group_rule):
+    LOG.info("create_security_group for tenant %s" %
+             (context.tenant_id))
+    with context.session.begin():
+        rule = _validate_security_group_rule(
+            context, security_group_rule["security_group_rule"])
+        rule["id"] = uuidutils.generate_uuid()
+
+        group_id = rule["security_group_id"]
+        group = db_api.security_group_find(context, id=group_id,
+                                           scope=db_api.ONE)
+        if not group:
+            raise sg_ext.SecurityGroupNotFound(id=group_id)
+
+        quota.QUOTAS.limit_check(
+            context, context.tenant_id,
+            security_rules_per_group=len(group.get("rules", [])) + 1)
+
+        new_rule = db_api.security_group_rule_create(context, **rule)
+    if group:
+        _perform_async_update_rule(context, group_id, group, new_rule.id,
+                                   RULE_CREATE)
+    return v._make_security_group_rule_dict(new_rule)
+
+
+def get_security_group_rule(context, id, fields=None):
+    LOG.info("get_security_group_rule %s for tenant %s" %
+             (id, context.tenant_id))
+    rule = db_api.security_group_rule_find(context, id=id,
+                                           scope=db_api.ONE)
+    if not rule:
+        raise sg_ext.SecurityGroupRuleNotFound(id=id)
+    return v._make_security_group_rule_dict(rule, fields)
+
+
 def delete_security_group_rule(context, id):
     LOG.info("delete_security_group %s for tenant %s" %
              (id, context.tenant_id))
@@ -155,34 +218,8 @@ def delete_security_group_rule(context, id):
 
         rule["id"] = id
         db_api.security_group_rule_delete(context, rule)
-
-
-def get_security_group(context, id, fields=None):
-    LOG.info("get_security_group %s for tenant %s" %
-             (id, context.tenant_id))
-    group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
-    if not group:
-        raise sg_ext.SecurityGroupNotFound(id=id)
-    return v._make_security_group_dict(group, fields)
-
-
-def get_security_group_rule(context, id, fields=None):
-    LOG.info("get_security_group_rule %s for tenant %s" %
-             (id, context.tenant_id))
-    rule = db_api.security_group_rule_find(context, id=id,
-                                           scope=db_api.ONE)
-    if not rule:
-        raise sg_ext.SecurityGroupRuleNotFound(id=id)
-    return v._make_security_group_rule_dict(rule, fields)
-
-
-def get_security_groups(context, filters=None, fields=None,
-                        sorts=None, limit=None, marker=None,
-                        page_reverse=False):
-    LOG.info("get_security_groups for tenant %s" %
-             (context.tenant_id))
-    groups = db_api.security_group_find(context, **filters)
-    return [v._make_security_group_dict(group) for group in groups]
+    if group:
+        _perform_async_update_rule(context, group.id, group, id, RULE_DELETE)
 
 
 def get_security_group_rules(context, filters=None, fields=None,
@@ -192,15 +229,3 @@ def get_security_group_rules(context, filters=None, fields=None,
              (context.tenant_id))
     rules = db_api.security_group_rule_find(context, **filters)
     return [v._make_security_group_rule_dict(rule) for rule in rules]
-
-
-def update_security_group(context, id, security_group):
-    if id == DEFAULT_SG_UUID:
-        raise sg_ext.SecurityGroupCannotUpdateDefault()
-    new_group = security_group["security_group"]
-    _validate_security_group(new_group)
-
-    with context.session.begin():
-        group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
-        db_group = db_api.security_group_update(context, group, **new_group)
-    return v._make_security_group_dict(db_group)

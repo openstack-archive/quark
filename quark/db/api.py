@@ -95,7 +95,7 @@ def _model_query(context, model, filters, fields=None):
     model_filters = []
     eq_filters = ["address", "cidr", "deallocated", "ip_version", "service",
                   "mac_address_range_id", "transaction_id", "lock_id",
-                  "address_type", "completed"]
+                  "address_type", "completed", "resource_id"]
     in_filters = ["device_id", "device_owner", "group_id", "id", "mac_address",
                   "name", "network_id", "segment_id", "subnet_id",
                   "used_by_tenant_id", "version", "project_id"]
@@ -889,6 +889,14 @@ def dns_delete(context, dns):
     context.session.delete(dns)
 
 
+def sg_gather_associated_ports(context, group):
+    if not group:
+        return None
+    if not hasattr(group, "ports") or len(group.ports) <= 0:
+        return []
+    return group.ports
+
+
 @scoped
 def security_group_find(context, **filters):
     query = context.session.query(models.SecurityGroup).options(
@@ -1182,15 +1190,36 @@ def async_transaction_find(context, lock_mode=False, **filters):
     return query
 
 
+def _check_transaction_completion(context, transaction, just_made=False):
+    # TODO(roaet): this pegs the DB pretty often and there may be a better way
+    completed = 0
+    for sub in transaction.subtransactions:
+        if sub.get('completed'):
+            completed += 1
+    if len(transaction.subtransactions) == completed:
+        completed = True
+        if just_made:
+            completed = False
+        data = {'completed': completed}
+        async_transaction_update(context, transaction, **data)
+
+
 def async_transaction_create(context, **transaction_dict):
     tx = models.AsyncTransactions()
     tx.update(transaction_dict)
     context.session.add(tx)
+    if tx.transaction_id is not None:
+        parent_tx = async_transaction_find(context, id=tx.transaction_id,
+                                           scope=ONE)
+        _check_transaction_completion(context, parent_tx, just_made=True)
     return tx
 
 
 def async_transaction_update(context, transaction, **kwargs):
     transaction.update(kwargs)
+    tx = transaction.transaction
+    if transaction.completed and tx is not None:
+        _check_transaction_completion(context, tx)
     context.session.add(transaction)
     return transaction
 
