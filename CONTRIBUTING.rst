@@ -101,3 +101,57 @@ and detail as much of the requirement as possible.
 
 We will review and determine if it is possible and when a developer can be
 assigned to the request.
+
+
+DOCKER DEVELOPMENT ENVIRONMENT
+==============================
+
+Quick Start
+-----------
+
+1. Install Docker: https://docs.docker.com/engine/installation/
+
+2. cd <quark_repo_dir>
+
+3. ./docker_up.sh
+
+4. First time? Please wait to download the containers.
+
+5. This will install the code currently in the directory.
+
+6. If you need to update the development environment with code you have changed,
+just ./docker_reload.sh once you have the environment up.  This will reload the
+quark container with your new code.
+
+7. Have your own configs?  Not a problem, just create a ~/neutron directory local
+on your laptop or working environment. The default configs will be overwritten
+by your configuration files. They will also be loaded fresh everytime with
+./docker_reload.sh.
+
+8. By default if a configuration file is not in ~/netron directory, it will load
+docker.neutron.conf, docker.apipaste.ini, and docker.policy.json in this repo.
+
+9. Once you are done with the evironment, just ./docker_down.sh
+
+10. What's in the Dev Environment?
+
+- ELK Stack(logging): http://localhost:8083
+- PHPMyAdmin: http://localhost:8081
+- Neutron/Quark: http://localhost:9696
+- RabbitMQ: http://localhost:8080
+- Redis-Master: 80
+- Redis-Sentinel: 6380
+- MySQL: 3306
+
+For addiitonal ports, please see the docker_up.sh script.
+
+11. Need to reference the IP of one of the containers? No need, the quark
+container handles the linking and generating /etc/hosts with the correct
+IPs. To access any of the containers in your configurations files, use the
+following hostnames:
+
+- ELK: docker-kibana
+- MySQL: docker-mysql
+- RabbitMQ: docker-rabbitmq
+- Redis: docker-redis
+- Redis-Sentinel: docker-redis-sentinel
