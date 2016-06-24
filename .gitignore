@@ -49,3 +49,6 @@ ChangeLog
 
 # Docs
 docs/build
+
+# Vagrant
+.vagrant/
