@@ -23,8 +23,11 @@ from oslo_utils import uuidutils
 from quark.db import api as db_api
 from quark.environment import Capabilities
 from quark import exceptions as q_exc
+from quark.plugin_modules import jobs as job_api
 from quark import plugin_views as v
 from quark import protocols
+
+from quark.worker_plugins import sg_update_worker as sg_rpc_api
 
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
@@ -100,6 +103,70 @@ def create_security_group(context, security_group):
     return v._make_security_group_dict(dbgroup)
 
 
+def _gather_associated_ports(context, group):
+    if not group:
+        raise sg_ext.SecurityGroupNotFound(id=id)
+    if not hasattr(group, "ports") or len(group.ports) <= 0:
+        return []
+    return group.ports
+
+
+def update_security_group(context, id, security_group):
+    if id == DEFAULT_SG_UUID:
+        raise sg_ext.SecurityGroupCannotUpdateDefault()
+    new_group = security_group["security_group"]
+    _validate_security_group(new_group)
+
+    rpc_reply = None
+    with context.session.begin():
+        group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
+        db_group = db_api.security_group_update(context, group, **new_group)
+
+    sg_rpc = sg_rpc_api.QuarkSGAsyncProcessClient()
+    ports = _gather_associated_ports(context, db_group)
+    if len(ports) > 0:
+        rpc_reply = sg_rpc.start_update(context, id)
+        if rpc_reply:
+            job_id = rpc_reply['job_id']
+            job_api.add_job_to_context(context, job_id)
+    return v._make_security_group_dict(db_group)
+
+
+def delete_security_group(context, id):
+    LOG.info("delete_security_group %s for tenant %s" %
+             (id, context.tenant_id))
+
+    with context.session.begin():
+        group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
+
+        # TODO(anyone): name and ports are lazy-loaded. Could be good op later
+        if not group:
+            raise sg_ext.SecurityGroupNotFound(id=id)
+        if id == DEFAULT_SG_UUID or group.name == "default":
+            raise sg_ext.SecurityGroupCannotRemoveDefault()
+        if group.ports:
+            raise sg_ext.SecurityGroupInUse(id=id)
+        db_api.security_group_delete(context, group)
+
+
+def get_security_group(context, id, fields=None):
+    LOG.info("get_security_group %s for tenant %s" %
+             (id, context.tenant_id))
+    group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
+    if not group:
+        raise sg_ext.SecurityGroupNotFound(id=id)
+    return v._make_security_group_dict(group, fields)
+
+
+def get_security_groups(context, filters=None, fields=None,
+                        sorts=None, limit=None, marker=None,
+                        page_reverse=False):
+    LOG.info("get_security_groups for tenant %s" %
+             (context.tenant_id))
+    groups = db_api.security_group_find(context, **filters)
+    return [v._make_security_group_dict(group) for group in groups]
+
+
 def create_security_group_rule(context, security_group_rule):
     LOG.info("create_security_group for tenant %s" %
              (context.tenant_id))
@@ -122,21 +189,14 @@ def create_security_group_rule(context, security_group_rule):
     return v._make_security_group_rule_dict(new_rule)
 
 
-def delete_security_group(context, id):
-    LOG.info("delete_security_group %s for tenant %s" %
+def get_security_group_rule(context, id, fields=None):
+    LOG.info("get_security_group_rule %s for tenant %s" %
              (id, context.tenant_id))
-
-    with context.session.begin():
-        group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
-
-        # TODO(anyone): name and ports are lazy-loaded. Could be good op later
-        if not group:
-            raise sg_ext.SecurityGroupNotFound(id=id)
-        if id == DEFAULT_SG_UUID or group.name == "default":
-            raise sg_ext.SecurityGroupCannotRemoveDefault()
-        if group.ports:
-            raise sg_ext.SecurityGroupInUse(id=id)
-        db_api.security_group_delete(context, group)
+    rule = db_api.security_group_rule_find(context, id=id,
+                                           scope=db_api.ONE)
+    if not rule:
+        raise sg_ext.SecurityGroupRuleNotFound(id=id)
+    return v._make_security_group_rule_dict(rule, fields)
 
 
 def delete_security_group_rule(context, id):
@@ -157,34 +217,6 @@ def delete_security_group_rule(context, id):
         db_api.security_group_rule_delete(context, rule)
 
 
-def get_security_group(context, id, fields=None):
-    LOG.info("get_security_group %s for tenant %s" %
-             (id, context.tenant_id))
-    group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
-    if not group:
-        raise sg_ext.SecurityGroupNotFound(id=id)
-    return v._make_security_group_dict(group, fields)
-
-
-def get_security_group_rule(context, id, fields=None):
-    LOG.info("get_security_group_rule %s for tenant %s" %
-             (id, context.tenant_id))
-    rule = db_api.security_group_rule_find(context, id=id,
-                                           scope=db_api.ONE)
-    if not rule:
-        raise sg_ext.SecurityGroupRuleNotFound(id=id)
-    return v._make_security_group_rule_dict(rule, fields)
-
-
-def get_security_groups(context, filters=None, fields=None,
-                        sorts=None, limit=None, marker=None,
-                        page_reverse=False):
-    LOG.info("get_security_groups for tenant %s" %
-             (context.tenant_id))
-    groups = db_api.security_group_find(context, **filters)
-    return [v._make_security_group_dict(group) for group in groups]
-
-
 def get_security_group_rules(context, filters=None, fields=None,
                              sorts=None, limit=None, marker=None,
                              page_reverse=False):
@@ -192,15 +224,3 @@ def get_security_group_rules(context, filters=None, fields=None,
              (context.tenant_id))
     rules = db_api.security_group_rule_find(context, **filters)
     return [v._make_security_group_rule_dict(rule) for rule in rules]
-
-
-def update_security_group(context, id, security_group):
-    if id == DEFAULT_SG_UUID:
-        raise sg_ext.SecurityGroupCannotUpdateDefault()
-    new_group = security_group["security_group"]
-    _validate_security_group(new_group)
-
-    with context.session.begin():
-        group = db_api.security_group_find(context, id=id, scope=db_api.ONE)
-        db_group = db_api.security_group_update(context, group, **new_group)
-    return v._make_security_group_dict(db_group)
