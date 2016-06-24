@@ -39,6 +39,70 @@ class QuarkJobs(BaseFunctionalTest):
         self.assertFalse(job['completed'])
         self.assertEqual(self.tenant_id, job['tenant_id'])
         self.assertEqual(self.action, job['action'])
+        self.assertEqual(None, job['parent_id'])
+        self.assertEqual(job['id'], job['transaction_id'])
+        self.assertEqual(0, job['subtransactions'])
+        self.assertEqual(0, job['completed_subtransactions'])
+
+    def test_add_job_to_context(self):
+        job_body = dict(tenant_id=self.tenant_id, action=self.action,
+                        completed=False)
+        job_body = dict(job=job_body)
+        job = job_api.create_job(self.admin_context, job_body)
+        self.assertIsNotNone(job)
+        self.assertFalse(hasattr(self.admin_context, 'async_job'))
+        job_api.add_job_to_context(self.admin_context, job['id'])
+        self.assertTrue(hasattr(self.admin_context, 'async_job'))
+        self.assertEqual(self.admin_context.async_job['job']['id'],
+                         job['id'])
+
+    def test_add_missing_job_to_context(self):
+        self.assertFalse(hasattr(self.admin_context, 'async_job'))
+        job_api.add_job_to_context(self.admin_context, 0)
+        self.assertFalse(hasattr(self.admin_context, 'async_job'))
+
+    def test_create_job_with_parent_job(self):
+        job_body = dict(tenant_id=self.tenant_id, action=self.action,
+                        completed=False)
+        job_body = dict(job=job_body)
+        parent_job = job_api.create_job(self.admin_context, job_body)
+        job_body = dict(tenant_id=self.tenant_id, action=self.action,
+                        completed=False, parent_id=parent_job['id'])
+        job_body = dict(job=job_body)
+        job = job_api.create_job(self.admin_context, job_body)
+        self.assertIsNotNone(job)
+        self.assertFalse(job['completed'])
+        self.assertEqual(self.tenant_id, job['tenant_id'])
+        self.assertEqual(self.action, job['action'])
+        self.assertEqual(parent_job['id'], job['parent_id'])
+        self.assertEqual(parent_job['id'], job['transaction_id'],
+                         "transaction id should be outer most parent id")
+        tx_job = job_api.get_job(self.admin_context, parent_job['id'])
+        self.assertEqual(1, tx_job['subtransactions'])
+        self.assertEqual(0, tx_job['completed_subtransactions'])
+
+    def test_create_deep_job_list(self):
+        parent_job = None
+        transaction = None
+        for i in xrange(4):
+            job_body = dict(tenant_id=self.tenant_id, action=self.action,
+                            completed=False)
+            if parent_job:
+                job_body['parent_id'] = parent_job
+            job_body = dict(job=job_body)
+            job = job_api.create_job(self.admin_context, job_body)
+            self.assertIsNotNone(job)
+            if parent_job:
+                self.assertEqual(parent_job, job['parent_id'])
+            if transaction is None:
+                self.assertIsNotNone(job['transaction_id'])
+                transaction = job['id']
+            else:
+                self.assertEqual(transaction, job['transaction_id'])
+            parent_job = job['id']
+        tx_job = job_api.get_job(self.admin_context, transaction)
+        self.assertEqual(3, tx_job['subtransactions'])
+        self.assertEqual(0, job['completed_subtransactions'])
 
     def test_create_job_fail_non_admin(self):
         job_body = dict(tenant_id=self.tenant_id, action=self.action,
@@ -49,16 +113,23 @@ class QuarkJobs(BaseFunctionalTest):
 
     def test_get_jobs(self):
         job_body = dict(tenant_id=self.tenant_id, action=self.action,
-                        completed=False)
+                        completed=False, resource_id='foo')
         job_body = dict(job=job_body)
         job1 = job_api.create_job(self.admin_context, job_body)
         self.assertIsNotNone(job1)
 
         job_body = dict(tenant_id=self.tenant_id2, action=self.action,
-                        completed=True)
+                        completed=False, resource_id='bar')
         job_body = dict(job=job_body)
         job2 = job_api.create_job(self.admin_context, job_body)
         self.assertIsNotNone(job2)
+
+        job_body = dict(tenant_id=self.tenant_id2, action=self.action,
+                        completed=False, resource_id='bar',
+                        parent_id=job2['id'])
+        job_body = dict(job=job_body)
+        job3 = job_api.create_job(self.admin_context, job_body)
+        self.assertIsNotNone(job3)
 
         jobs = job_api.get_job(self.admin_context, job1['id'])
         self.assertFalse(type(jobs) in [list, tuple])
@@ -68,7 +139,7 @@ class QuarkJobs(BaseFunctionalTest):
         self.assertEqual(self.action, job['action'])
 
         job = job_api.get_job(self.admin_context, job2['id'])
-        self.assertTrue(job['completed'])
+        self.assertFalse(job['completed'])
         self.assertEqual(self.tenant_id2, job['tenant_id'])
         self.assertEqual(self.action, job['action'])
 
@@ -77,15 +148,19 @@ class QuarkJobs(BaseFunctionalTest):
 
         jobs = job_api.get_jobs(self.admin_context)
         self.assertTrue(type(jobs) in [list, tuple])
+        self.assertEqual(3, len(jobs))
+
+        jobs = job_api.get_jobs(self.admin_context, transaction_id=job2['id'])
+        self.assertTrue(type(jobs) in [list, tuple])
         self.assertEqual(2, len(jobs))
 
         jobs = job_api.get_jobs(self.admin_context, completed=True)
         self.assertTrue(type(jobs) in [list, tuple])
-        self.assertEqual(1, len(jobs))
+        self.assertEqual(0, len(jobs))
 
         jobs = job_api.get_jobs(self.admin_context, completed=False)
         self.assertTrue(type(jobs) in [list, tuple])
-        self.assertEqual(1, len(jobs))
+        self.assertEqual(3, len(jobs))
 
         jobs = job_api.get_jobs(self.admin_context, completed='hello')
         self.assertTrue(type(jobs) in [list, tuple])
@@ -96,6 +171,18 @@ class QuarkJobs(BaseFunctionalTest):
         self.assertEqual(1, len(jobs))
 
         jobs = job_api.get_jobs(self.admin_context, tenant_id='derp')
+        self.assertTrue(type(jobs) in [list, tuple])
+        self.assertEqual(0, len(jobs))
+
+        jobs = job_api.get_jobs(self.admin_context, resource_id='foo')
+        self.assertTrue(type(jobs) in [list, tuple])
+        self.assertEqual(1, len(jobs))
+
+        jobs = job_api.get_jobs(self.admin_context, resource_id='bar')
+        self.assertTrue(type(jobs) in [list, tuple])
+        self.assertEqual(2, len(jobs))
+
+        jobs = job_api.get_jobs(self.admin_context, resource_id='asdf')
         self.assertTrue(type(jobs) in [list, tuple])
         self.assertEqual(0, len(jobs))
 
@@ -185,6 +272,38 @@ class QuarkJobs(BaseFunctionalTest):
         with self.assertRaises(q_exc.JobNotFound):
             job_api.delete_job(self.admin_context, job1['id'])
 
+    def test_delete_job_with_children(self):
+        job_body = dict(tenant_id=self.tenant_id, action=self.action,
+                        completed=False)
+        job_body = dict(job=job_body)
+        parent_job = job_api.create_job(self.admin_context, job_body)
+        parent_job = job_api.get_job(self.admin_context, parent_job['id'])
+        self.assertIsNotNone(parent_job)
+        job_body = dict(tenant_id=self.tenant_id, action=self.action,
+                        completed=False, parent_id=parent_job['id'])
+        job_body = dict(job=job_body)
+        job = job_api.create_job(self.admin_context, job_body)
+        job = job_api.get_job(self.admin_context, job['id'])
+        self.assertIsNotNone(job)
+
+        job_body = dict(tenant_id=self.tenant_id, action=self.action,
+                        completed=False, parent_id=job['id'])
+        job_body = dict(job=job_body)
+        subjob = job_api.create_job(self.admin_context, job_body)
+        subjob = job_api.get_job(self.admin_context, subjob['id'])
+        self.assertIsNotNone(job)
+
+        job_api.delete_job(self.admin_context, parent_job['id'])
+
+        with self.assertRaises(q_exc.JobNotFound):
+            job_api.get_job(self.admin_context, parent_job['id'])
+
+        with self.assertRaises(q_exc.JobNotFound):
+            job_api.get_job(self.admin_context, job['id'])
+
+        with self.assertRaises(q_exc.JobNotFound):
+            job_api.get_job(self.admin_context, subjob['id'])
+
     def test_delete_job_fail_non_admin(self):
         with self.assertRaises(n_exc.NotAuthorized):
             job_api.delete_job(self.context, 'derp')
@@ -205,3 +324,51 @@ class QuarkJobs(BaseFunctionalTest):
 
         with self.assertRaises(q_exc.JobNotFound):
             job_api.get_job(self.context, job1['id'])
+
+    def test_transaction_completion_percent(self):
+        job_body = dict(tenant_id=self.tenant_id, action=self.action,
+                        completed=False)
+        job_body = dict(job=job_body)
+        parent_job = job_api.create_job(self.admin_context, job_body)
+        parent_job = job_api.get_job(self.admin_context, parent_job['id'])
+        self.assertIsNotNone(parent_job)
+        job_body = dict(tenant_id=self.tenant_id, action=self.action,
+                        completed=False, parent_id=parent_job['id'])
+        job_body = dict(job=job_body)
+        job = job_api.create_job(self.admin_context, job_body)
+        job = job_api.get_job(self.admin_context, job['id'])
+        self.assertIsNotNone(job)
+
+        job_body = dict(tenant_id=self.tenant_id, action=self.action,
+                        completed=False, parent_id=job['id'])
+        job_body = dict(job=job_body)
+        subjob = job_api.create_job(self.admin_context, job_body)
+        subjob = job_api.get_job(self.admin_context, subjob['id'])
+        self.assertIsNotNone(job)
+
+        parent_job = job_api.get_job(self.admin_context, parent_job['id'])
+        self.assertTrue('transaction_percent' in parent_job)
+        self.assertEqual(0, parent_job['transaction_percent'])
+        self.assertEqual(2, parent_job['subtransactions'])
+        self.assertEqual(0, parent_job['completed_subtransactions'])
+
+        update_body = dict(completed=True)
+        update_body = dict(job=update_body)
+
+        subjob = job_api.update_job(self.admin_context, subjob['id'],
+                                    update_body)
+        self.assertTrue(subjob['completed'])
+
+        parent_job = job_api.get_job(self.admin_context, parent_job['id'])
+        self.assertEqual(50, parent_job['transaction_percent'])
+        self.assertEqual(2, parent_job['subtransactions'])
+        self.assertEqual(1, parent_job['completed_subtransactions'])
+
+        job = job_api.update_job(self.admin_context, job['id'], update_body)
+        self.assertTrue(subjob['completed'])
+
+        parent_job = job_api.get_job(self.admin_context, parent_job['id'])
+        self.assertEqual(100, parent_job['transaction_percent'])
+        self.assertEqual(2, parent_job['subtransactions'])
+        self.assertEqual(2, parent_job['completed_subtransactions'])
+        self.assertEqual(True, parent_job['completed'])

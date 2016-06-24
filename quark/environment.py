@@ -24,6 +24,7 @@ class Capabilities(object):
     EGRESS = "egress"
     TENANT_NETWORK_SG = "tenant_network_sg"
     IP_BILLING = "ip_billing"
+    SG_UPDATE_ASYNC = "security_groups_update_async"
 
 
 quark_opts = [
