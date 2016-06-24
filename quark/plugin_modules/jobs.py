@@ -25,6 +25,14 @@ CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
 
+def add_job_to_context(context, job_id):
+    db_job = db_api.async_transaction_find(
+        context, id=job_id, scope=db_api.ONE)
+    if not db_job:
+        return
+    context.async_job = {"job": v._make_job_dict(db_job)}
+
+
 def get_jobs(context, **filters):
     LOG.info("get_jobs for tenant %s" % context.tenant_id)
     if not filters:
@@ -49,9 +57,20 @@ def create_job(context, body):
     if not context.is_admin:
         raise n_exc.NotAuthorized()
     job = body.get('job')
+    if 'parent_id' in job:
+        parent_id = job['parent_id']
+        parent_job = db_api.async_transaction_find(
+            context, id=parent_id, scope=db_api.ONE)
+        if not parent_job:
+            raise q_exc.JobNotFound(job_id=parent_id)
+        tid = parent_id
+        if parent_job.get('transaction_id'):
+            tid = parent_job.get('transaction_id')
+        job['transaction_id'] = tid
+
     if not job:
         raise n_exc.BadRequest(resource="job", msg="Invalid request body.")
-    with context.session.begin():
+    with context.session.begin(subtransactions=True):
         new_job = db_api.async_transaction_create(context, **job)
     return v._make_job_dict(new_job)
 

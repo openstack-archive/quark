@@ -45,6 +45,10 @@ quark_opts = [
     cfg.StrOpt("redis_db",
                default="0",
                help=("The database number to use")),
+    cfg.IntOpt("redis_min_other_sentinels",
+               default=2,
+               help=_("The minimum number of sentinels required for quorum."
+                      " Set this to 0 if you only have one sentinel.")),
     cfg.FloatOpt("redis_socket_timeout",
                  default=0.1,
                  help=("Timeout for Redis socket operations"))]
@@ -83,7 +87,8 @@ class ClientBase(object):
         sentinel_kwargs = TwiceRedis.DEFAULT_SENTINEL_KWARGS
         pool_kwargs['socket_timeout'] = CONF.QUARK.redis_socket_timeout
         pool_kwargs['socket_keepalive'] = False
-        sentinel_kwargs['min_other_sentinels'] = 2
+        sentinel_kwargs['min_other_sentinels'] = \
+            CONF.QUARK.redis_min_other_sentinels
         return TwiceRedis(master_name=CONF.QUARK.redis_sentinel_master,
                           sentinels=sentinels,
                           password=CONF.QUARK.redis_password,
