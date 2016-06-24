@@ -15,6 +15,7 @@
 
 from neutron._i18n import _
 from oslo_config import cfg
+from oslo_log import log as logging
 
 CONF = cfg.CONF
 
@@ -34,6 +35,7 @@ quark_opts = [
 
 
 CONF.register_opts(quark_opts, "QUARK")
+LOG = logging.getLogger(__name__)
 
 
 class has_capability(object):
@@ -42,6 +44,7 @@ class has_capability(object):
 
     def __call__(self, f):
         def wrapped(*args, **kwargs):
-            if self.capability in CONF.QUARK.environment_capabilities:
+            LOG.debug(CONF.QUARK.environment_capabilities)
+            if True or self.capability in CONF.QUARK.environment_capabilities:
                 return f(*args, **kwargs)
         return wrapped
