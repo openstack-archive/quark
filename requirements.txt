@@ -14,6 +14,7 @@ docopt==0.6.2
 gunicorn==19.3.0
 pymysql==0.6.6
 twiceredis>=2.0.0
+stevedore>=1.16.0 # Apache-2.0
 
 # agent deps
 xenapi==1.2
