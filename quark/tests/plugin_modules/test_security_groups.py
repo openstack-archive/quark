@@ -19,12 +19,16 @@ import mock
 from neutron.extensions import securitygroup as sg_ext
 from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
+from oslo_log import log as logging
 
 from quark.db import models
 from quark import exceptions as q_exc
 from quark.plugin_modules import security_groups
 from quark import protocols
 from quark.tests import test_quark_plugin
+
+
+LOG = logging.getLogger(__name__)
 
 
 class TestQuarkGetSecurityGroups(test_quark_plugin.TestQuarkPlugin):
@@ -160,6 +164,8 @@ class TestQuarkUpdateSecurityGroup(test_quark_plugin.TestQuarkPlugin):
             db_update.return_value = updated_group
             update = dict(security_group=dict(name="bar"))
             resp = self.plugin.update_security_group(self.context, 1, update)
+            LOG.debug(resp)
+            LOG.debug(updated_group)
             self.assertEqual(resp["name"], updated_group["name"])
 
     def test_update_security_group_with_deault_security_group_id(self):

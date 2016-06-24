@@ -595,3 +595,26 @@ class AsyncTransactions(BASEV2, HasId, HasTenant):
     __tablename__ = "quark_async_transactions"
     action = sa.Column(sa.String(255))
     completed = sa.Column(sa.Boolean(), default=False)
+    status = sa.Column(sa.String(255))
+    resource_id = sa.Column(sa.String(36))
+
+    parent_task_id = sa.Column(
+        sa.String(36),
+        sa.ForeignKey("quark_async_transactions.id", ondelete="cascade"),
+        nullable=True)
+    transaction_id = sa.Column(
+        sa.String(36),
+        sa.ForeignKey("quark_async_transactions.id", ondelete="cascade"),
+        nullable=True)
+
+    parent = orm.relationship(
+        "AsyncTransactions",
+        backref=orm.backref("children", cascade="all, delete"),
+        foreign_keys=[parent_task_id], single_parent=True,
+        remote_side="AsyncTransactions.id")
+
+    transaction = orm.relationship(
+        "AsyncTransactions",
+        backref=orm.backref("subtransactions", cascade="all, delete"),
+        foreign_keys=[transaction_id], single_parent=True,
+        remote_side="AsyncTransactions.id")
