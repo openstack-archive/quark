@@ -886,6 +886,14 @@ def dns_delete(context, dns):
     context.session.delete(dns)
 
 
+def sg_gather_associated_ports(context, group):
+    if not group:
+        return None
+    if not hasattr(group, "ports") or len(group.ports) <= 0:
+        return []
+    return group.ports
+
+
 @scoped
 def security_group_find(context, **filters):
     query = context.session.query(models.SecurityGroup).options(

@@ -208,3 +208,11 @@ class retry_loop(object):
 def pretty_kwargs(**kwargs):
     kwargs_str = ', '.join("%s=%s" % (k, v) for k, v in kwargs.items())
     return kwargs_str
+
+
+def add_job_info(job_id, data):
+    if job_id is not None:
+        data['job'] = dict(id=job_id)
+        LOG.debug("Adding job info")
+        LOG.debug(data)
+    return data
