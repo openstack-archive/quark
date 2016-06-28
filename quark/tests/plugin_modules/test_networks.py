@@ -236,6 +236,10 @@ class TestQuarkUpdateNetwork(test_quark_plugin.TestQuarkPlugin):
 
 
 class TestQuarkDeleteNetwork(test_quark_plugin.TestQuarkPlugin):
+    def setUp(self):
+        super(TestQuarkDeleteNetwork, self).setUp()
+        self.context.is_admin = True
+
     @contextlib.contextmanager
     def _stubs(self, net=None, ports=None, subnets=None):
         subnets = subnets or []
@@ -260,14 +264,18 @@ class TestQuarkDeleteNetwork(test_quark_plugin.TestQuarkPlugin):
             net_mod["subnets"] = subnet_mods
             net_mod["network_plugin"] = "BASE"
 
+
         db_mod = "quark.db.api"
         with contextlib.nested(
             mock.patch("%s.network_find" % db_mod),
             mock.patch("%s.network_delete" % db_mod),
             mock.patch("quark.drivers.base.BaseDriver.delete_network"),
-            mock.patch("%s.subnet_delete" % db_mod)
-        ) as (net_find, net_delete, driver_net_delete, subnet_del):
+            mock.patch("%s.subnet_delete" % db_mod),
+            mock.patch("quark.network_strategy.STRATEGY.is_provider_network")
+        ) as (net_find, net_delete, driver_net_delete, subnet_del,
+              is_provider_network):
             net_find.return_value = net_mod
+            is_provider_network.return_value = True
             yield net_delete
 
     def test_delete_network(self):
@@ -294,6 +302,25 @@ class TestQuarkDeleteNetwork(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(net=net, ports=[], subnets=[subnet]) as net_delete:
             self.plugin.delete_network(self.context, 1)
             self.assertTrue(net_delete.called)
+
+    def test_delete_provider_network_admin(self):
+        """Attempts deleting a provider network as an admin tenant"""
+        network_id = 'public_network'
+        net = dict(id=network_id, tenant_id=self.context.tenant_id)
+        subnet = dict(id=1)
+        with self._stubs(net=net, ports=[], subnets=[subnet]) as net_delete:
+            self.plugin.delete_network(self.context, network_id)
+            self.assertTrue(net_delete.called)
+
+    def test_delete_provider_network_non_admin(self):
+        """Attempts deleting a provider network as a non-admin tenant"""
+        self.context.is_admin = False
+        network_id = 'public_network'
+        net = dict(id=network_id, tenant_id=self.context.tenant_id)
+        subnet = dict(id=1)
+        with self._stubs(net=net, ports=[], subnets=[subnet]) as net_delete:
+            with self.assertRaises(n_exc.NotAuthorized):
+                self.plugin.delete_network(self.context, network_id)
 
 
 class TestQuarkCreateNetwork(test_quark_plugin.TestQuarkPlugin):
