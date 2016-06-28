@@ -48,6 +48,7 @@ from oslo_config import cfg
 from oslo_log import log as logging
 from sqlalchemy import and_, or_, null
 from quark.db import models
+from quark import environment as env
 
 from quark import network_strategy
 
@@ -91,6 +92,7 @@ def do_notify(context, event_type, payload):
     notifier.info(context, event_type, payload)
 
 
+@env.has_capability(env.Capabilities.IP_BILLING)
 def notify(context, event_type, ipaddress, send_usage=False):
     """Method to send notifications.
 

@@ -1799,6 +1799,16 @@ class TestQuarkIpPoliciesIpAllocation(QuarkIpamBaseTest):
 
 
 class QuarkIPAddressAllocationNotifications(QuarkIpamBaseTest):
+    def setUp(self):
+        super(QuarkIPAddressAllocationNotifications, self).setUp()
+        cfg.CONF.set_override('environment_capabilities',
+                              'security_groups,ip_billing',
+                              'QUARK')
+
+    def tearDown(self):
+        cfg.CONF.clear_override('environment_capabilities', 'QUARK')
+        super(QuarkIPAddressAllocationNotifications, self).tearDown()
+
     @contextlib.contextmanager
     def _stubs(self, address, addresses=None, subnets=None, deleted_at=None):
         if not addresses:

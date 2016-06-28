@@ -15,6 +15,7 @@
 
 import datetime
 import json
+import mock
 from oslo_config import cfg
 from quark import billing
 from quark.db.models import IPAddress
@@ -156,3 +157,31 @@ class QuarkBillingPayloadTest(QuarkBillingBaseTest):
         self.assertEqual(payload['eventTime'],
                          billing.convert_timestamp(event_time),
                          'eventTime is wrong')
+
+
+class QuarkBillingEnvironmentCapabilityTest(QuarkBillingBaseTest):
+    def setUp(self):
+        super(QuarkBillingEnvironmentCapabilityTest, self).setUp()
+        self.context = {}
+
+    @mock.patch('neutron.common.rpc.get_notifier')
+    def test_env_cap_enabled(self, notifier):
+        cfg.CONF.set_override('environment_capabilities',
+                              'security_groups,ip_billing',
+                              'QUARK')
+        ipaddress = get_fake_fixed_address()
+        ipaddress.allocated_at = datetime.datetime.utcnow()
+        billing.notify(self.context, billing.IP_ADD, ipaddress)
+        notifier.assert_called_once_with('network')
+        cfg.CONF.clear_override('environment_capabilities', 'QUARK')
+
+    @mock.patch('neutron.common.rpc.get_notifier')
+    def test_env_cap_disabled(self, notifier):
+        cfg.CONF.set_override('environment_capabilities',
+                              '',
+                              'QUARK')
+        ipaddress = get_fake_fixed_address()
+        ipaddress.allocated_at = datetime.datetime.utcnow()
+        billing.notify(self.context, billing.IP_ADD, ipaddress)
+        self.assertFalse(notifier.called)
+        cfg.CONF.clear_override('environment_capabilities', 'QUARK')
