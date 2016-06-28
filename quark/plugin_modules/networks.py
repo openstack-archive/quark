@@ -257,6 +257,9 @@ def delete_network(context, id):
                                   scope=db_api.ONE)
         if not net:
             raise n_exc.NetworkNotFound(net_id=id)
+        if not context.is_admin:
+            if STRATEGY.is_provider_network(net.id):
+                raise n_exc.NotAuthorized(net_id=id)
         if net.ports:
             raise n_exc.NetworkInUse(net_id=id)
         net_driver = registry.DRIVER_REGISTRY.get_driver(net["network_plugin"])

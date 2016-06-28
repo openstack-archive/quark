@@ -1191,6 +1191,10 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
 
 
 class TestQuarkDeleteSubnet(test_quark_plugin.TestQuarkPlugin):
+    def setUp(self):
+        super(TestQuarkDeleteSubnet, self).setUp()
+        self.context.is_admin = True
+
     @contextlib.contextmanager
     def _stubs(self, subnet, ips):
         ip_mods = []
@@ -1203,14 +1207,17 @@ class TestQuarkDeleteSubnet(test_quark_plugin.TestQuarkPlugin):
             ip_mod.update(ip)
             ip_mods.append(ip_mod)
 
+        strategy_prefix = "quark.network_strategy.JSONStrategy"
         with contextlib.nested(
             mock.patch("quark.db.api.subnet_find"),
             mock.patch("quark.db.api.subnet_delete"),
-            mock.patch("neutron.common.rpc.get_notifier")
-        ) as (sub_find, sub_delete, get_notifier):
+            mock.patch("neutron.common.rpc.get_notifier"),
+            mock.patch("%s.is_provider_network" % strategy_prefix)
+        ) as (sub_find, sub_delete, get_notifier, is_provider_network):
             if subnet_mod:
                 subnet_mod.allocated_ips = ip_mods
             sub_find.return_value = subnet_mod
+            is_provider_network.return_value = True
             yield sub_delete
 
     def test_delete_subnet(self):
@@ -1218,6 +1225,17 @@ class TestQuarkDeleteSubnet(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(subnet=subnet, ips=[]) as sub_delete:
             self.plugin.delete_subnet(self.context, 1)
             self.assertTrue(sub_delete.called)
+
+    def test_delete_subnet_on_provider_network_non_admin(self):
+        """Attempts deleting a subnet on a provider network
+
+        as a non-admin tenant
+        """
+        self.context.is_admin = False
+        subnet = dict(id=1)
+        with self._stubs(subnet=subnet, ips=[]):
+            with self.assertRaises(n_exc.NotAuthorized):
+                self.plugin.delete_subnet(self.context, 1)
 
     def test_delete_subnet_no_subnet_fails(self):
         with self._stubs(subnet=None, ips=[]):

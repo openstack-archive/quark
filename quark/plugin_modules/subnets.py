@@ -457,6 +457,10 @@ def delete_subnet(context, id):
         if not subnet:
             raise n_exc.SubnetNotFound(subnet_id=id)
 
+        if not context.is_admin:
+            if STRATEGY.is_provider_network(subnet.network_id):
+                raise n_exc.NotAuthorized(subnet_id=id)
+
         payload = dict(tenant_id=subnet["tenant_id"],
                        ip_block_id=subnet["id"],
                        created_at=subnet["created_at"],
