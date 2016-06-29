@@ -306,6 +306,7 @@ def _make_ip_dict(address):
     return {"id": address["id"],
             "network_id": address["network_id"],
             "ip_address": address.formatted(),
+            "address": address.formatted(),
             "port_ids": [assoc.port_id
                          for assoc in address["associations"]],
             "subnet_id": address["subnet_id"],
