@@ -17,7 +17,8 @@ from neutron.api import extensions
 
 EXTENDED_ATTRIBUTES_2_0 = {
     "subnets": {
-        "segment_id": {"allow_post": True, "default": None},
+        "segment_id": {"allow_post": True, "allow_put": False,
+                       "default": None},
         "ip_policy_id": {"allow_post": False, "allow_put": False,
                          "default": None, "is_visible": True}
     }

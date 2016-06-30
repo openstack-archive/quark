@@ -20,11 +20,12 @@ RESOURCE_NAME = "network"
 RESOURCE_COLLECTION = RESOURCE_NAME + "s"
 EXTENDED_ATTRIBUTES_2_0 = {
     RESOURCE_COLLECTION: {
-        "ipam_strategy": {"allow_post": True, "is_visible": True,
-                          "default": False},
-        "network_plugin": {"allow_post": True, "is_visible": False,
-                           "default": False},
-        "id": {"allow_post": True, "is_visible": True, "default": False}}}
+        "ipam_strategy": {"allow_post": True, "allow_put": False,
+                          "is_visible": True, "default": False},
+        "network_plugin": {"allow_post": True, "allow_put": False,
+                           "is_visible": False, "default": False},
+        "id": {"allow_post": True, "allow_put": False,
+               "is_visible": True, "default": False}}}
 
 
 class Networks_quark(extensions.ExtensionDescriptor):

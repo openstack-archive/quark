@@ -21,10 +21,10 @@ RESOURCE_NAME = "port"
 RESOURCE_COLLECTION = RESOURCE_NAME + "s"
 EXTENDED_ATTRIBUTES_2_0 = {
     RESOURCE_COLLECTION: {
-        "network_id": {"allow_post": True, "default": '',
-                       "is_visible": True},
-        "tenant_id": {"allow_post": True, "default": '',
-                      "is_visible": True},
+        "network_id": {"allow_post": True, "allow_put": False,
+                       "default": '', "is_visible": True},
+        "tenant_id": {"allow_post": True, "allow_put": False,
+                      "default": '', "is_visible": True},
         "segment_id": {"allow_post": True, "default": False},
         "bridge": {'allow_post': False, 'allow_put': False,
                    'default': False, 'is_visible': True},
