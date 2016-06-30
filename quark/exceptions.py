@@ -204,6 +204,11 @@ class PortAlreadyContainsFloatingIp(n_exc.Conflict):
     message = _("Port %(port_id)s already has an associated floating IP.")
 
 
+class FixedIpAllocatedToGatewayIp(n_exc.Conflict):
+    message = _("Gateway IP of Floating IP subnet conflicts with Fixed IP "
+                "allocated to port %(port_id)s of network %(network_id)s.")
+
+
 class FixedIpDoesNotExistsForPort(n_exc.BadRequest):
     message = _("Fixed IP %(fixed_ip)s does not exist on Port %(port_id)s")
 
