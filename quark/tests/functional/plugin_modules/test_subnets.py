@@ -15,6 +15,7 @@
 
 import mock
 import netaddr
+from neutron.api.v2 import attributes as neutron_attrs
 from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 
@@ -197,6 +198,16 @@ class QuarkCreateSubnets(BaseFunctionalTest):
         subnet = {"subnet": subnet}
         with self._stubs(network, subnet) as (net, sub1):
             self.assertEqual(sub1["allocation_pools"], pools)
+
+    def test_create_cidr_not_specified_raises(self):
+        cidr = neutron_attrs.ATTR_NOT_SPECIFIED
+        network = dict(name="public", tenant_id="fake", network_plugin="BASE")
+        network = {"network": network}
+        subnet = dict(ip_version=4, cidr=cidr, tenant_id="fake")
+        subnet = {"subnet": subnet}
+        with self.assertRaises(n_exc.BadRequest):
+            with self._stubs(network, subnet) as (net, sub1):
+                pass
 
 
 class QuarkUpdateSubnets(BaseFunctionalTest):
