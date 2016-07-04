@@ -64,7 +64,12 @@ def _validate_subnet_cidr(context, network_id, new_subnet_cidr):
     if neutron_cfg.cfg.CONF.allow_overlapping_ips:
         return
 
-    new_subnet_ipset = netaddr.IPSet([new_subnet_cidr])
+    try:
+        new_subnet_ipset = netaddr.IPSet([new_subnet_cidr])
+    except TypeError:
+        LOG.exception("Invalid or missing cidr: %s" % new_subnet_cidr)
+        raise n_exc.BadRequest(resource="subnet",
+                               msg="Invalid or missing cidr")
 
     # Using admin context here, in case we actually share networks later
     subnet_list = db_api.subnet_find(context.elevated(), None, None, None,
