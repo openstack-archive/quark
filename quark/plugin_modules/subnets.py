@@ -15,13 +15,11 @@
 
 import netaddr
 from neutron.common import config as neutron_cfg
-from neutron.common import rpc as n_rpc
 from neutron import quota
 from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_utils import importutils
-from oslo_utils import timeutils
 
 from quark import allocation_pool
 from quark.db import api as db_api
@@ -220,12 +218,6 @@ def create_subnet(context, subnet):
     subnet_dict = v._make_subnet_dict(new_subnet)
     subnet_dict["gateway_ip"] = gateway_ip
 
-    n_rpc.get_notifier("network").info(
-        context,
-        "ip_block.create",
-        dict(tenant_id=subnet_dict["tenant_id"],
-             ip_block_id=subnet_dict["id"],
-             created_at=new_subnet["created_at"]))
     return subnet_dict
 
 
@@ -468,14 +460,7 @@ def delete_subnet(context, id):
                     # existence.
                     raise n_exc.SubnetNotFound(subnet_id=id)
 
-        payload = dict(tenant_id=subnet["tenant_id"],
-                       ip_block_id=subnet["id"],
-                       created_at=subnet["created_at"],
-                       deleted_at=timeutils.utcnow())
-
         _delete_subnet(context, subnet)
-
-        n_rpc.get_notifier("network").info(context, "ip_block.delete", payload)
 
 
 def diagnose_subnet(context, id, fields):

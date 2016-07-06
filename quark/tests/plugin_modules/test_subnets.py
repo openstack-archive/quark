@@ -17,7 +17,6 @@ import contextlib
 import copy
 from datetime import datetime
 import json
-import time
 import uuid
 
 import mock
@@ -1385,69 +1384,6 @@ class TestSubnetsQuotas(test_quark_plugin.TestQuarkPlugin):
             self.plugin.create_subnet(self.context, dict(subnet=s[0]))
             cfg.CONF.set_override('quota_v4_subnets_per_network', original_4,
                                   "QUOTAS")
-
-
-class TestSubnetsNotification(test_quark_plugin.TestQuarkPlugin):
-    @contextlib.contextmanager
-    def _stubs(self, s, deleted_at=None):
-        class FakeContext(object):
-            def __enter__(*args, **kwargs):
-                pass
-
-            def __exit__(*args, **kwargs):
-                pass
-
-        self.context.session.begin = FakeContext
-
-        s["network"] = models.Network()
-        s["network"]["created_at"] = s["created_at"]
-        subnet = models.Subnet(**s)
-        with contextlib.nested(
-            mock.patch("quark.plugin_modules.subnets.get_subnets"),
-            mock.patch("quark.db.api.subnet_find"),
-            mock.patch("quark.db.api.network_find"),
-            mock.patch("quark.db.api.subnet_create"),
-            mock.patch("quark.db.api.subnet_delete"),
-            mock.patch("neutron.common.rpc.get_notifier"),
-            mock.patch("neutron.quota.QUOTAS"),
-            mock.patch("oslo_utils.timeutils.utcnow"),
-            mock.patch("quark.plugin_modules.subnets._validate_subnet_cidr")
-        ) as (get_subnets, sub_find, net_find, sub_create, sub_del, notify,
-              quota_engine, time_func, sub_validate):
-            sub_create.return_value = subnet
-            get_subnets.return_value = []
-            sub_find.return_value = subnet
-            time_func.return_value = deleted_at
-            yield notify
-
-    def test_create_subnet_notification(self):
-        s = dict(network_id=1, cidr="192.168.10.0/24",
-                 tenant_id=1, id=1, created_at="123")
-        with self._stubs(s) as notify:
-            admin_ctx = self.context.elevated()
-            self.plugin.create_subnet(admin_ctx, dict(subnet=s))
-            notify.assert_called_once_with("network")
-            notify.return_value.info.assert_called_once_with(
-                admin_ctx,
-                "ip_block.create",
-                dict(tenant_id=s["tenant_id"],
-                     ip_block_id=s["id"],
-                     created_at=s["created_at"]))
-
-    def test_delete_subnet_notification(self):
-        now = time.strftime('%Y-%m-%d %H:%M:%S')
-        later = time.strftime('%Y-%m-%d %H:%M:%S')
-        s = dict(tenant_id=1, id=1, created_at=now)
-        with self._stubs(s, deleted_at=later) as notify:
-            self.plugin.delete_subnet(self.context, 1)
-            notify.assert_called_once_with("network")
-            notify.return_value.info.assert_called_once_with(
-                self.context,
-                "ip_block.delete",
-                dict(tenant_id=s["tenant_id"],
-                     created_at=s["created_at"],
-                     ip_block_id=s["id"],
-                     deleted_at=later))
 
 
 class TestQuarkDiagnoseSubnets(test_quark_plugin.TestQuarkPlugin):
