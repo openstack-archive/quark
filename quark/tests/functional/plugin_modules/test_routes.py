@@ -15,7 +15,6 @@
 
 import contextlib
 import mock
-from neutron.common import exceptions as n_exc_ext
 from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 from quark import exceptions as q_exc
@@ -102,8 +101,7 @@ class QuarkCreateRoutes(BaseFunctionalTest):
             self.assertIsNotNone(sub)
             self.assertIsNotNone(ipp)
             create_route["subnet_id"] = sub["id"]
-            with self.assertRaises(
-                    n_exc_ext.GatewayConflictWithAllocationPools):
+            with self.assertRaises(n_exc.BadRequest):
                 routes_api.create_route(self.context,
                                         dict(route=create_route))
 
