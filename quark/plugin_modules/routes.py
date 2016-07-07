@@ -14,6 +14,7 @@
 #    under the License.
 
 import netaddr
+from neutron.common import exceptions as neutron_exc
 from neutron import quota
 from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
@@ -71,7 +72,11 @@ def create_route(context, route):
 
         alloc_pools = allocation_pool.AllocationPools(subnet["cidr"],
                                                       policies=policies)
-        alloc_pools.validate_gateway_excluded(route["gateway"])
+        try:
+            alloc_pools.validate_gateway_excluded(route["gateway"])
+        except neutron_exc.GatewayConflictWithAllocationPools as e:
+            LOG.exception(str(e))
+            raise n_exc.BadRequest(resource="routes", msg=str(e))
 
         # TODO(anyone): May want to denormalize the cidr values into columns
         #               to achieve single db lookup on conflict check
