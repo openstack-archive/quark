@@ -16,9 +16,8 @@
 from neutron.api import extensions
 from neutron import manager
 from neutron import wsgi
-from neutron_lib import exceptions as n_exc
 from oslo_log import log as logging
-import webob
+import quark.utils as utils
 
 RESOURCE_NAME = 'mac_address_range'
 RESOURCE_COLLECTION = RESOURCE_NAME + "s"
@@ -45,35 +44,28 @@ class MacAddressRangesController(wsgi.Controller):
         self._resource_name = RESOURCE_NAME
         self._plugin = plugin
 
+    @utils.exc_wrapper
     def create(self, request, body=None):
         body = self._deserialize(request.body, request.get_content_type())
-        try:
-            return {"mac_address_range":
-                    self._plugin.create_mac_address_range(request.context,
-                                                          body)}
-        except n_exc.NotFound as e:
-            raise webob.exc.HTTPNotFound(e)
-        except n_exc.Conflict as e:
-            raise webob.exc.HTTPConflict(e)
-        except n_exc.BadRequest as e:
-            raise webob.exc.HTTPBadRequest(e)
+        return {"mac_address_range":
+                self._plugin.create_mac_address_range(request.context, body)}
 
+    @utils.exc_wrapper
     def index(self, request):
         context = request.context
         return {"mac_address_ranges":
                 self._plugin.get_mac_address_ranges(context)}
 
+    @utils.exc_wrapper
     def show(self, request, id):
         context = request.context
         return {"mac_address_range":
                 self._plugin.get_mac_address_range(context, id)}
 
+    @utils.exc_wrapper
     def delete(self, request, id, **kwargs):
         context = request.context
-        try:
-            return self._plugin.delete_mac_address_range(context, id)
-        except n_exc.NotFound as e:
-            raise webob.exc.HTTPNotFound(e)
+        return self._plugin.delete_mac_address_range(context, id)
 
 
 class Mac_address_ranges(extensions.ExtensionDescriptor):

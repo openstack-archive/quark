@@ -16,8 +16,8 @@
 from neutron.api import extensions
 from neutron import manager
 from neutron import wsgi
-from neutron_lib import exceptions as n_exc
 from oslo_log import log as logging
+import quark.utils as utils
 import webob
 
 RESOURCE_NAME = 'ip_address'
@@ -47,49 +47,33 @@ class IpAddressesController(wsgi.Controller):
         self._resource_name = RESOURCE_NAME
         self._plugin = plugin
 
+    @utils.exc_wrapper
     def index(self, request):
         context = request.context
         return {"ip_addresses":
                 self._plugin.get_ip_addresses(context, **request.GET)}
 
+    @utils.exc_wrapper
     def show(self, request, id):
         context = request.context
-        try:
-            return {"ip_address":
-                    self._plugin.get_ip_address(context, id)}
-        except n_exc.NotFound as e:
-            raise webob.exc.HTTPNotFound(e)
+        return {"ip_address": self._plugin.get_ip_address(context, id)}
 
+    @utils.exc_wrapper
     def create(self, request, body=None):
         body = self._deserialize(request.body, request.get_content_type())
-        try:
-            return {"ip_address": self._plugin.create_ip_address(
-                    request.context, body)}
-        except n_exc.NotFound as e:
-            raise webob.exc.HTTPNotFound(e)
-        except n_exc.Conflict as e:
-            raise webob.exc.HTTPConflict(e)
-        except n_exc.BadRequest as e:
-            raise webob.exc.HTTPBadRequest(e)
+        return {"ip_address": self._plugin.create_ip_address(
+                request.context, body)}
 
+    @utils.exc_wrapper
     def update(self, request, id, body=None):
         body = self._deserialize(request.body, request.get_content_type())
-        try:
-            return {"ip_address": self._plugin.update_ip_address(
-                    request.context, id, body)}
-        except n_exc.NotFound as e:
-            raise webob.exc.HTTPNotFound(e)
-        except n_exc.BadRequest as e:
-            raise webob.exc.HTTPBadRequest(e)
+        return {"ip_address": self._plugin.update_ip_address(
+                request.context, id, body)}
 
+    @utils.exc_wrapper
     def delete(self, request, id):
         context = request.context
-        try:
-            return self._plugin.delete_ip_address(context, id)
-        except n_exc.NotFound as e:
-            raise webob.exc.HTTPNotFound(e)
-        except n_exc.BadRequest as e:
-            raise webob.exc.HTTPBadRequest(e)
+        return self._plugin.delete_ip_address(context, id)
 
 
 class IpAddressPortController(wsgi.Controller):
@@ -105,39 +89,31 @@ class IpAddressPortController(wsgi.Controller):
                 filters[clean] = request.GET[clean]
                 del request.GET[clean]
 
+    @utils.exc_wrapper
     def index(self, ip_address_id, request):
         context = request.context
         filters = {}
         self._clean_query_string(request, filters)
         fx = self._plugin.get_ports_for_ip_address
-        try:
-            ports = fx(context, ip_address_id, filters=filters, **request.GET)
-            return {"ip_addresses_ports": ports}
-        except n_exc.NotFound as e:
-            raise webob.exc.HTTPNotFound(e)
+        ports = fx(context, ip_address_id, filters=filters, **request.GET)
+        return {"ip_addresses_ports": ports}
 
     def create(self, request, **kwargs):
         raise webob.exc.HTTPNotImplemented()
 
+    @utils.exc_wrapper
     def show(self, ip_address_id, request, id):
         context = request.context
         # TODO(jlh): need to ensure ip_address_id is used to filter port
-        try:
-            return {"ip_addresses_port":
-                    self._plugin.get_port_for_ip_address(context,
-                                                         ip_address_id, id)}
-        except n_exc.NotFound as e:
-            raise webob.exc.HTTPNotFound(e)
+        return {"ip_addresses_port":
+                self._plugin.get_port_for_ip_address(context,
+                                                     ip_address_id, id)}
 
+    @utils.exc_wrapper
     def update(self, ip_address_id, request, id, body=None):
         body = self._deserialize(request.body, request.get_content_type())
-        try:
-            return {"ip_addresses_port": self._plugin.update_port_for_ip(
-                request.context, ip_address_id, id, body)}
-        except n_exc.NotFound as e:
-            raise webob.exc.HTTPNotFound(e)
-        except n_exc.BadRequest as e:
-            raise webob.exc.HTTPBadRequest(e)
+        return {"ip_addresses_port": self._plugin.update_port_for_ip(
+            request.context, ip_address_id, id, body)}
 
     def delete(self, request, id, **kwargs):
         raise webob.exc.HTTPNotImplemented()

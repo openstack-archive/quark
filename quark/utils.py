@@ -26,7 +26,9 @@ except Exception:
     pass
 
 from neutron.api.v2 import attributes
+from neutron_lib import exceptions as n_exc
 from oslo_log import log as logging
+import webob
 
 LOG = logging.getLogger(__name__)
 
@@ -75,6 +77,24 @@ def live_profile(fn):
         # stats.print_callers()
         return result
     return _wrapped
+
+
+def exc_wrapper(func):
+    def wrapped(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except n_exc.NotFound as e:
+            raise webob.exc.HTTPNotFound(e)
+        except n_exc.Conflict as e:
+            raise webob.exc.HTTPConflict(e)
+        except n_exc.BadRequest as e:
+            raise webob.exc.HTTPBadRequest(e)
+        except Exception as e:
+            raise webob.exc.ServerError(e)
+        finally:
+            msg = ("Exception %s" % str(e))
+            LOG.exception(msg)
+    return wrapped
 
 
 def _profile(filename, fn, *args, **kw):
