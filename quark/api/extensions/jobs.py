@@ -16,9 +16,8 @@
 from neutron.api import extensions
 from neutron import manager
 from neutron import wsgi
-from neutron_lib import exceptions as n_exc
 from oslo_log import log as logging
-import webob
+import quark.utils as utils
 
 RESOURCE_NAME = 'job'
 RESOURCE_COLLECTION = RESOURCE_NAME + "s"
@@ -42,47 +41,32 @@ class JobsController(wsgi.Controller):
         self._resource_name = RESOURCE_NAME
         self._plugin = plugin
 
+    @utils.exc_wrapper
     def index(self, request):
         context = request.context
         return {"jobs": self._plugin.get_jobs(context, **request.GET)}
 
+    @utils.exc_wrapper
     def show(self, request, id):
         context = request.context
-        try:
-            return {"job": self._plugin.get_job(context, id)}
-        except n_exc.NotFound as e:
-            raise webob.exc.HTTPNotFound(e)
+        return {"job": self._plugin.get_job(context, id)}
 
+    @utils.exc_wrapper
     def create(self, request, body=None):
         context = request.context
         body = self._deserialize(request.body, request.get_content_type())
-        try:
-            return {"job": self._plugin.create_job(context, body)}
-        except n_exc.NotFound as e:
-            raise webob.exc.HTTPNotFound(e)
-        except n_exc.Conflict as e:
-            raise webob.exc.HTTPConflict(e)
-        except n_exc.BadRequest as e:
-            raise webob.exc.HTTPBadRequest(e)
+        return {"job": self._plugin.create_job(context, body)}
 
+    @utils.exc_wrapper
     def update(self, request, id, body=None):
         context = request.context
         body = self._deserialize(request.body, request.get_content_type())
-        try:
-            return {"job": self._plugin.update_job(context, id, body)}
-        except n_exc.NotFound as e:
-            raise webob.exc.HTTPNotFound(e)
-        except n_exc.BadRequest as e:
-            raise webob.exc.HTTPBadRequest(e)
+        return {"job": self._plugin.update_job(context, id, body)}
 
+    @utils.exc_wrapper
     def delete(self, request, id):
         context = request.context
-        try:
-            return self._plugin.delete_job(context, id)
-        except n_exc.NotFound as e:
-            raise webob.exc.HTTPNotFound(e)
-        except n_exc.BadRequest as e:
-            raise webob.exc.HTTPBadRequest(e)
+        return self._plugin.delete_job(context, id)
 
 
 class Jobs(extensions.ExtensionDescriptor):
