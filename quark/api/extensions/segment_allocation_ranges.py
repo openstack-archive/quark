@@ -16,9 +16,8 @@
 from neutron.api import extensions
 from neutron import manager
 from neutron import wsgi
-from neutron_lib import exceptions as n_exc
 from oslo_log import log as logging
-import webob
+import quark.utils as utils
 
 RESOURCE_NAME = 'segment_allocation_range'
 RESOURCE_COLLECTION = RESOURCE_NAME + "s"
@@ -40,39 +39,30 @@ class SegmentAllocationRangesController(wsgi.Controller):
         self._resource_name = RESOURCE_NAME
         self._plugin = plugin
 
+    @utils.exc_wrapper
     def create(self, request, body=None):
         body = self._deserialize(request.body, request.get_content_type())
-        try:
-            return {"segment_allocation_range":
-                    self._plugin.create_segment_allocation_range(
-                        request.context, body)}
-        except n_exc.NotFound as e:
-            raise webob.exc.HTTPNotFound(e)
-        except n_exc.Conflict as e:
-            raise webob.exc.HTTPConflict(e)
-        except n_exc.BadRequest as e:
-            raise webob.exc.HTTPBadRequest(e)
+        return {"segment_allocation_range":
+                self._plugin.create_segment_allocation_range(
+                    request.context, body)}
 
+    @utils.exc_wrapper
     def index(self, request):
         context = request.context
         return {"segment_allocation_ranges":
                 self._plugin.get_segment_allocation_ranges(
                     context, **request.GET)}
 
+    @utils.exc_wrapper
     def show(self, request, id):
         context = request.context
-        try:
-            return {"segment_allocation_range":
-                    self._plugin.get_segment_allocation_range(context, id)}
-        except n_exc.NotFound as e:
-            raise webob.exc.HTTPNotFound(e)
+        return {"segment_allocation_range":
+                self._plugin.get_segment_allocation_range(context, id)}
 
+    @utils.exc_wrapper
     def delete(self, request, id, **kwargs):
         context = request.context
-        try:
-            return self._plugin.delete_segment_allocation_range(context, id)
-        except n_exc.NotFound as e:
-            raise webob.exc.HTTPNotFound(e)
+        return self._plugin.delete_segment_allocation_range(context, id)
 
 
 class Segment_allocation_ranges(extensions.ExtensionDescriptor):
