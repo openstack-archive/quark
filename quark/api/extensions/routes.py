@@ -16,9 +16,8 @@
 from neutron.api import extensions
 from neutron import manager
 from neutron import wsgi
-from neutron_lib import exceptions as n_exc
 from oslo_log import log as logging
-import webob
+import quark.utils as utils
 
 RESOURCE_NAME = 'route'
 RESOURCE_COLLECTION = RESOURCE_NAME + "s"
@@ -47,35 +46,25 @@ class RoutesController(wsgi.Controller):
         self._resource_name = RESOURCE_NAME
         self._plugin = plugin
 
+    @utils.exc_wrapper
     def create(self, request, body=None):
         body = self._deserialize(request.body, request.get_content_type())
-        try:
-            return {"route": self._plugin.create_route(request.context, body)}
-        except n_exc.NotFound as e:
-            raise webob.exc.HTTPNotFound(e)
-        except n_exc.Conflict as e:
-            raise webob.exc.HTTPConflict(e)
-        except n_exc.BadRequest as e:
-            raise webob.exc.HTTPBadRequest(e)
+        return {"route": self._plugin.create_route(request.context, body)}
 
+    @utils.exc_wrapper
     def index(self, request):
         context = request.context
-        return {"routes":
-                self._plugin.get_routes(context)}
+        return {"routes": self._plugin.get_routes(context)}
 
+    @utils.exc_wrapper
     def show(self, request, id):
         context = request.context
-        try:
-            return {"route": self._plugin.get_route(context, id)}
-        except n_exc.NotFound:
-            raise webob.exc.HTTPNotFound()
+        return {"route": self._plugin.get_route(context, id)}
 
+    @utils.exc_wrapper
     def delete(self, request, id):
         context = request.context
-        try:
-            self._plugin.delete_route(context, id)
-        except n_exc.NotFound:
-            raise webob.exc.HTTPNotFound()
+        self._plugin.delete_route(context, id)
 
 
 class Routes(extensions.ExtensionDescriptor):
