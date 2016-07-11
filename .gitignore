@@ -50,5 +50,6 @@ ChangeLog
 # Docs
 docs/build
 
-# Vagrant
-.vagrant/
+# Docker
+quark_container_venv
+quark_container_logs

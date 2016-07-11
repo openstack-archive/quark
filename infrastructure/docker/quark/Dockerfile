@@ -7,7 +7,7 @@ RUN pip install virtualenv
 # Configure Rsyslog and Provision DB
 RUN echo 'local0.*    @@docker-kibana:514' > /etc/rsyslog.d/60-neutron.conf
 RUN echo "service rsyslog restart" > ~/entrypoint.sh
-RUN echo 'mysql -h docker-mysql -u root -ppassword -e "CREATE DATABASE neutron"'  >> ~/entrypoint.sh
+RUN echo 'mysql -h docker-mysql -u root -e "CREATE DATABASE neutron"'  >> ~/entrypoint.sh
 
 # Update setuptools
 RUN wget https://bootstrap.pypa.io/ez_setup.py -O - | sudo python
@@ -39,6 +39,9 @@ RUN echo "cd /opt/wafflehaus && source /opt/venv/bin/activate && python setup.py
 RUN echo "cd /opt/wafflehaus.neutron && git pull" >> ~/entrypoint.sh
 RUN echo "source /opt/venv/bin/activate && pip install -U -r /opt/wafflehaus.neutron/requirements.txt" >> ~/entrypoint.sh
 RUN echo "cd /opt/wafflehaus.neutron && source /opt/venv/bin/activate && python setup.py develop" >> ~/entrypoint.sh
+
+# Install debug tools
+RUN echo "source /opt/venv/bin/activate && pip install -U ipdb" >> ~/entrypoint.sh
 
 # Put configuration files in place and start Neutron
 RUN echo "cp /opt/quark/docker.neutron.conf ~/neutron.conf" >> ~/entrypoint.sh
