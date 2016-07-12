@@ -2,19 +2,17 @@
 # To build a new container
 # docker build -t quark .
 
+mkdir ./quark_container_logs
+mkdir ./quark_container_venv
+
 echo "Mysql: Starting Container..."
-docker run -d --restart=always -p 3306:3306 --name mysql -e MYSQL_ROOT_PASSWORD=password -d mysql
+docker run -d --restart=always -p 3306:3306 --name mysql -e MYSQL_ROOT_PASSWORD=password mysql
 
 echo "Mysql: Waiting for Mysql to Start..."
 # Need to wait for DB to standup
 sleep 30
+docker exec mysql mysql -uroot -ppassword -e "set password = password('')"
 echo "Mysql: Complete - PORT 3306"
-echo "------------------------------------------"
-echo "                                          "
-
-echo "PHPMyAdmin: Starting Container..."
-docker run -d --restart=always --name phpmyadmin --link mysql:mysql -p 8081:80 nazarpc/phpmyadmin
-echo "PHPMyAdmin: Complete - http://localhost:8081"
 echo "------------------------------------------"
 echo "                                          "
 
@@ -31,8 +29,8 @@ echo "------------------------------------------"
 echo "                                          "
 
 echo "Redis: Starting Master Container..."
-docker run -d --restart=always -p 80:80 -v ~/data/redis0:/data --name=redis stajkowski/redis-master
-echo "Redis: Complete - PORT 80"
+docker run -d --restart=always -p 6379:6379 -v ~/data/redis0:/data --name=redis stajkowski/redis-master
+echo "Redis: Complete - PORT 6379"
 echo "------------------------------------------"
 echo "                                          "
 
@@ -43,8 +41,8 @@ echo "------------------------------------------"
 echo "                                          "
 
 echo "Neutron/Quark: Starting Container..."
-docker run -d -v $(pwd):/opt/quark -v ~/neutron:/opt/configs -p 9696:9696 --link mysql:docker-mysql --link kibana:docker-kibana --link rabbitmq:docker-rabbitmq --link redis-sentinel:docker-redis-sentinel --name quark stajkowski/quark
-# docker run --entrypoint /bin/bash -v $(pwd):/opt/quark -v ~/neutron:/opt/configs -p 9696:9696 --link mysql:docker-mysql --link kibana:docker-kibana --link rabbitmq:docker-rabbitmq --link redis-sentinel:docker-redis-sentinel --name quark stajkowski/quark
+docker run -d -v $(pwd):/opt/quark -v ~/neutron:/opt/configs -v $(pwd)/quark_container_logs:/var/log/neutron -v $(pwd)/quark_container_venv:/opt/venv/lib/python2.7/site-packages/quark -p 9696:9696 --link mysql:docker-mysql --link kibana:docker-kibana --link rabbitmq:docker-rabbitmq --link redis-sentinel:docker-redis-sentinel --name quark stajkowski/quark
+# docker run --entrypoint /bin/bash -v $(pwd):/opt/quark -v ~/neutron:/opt/configs -v $(pwd)/quark_container_logs:/var/log/neutron -v $(pwd)/quark_container_venv:/opt/venv -p 9696:9696 --link mysql:docker-mysql --link kibana:docker-kibana --link rabbitmq:docker-rabbitmq --link redis-sentinel:docker-redis-sentinel --name quark stajkowski/quark
 echo "Neutron/Quark: Waiting for Neutron to Start..."
 # Need to wait for DB to standup
 sleep 5

@@ -48,3 +48,6 @@ docker rm quark
 echo "Neutron/Quark: Complete"
 echo "-----------------------"
 echo "                       "
+
+rm -rf ./quark_container_logs
+rm -rf ./quark_container_venv
