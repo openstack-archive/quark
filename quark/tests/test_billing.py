@@ -21,6 +21,7 @@ from quark import billing
 from quark.db.models import IPAddress
 from quark import network_strategy
 from quark.tests import test_base
+from quark import utils
 
 
 class QuarkBillingBaseTest(test_base.TestBase):
@@ -183,5 +184,32 @@ class QuarkBillingEnvironmentCapabilityTest(QuarkBillingBaseTest):
         ipaddress = get_fake_fixed_address()
         ipaddress.allocated_at = datetime.datetime.utcnow()
         billing.notify(self.context, billing.IP_ADD, ipaddress)
+        self.assertFalse(notifier.called)
+        cfg.CONF.clear_override('environment_capabilities', 'QUARK')
+
+    @mock.patch('neutron.common.rpc.get_notifier')
+    def test_do_not_notify_in_undo_cmd_mgr(self, notifier):
+        """Wraps a call to notify in CommandManager's rollback()"""
+        cfg.CONF.set_override('environment_capabilities',
+                              'security_groups,ip_billing',
+                              'QUARK')
+        ipaddress = get_fake_fixed_address()
+        ipaddress.allocated_at = datetime.datetime.utcnow()
+        try:
+            with utils.CommandManager().execute() as cmd_mgr:
+                @cmd_mgr.do
+                def f():
+                    raise Exception
+
+                @cmd_mgr.undo
+                def f_undo(*args, **kwargs):
+                    billing.notify(self.context, billing.IP_ADD, ipaddress,
+                                   *args, **kwargs)
+
+                f()
+        except Exception:
+            pass
+
+        # notifier should NOT have been called
         self.assertFalse(notifier.called)
         cfg.CONF.clear_override('environment_capabilities', 'QUARK')

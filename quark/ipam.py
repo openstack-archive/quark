@@ -215,13 +215,13 @@ class QuarkIpam(object):
     @synchronized(named("allocate_mac_address"))
     def allocate_mac_address(self, context, net_id, port_id, reuse_after,
                              mac_address=None,
-                             use_forbidden_mac_range=False):
+                             use_forbidden_mac_range=False, **kwargs):
         if mac_address:
             mac_address = netaddr.EUI(mac_address).value
 
-        kwargs = {"network_id": net_id, "port_id": port_id,
-                  "mac_address": mac_address,
-                  "use_forbidden_mac_range": use_forbidden_mac_range}
+        kwargs.update({"network_id": net_id, "port_id": port_id,
+                       "mac_address": mac_address,
+                       "use_forbidden_mac_range": use_forbidden_mac_range})
         LOG.info(("Attempting to allocate a new MAC address "
                   "[{0}]").format(utils.pretty_kwargs(**kwargs)))
 
@@ -556,9 +556,6 @@ class QuarkIpam(object):
                             version=subnet["ip_version"], network_id=net_id,
                             address_type=kwargs.get('address_type',
                                                     ip_types.FIXED))
-                        # alexm: need to notify from here because this code
-                        # does not go through the _allocate_from_subnet() path.
-                        billing.notify(context, billing.IP_ADD, address)
                         return address
                 except db_exception.DBDuplicateEntry:
                     # This shouldn't ever happen, since we hold a unique MAC
@@ -701,7 +698,7 @@ class QuarkIpam(object):
         if self.is_strategy_satisfied(new_addresses, allocate_complete=True):
             # Only notify when all went well
             for address in new_addresses:
-                billing.notify(context, billing.IP_ADD, address)
+                billing.notify(context, billing.IP_ADD, address, **kwargs)
             LOG.info("IPAM for port ID {0} completed with addresses "
                      "{1}".format(port_id,
                                   [a["address_readable"]
@@ -711,14 +708,15 @@ class QuarkIpam(object):
 
         raise ip_address_failure(net_id)
 
-    def deallocate_ip_address(self, context, address):
+    def deallocate_ip_address(self, context, address, **kwargs):
         if address["version"] == 6:
             db_api.ip_address_delete(context, address)
         else:
             address["deallocated"] = 1
             address["address_type"] = None
 
-        billing.notify(context, billing.IP_DEL, address, send_usage=True)
+        billing.notify(context, billing.IP_DEL, address, send_usage=True,
+                       **kwargs)
 
     def deallocate_ips_by_port(self, context, port=None, **kwargs):
         ips_to_remove = []
@@ -768,7 +766,7 @@ class QuarkIpam(object):
                 # SQLAlchemy caching.
                 context.session.add(flip)
                 context.session.flush()
-                billing.notify(context, billing.IP_DISASSOC, flip)
+                billing.notify(context, billing.IP_DISASSOC, flip, **kwargs)
                 driver = registry.DRIVER_REGISTRY.get_driver()
                 driver.remove_floating_ip(flip)
             elif len(flip.fixed_ips) > 1:
@@ -782,7 +780,8 @@ class QuarkIpam(object):
                             context, flip, fix_ip)
                         context.session.add(flip)
                         context.session.flush()
-                        billing.notify(context, billing.IP_DISASSOC, flip)
+                        billing.notify(context, billing.IP_DISASSOC, flip,
+                                       **kwargs)
                     else:
                         remaining_fixed_ips.append(fix_ip)
                 port_fixed_ips = {}
@@ -800,7 +799,7 @@ class QuarkIpam(object):
 
     # NCP-1509(roaet):
     # - started using admin_context due to tenant not claiming when realloc
-    def deallocate_mac_address(self, context, address):
+    def deallocate_mac_address(self, context, address, **kwargs):
         admin_context = context.elevated()
         mac = db_api.mac_address_find(admin_context, address=address,
                                       scope=db_api.ONE)
