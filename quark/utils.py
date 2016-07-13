@@ -19,6 +19,7 @@ import cProfile as profiler
 import gc
 import sys
 import time
+import traceback
 try:
     import pstats
 except Exception:
@@ -205,3 +206,8 @@ class retry_loop(object):
 def pretty_kwargs(**kwargs):
     kwargs_str = ', '.join("%s=%s" % (k, v) for k, v in kwargs.items())
     return kwargs_str
+
+
+def is_rollback():
+    """Returns true if the function name 'rollback' is found on the stack"""
+    return 'rollback' in [i[2] for i in traceback.extract_stack()]

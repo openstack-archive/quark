@@ -51,6 +51,7 @@ from quark.db import models
 from quark import environment as env
 
 from quark import network_strategy
+from quark.utils import is_rollback
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
@@ -114,6 +115,12 @@ def notify(context, event_type, ipaddress, send_usage=False):
        or (event_type == IP_EXISTS and not CONF.QUARK.notify_ip_exists):
         LOG.debug('IP_BILL: notification {} is disabled by config'.
                   format(event_type))
+        return
+
+    # Do not send notifications when we are undoing due to an error
+    if is_rollback():
+        LOG.debug('IP_BILL: not sending notification because we are in undo')
+        return
 
     # ip.add needs the allocated_at time.
     # All other events need the current time.
@@ -292,10 +299,11 @@ def convert_timestamp(ts):
 
     Examples of a good timestamp for startTime, endTime, and eventTime:
         '2016-05-20T00:00:00Z'
+    We must drop microseconds so that Yagi does not get upset.
     Note the trailing 'Z'. Python does not add the 'Z' so we tack it on
     ourselves.
     """
-    return ts.isoformat() + 'Z'
+    return ts.replace(microsecond=0).isoformat() + 'Z'
 
 
 def _now():

@@ -185,3 +185,18 @@ class QuarkBillingEnvironmentCapabilityTest(QuarkBillingBaseTest):
         billing.notify(self.context, billing.IP_ADD, ipaddress)
         self.assertFalse(notifier.called)
         cfg.CONF.clear_override('environment_capabilities', 'QUARK')
+
+    @mock.patch('neutron.common.rpc.get_notifier')
+    def test_do_not_notify_in_undo(self, notifier):
+        """Wraps a call to notify in 'rollback'"""
+        def rollback():
+            cfg.CONF.set_override('environment_capabilities',
+                                  'security_groups,ip_billing',
+                                  'QUARK')
+            ipaddress = get_fake_fixed_address()
+            ipaddress.allocated_at = datetime.datetime.utcnow()
+            billing.notify(self.context, billing.IP_ADD, ipaddress)
+            # Notifier should not be called when we are in undo
+            self.assertFalse(notifier.called)
+            cfg.CONF.clear_override('environment_capabilities', 'QUARK')
+        rollback()

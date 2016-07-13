@@ -556,9 +556,6 @@ class QuarkIpam(object):
                             version=subnet["ip_version"], network_id=net_id,
                             address_type=kwargs.get('address_type',
                                                     ip_types.FIXED))
-                        # alexm: need to notify from here because this code
-                        # does not go through the _allocate_from_subnet() path.
-                        billing.notify(context, billing.IP_ADD, address)
                         return address
                 except db_exception.DBDuplicateEntry:
                     # This shouldn't ever happen, since we hold a unique MAC
