@@ -18,10 +18,12 @@ RUN cd ansible
 
 RUN cd ansible && git checkout tags/v1.9.1-1
 
+RUN cd ansible && git submodule update --init --recursive
+
 RUN cd ansible && make install
 
 RUN mkdir /etc/ansible
 
 RUN cd ansible && cp examples/ansible.cfg /etc/ansible/.
 
-ENTRYPOINT /bin/bash
+ENTRYPOINT ["/bin/bash", "-c", "ansible-playbook -i localhost, /root/package-neutron.yaml"]
