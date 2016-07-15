@@ -130,9 +130,11 @@ class Command(object):
         self.func = func
         self.result = None
         self.called = False
+        self.is_rollback = False
 
     def __call__(self, *args, **kwargs):
         self.called = True
+        kwargs['rollback'] = self.is_rollback
         self.result = self.func(*args, **kwargs)
         return self.result
 
@@ -159,6 +161,7 @@ class CommandManager(object):
 
     def undo(self, func):
         cmd = Command(func)
+        cmd.is_rollback = True
         self.undo_commands.append(cmd)
         return cmd
 

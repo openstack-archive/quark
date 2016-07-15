@@ -1445,12 +1445,13 @@ class TestPortDriverSelection(test_quark_plugin.TestQuarkPlugin):
             ipam["FOO"].allocate_ip_address.assert_called_once_with(
                 admin_ctx, [], network["id"], 1,
                 cfg.CONF.QUARK.ipam_reuse_after,
-                segment_id=None, mac_address=mac)
+                segment_id=None, rollback=False, mac_address=mac)
 
             ipam["FOO"].allocate_mac_address.assert_called_once_with(
                 admin_ctx, network["id"], 1,
                 cfg.CONF.QUARK.ipam_reuse_after,
-                mac_address=expected_mac, use_forbidden_mac_range=False)
+                mac_address=expected_mac, rollback=False,
+                use_forbidden_mac_range=False)
 
             port_create.assert_called_once_with(
                 admin_ctx, bridge=self.expected_bridge, uuid=1, name="foobar",
@@ -1497,12 +1498,14 @@ class TestPortDriverSelection(test_quark_plugin.TestQuarkPlugin):
             ipam["FOO"].allocate_ip_address.assert_called_once_with(
                 admin_ctx, [], network["id"], 1,
                 cfg.CONF.QUARK.ipam_reuse_after,
-                segment_id=None, mac_address=mac)
+                segment_id=None, rollback=False, mac_address=mac)
 
             ipam["FOO"].allocate_mac_address.assert_called_once_with(
                 admin_ctx, network["id"], 1,
                 cfg.CONF.QUARK.ipam_reuse_after,
-                mac_address=expected_mac, use_forbidden_mac_range=False)
+                mac_address=expected_mac,
+                rollback=False,
+                use_forbidden_mac_range=False)
 
             port_create.assert_called_once_with(
                 admin_ctx, bridge=self.expected_bridge, uuid=1, name="foobar",
@@ -1551,12 +1554,13 @@ class TestPortDriverSelection(test_quark_plugin.TestQuarkPlugin):
             ipam["BAR"].allocate_ip_address.assert_called_once_with(
                 admin_ctx, [], network["id"], 1,
                 cfg.CONF.QUARK.ipam_reuse_after,
-                segment_id=None, mac_address=mac)
+                segment_id=None, rollback=False, mac_address=mac)
 
             ipam["BAR"].allocate_mac_address.assert_called_once_with(
                 admin_ctx, network["id"], 1,
                 cfg.CONF.QUARK.ipam_reuse_after,
-                mac_address=expected_mac, use_forbidden_mac_range=False)
+                mac_address=expected_mac, rollback=False,
+                use_forbidden_mac_range=False)
 
             port_create.assert_called_once_with(
                 admin_ctx, bridge=self.expected_bridge, uuid=1, name="foobar",
@@ -1601,12 +1605,13 @@ class TestPortDriverSelection(test_quark_plugin.TestQuarkPlugin):
             ipam["FOO"].allocate_ip_address.assert_called_once_with(
                 admin_ctx, [], network["id"], 1,
                 cfg.CONF.QUARK.ipam_reuse_after,
-                segment_id=None, mac_address=mac)
+                segment_id=None, rollback=False, mac_address=mac)
 
             ipam["FOO"].allocate_mac_address.assert_called_once_with(
                 admin_ctx, network["id"], 1,
                 cfg.CONF.QUARK.ipam_reuse_after,
-                mac_address=expected_mac, use_forbidden_mac_range=False)
+                mac_address=expected_mac, rollback=False,
+                use_forbidden_mac_range=False)
 
             port_create.assert_called_once_with(
                 admin_ctx, bridge=self.expected_bridge, uuid=1, name="foobar",
@@ -1651,12 +1656,14 @@ class TestPortDriverSelection(test_quark_plugin.TestQuarkPlugin):
             ipam["BAR"].allocate_ip_address.assert_called_once_with(
                 admin_ctx, [], network["id"], 1,
                 cfg.CONF.QUARK.ipam_reuse_after,
-                segment_id=None, mac_address=mac)
+                segment_id=None, rollback=False, mac_address=mac)
 
             ipam["BAR"].allocate_mac_address.assert_called_once_with(
                 admin_ctx, network["id"], 1,
                 cfg.CONF.QUARK.ipam_reuse_after,
-                mac_address=expected_mac, use_forbidden_mac_range=False)
+                mac_address=expected_mac,
+                rollback=False,
+                use_forbidden_mac_range=False)
 
             port_create.assert_called_once_with(
                 admin_ctx, bridge=self.expected_bridge, uuid=1, name="foobar",
@@ -1736,12 +1743,13 @@ class TestPortDriverSelection(test_quark_plugin.TestQuarkPlugin):
             ipam["FOO"].allocate_ip_address.assert_called_once_with(
                 admin_ctx, [], network["id"], 1,
                 cfg.CONF.QUARK.ipam_reuse_after,
-                segment_id=None, mac_address=mac)
+                segment_id=None, rollback=False, mac_address=mac)
 
             ipam["FOO"].allocate_mac_address.assert_called_once_with(
                 admin_ctx, network["id"], 1,
                 cfg.CONF.QUARK.ipam_reuse_after,
-                mac_address=expected_mac, use_forbidden_mac_range=False)
+                mac_address=expected_mac, rollback=False,
+                use_forbidden_mac_range=False)
 
             port_create.assert_called_once_with(
                 admin_ctx, bridge=expected_bridge, uuid=5, name="foobar",
@@ -1800,7 +1808,8 @@ class TestQuarkPortCreateFiltering(test_quark_plugin.TestQuarkPlugin):
             alloc_mac.assert_called_once_with(
                 self.context, network["id"], 1,
                 cfg.CONF.QUARK.ipam_reuse_after,
-                mac_address=None, use_forbidden_mac_range=False)
+                mac_address=None, rollback=False,
+                use_forbidden_mac_range=False)
             port_create.assert_called_once_with(
                 self.context, addresses=[], network_id=network["id"],
                 tenant_id="fake", uuid=1, name="foobar",
@@ -1841,7 +1850,9 @@ class TestQuarkPortCreateFiltering(test_quark_plugin.TestQuarkPlugin):
             alloc_mac.assert_called_once_with(
                 admin_ctx, network["id"], 1,
                 cfg.CONF.QUARK.ipam_reuse_after,
-                mac_address=expected_mac, use_forbidden_mac_range=False)
+                mac_address=expected_mac,
+                rollback=False,
+                use_forbidden_mac_range=False)
 
             port_create.assert_called_once_with(
                 admin_ctx, bridge=expected_bridge, uuid=1, name="foobar",

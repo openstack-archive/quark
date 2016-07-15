@@ -233,8 +233,8 @@ def create_port(context, port):
 
     with utils.CommandManager().execute() as cmd_mgr:
         @cmd_mgr.do
-        def _allocate_ips(fixed_ips, net, port_id, segment_id, mac):
-            fixed_ip_kwargs = {}
+        def _allocate_ips(fixed_ips, net, port_id, segment_id, mac,
+                          **kwargs):
             if fixed_ips:
                 if (STRATEGY.is_provider_network(net_id) and
                         not context.is_admin):
@@ -244,36 +244,38 @@ def create_port(context, port):
                                                                     net_id,
                                                                     segment_id,
                                                                     fixed_ips)
-                fixed_ip_kwargs["ip_addresses"] = ips
-                fixed_ip_kwargs["subnets"] = subnets
+                kwargs["ip_addresses"] = ips
+                kwargs["subnets"] = subnets
 
             ipam_driver.allocate_ip_address(
                 context, addresses, net["id"], port_id,
                 CONF.QUARK.ipam_reuse_after, segment_id=segment_id,
-                mac_address=mac, **fixed_ip_kwargs)
+                mac_address=mac, **kwargs)
 
         @cmd_mgr.undo
-        def _allocate_ips_undo(addr):
+        def _allocate_ips_undo(addr, **kwargs):
             LOG.info("Rolling back IP addresses...")
             if addresses:
                 for address in addresses:
                     try:
                         with context.session.begin():
-                            ipam_driver.deallocate_ip_address(context, address)
+                            ipam_driver.deallocate_ip_address(context, address,
+                                                              **kwargs)
                     except Exception:
                         LOG.exception("Couldn't release IP %s" % address)
 
         @cmd_mgr.do
         def _allocate_mac(net, port_id, mac_address,
-                          use_forbidden_mac_range=False):
+                          use_forbidden_mac_range=False,
+                          **kwargs):
             mac = ipam_driver.allocate_mac_address(
                 context, net["id"], port_id, CONF.QUARK.ipam_reuse_after,
                 mac_address=mac_address,
-                use_forbidden_mac_range=use_forbidden_mac_range)
+                use_forbidden_mac_range=use_forbidden_mac_range, **kwargs)
             return mac
 
         @cmd_mgr.undo
-        def _allocate_mac_undo(mac):
+        def _allocate_mac_undo(mac, **kwargs):
             LOG.info("Rolling back MAC address...")
             if mac:
                 try:
@@ -284,7 +286,7 @@ def create_port(context, port):
                     LOG.exception("Couldn't release MAC %s" % mac)
 
         @cmd_mgr.do
-        def _allocate_backend_port(mac, addresses, net, port_id):
+        def _allocate_backend_port(mac, addresses, net, port_id, **kwargs):
             backend_port = net_driver.create_port(
                 context, net["id"],
                 port_id=port_id,
@@ -298,7 +300,8 @@ def create_port(context, port):
             return backend_port
 
         @cmd_mgr.undo
-        def _allocate_back_port_undo(backend_port):
+        def _allocate_back_port_undo(backend_port,
+                                     **kwargs):
             LOG.info("Rolling back backend port...")
             try:
                 backend_port_uuid = None
@@ -310,7 +313,8 @@ def create_port(context, port):
                     "Couldn't rollback backend port %s" % backend_port)
 
         @cmd_mgr.do
-        def _allocate_db_port(port_attrs, backend_port, addresses, mac):
+        def _allocate_db_port(port_attrs, backend_port, addresses, mac,
+                              **kwargs):
             port_attrs["network_id"] = net["id"]
             port_attrs["id"] = port_id
             port_attrs["security_groups"] = security_groups
@@ -325,7 +329,8 @@ def create_port(context, port):
             return new_port
 
         @cmd_mgr.undo
-        def _allocate_db_port_undo(new_port):
+        def _allocate_db_port_undo(new_port,
+                                   **kwargs):
             LOG.info("Rolling back database port...")
             if not new_port:
                 return
