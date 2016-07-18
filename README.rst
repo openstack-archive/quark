@@ -67,17 +67,17 @@ Install with DevStack and Neutron
 
 - Remove Python's six packge::
 
-  sudo rm -f /usr/lib/python2.7/dist-packages/six.py /usr/lib/python2.7/dist-packages/six.pyc
-  # Old version of six package in /usr/lib/python2.7/dist-packages/ crashes
-  # quark server 
+    # Old version of six package in /usr/lib/python2.7/dist-packages/ crashes
+    # quark server
+    sudo rm -f /usr/lib/python2.7/dist-packages/six.py /usr/lib/python2.7/dist-packages/six.pyc
 
 - Install Devstack::
-    
+
     ./stack.sh
 
 - Install aiclib::
-  
-    sudo pip install aiclib   
+
+    sudo pip install aiclib
     # the reason for sudo here is if you don't you'll get permission denied when it tries to install to /usr/local/lib/python2.7/dist/packages
 
 - Install quark::
