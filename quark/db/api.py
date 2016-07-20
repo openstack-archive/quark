@@ -122,8 +122,9 @@ def _model_query(context, model, filters, fields=None):
 
     for key, value in filters.items():
         if key in in_filters:
-            model_type = getattr(model, key)
-            model_filters.append(model_type.in_(value))
+            if value:
+                model_type = getattr(model, key)
+                model_filters.append(model_type.in_(value))
         elif key in eq_filters:
             model_type = getattr(model, key)
             model_filters.append(model_type == value)
@@ -136,10 +137,12 @@ def _model_query(context, model, filters, fields=None):
             etypes = []
             for etype in value:
                 etypes.append(protocols.translate_ethertype(etype))
-            model_filters.append(model.ethertype.in_(etypes))
+            if etypes:
+                model_filters.append(model.ethertype.in_(etypes))
         elif key == "ip_address":
-            model_filters.append(model.address.in_(
-                [ip.ipv6().value for ip in value]))
+            if value:
+                model_filters.append(model.address.in_(
+                    [ip.ipv6().value for ip in value]))
         elif key == 'protocol':
             pnums = []
             for version in (protocols.PROTOCOLS_V4, protocols.PROTOCOLS_V6):
@@ -155,11 +158,13 @@ def _model_query(context, model, filters, fields=None):
                 model_filters.append(model.port_id == value)
         elif key == "tenant_id":
             if model == models.IPAddress:
-                model_filters.append(model.used_by_tenant_id.in_(value))
+                if value:
+                    model_filters.append(model.used_by_tenant_id.in_(value))
             elif model in _NO_TENANT_MODELS:
                 pass
             else:
-                model_filters.append(model.tenant_id.in_(value))
+                if value:
+                    model_filters.append(model.tenant_id.in_(value))
 
     return model_filters
 
@@ -780,15 +785,26 @@ def _subnet_find(context, limit, sorts, marker, page_reverse, fields,
         if INVERT_DEFAULTS in defaults:
             invert_defaults = True
             defaults.pop(0)
+
+        # when 'invert_defaults' were the only entry in defaults,
+        # defaults will be empty now. The next 4 lines optimize
+        # performance by avoiding running the in_ filter on an empty set:
+        # like so: models.Subnet.id.in_([])
+        if defaults:
+            subnet_filter = models.Subnet.id.in_(defaults)
+        else:
+            # if defaults is an empty list, just create a False
+            # BinaryExpression
+            subnet_filter = models.Subnet.id != models.Subnet.id
+
         if filters and invert_defaults:
-            query = query.filter(and_(not_(models.Subnet.id.in_(defaults)),
+            query = query.filter(and_(not_(subnet_filter),
                                       and_(*model_filters)))
         elif not provider_query and filters and not invert_defaults:
-            query = query.filter(or_(models.Subnet.id.in_(defaults),
-                                     and_(*model_filters)))
+            query = query.filter(or_(subnet_filter, and_(*model_filters)))
 
         elif not invert_defaults:
-            query = query.filter(models.Subnet.id.in_(defaults))
+            query = query.filter(subnet_filter)
     else:
         query = query.filter(*model_filters)
 

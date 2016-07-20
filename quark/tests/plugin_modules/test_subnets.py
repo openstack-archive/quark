@@ -408,15 +408,19 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
             mock.patch("quark.db.api.route_create"),
             mock.patch("quark.db.api.subnet_find"),
             mock.patch("neutron.common.rpc.get_notifier"),
-            _allocation_pools_mock()
+            _allocation_pools_mock(),
+            mock.patch("sqlalchemy.orm.session.SessionTransaction.commit"),
+            mock.patch(
+                "sqlalchemy.orm.unitofwork.UOWTransaction.register_object")
         ) as (subnet_create, net_find, dns_create, route_create, subnet_find,
-              get_notifier, alloc_pools_method):
+              get_notifier, alloc_pools_method, commit, register_object):
             subnet_create.return_value = subnet_mod
             net_find.return_value = network
             route_create.side_effect = route_models
             dns_create.side_effect = dns_models
             alloc_pools_method.__get__ = mock.Mock(
                 return_value=allocation_pools)
+            register_object.return_value = True
             yield subnet_create, dns_create, route_create
 
     def test_create_subnet(self):
@@ -860,8 +864,9 @@ class TestQuarkAllocationPoolCache(test_quark_plugin.TestQuarkPlugin):
             mock.patch("quark.db.api.route_find"),
             mock.patch("quark.db.api.route_update"),
             mock.patch("quark.db.api.route_create"),
-        ) as (subnet_find, subnet_update,
-              dns_create, route_find, route_update, route_create):
+            mock.patch("sqlalchemy.orm.session.SessionTransaction.commit")
+        ) as (subnet_find, subnet_update, dns_create, route_find,
+              route_update, route_create, commit):
             subnet_find.return_value = subnet_mod
             if has_subnet:
                 route_find.return_value = (subnet_mod["routes"][0] if
@@ -965,9 +970,12 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
             mock.patch("quark.db.api.route_find"),
             mock.patch("quark.db.api.route_update"),
             mock.patch("quark.db.api.route_create"),
+            mock.patch("sqlalchemy.orm.session.SessionTransaction.commit"),
+            mock.patch(
+                "sqlalchemy.orm.unitofwork.UOWTransaction.register_object")
         ) as (subnet_find, subnet_update,
               dns_create,
-              route_find, route_update, route_create):
+              route_find, route_update, route_create, commit, register_object):
             subnet_find.return_value = subnet_mod
             if has_subnet:
                 route_find.return_value = (subnet_mod["routes"][0] if
@@ -983,6 +991,7 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
                 if new_ip_policy:
                     new_subnet_mod["ip_policy"] = new_ip_policy
                 subnet_update.return_value = new_subnet_mod
+                register_object.return_value = True
             yield dns_create, route_update, route_create
 
     def test_update_subnet_not_found(self):
@@ -1471,9 +1480,10 @@ class TestQuarkCreateSubnetAttrFilters(test_quark_plugin.TestQuarkPlugin):
             mock.patch("quark.db.api.route_create"),
             mock.patch("quark.plugin_views._make_subnet_dict"),
             mock.patch("quark.db.api.subnet_find"),
-            mock.patch("neutron.common.rpc.get_notifier")
+            mock.patch("neutron.common.rpc.get_notifier"),
+            mock.patch("sqlalchemy.orm.session.SessionTransaction.commit")
         ) as (subnet_create, net_find, dns_create, route_create, sub_dict,
-              subnet_find, get_notifier):
+              subnet_find, get_notifier, commit):
             route_create.return_value = models.Route()
             yield subnet_create, net_find
 
