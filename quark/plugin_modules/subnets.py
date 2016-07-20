@@ -69,10 +69,13 @@ def _validate_subnet_cidr(context, network_id, new_subnet_cidr):
         raise n_exc.BadRequest(resource="subnet",
                                msg="Invalid or missing cidr")
 
+    filters = {
+        'network_id': network_id,
+        'shared': [False]
+    }
     # Using admin context here, in case we actually share networks later
-    subnet_list = db_api.subnet_find(context.elevated(), None, None, None,
-                                     False, network_id=network_id,
-                                     shared=[False])
+    subnet_list = db_api.subnet_find(context=context.elevated(), **filters)
+
     for subnet in subnet_list:
         if (netaddr.IPSet([subnet.cidr]) & new_subnet_ipset):
             # don't give out details of the overlapping subnet
