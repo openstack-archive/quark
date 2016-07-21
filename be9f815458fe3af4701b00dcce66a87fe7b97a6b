@@ -1,0 +1,9 @@
+Code-Review+2: Kyle Haley <kyle.haley@rackspace.com>
+Code-Review+2: Justin Hammond <runningempty@gmail.com>
+Workflow+1: Justin Hammond <runningempty@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Thu, 21 Jul 2016 19:33:13 +0000
+Reviewed-on: https://review.openstack.org/345056
+Project: openstack/quark
+Branch: refs/heads/master
