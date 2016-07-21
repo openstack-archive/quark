@@ -132,7 +132,7 @@ class IPAddressProhibitedByPolicy(n_exc.InvalidInput):
     message = _("IP %(ip_addr)s is prohibited by policies on the subnet")
 
 
-class ProviderNetworkOutOfIps(n_exc.NeutronException):
+class ProviderNetworkOutOfIps(n_exc.IpAddressGenerationFailure):
     message = _("Network %(net_id)s appears to be out of IP Addresses."
                 "You may want to try again in a few seconds")
 

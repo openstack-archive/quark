@@ -105,6 +105,35 @@ class QuarkIpamBaseTest(test_base.TestBase):
         self.context.session.add = mock.Mock()
 
 
+class QuarkIpamANY(QuarkIpamBaseTest):
+    @contextlib.contextmanager
+    def _stubs(self):
+        with contextlib.nested(
+            mock.patch('quark.ipam.QuarkIpam.select_subnet'),
+            mock.patch(
+                'quark.network_strategy.JSONStrategy.is_provider_network')
+        ) as (
+            select_subnet,
+            is_provider_network
+        ):
+            select_subnet.return_value = None
+            is_provider_network.return_value = False
+            net_id = cfg.CONF.QUARK.public_net_id
+
+            yield net_id, is_provider_network
+
+    def test_raises_on_ip_address_failure_provider_network(self):
+        with self._stubs() as (net_id, _):
+            with self.assertRaises(n_exc.IpAddressGenerationFailure):
+                self.ipam._choose_available_subnet(self.context, net_id)
+
+    def test_raises_on_ip_address_failure_non_provider_network(self):
+        with self._stubs() as (net_id, is_provider_network):
+            is_provider_network.return_value = True
+            with self.assertRaises(q_exc.ProviderNetworkOutOfIps):
+                self.ipam._choose_available_subnet(self.context, net_id)
+
+
 class QuarkMacAddressAllocateDeallocated(QuarkIpamBaseTest):
     @contextlib.contextmanager
     def _stubs(self, mac_find=True, do_not_use=False):
