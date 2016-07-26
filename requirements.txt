@@ -17,6 +17,3 @@ twiceredis>=2.0.0
 
 # agent deps
 xenapi==1.2
-
-# Pulls latest neutron, but it should be pinned in packaged deploys
-http://tarballs.openstack.org/neutron/neutron-master.tar.gz#egg=neutron
