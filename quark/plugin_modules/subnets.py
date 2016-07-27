@@ -409,12 +409,15 @@ def get_subnets(context, limit=None, page_reverse=False, sorts=None,
                                  page_reverse=page_reverse, sorts=sorts,
                                  marker_obj=marker, join_dns=True,
                                  join_routes=True, join_pool=True, **filters)
-    for subnet in subnets:
-        cache = subnet.get("_allocation_pool_cache")
-        if not cache:
-            db_api.subnet_update_set_alloc_pool_cache(
-                context, subnet, subnet.allocation_pools)
-    return v._make_subnets_list(subnets, fields=fields)
+    if subnets:
+        for subnet in subnets:
+            cache = subnet.get("_allocation_pool_cache")
+            if not cache:
+                db_api.subnet_update_set_alloc_pool_cache(
+                    context, subnet, subnet.allocation_pools)
+        return v._make_subnets_list(subnets, fields=fields)
+    else:
+        return []
 
 
 def get_subnets_count(context, filters=None):
