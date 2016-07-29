@@ -26,4 +26,6 @@ RUN mkdir /etc/ansible
 
 RUN cd ansible && cp examples/ansible.cfg /etc/ansible/.
 
-ENTRYPOINT ["/bin/bash", "-c", "ansible-playbook -i localhost, /root/package-neutron.yaml"]
+RUN mkdir -p /root/ansible /root/.ssh
+
+ENTRYPOINT ["/bin/bash", "-c", "cd /root/ansible && ansible-playbook -i localhost, /root/ansible/package-neutron.yaml"]

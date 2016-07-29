@@ -10,7 +10,7 @@ RUN apt-get install -y python-pip python-dev libmysqlclient-dev rpm bzip2 wget g
 
 RUN pip install --upgrade cffi pyasn1
 
-RUN pip install virtualenv PyYAML jinja2 paramiko ansible==1.9.1
+RUN pip install virtualenv PyYAML jinja2 paramiko
 
 RUN git clone https://github.com/ansible/ansible.git
 
@@ -26,4 +26,6 @@ RUN mkdir /etc/ansible
 
 RUN cd ansible && cp examples/ansible.cfg /etc/ansible/.
 
-ENTRYPOINT ["/bin/bash", "-c", "ansible-playbook -i localhost, /root/package-neutron.yaml"]
+RUN mkdir -p /root/ansible /root/.ssh
+
+ENTRYPOINT ["/bin/bash", "-c", "cd /root/ansible && ansible-playbook -i localhost, /root/ansible/package-neutron.yaml"]
