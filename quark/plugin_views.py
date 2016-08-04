@@ -302,17 +302,20 @@ def _make_route_dict(route):
             "subnet_id": route["subnet_id"]}
 
 
-def _make_ip_dict(address):
-    return {"id": address["id"],
-            "network_id": address["network_id"],
-            "ip_address": address.formatted(),
-            "address": address.formatted(),
-            "port_ids": [assoc.port_id
-                         for assoc in address["associations"]],
-            "subnet_id": address["subnet_id"],
-            "tenant_id": address["used_by_tenant_id"],
-            "version": address["version"],
-            "type": address['address_type']}
+def _make_ip_dict(address, is_admin=False):
+    ip_view = {"id": address["id"],
+               "network_id": address["network_id"],
+               "ip_address": address.formatted(),
+               "address": address.formatted(),
+               "port_ids": [assoc.port_id
+                            for assoc in address["associations"]],
+               "subnet_id": address["subnet_id"],
+               "tenant_id": address["used_by_tenant_id"],
+               "version": address["version"],
+               "type": address['address_type']}
+    if is_admin:
+        ip_view["_deallocated"] = address['_deallocated']
+    return ip_view
 
 
 def _make_ip_policy_dict(ipp):
