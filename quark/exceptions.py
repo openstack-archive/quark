@@ -15,6 +15,10 @@
 from neutron_lib import exceptions as n_exc
 
 
+class ActionNotAuthorized(n_exc.NotAuthorized):
+    message = _("Action Forbidden: %(msg)")
+
+
 class NetworkAlreadyExists(n_exc.Conflict):
     message = _("Network %(id)s already exists.")
 
