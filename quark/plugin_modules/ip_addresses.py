@@ -74,7 +74,8 @@ def get_ip_addresses(context, **filters):
         filters = {}
     if 'type' in filters:
         filters['address_type'] = filters['type']
-    filters["_deallocated"] = False
+    if context.is_admin is False:
+        filters["_deallocated"] = False
     addrs = db_api.ip_address_find(context, scope=db_api.ALL, **filters)
     return [v._make_ip_dict(ip) for ip in addrs]
 
@@ -83,7 +84,8 @@ def get_ip_address(context, id):
     LOG.info("get_ip_address %s for tenant %s" %
              (id, context.tenant_id))
     filters = {}
-    filters["_deallocated"] = False
+    if context.is_admin is False:
+        filters["_deallocated"] = False
     addr = db_api.ip_address_find(context, id=id, scope=db_api.ONE, **filters)
     if not addr:
         raise q_exc.IpAddressNotFound(addr_id=id)
@@ -268,7 +270,8 @@ def update_ip_address(context, id, ip_address):
         if not address:
             raise q_exc.IpAddressNotFound(addr_id=id)
         iptype = address.address_type
-        if iptype == ip_types.FIXED and not CONF.QUARK.ipaddr_allow_fixed_ip:
+        if iptype == ip_types.FIXED and not CONF.QUARK.ipaddr_allow_fixed_ip\
+                and context.is_admin is False:
             raise n_exc.BadRequest(
                 resource="ip_addresses",
                 msg="Fixed ips cannot be updated using this interface.")
@@ -323,6 +326,15 @@ def update_ip_address(context, id, ip_address):
                                                                  address)
         elif iptype == ip_types.SHARED and has_owner:
             raise q_exc.PortRequiresDisassociation()
+        elif 'deallocated' in ip_address['ip_address']\
+                and context.is_admin is True:
+            # NOTE: If an admin, allow a user to set deallocated to false
+            # in order to reserve a deallocated IP.
+            if ip_address['ip_address']['deallocated'] == 'False':
+                address['deallocated'] = False
+            else:
+                address['deallocated'] = True
+            return v._make_ip_dict(address)
         else:
             ipam_driver.deallocate_ip_address(context, address)
             return v._make_ip_dict(address)
