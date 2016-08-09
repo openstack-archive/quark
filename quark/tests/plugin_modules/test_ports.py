@@ -1305,6 +1305,10 @@ class TestPortDriverSelection(test_quark_plugin.TestQuarkPlugin):
                    "BAR": bar_driver}
         compat_map = compat_map or {}
 
+        # Add fake drivers to config to "enable" them
+        old_override = cfg.CONF.QUARK.net_driver
+        cfg.CONF.set_override('net_driver', ["FOO", "BAR"], 'QUARK')
+
         # Mock out the IPAM registry
         foo_ipam = mock.Mock()
         foo_ipam.allocate_ip_address.return_value = addr
@@ -1337,6 +1341,8 @@ class TestPortDriverSelection(test_quark_plugin.TestQuarkPlugin):
             gen_uuid.return_value = 1
             port_count.return_value = 0
             yield (port_create, ipam, net_find)
+
+        cfg.CONF.set_override('net_driver', old_override, 'QUARK')
 
     def test_create_port_with_bad_network_plugin_fails(self):
         network_dict = dict(id=1, tenant_id=self.context.tenant_id)
@@ -1404,10 +1410,8 @@ class TestPortDriverSelection(test_quark_plugin.TestQuarkPlugin):
                          mac=mac) as (port_create, ipam, net_find):
             port_create.return_value = port_models
 
-            exc = ("Port driver BAR not allowed for underlying network "
-                   "driver FOO.")
             admin_ctx = self.context.elevated()
-            with self.assertRaisesRegexp(n_exc.BadRequest, exc):
+            with self.assertRaises(n_exc.BadRequest):
                 self.plugin.create_port(admin_ctx, port)
 
     def test_create_port_with_no_port_network_plugin(self):

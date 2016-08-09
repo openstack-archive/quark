@@ -13,6 +13,10 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from neutron_lib import exceptions as n_exc
+
+from oslo_config import cfg
+
 from quark.drivers import registry
 from quark.drivers import registry_base
 from quark.tests import test_base
@@ -41,8 +45,20 @@ class FakeNetDriverRegistry(registry.DriverRegistry):
 
 class TestRegistryBase(test_base.TestBase):
 
+    def __init__(self, *args, **kwargs):
+        super(TestRegistryBase, self).__init__(*args, **kwargs)
+        self.old_override = []
+
     def setUp(self):
+        self.old_override = cfg.CONF.QUARK.net_driver
+        cfg.CONF.set_override('net_driver', ["test_driver_1",
+                                             "test_driver_2",
+                                             "test_driver_3"],
+                              'QUARK')
         self.registry = FakeBaseRegistry()
+
+    def tearDown(self):
+        cfg.CONF.set_override('net_driver', self.old_override, "QUARK")
 
     def test_get_valid(self):
         driver = self.registry.get_driver("test_driver_1")
@@ -52,15 +68,26 @@ class TestRegistryBase(test_base.TestBase):
         self.assertEqual(driver, 2)
 
     def test_get_invalid(self):
-        exc = "Driver does_not_exist is not registered."
-        with self.assertRaisesRegexp(Exception, exc):
+        with self.assertRaises(n_exc.BadRequest):
             self.registry.get_driver("does_not_exist")
 
 
 class TestDriverRegistry(TestRegistryBase):
 
+    def __init__(self, *args, **kwargs):
+        super(TestRegistryBase, self).__init__(*args, **kwargs)
+        self.old_override = []
+
     def setUp(self):
+        self.old_override = cfg.CONF.QUARK.net_driver
+        cfg.CONF.set_override('net_driver', ["test_driver_1",
+                                             "test_driver_2",
+                                             "test_driver_3"],
+                              'QUARK')
         self.registry = FakeNetDriverRegistry()
+
+    def tearDown(self):
+        cfg.CONF.set_override('net_driver', self.old_override, "QUARK")
 
     def test_get_port_driver(self):
         driver = self.registry.get_driver(
@@ -72,8 +99,7 @@ class TestDriverRegistry(TestRegistryBase):
         self.assertEqual(driver, 2)
 
     def test_get_invalid_port_driver(self):
-        exc = "Driver does_not_exist is not registered."
-        with self.assertRaisesRegexp(Exception, exc):
+        with self.assertRaises(n_exc.BadRequest):
             self.registry.get_driver(
                 "test_driver_1", port_driver="does_not_exist")
 
@@ -91,8 +117,6 @@ class TestDriverRegistry(TestRegistryBase):
         self.assertEqual(driver, 3)
 
     def test_get_incompatable_port_driver(self):
-        exc = ("Port driver test_driver_2 not allowed for "
-               "underlying network driver test_driver_3.")
-        with self.assertRaisesRegexp(Exception, exc):
+        with self.assertRaises(n_exc.BadRequest):
             self.registry.get_driver(
                 "test_driver_3", port_driver="test_driver_2")
