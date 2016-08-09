@@ -12,6 +12,7 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+from neutron_lib import exceptions as n_exc
 
 from quark.drivers import base
 from quark.drivers import ironic_driver as ironic
@@ -19,9 +20,22 @@ from quark.drivers import optimized_nvp_driver as optnvp
 from quark.drivers.registry_base import DriverRegistryBase
 from quark.drivers import unmanaged
 
+from oslo_config import cfg
 from oslo_log import log as logging
 
 LOG = logging.getLogger(__name__)
+
+driver_opts = [
+    cfg.BoolOpt('nvp', default=True,
+                help='True enables nvp_driver, False disables'),
+    cfg.BoolOpt('ironic', default=False,
+                help='True enables ironic_driver, False disables'),
+    cfg.BoolOpt('unmanaged', default=True,
+                help='True enables unmanaged_driver, False disables')
+]
+
+CONF = cfg.CONF
+CONF.register_opts(driver_opts, "enable_drivers")
 
 
 class DriverRegistry(DriverRegistryBase):
@@ -57,8 +71,11 @@ class DriverRegistry(DriverRegistryBase):
         if port_driver:
 
             # Check port_driver is valid driver
-            if port_driver not in self.drivers:
-                raise Exception("Driver %s is not registered." % port_driver)
+            if port_driver not in self.drivers\
+                    or self._validate_driver(port_driver):
+                raise n_exc.BadRequest(resource="drivers",
+                                       msg=("Driver %s is not registered."
+                                            % port_driver))
 
             # Net drivers are compatible with themselves
             if port_driver == net_driver:
@@ -68,17 +85,23 @@ class DriverRegistry(DriverRegistryBase):
             # Check port_driver is compatible with the given net_driver
             allowed = self.port_driver_compat_map.get(port_driver, [])
             if net_driver not in allowed:
-                raise Exception("Port driver %s not allowed for "
-                                "underlying network driver %s."
-                                % (port_driver, net_driver))
+                raise n_exc.BadRequest(resource="drivers",
+                                       msg=("Port driver %s not allowed for "
+                                            "underlying network driver %s."
+                                            % (port_driver, net_driver)))
 
             LOG.info("Selected port_driver:%s" % (port_driver))
             return self.drivers[port_driver]
 
-        elif net_driver in self.drivers:
+        elif net_driver in self.drivers and self._validate_driver(net_driver):
             LOG.info("Selected net_driver:%s" % (net_driver))
             return self.drivers[net_driver]
 
-        raise Exception("Driver %s is not registered." % net_driver)
+        raise n_exc.BadRequest(resource="drivers",
+                               msg=("Driver %s is not registered."
+                                    % net_driver))
+
+    def _validate_driver(self, net_driver):
+        return CONF.enable_drivers[net_driver.lower()]
 
 DRIVER_REGISTRY = DriverRegistry()
