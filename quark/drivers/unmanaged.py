@@ -12,6 +12,7 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #
+from neutron_lib import exceptions as n_exc
 
 from oslo_log import log as logging
 
@@ -58,8 +59,16 @@ class UnmanagedDriver(base.BaseDriver):
     def create_port(self, context, network_id, port_id, **kwargs):
         LOG.info("create_port %s %s %s" % (context.tenant_id, network_id,
                                            port_id))
-        bridge_name = STRATEGY.get_network(network_id)["bridge"]
-        return {"uuid": port_id, "bridge": bridge_name}
+        network = STRATEGY.get_network(network_id)
+        LOG.info(network)
+        if network and "bridge" in network:
+            return {"uuid": port_id, "bridge": network["bridge"]}
+        else:
+            raise n_exc.BadRequest(resource="ports",
+                                   msg=("Bridge is either not configured for"
+                                        " network or this network is not"
+                                        " defined in default_net_strategy:"
+                                        " %s" % network_id))
 
     def update_port(self, context, port_id, **kwargs):
         LOG.info("update_port %s %s" % (context.tenant_id, port_id))
