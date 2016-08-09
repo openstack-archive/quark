@@ -22,9 +22,6 @@ CONF = cfg.CONF
 
 
 quark_opts = [
-    cfg.StrOpt('net_driver',
-               default='quark.drivers.base.BaseDriver',
-               help=_('The client to use to talk to the backend')),
     cfg.StrOpt('ipam_driver', default='quark.ipam.QuarkIpam',
                help=_('IPAM Implementation to use')),
     cfg.IntOpt('ipam_reuse_after', default=7200,
