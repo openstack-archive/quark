@@ -18,6 +18,7 @@ import uuid
 
 import mock
 import netaddr
+from neutron_lib import exceptions as n_exc
 
 from quark.drivers import unmanaged
 from quark import network_strategy
@@ -64,6 +65,11 @@ class TestUnmanagedDriver(test_base.TestBase):
     def test_create_port(self):
         self.driver.create_port(context=self.context,
                                 network_id="public_network", port_id=2)
+
+    def test_create_port_raises(self):
+        with self.assertRaises(n_exc.BadRequest):
+            self.driver.create_port(context=self.context,
+                                    network_id="bad_network", port_id=2)
 
     def test_update_port(self):
         self.driver.update_port(context=self.context,
