@@ -88,6 +88,9 @@ def _model_attrs(model):
 
 
 def _model_query(context, model, filters, fields=None):
+    if 'project_id' not in filters:
+        filters['project_id'] = filters.get('tenant_id')
+
     filters = filters or {}
     model_filters = []
     eq_filters = ["address", "cidr", "deallocated", "ip_version", "service",
@@ -95,7 +98,7 @@ def _model_query(context, model, filters, fields=None):
                   "address_type", "completed"]
     in_filters = ["device_id", "device_owner", "group_id", "id", "mac_address",
                   "name", "network_id", "segment_id", "subnet_id",
-                  "used_by_tenant_id", "version"]
+                  "used_by_tenant_id", "version", "project_id"]
 
     # Sanitize incoming filters to only attributes that exist in the model.
     # NOTE: Filters for unusable attributes are silently dropped here.
@@ -156,7 +159,7 @@ def _model_query(context, model, filters, fields=None):
         elif key == "port_id":
             if model == models.PortIpAssociation:
                 model_filters.append(model.port_id == value)
-        elif key == "tenant_id":
+        elif key == "tenant_id" or key == "project_id":
             if model == models.IPAddress:
                 if value:
                     model_filters.append(model.used_by_tenant_id.in_(value))
@@ -164,7 +167,7 @@ def _model_query(context, model, filters, fields=None):
                 pass
             else:
                 if value:
-                    model_filters.append(model.tenant_id.in_(value))
+                    model_filters.append(model.project_id.in_(value))
 
     return model_filters
 

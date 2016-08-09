@@ -19,6 +19,7 @@ import netaddr
 # NOTE(asadoughi): noqa import lines fix neutron DB changes breaking tests
 from neutron.db import agentschedulers_db  # noqa
 import neutron.db.model_base
+from neutron.db import model_base as base_mod
 from neutron.db import models_v2 as models
 from neutron.db.qos import models as qos_models  # noqa
 from neutron.db import rbac_db_models  # noqa
@@ -40,6 +41,7 @@ from quark.db import ip_types
 from quark import quota_driver  # noqa
 
 HasId = models.HasId
+HasTenant = base_mod.HasProject
 
 LOG = logging.getLogger(__name__)
 TABLE_KWARGS = {"mysql_engine": "InnoDB"}
@@ -68,7 +70,7 @@ class QuarkBase(neutron.db.model_base.NeutronBaseV2):
 BASEV2 = declarative.declarative_base(cls=QuarkBase)
 
 
-class TagAssociation(BASEV2, models.HasId):
+class TagAssociation(BASEV2, HasId):
     __tablename__ = "quark_tag_associations"
 
     discriminator = sa.Column(sa.String(255))
@@ -86,7 +88,7 @@ class TagAssociation(BASEV2, models.HasId):
         return getattr(self, "%s_parent" % self.discriminator)
 
 
-class Tag(BASEV2, models.HasId, models.HasTenant):
+class Tag(BASEV2, HasId, HasTenant):
     __tablename__ = "quark_tags"
     association_uuid = sa.Column(sa.String(36),
                                  sa.ForeignKey(TagAssociation.id),
@@ -140,7 +142,7 @@ port_ip_association_table = sa.Table(
 orm.mapper(PortIpAssociation, port_ip_association_table)
 
 
-class IPAddress(BASEV2, models.HasId):
+class IPAddress(BASEV2, HasId):
     """More closely emulate the melange version of the IP table.
 
     We always mark the record as deallocated rather than deleting it.
@@ -256,7 +258,7 @@ IPAddress.fixed_ips = orm.relationship(
                    .c.fixed_ip_address_id), uselist=True)
 
 
-class Route(BASEV2, models.HasTenant, models.HasId, IsHazTags):
+class Route(BASEV2, HasTenant, HasId, IsHazTags):
     __tablename__ = "quark_routes"
     cidr = sa.Column(sa.String(64))
     gateway = sa.Column(sa.String(64))
@@ -264,7 +266,7 @@ class Route(BASEV2, models.HasTenant, models.HasId, IsHazTags):
                                                        ondelete="CASCADE"))
 
 
-class DNSNameserver(BASEV2, models.HasTenant, models.HasId, IsHazTags):
+class DNSNameserver(BASEV2, HasTenant, HasId, IsHazTags):
     __tablename__ = "quark_dns_nameservers"
     ip = sa.Column(custom_types.INET())
     subnet_id = sa.Column(sa.String(36), sa.ForeignKey("quark_subnets.id",
@@ -293,7 +295,7 @@ def _pools_from_cidr(cidr):
     return pools
 
 
-class Subnet(BASEV2, models.HasId, IsHazTags):
+class Subnet(BASEV2, HasId, IsHazTags, HasTenant):
     """Upstream model for IPs.
 
     Subnet -> has_many(IPAllocationPool)
@@ -313,7 +315,6 @@ class Subnet(BASEV2, models.HasId, IsHazTags):
     network_id = sa.Column(sa.String(36), sa.ForeignKey('quark_networks.id'))
     _cidr = sa.Column(sa.String(64), nullable=False)
     _allocation_pool_cache = orm.deferred(sa.Column(sa.Text(), nullable=True))
-    tenant_id = sa.Column(sa.String(255), index=True)
     segment_id = sa.Column(sa.String(255), index=True)
 
     @hybrid.hybrid_property
@@ -387,7 +388,7 @@ port_group_association_table = sa.Table(
     **TABLE_KWARGS)
 
 
-class SecurityGroupRule(BASEV2, models.HasId, models.HasTenant):
+class SecurityGroupRule(BASEV2, HasId, HasTenant):
     __tablename__ = "quark_security_group_rules"
     id = sa.Column(sa.String(36), primary_key=True)
     group_id = sa.Column(sa.String(36),
@@ -404,7 +405,7 @@ class SecurityGroupRule(BASEV2, models.HasId, models.HasTenant):
                                 nullable=True)
 
 
-class SecurityGroup(BASEV2, models.HasId):
+class SecurityGroup(BASEV2, HasId, HasTenant):
     __tablename__ = "quark_security_groups"
     id = sa.Column(sa.String(36), primary_key=True)
     name = sa.Column(sa.String(255), nullable=False)
@@ -413,10 +414,9 @@ class SecurityGroup(BASEV2, models.HasId):
     rules = orm.relationship(SecurityGroupRule, backref='group',
                              cascade='delete',
                              primaryjoin=join)
-    tenant_id = sa.Column(sa.String(255), index=True)
 
 
-class Port(BASEV2, models.HasTenant, models.HasId, IsHazTags):
+class Port(BASEV2, HasTenant, HasId, IsHazTags):
     __tablename__ = "quark_ports"
     id = sa.Column(sa.String(36), primary_key=True)
     name = sa.Column(sa.String(255), index=True)
@@ -456,13 +456,14 @@ class Port(BASEV2, models.HasTenant, models.HasId, IsHazTags):
 
 
 # Indices tailored specifically to get_instance_nw_info calls from nova
-sa.Index("idx_ports_1", Port.__table__.c.device_id, Port.__table__.c.tenant_id)
+sa.Index("idx_ports_1", Port.__table__.c.device_id,
+         Port.__table__.c.project_id)
 sa.Index("idx_ports_2", Port.__table__.c.device_owner,
          Port.__table__.c.network_id)
-sa.Index("idx_ports_3", Port.__table__.c.tenant_id)
+sa.Index("idx_ports_3", Port.__table__.c.project_id)
 
 
-class MacAddress(BASEV2, models.HasTenant):
+class MacAddress(BASEV2, HasTenant):
     __tablename__ = "quark_mac_addresses"
     address = sa.Column(sa.BigInteger(), primary_key=True)
     mac_address_range_id = sa.Column(
@@ -477,7 +478,7 @@ class MacAddress(BASEV2, models.HasTenant):
                                nullable=True)
 
 
-class MacAddressRange(BASEV2, models.HasId):
+class MacAddressRange(BASEV2, HasId):
     __tablename__ = "quark_mac_address_ranges"
     cidr = sa.Column(sa.String(255), nullable=False)
     first_address = sa.Column(sa.BigInteger(), nullable=False)
@@ -492,7 +493,7 @@ class MacAddressRange(BASEV2, models.HasId):
                            server_default='0')
 
 
-class IPPolicy(BASEV2, models.HasId, models.HasTenant):
+class IPPolicy(BASEV2, HasId, HasTenant):
     __tablename__ = "quark_ip_policy"
     networks = orm.relationship(
         "Network",
@@ -516,7 +517,7 @@ class IPPolicy(BASEV2, models.HasId, models.HasTenant):
         return netaddr.IPSet(ip_policy_cidrs)
 
 
-class IPPolicyCIDR(BASEV2, models.HasId):
+class IPPolicyCIDR(BASEV2, HasId):
     __tablename__ = "quark_ip_policy_cidrs"
     ip_policy_id = sa.Column(sa.String(36), sa.ForeignKey(
         "quark_ip_policy.id", ondelete="CASCADE"))
@@ -525,7 +526,7 @@ class IPPolicyCIDR(BASEV2, models.HasId):
     last_ip = sa.Column(custom_types.INET())
 
 
-class Network(BASEV2, models.HasId):
+class Network(BASEV2, HasId, HasTenant):
     __tablename__ = "quark_networks"
     name = sa.Column(sa.String(255))
     ports = orm.relationship(Port, backref='network')
@@ -534,7 +535,6 @@ class Network(BASEV2, models.HasId):
                              sa.ForeignKey("quark_ip_policy.id"))
     network_plugin = sa.Column(sa.String(36))
     ipam_strategy = sa.Column(sa.String(255))
-    tenant_id = sa.Column(sa.String(255), index=True)
 
 
 class Transaction(BASEV2):
@@ -579,7 +579,7 @@ class SegmentAllocation(BASEV2):
     deallocated_at = sa.Column(sa.DateTime(), index=True)
 
 
-class SegmentAllocationRange(BASEV2, models.HasId):
+class SegmentAllocationRange(BASEV2, HasId):
     """Ranges of space for segment ids available for allocation."""
     __tablename__ = "quark_segment_allocation_ranges"
     segment_id = sa.Column(sa.String(36), index=True)
@@ -591,8 +591,7 @@ class SegmentAllocationRange(BASEV2, models.HasId):
     do_not_use = sa.Column(sa.Boolean(), default=False, nullable=False)
 
 
-class AsyncTransactions(BASEV2, models.HasId):
+class AsyncTransactions(BASEV2, HasId, HasTenant):
     __tablename__ = "quark_async_transactions"
-    tenant_id = sa.Column(sa.String(255), index=True)
     action = sa.Column(sa.String(255))
     completed = sa.Column(sa.Boolean(), default=False)
