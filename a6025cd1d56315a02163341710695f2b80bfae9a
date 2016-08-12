@@ -1,0 +1,9 @@
+Code-Review+2: alexander medvedev <xroot@yahoo.com>
+Code-Review+2: Justin Hammond <runningempty@gmail.com>
+Workflow+1: Justin Hammond <runningempty@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Fri, 12 Aug 2016 19:55:41 +0000
+Reviewed-on: https://review.openstack.org/350867
+Project: openstack/quark
+Branch: refs/heads/master
