@@ -13,6 +13,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from neutron_lib import exceptions as n_exc
+
 
 class DriverRegistryBase(object):
     def __init__(self):
@@ -21,4 +23,6 @@ class DriverRegistryBase(object):
     def get_driver(self, driver_name):
         if driver_name in self.drivers:
             return self.drivers[driver_name]
-        raise Exception("Driver %s is not registered." % driver_name)
+        raise n_exc.BadRequest(resource="driver", msg=("Driver %s is not "
+                                                       "registered."
+                                                       % driver_name))
