@@ -1,0 +1,8 @@
+Code-Review+2: Justin Hammond <runningempty@gmail.com>
+Workflow+1: Justin Hammond <runningempty@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Mon, 15 Aug 2016 15:55:19 +0000
+Reviewed-on: https://review.openstack.org/353190
+Project: openstack/quark
+Branch: refs/heads/master
