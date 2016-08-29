@@ -79,7 +79,7 @@ class TestQuarkGetSubnets(test_quark_plugin.TestQuarkPlugin):
                       tenant_id=self.context.tenant_id, ip_version=4,
                       cidr="192.168.0.0/24", gateway_ip="192.168.0.1",
                       dns_nameservers=[],
-                      enable_dhcp=None)
+                      enable_dhcp=False)
 
         with self._stubs(subnets=[subnet], routes=[route]):
             res = self.plugin.get_subnets(self.context, None, None, None, {},
@@ -99,7 +99,7 @@ class TestQuarkGetSubnets(test_quark_plugin.TestQuarkPlugin):
                       tenant_id=self.context.tenant_id, ip_version=4,
                       cidr="192.168.0.0/24", gateway_ip="192.168.0.1",
                       dns_nameservers=[],
-                      enable_dhcp=None)
+                      enable_dhcp=False)
 
         with self._stubs(subnets=[subnet], routes=[route, route2]):
             res = self.plugin.get_subnets(self.context, None, None, None, {},
@@ -125,7 +125,7 @@ class TestQuarkGetSubnets(test_quark_plugin.TestQuarkPlugin):
                       tenant_id=self.context.tenant_id, ip_version=4,
                       cidr="192.168.0.0/24", gateway_ip="192.168.0.1",
                       dns_nameservers=[],
-                      enable_dhcp=None)
+                      enable_dhcp=False)
 
         with self._stubs(subnets=subnet, routes=[route]):
             res = self.plugin.get_subnet(self.context, subnet_id)
@@ -161,7 +161,7 @@ class TestQuarkGetSubnetsHideAllocPools(test_quark_plugin.TestQuarkPlugin):
                       tenant_id=self.context.tenant_id, ip_version=4,
                       cidr="192.168.0.0/24", gateway_ip="192.168.0.1",
                       dns_nameservers=[],
-                      enable_dhcp=None)
+                      enable_dhcp=False)
 
         with self._stubs(subnets=[subnet]):
             res = self.plugin.get_subnets(self.context, None, None, None, {},
@@ -431,7 +431,7 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                         cidr="172.16.0.0/24", gateway_ip="0.0.0.0",
                         dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
                         host_routes=neutron_attrs.ATTR_NOT_SPECIFIED,
-                        enable_dhcp=None))
+                        enable_dhcp=False))
         with self._stubs(
             subnet=subnet["subnet"],
             routes=routes
@@ -464,7 +464,7 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                         cidr="1234::/80", gateway_ip="0.0.0.0",
                         dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
                         host_routes=neutron_attrs.ATTR_NOT_SPECIFIED,
-                        enable_dhcp=None))
+                        enable_dhcp=False))
         with self._stubs(
             subnet=subnet["subnet"],
             routes=routes
@@ -485,7 +485,7 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                         cidr="192.168.0.0/31", gateway_ip="0.0.0.0",
                         dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
                         host_routes=neutron_attrs.ATTR_NOT_SPECIFIED,
-                        enable_dhcp=None))
+                        enable_dhcp=False))
         with self._stubs(
             subnet=subnet["subnet"],
             routes=routes
@@ -506,7 +506,7 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                         cidr="172.16.0.0/24", gateway_ip="0.0.0.0",
                         dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
                         host_routes=neutron_attrs.ATTR_NOT_SPECIFIED,
-                        enable_dhcp=None))
+                        enable_dhcp=False))
         with self._stubs(
             subnet=subnet["subnet"],
             routes=routes
@@ -544,7 +544,7 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                         cidr="172.16.0.0/24",
                         gateway_ip=neutron_attrs.ATTR_NOT_SPECIFIED,
                         dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
-                        enable_dhcp=None))
+                        enable_dhcp=False))
         with self._stubs(
             subnet=subnet["subnet"],
             routes=[]
@@ -573,7 +573,7 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
             subnet=dict(network_id=1,
                         tenant_id=self.context.tenant_id, ip_version=4,
                         cidr="172.16.0.0/24", gateway_ip="0.0.0.0",
-                        dns_nameservers=dns_ns, enable_dhcp=None))
+                        dns_nameservers=dns_ns, enable_dhcp=False))
         with self._stubs(
             subnet=subnet["subnet"],
             routes=routes,
@@ -602,7 +602,7 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                                       "nexthop": "172.16.0.4"}],
                         allocation_pools=[{"start": "172.16.0.5",
                                            "end": "172.16.0.254"}],
-                        enable_dhcp=None))
+                        enable_dhcp=False))
         with self._stubs(
             subnet=subnet["subnet"],
             routes=routes
@@ -635,7 +635,7 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                                       "nexthop": "172.16.0.4"}],
                         allocation_pools=[{"start": "172.16.0.5",
                                            "end": "172.16.0.254"}],
-                        enable_dhcp=None))
+                        enable_dhcp=False))
         with self._stubs(
             subnet=subnet["subnet"],
             routes=routes
@@ -673,7 +673,7 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                              "nexthop": "172.16.0.4"}],
                         allocation_pools=[{"start": "172.16.0.5",
                                            "end": "172.16.0.254"}],
-                        enable_dhcp=None))
+                        enable_dhcp=False))
         with self._stubs(
             subnet=subnet["subnet"],
             routes=routes
@@ -704,7 +704,7 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                                       "nexthop": "172.16.0.4"}],
                         allocation_pools=[{"start": "172.16.0.5",
                                            "end": "172.16.0.254"}],
-                        enable_dhcp=None))
+                        enable_dhcp=False))
         with self._stubs(
             subnet=subnet["subnet"],
             routes=routes
@@ -735,7 +735,7 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                         cidr="172.16.0.0/24",
                         gateway_ip=None,
                         dns_nameservers=neutron_attrs.ATTR_NOT_SPECIFIED,
-                        enable_dhcp=None))
+                        enable_dhcp=False))
         with self._stubs(
             subnet=subnet["subnet"],
             routes=routes
@@ -838,7 +838,7 @@ class TestQuarkAllocationPoolCache(test_quark_plugin.TestQuarkPlugin):
                 cidr=cidr,
                 host_routes=host_routes,
                 dns_nameservers=["4.2.2.1", "4.2.2.2"],
-                enable_dhcp=None,
+                enable_dhcp=False,
                 _allocation_pool_cache=None)
 
             dns_ips = subnet.pop("dns_nameservers", [])
@@ -945,7 +945,7 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
                 cidr=cidr,
                 host_routes=host_routes,
                 dns_nameservers=["4.2.2.1", "4.2.2.2"],
-                enable_dhcp=None)
+                enable_dhcp=False)
 
             dns_ips = subnet.pop("dns_nameservers", [])
             host_routes = subnet.pop("host_routes", [])
@@ -1446,7 +1446,7 @@ class TestQuarkDiagnoseSubnets(test_quark_plugin.TestQuarkPlugin):
                       tenant_id=self.context.tenant_id, ip_version=4,
                       cidr="192.168.0.0/24", gateway_ip="192.168.0.1",
                       dns_nameservers=[],
-                      enable_dhcp=None)
+                      enable_dhcp=False)
 
         with self._stubs(subnets=[subnet], routes=[route]):
             actual = self.plugin.diagnose_subnet(self.context.elevated(), "*",
@@ -1462,7 +1462,7 @@ class TestQuarkDiagnoseSubnets(test_quark_plugin.TestQuarkPlugin):
                       tenant_id=self.context.tenant_id, ip_version=4,
                       cidr="192.168.0.0/24", gateway_ip="192.168.0.1",
                       dns_nameservers=[],
-                      enable_dhcp=None)
+                      enable_dhcp=False)
 
         with self._stubs(subnets=subnet, routes=[route]):
             actual = self.plugin.diagnose_subnet(self.context.elevated(),
@@ -1494,7 +1494,7 @@ class TestQuarkCreateSubnetAttrFilters(test_quark_plugin.TestQuarkPlugin):
             "gateway_ip": "0.0.0.0",
             "dns_nameservers": neutron_attrs.ATTR_NOT_SPECIFIED,
             "host_routes": neutron_attrs.ATTR_NOT_SPECIFIED,
-            "enable_dhcp": None, "first_ip": 0, "last_ip": 1,
+            "enable_dhcp": False, "first_ip": 0, "last_ip": 1,
             "next_auto_assign_ip": 10}}
 
         with self._stubs() as (subnet_create, net_find):
@@ -1514,7 +1514,7 @@ class TestQuarkCreateSubnetAttrFilters(test_quark_plugin.TestQuarkPlugin):
             "gateway_ip": "0.0.0.0",
             "dns_nameservers": neutron_attrs.ATTR_NOT_SPECIFIED,
             "host_routes": neutron_attrs.ATTR_NOT_SPECIFIED,
-            "enable_dhcp": None, "first_ip": 0, "last_ip": 1,
+            "enable_dhcp": False, "first_ip": 0, "last_ip": 1,
             "next_auto_assign_ip": 10}}
 
         admin_ctx = self.context.elevated()
@@ -1554,7 +1554,7 @@ class TestQuarkUpdateSubnetAttrFilters(test_quark_plugin.TestQuarkPlugin):
             "gateway_ip": "0.0.0.0",
             "dns_nameservers": neutron_attrs.ATTR_NOT_SPECIFIED,
             "host_routes": neutron_attrs.ATTR_NOT_SPECIFIED,
-            "enable_dhcp": None, "first_ip": 0, "last_ip": 1,
+            "enable_dhcp": False, "first_ip": 0, "last_ip": 1,
             "next_auto_assign_ip": 10, "do_not_use": False}}
 
         with self._stubs() as (subnet_update, subnet_find):
@@ -1678,3 +1678,28 @@ class TestQuarkGetSubnetsShared(test_quark_plugin.TestQuarkPlugin):
                                            provider_query=False,
                                            join_routes=True, join_dns=True,
                                            join_pool=True)
+
+
+class TestQuarkMakeSubnetDict(test_quark_plugin.TestQuarkPlugin):
+    def test_make_subnet_enable_dhcp_true_dict(self):
+        """enable_dhcp is explicitly set, expect True"""
+        subnet = dict(network_id=1,
+                      tenant_id=self.context.tenant_id, ip_version=4,
+                      cidr="172.16.0.0/24", gateway_ip="0.0.0.0",
+                      dns_nameservers=[],
+                      host_routes=neutron_attrs.ATTR_NOT_SPECIFIED,
+                      enable_dhcp=True)
+        res = plugin_views._make_subnet_dict(subnet)
+
+        self.assertTrue(res['enable_dhcp'], "Expected true")
+
+    def test_make_subnet_enable_dhcp_default_dict(self):
+        """enable_dhcp is not set, expect False"""
+        subnet = dict(network_id=1,
+                      tenant_id=self.context.tenant_id, ip_version=4,
+                      cidr="172.16.0.0/24", gateway_ip="0.0.0.0",
+                      dns_nameservers=[],
+                      host_routes=neutron_attrs.ATTR_NOT_SPECIFIED)
+        res = plugin_views._make_subnet_dict(subnet)
+
+        self.assertFalse(res['enable_dhcp'], "Expected false")

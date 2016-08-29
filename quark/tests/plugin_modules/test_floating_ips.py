@@ -610,7 +610,7 @@ class TestUpdateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
                                            gateway='192.168.0.1')],
                       cidr="192.168.0.0/24",
                       dns_nameservers=[],
-                      enable_dhcp=None)
+                      enable_dhcp=False)
 
         fixed_ip_addr = netaddr.IPAddress("192.168.0.1")
         fixed_ips = [dict(address_type="fixed", address=int(fixed_ip_addr),
