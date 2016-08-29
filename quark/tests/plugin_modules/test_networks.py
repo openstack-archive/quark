@@ -387,8 +387,7 @@ class TestQuarkCreateNetwork(test_quark_plugin.TestQuarkPlugin):
     def test_create_network_with_id(self):
         net = dict(id="abcdef", name="public", admin_state_up=True,
                    tenant_id=0)
-        ctxt = context.Context('fake', 'fake', is_admin=True,
-                               load_admin_roles=False)
+        ctxt = context.Context('fake', 'fake', is_admin=True)
         with self._stubs(net=net):
             res = self.plugin.create_network(ctxt, dict(network=net))
             self.assertEqual(net["id"], res["id"])
@@ -396,8 +395,7 @@ class TestQuarkCreateNetwork(test_quark_plugin.TestQuarkPlugin):
     def test_create_network_with_id_already_exists_raises(self):
         net = dict(id="abcdef", name="public", admin_state_up=True,
                    tenant_id=0)
-        ctxt = context.Context('fake', 'fake', is_admin=True,
-                               load_admin_roles=False)
+        ctxt = context.Context('fake', 'fake', is_admin=True)
         with self._stubs(net=net, find_net=True):
             with self.assertRaises(q_exc.NetworkAlreadyExists):
                 self.plugin.create_network(ctxt, dict(network=net))

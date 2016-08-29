@@ -39,8 +39,7 @@ class TestBase(unittest2.TestCase):
         config.init(args=args)
 
         self.context = context.Context('fake', 'fake', is_admin=False)
-        self.admin_context = context.Context('fake', 'fake', is_admin=True,
-                                             load_admin_roles=False)
+        self.admin_context = context.Context('fake', 'fake', is_admin=True)
 
         class FakeContext(object):
             def __new__(cls, *args, **kwargs):
