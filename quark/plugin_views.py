@@ -98,7 +98,8 @@ def _make_subnet_dict(subnet, fields=None):
            "dns_nameservers": dns_nameservers or [],
            "cidr": subnet.get("cidr"),
            "shared": STRATEGY.is_provider_network(net_id),
-           "enable_dhcp": subnet.get("enable_dhcp") or False}
+           "enable_dhcp": subnet.get("enable_dhcp") or False,
+           "subnet_strategy": subnet.get("subnet_strategy")}
 
     if CONF.QUARK.show_subnet_ip_policy_id:
         res['ip_policy_id'] = subnet.get("ip_policy_id")

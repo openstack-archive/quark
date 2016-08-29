@@ -337,11 +337,12 @@ class QuarkIpam(object):
         raise n_exc_ext.MacAddressGenerationFailure(net_id=net_id)
 
     @synchronized(named("reallocate_ip"))
-    def attempt_to_reallocate_ip(self, context, net_id, port_id, reuse_after,
+    def attempt_to_reallocate_ip(self, context, net_db, port_id, reuse_after,
                                  version=None, ip_address=None,
                                  segment_id=None, subnets=None, **kwargs):
         version = version or [4, 6]
         elevated = context.elevated()
+        net_id = net_db["id"]
 
         LOG.info("Attempting to reallocate an IP (step 1 of 3) - [{0}]".format(
             utils.pretty_kwargs(network_id=net_id, port_id=port_id,
@@ -372,7 +373,8 @@ class QuarkIpam(object):
         elif segment_id:
             subnets = db_api.subnet_find(elevated,
                                          network_id=net_id,
-                                         segment_id=segment_id)
+                                         segment_id=segment_id,
+                                         subnet_strategy=net_db.ipam_strategy)
             sub_ids = [s["id"] for s in subnets]
             if not sub_ids:
                 LOG.info("No subnets matching segment_id {0} could be "
@@ -443,6 +445,10 @@ class QuarkIpam(object):
 
     def is_strategy_satisfied(self, ip_addresses, allocate_complete=False):
         return ip_addresses
+
+    def is_ver_compatible_with_strat(self, version):
+        """Verify ip version is compatible with strategy."""
+        return version in [4, 6]
 
     def _allocate_from_subnet(self, context, net_id, subnet,
                               port_id, reuse_after, ip_address=None, **kwargs):
@@ -612,6 +618,7 @@ class QuarkIpam(object):
         elevated = context.elevated()
         subnets = subnets or []
         ip_addresses = ip_addresses or []
+        network_db = db_api.network_find(elevated, id=net_id, scope=db_api.ONE)
 
         ipam_log = kwargs.get('ipam_log', None)
         LOG.info("Starting a new IP address(es) allocation. Strategy "
@@ -626,7 +633,7 @@ class QuarkIpam(object):
 
         def _try_reallocate_ip_address(ipam_log, ip_addr=None):
             new_addresses.extend(self.attempt_to_reallocate_ip(
-                context, net_id, port_id, reuse_after, version=version,
+                context, network_db, port_id, reuse_after, version=version,
                 ip_address=ip_addr, segment_id=segment_id, subnets=subnets,
                 **kwargs))
 
@@ -639,7 +646,7 @@ class QuarkIpam(object):
                     retry + 1, CONF.QUARK.ip_address_retry_max))
                 if not sub:
                     subnets = self._choose_available_subnet(
-                        elevated, net_id, version, segment_id=segment_id,
+                        elevated, network_db, version, segment_id=segment_id,
                         ip_address=ip_addr, reallocated_ips=new_addresses)
                 else:
                     subnets = [self.select_subnet(context, net_id,
@@ -942,17 +949,93 @@ class QuarkIpam(object):
                 return subnet
 
 
+class QuarkIpamV4ONLY(QuarkIpam):
+    @classmethod
+    def get_name(self):
+        return "V4ONLY"
+
+    def _choose_available_subnet(self, context, net_db, version=None,
+                                 segment_id=None, ip_address=None,
+                                 reallocated_ips=None):
+        net_id = net_db["id"]
+        filters = {}
+        if version:
+            filters["ip_version"] = version
+        filters["subnet_strategy"] = net_db["ipam_strategy"]
+        subnet = self.select_subnet(context, net_id, ip_address, segment_id,
+                                    **filters)
+        if subnet:
+            return [subnet]
+        raise ip_address_failure(net_id)
+
+    def is_strategy_satisfied(self, reallocated_ips, allocate_complete=False):
+        req = [4]
+        for ip in reallocated_ips:
+            if ip is not None:
+                req.remove(ip["version"])
+        ips_allocated = len(req)
+        if ips_allocated == 0:
+            return True
+        elif ips_allocated == 1 and allocate_complete:
+            return True
+
+        return False
+
+    def is_ver_compatible_with_strat(self, version):
+        """Verify ip version is compatible with strategy."""
+        return version in [4]
+
+
+class QuarkIpamV6ONLY(QuarkIpam):
+    @classmethod
+    def get_name(self):
+        return "V6ONLY"
+
+    def _choose_available_subnet(self, context, net_db, version=None,
+                                 segment_id=None, ip_address=None,
+                                 reallocated_ips=None):
+        net_id = net_db["id"]
+        filters = {}
+        if version:
+            filters["ip_version"] = version
+        filters["subnet_strategy"] = net_db["ipam_strategy"]
+        subnet = self.select_subnet(context, net_id, ip_address, segment_id,
+                                    **filters)
+        if subnet:
+            return [subnet]
+        raise ip_address_failure(net_id)
+
+    def is_strategy_satisfied(self, reallocated_ips, allocate_complete=False):
+        req = [6]
+        for ip in reallocated_ips:
+            if ip is not None:
+                req.remove(ip["version"])
+        ips_allocated = len(req)
+        if ips_allocated == 0:
+            return True
+        elif ips_allocated == 1 and allocate_complete:
+            return True
+
+        return False
+
+    def is_ver_compatible_with_strat(self, version):
+        """Verify ip version is compatible with strategy."""
+        return version in [6]
+
+
 class QuarkIpamANY(QuarkIpam):
     @classmethod
     def get_name(self):
         return "ANY"
 
-    def _choose_available_subnet(self, context, net_id, version=None,
+    def _choose_available_subnet(self, context, net_db, version=None,
                                  segment_id=None, ip_address=None,
                                  reallocated_ips=None):
+        net_id = net_db["id"]
         filters = {}
         if version:
             filters["ip_version"] = version
+        filters["subnet_strategy"] = net_db["ipam_strategy"]
         subnet = self.select_subnet(context, net_id, ip_address, segment_id,
                                     **filters)
         if subnet:
@@ -990,9 +1073,10 @@ class QuarkIpamBOTH(QuarkIpam):
             context, net_id, port_id, reuse_after, ip_address_version,
             ip_address, segment_id, subnets=subnets, **kwargs)
 
-    def _choose_available_subnet(self, context, net_id, version=None,
+    def _choose_available_subnet(self, context, net_db, version=None,
                                  segment_id=None, ip_address=None,
                                  reallocated_ips=None):
+        net_id = net_db["id"]
         both_subnet_versions = []
         need_versions = [4, 6]
         for i in reallocated_ips:
@@ -1001,6 +1085,7 @@ class QuarkIpamBOTH(QuarkIpam):
         filters = {}
         for ver in need_versions:
             filters["ip_version"] = ver
+            filters["subnet_strategy"] = net_db["ipam_strategy"]
             sub = self.select_subnet(context, net_id, ip_address, segment_id,
                                      **filters)
             if sub:
@@ -1027,14 +1112,14 @@ class QuarkIpamBOTHREQ(QuarkIpamBOTH):
 
         return False
 
-    def _choose_available_subnet(self, context, net_id, version=None,
+    def _choose_available_subnet(self, context, net_db, version=None,
                                  segment_id=None, ip_address=None,
                                  reallocated_ips=None):
         subnets = super(QuarkIpamBOTHREQ, self)._choose_available_subnet(
-            context, net_id, version, segment_id, ip_address, reallocated_ips)
+            context, net_db, version, segment_id, ip_address, reallocated_ips)
 
         if len(reallocated_ips) + len(subnets) < 2:
-            raise ip_address_failure(net_id)
+            raise ip_address_failure(net_db["id"])
         return subnets
 
 
@@ -1088,6 +1173,8 @@ class IronicIpamBOTHREQ(IronicIpam, QuarkIpamBOTHREQ):
 class IpamRegistry(object):
     def __init__(self):
         self.strategies = {
+            QuarkIpamV4ONLY.get_name(): QuarkIpamV4ONLY(),
+            QuarkIpamV6ONLY.get_name(): QuarkIpamV6ONLY(),
             QuarkIpamANY.get_name(): QuarkIpamANY(),
             QuarkIpamBOTH.get_name(): QuarkIpamBOTH(),
             QuarkIpamBOTHREQ.get_name(): QuarkIpamBOTHREQ(),

@@ -374,6 +374,7 @@ class Subnet(BASEV2, HasId, IsHazTags, HasTenant):
         cascade='delete')
     ip_policy_id = sa.Column(sa.String(36),
                              sa.ForeignKey("quark_ip_policy.id"))
+    subnet_strategy = sa.Column(sa.String(255))
     # Legacy data
     do_not_use = sa.Column(sa.Boolean(), default=False)
 

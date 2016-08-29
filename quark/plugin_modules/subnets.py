@@ -25,6 +25,7 @@ from oslo_utils import importutils
 from quark import allocation_pool
 from quark.db import api as db_api
 from quark import exceptions as q_exc
+from quark import ipam
 from quark import network_strategy
 from quark.plugin_modules import ip_policies
 from quark.plugin_modules import routes
@@ -116,6 +117,13 @@ def create_subnet(context, subnet):
 
         sub_attrs = subnet["subnet"]
 
+        sub_strategy = utils.pop_param(sub_attrs, "subnet_strategy", None)
+        if not sub_strategy:
+            sub_strategy = net["ipam_strategy"]
+
+        if not ipam.IPAM_REGISTRY.is_valid_strategy(sub_strategy):
+            raise q_exc.InvalidSubnetStrategy(strat=sub_strategy)
+
         always_pop = ["enable_dhcp", "ip_version", "first_ip", "last_ip",
                       "_cidr"]
         admin_only = ["segment_id", "do_not_use", "created_at",
@@ -125,6 +133,13 @@ def create_subnet(context, subnet):
         _validate_subnet_cidr(context, net_id, sub_attrs["cidr"])
 
         cidr = netaddr.IPNetwork(sub_attrs["cidr"])
+
+        test_strategy = ipam.IPAM_REGISTRY.get_strategy(sub_strategy)
+        if not test_strategy.is_ver_compatible_with_strat(cidr.version):
+            raise q_exc.InvalidStrategyVersion(strat=sub_strategy,
+                                               ver=cidr.version)
+
+        sub_attrs["subnet_strategy"] = sub_strategy
 
         err_vals = {'cidr': sub_attrs["cidr"], 'network_id': net_id}
         err = _("Requested subnet with cidr: %(cidr)s for "

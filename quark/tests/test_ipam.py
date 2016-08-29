@@ -1727,6 +1727,8 @@ class TestQuarkIpPoliciesIpAllocation(QuarkIpamBaseTest):
                 as subnet_update, \
                 mock.patch("quark.db.api.subnet_update_set_full") as \
                 subnet_set_full, \
+                mock.patch("quark.db.api.network_find") as \
+                network_find, \
                 mock.patch("sqlalchemy.orm.session.Session.refresh") as \
                 refresh:
             addr_find.side_effect = [ip_helper(a) for a in addresses]
@@ -1736,6 +1738,7 @@ class TestQuarkIpPoliciesIpAllocation(QuarkIpamBaseTest):
                     sub_mods.append((subnet_helper(sub), count))
             subnet_find.return_value = sub_mods
             subnet_update.return_value = 1
+            network_find.return_value = {"id": 0, "ipam_strategy": "ANY"}
 
             def refresh_mock(sub):
                 sub["next_auto_assign_ip"] += 1
@@ -1794,6 +1797,7 @@ class TestQuarkIpPoliciesIpAllocation(QuarkIpamBaseTest):
         subnet = dict(id=1, first_ip=0, last_ip=255,
                       cidr="0.0.0.0/24", ip_version=4,
                       next_auto_assign_ip=0,
+                      subnet_strategy="ANY",
                       ip_policy=dict(size=1, exclude=[
                           models.IPPolicyCIDR(cidr="0.0.0.0/32")]))
         with self._stubs(subnets=[(subnet, 0)], addresses=[None, None]):

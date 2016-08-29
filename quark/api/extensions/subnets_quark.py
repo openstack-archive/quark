@@ -18,9 +18,11 @@ from neutron.api import extensions
 EXTENDED_ATTRIBUTES_2_0 = {
     "subnets": {
         "segment_id": {"allow_post": True, "allow_put": False,
-                       "default": None},
+                       "default": None, "is_visible": True},
         "ip_policy_id": {"allow_post": False, "allow_put": False,
-                         "default": None, "is_visible": True}
+                         "default": None, "is_visible": True},
+        "subnet_strategy": {"allow_post": True, "allow_put": False,
+                            "default": None, "is_visible": True}
     }
 }
 

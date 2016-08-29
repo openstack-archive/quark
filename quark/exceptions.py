@@ -111,6 +111,14 @@ class InvalidIpamStrategy(n_exc.BadRequest):
     message = _("IPAM Strategy %(strat)s is invalid.")
 
 
+class InvalidSubnetStrategy(n_exc.BadRequest):
+    message = _("Subnet Strategy %(strat)s is invalid.")
+
+
+class InvalidStrategyVersion(n_exc.BadRequest):
+    message = _("Strategy %(strat)s cannot be used with ip version: %(ver)s")
+
+
 class ProvidernetParamError(n_exc.NeutronException):
     message = _("%(msg)s")
 
