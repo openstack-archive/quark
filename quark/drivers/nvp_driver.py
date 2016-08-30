@@ -21,6 +21,7 @@ import contextlib
 import random
 
 import aiclib
+from neutron._i18n import _
 from neutron.extensions import securitygroup as sg_ext
 from oslo_config import cfg
 from oslo_log import log as logging

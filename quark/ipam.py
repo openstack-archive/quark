@@ -24,6 +24,7 @@ import time
 import uuid
 
 import netaddr
+from neutron._i18n import _
 from neutron.common import exceptions as n_exc_ext
 from neutron_lib import exceptions as n_exc
 from oslo_concurrency import lockutils

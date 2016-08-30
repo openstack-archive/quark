@@ -17,6 +17,7 @@ import random
 import sys
 import time
 
+from neutron._i18n import _
 from neutron.common import config
 from neutron.common import utils as n_utils
 from oslo_config import cfg

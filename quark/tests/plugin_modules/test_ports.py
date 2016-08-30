@@ -18,7 +18,7 @@ import json
 
 import mock
 import netaddr
-from neutron.api.v2 import attributes as neutron_attrs
+from neutron_lib import constants as neutron_attrs
 from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 

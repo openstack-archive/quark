@@ -25,7 +25,7 @@ except Exception:
     # Don't want to force pstats into the venv if it's not always used
     pass
 
-from neutron.api.v2 import attributes
+from neutron_lib import constants as attributes
 from neutron_lib import exceptions as n_exc
 from oslo_log import log as logging
 import webob

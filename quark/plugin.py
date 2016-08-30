@@ -17,6 +17,7 @@
 v2 Neutron Plug-in API Quark Implementation
 """
 
+from neutron._i18n import _
 from neutron.extensions import securitygroup as sg_ext
 from neutron import neutron_plugin_base_v2
 from neutron.quota import resource as qres

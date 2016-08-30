@@ -43,6 +43,7 @@ NOTE: assumes that the beginning of a billing cycle is midnight.
 """
 
 import datetime
+from neutron._i18n import _
 from neutron.common import rpc as n_rpc
 from oslo_config import cfg
 from oslo_log import log as logging

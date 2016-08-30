@@ -20,6 +20,8 @@ Unicorn driver for Quark
 import json
 import requests
 
+from neutron._i18n import _
+
 from oslo_config import cfg
 from oslo_log import log as logging
 

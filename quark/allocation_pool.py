@@ -14,6 +14,7 @@
 #    under the License.
 
 import netaddr
+from neutron._i18n import _
 from neutron.common import exceptions as n_exc_ext
 from oslo_log import log as logging
 

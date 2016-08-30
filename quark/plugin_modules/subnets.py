@@ -14,6 +14,7 @@
 #    under the License.
 
 import netaddr
+from neutron._i18n import _
 from neutron.common import config as neutron_cfg
 from neutron import quota
 from neutron_lib import exceptions as n_exc
