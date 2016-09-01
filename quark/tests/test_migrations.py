@@ -1,4 +1,3 @@
-import contextlib
 import datetime
 import os
 import tempfile
@@ -96,10 +95,8 @@ class Test2748e48cee3a(BaseMigrationTest):
             dict(id="222", created_at=datetime.date(1970, 1, 1),
                  ip_policy_id="111", cidr="192.168.10.0/16"))
 
-        with contextlib.nested(
-            mock.patch("oslo_utils.uuidutils"),
-            mock.patch("oslo_utils.timeutils")
-        ) as (uuid, tu):
+        with mock.patch("oslo_utils.uuidutils") as uuid, \
+                mock.patch("oslo_utils.timeutils") as tu:
             tu.utcnow.return_value = datetime.datetime(2004, 2, 14)
             uuid.generate_uuid.return_value = "foo"
             alembic_command.upgrade(self.config, '2748e48cee3a')
@@ -121,10 +118,8 @@ class Test2748e48cee3a(BaseMigrationTest):
             dict(id="222", created_at=datetime.date(1970, 1, 1),
                  ip_policy_id="111", cidr="fd00::/7"))
 
-        with contextlib.nested(
-            mock.patch("oslo_utils.uuidutils"),
-            mock.patch("oslo_utils.timeutils")
-        ) as (uuid, tu):
+        with mock.patch("oslo_utils.uuidutils") as uuid, \
+                mock.patch("oslo_utils.timeutils") as tu:
             tu.utcnow.return_value = datetime.datetime(2004, 2, 14)
             uuid.generate_uuid.return_value = "foo"
             alembic_command.upgrade(self.config, '2748e48cee3a')
@@ -168,10 +163,8 @@ class Test2748e48cee3a(BaseMigrationTest):
             dict(id="223", created_at=dt, ip_policy_id="113",
                  cidr="0.0.0.0/24"))
 
-        with contextlib.nested(
-            mock.patch("oslo_utils.uuidutils"),
-            mock.patch("oslo_utils.timeutils")
-        ) as (uuid, tu):
+        with mock.patch("oslo_utils.uuidutils") as uuid, \
+                mock.patch("oslo_utils.timeutils") as tu:
             tu.utcnow.return_value = datetime.datetime(2004, 2, 14)
             uuid.generate_uuid.return_value = "foo"
             alembic_command.upgrade(self.config, '2748e48cee3a')
@@ -202,10 +195,8 @@ class Test2748e48cee3a(BaseMigrationTest):
             dict(id="223", created_at=datetime.date(1970, 1, 1),
                  ip_policy_id="111", cidr="192.168.10.0/23"))
 
-        with contextlib.nested(
-            mock.patch("oslo_utils.uuidutils"),
-            mock.patch("oslo_utils.timeutils")
-        ) as (uuid, tu):
+        with mock.patch("oslo_utils.uuidutils") as uuid, \
+                mock.patch("oslo_utils.timeutils") as tu:
             tu.utcnow.return_value = datetime.datetime(2004, 2, 14)
             uuid.generate_uuid.return_value = "foo"
             alembic_command.upgrade(self.config, '2748e48cee3a')
@@ -276,10 +267,8 @@ class Test45a07fac3d38(BaseMigrationTest):
             self.ip_policy_cidrs.insert(),
             dict(id="222", created_at=datetime.date(1970, 1, 1),
                  ip_policy_id="111", cidr="192.168.10.13/32"))
-        with contextlib.nested(
-            mock.patch("oslo_utils.uuidutils"),
-            mock.patch("oslo_utils.timeutils")
-        ) as (uuid, tu):
+        with mock.patch("oslo_utils.uuidutils") as uuid, \
+                mock.patch("oslo_utils.timeutils") as tu:
             uuid.generate_uuid.side_effect = (1, 2, 3)
             tu.utcnow.return_value = datetime.datetime(1970, 1, 1)
             alembic_command.upgrade(self.config, '45a07fac3d38')
@@ -305,10 +294,8 @@ class Test45a07fac3d38(BaseMigrationTest):
             self.ip_policy_cidrs.insert(),
             dict(id="222", created_at=datetime.date(1970, 1, 1),
                  ip_policy_id="111", cidr="fd00::3/128"))
-        with contextlib.nested(
-            mock.patch("oslo_utils.uuidutils"),
-            mock.patch("oslo_utils.timeutils")
-        ) as (uuid, tu):
+        with mock.patch("oslo_utils.uuidutils") as uuid, \
+                mock.patch("oslo_utils.timeutils") as tu:
             uuid.generate_uuid.side_effect = (1, 2, 3)
             tu.utcnow.return_value = datetime.datetime(1970, 1, 1)
             alembic_command.upgrade(self.config, '45a07fac3d38')
@@ -479,10 +466,8 @@ class Test552b213c2b8c(BaseMigrationTest):
             self.subnets.insert(),
             dict(id="000", tenant_id="foo", _cidr="192.168.10.0/24",
                  ip_policy_id=None))
-        with contextlib.nested(
-            mock.patch("oslo_utils.uuidutils"),
-            mock.patch("oslo_utils.timeutils")
-        ) as (uuid, tu):
+        with mock.patch("oslo_utils.uuidutils") as uuid, \
+                mock.patch("oslo_utils.timeutils") as tu:
             dt = datetime.datetime(1970, 1, 1)
             tu.utcnow.return_value = dt
             uuid.generate_uuid.side_effect = ("666", "667", "668")
@@ -514,10 +499,8 @@ class Test552b213c2b8c(BaseMigrationTest):
             self.subnets.insert(),
             dict(id="000", tenant_id="foo", _cidr="fd00::/64",
                  ip_policy_id=None))
-        with contextlib.nested(
-            mock.patch("oslo_utils.uuidutils"),
-            mock.patch("oslo_utils.timeutils")
-        ) as (uuid, tu):
+        with mock.patch("oslo_utils.uuidutils") as uuid, \
+                mock.patch("oslo_utils.timeutils") as tu:
             dt = datetime.datetime(1970, 1, 1)
             tu.utcnow.return_value = dt
             uuid.generate_uuid.side_effect = ("666", "667", "668")
@@ -563,10 +546,8 @@ class Test552b213c2b8c(BaseMigrationTest):
             dict(id="221", created_at=dt,
                  ip_policy_id="111", cidr="192.168.10.13/32"))
 
-        with contextlib.nested(
-            mock.patch("oslo_utils.uuidutils"),
-            mock.patch("oslo_utils.timeutils")
-        ) as (uuid, tu):
+        with mock.patch("oslo_utils.uuidutils") as uuid, \
+                mock.patch("oslo_utils.timeutils") as tu:
             tu.utcnow.return_value = dt
             uuid.generate_uuid.side_effect = ("5", "6", "7", "8", "9", "10")
             alembic_command.upgrade(self.config, '552b213c2b8c')

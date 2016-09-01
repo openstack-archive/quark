@@ -69,18 +69,14 @@ class TestIpAddresses(test_quark_plugin.TestQuarkPlugin):
         def _alloc_ip(context, new_addr, net_id, port_m, *args, **kwargs):
             new_addr.extend([addr_model])
 
-        with contextlib.nested(
-            mock.patch("quark.db.api.network_find"),
-            mock.patch("quark.db.api.port_find"),
-            mock.patch(
-                "quark.plugin_modules.ip_addresses.ipam_driver"),
-            mock.patch(
-                "quark.plugin_modules.ip_addresses.db_api"
-                ".port_associate_ip"),
-            mock.patch(
-                "quark.plugin_modules.ip_addresses"
-                ".validate_and_fetch_segment")
-        ) as (net_f, port_find, mock_ipam, mock_port_associate_ip, validate):
+        with mock.patch("quark.db.api.network_find"), \
+                mock.patch("quark.db.api.port_find") as port_find, \
+                mock.patch("quark.plugin_modules.ip_addresses.ipam_driver") \
+                as mock_ipam, \
+                mock.patch("quark.plugin_modules.ip_addresses.db_api"
+                           ".port_associate_ip") as mock_port_associate_ip, \
+                mock.patch("quark.plugin_modules.ip_addresses"
+                           ".validate_and_fetch_segment"):
             port_find.return_value = port_model
             mock_ipam.allocate_ip_address.side_effect = _alloc_ip
             mock_port_associate_ip.side_effect = _port_associate_stub
@@ -433,16 +429,16 @@ class TestQuarkUpdateIPAddress(test_quark_plugin.TestQuarkPlugin):
                 addr_model.ports = port_models
 
         db_mod = "quark.db.api"
-        with contextlib.nested(
-            mock.patch("%s.port_find" % db_mod),
-            mock.patch("%s.ip_address_find" % db_mod),
-            mock.patch("%s.port_associate_ip" % db_mod),
-            mock.patch("%s.port_disassociate_ip" % db_mod),
-            mock.patch("quark.plugin_modules.ip_addresses"
-                       ".validate_and_fetch_segment"),
-            mock.patch("quark.plugin_modules.ip_addresses.ipam_driver")
-        ) as (port_find, ip_find, port_associate_ip,
-              port_disassociate_ip, val, mock_ipam):
+        with mock.patch("%s.port_find" % db_mod) as port_find, \
+                mock.patch("%s.ip_address_find" % db_mod) as ip_find, \
+                mock.patch("%s.port_associate_ip" % db_mod) as \
+                port_associate_ip, \
+                mock.patch("%s.port_disassociate_ip" % db_mod) as \
+                port_disassociate_ip, \
+                mock.patch("quark.plugin_modules.ip_addresses"
+                           ".validate_and_fetch_segment"), \
+                mock.patch("quark.plugin_modules.ip_addresses.ipam_driver") \
+                as mock_ipam:
             port_find.return_value = port_models
             ip_find.return_value = addr_model
             port_associate_ip.side_effect = _port_associate_stub

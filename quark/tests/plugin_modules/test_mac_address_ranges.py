@@ -144,10 +144,9 @@ class TestQuarkDeleteMacAddressRanges(test_quark_plugin.TestQuarkPlugin):
         db_mod = "quark.db.api"
         old_context = self.context
         self.context = self.context.elevated()
-        with contextlib.nested(
-            mock.patch("%s.mac_address_range_find" % db_mod),
-            mock.patch("%s.mac_address_range_delete" % db_mod),
-        ) as (mar_find, mar_delete):
+        with mock.patch("%s.mac_address_range_find" % db_mod) as mar_find, \
+                mock.patch("%s.mac_address_range_delete" % db_mod) as \
+                mar_delete:
             mar_find.return_value = mac_range
             yield mar_delete
         self.context = old_context

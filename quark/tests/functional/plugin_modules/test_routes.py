@@ -35,7 +35,7 @@ class QuarkCreateRoutes(BaseFunctionalTest):
     @contextlib.contextmanager
     def _stubs(self, network, subnet, ip_policy):
         self.ipam = quark.ipam.QuarkIpamANY()
-        with contextlib.nested(mock.patch("neutron.common.rpc.get_notifier")):
+        with mock.patch("neutron.common.rpc.get_notifier"):
             net = network_api.create_network(self.context, network)
             subnet['subnet']['network_id'] = net['id']
             sub1 = subnet_api.create_subnet(self.context, subnet)

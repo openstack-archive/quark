@@ -81,12 +81,11 @@ class TestQuarkCreateIpPolicies(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, ip_policy, subnets=None, nets=None):
         db_mod = "quark.db.api"
-        with contextlib.nested(
-            mock.patch("%s.subnet_find" % db_mod),
-            mock.patch("%s.network_find" % db_mod),
-            mock.patch("%s.ip_policy_create" % db_mod),
-            mock.patch("%s.route_find" % db_mod)
-        ) as (subnet_find, net_find, ip_policy_create, route_find):
+        with mock.patch("%s.subnet_find" % db_mod) as subnet_find, \
+                mock.patch("%s.network_find" % db_mod) as net_find, \
+                mock.patch("%s.ip_policy_create" % db_mod) as \
+                ip_policy_create, \
+                mock.patch("%s.route_find" % db_mod) as route_find:
             subnet_find.return_value = subnets if subnets else None
             net_find.return_value = nets if nets else None
             ip_policy_create.return_value = ip_policy
@@ -297,12 +296,11 @@ class TestQuarkUpdateIpPolicies(test_quark_plugin.TestQuarkPlugin):
         if not networks:
             networks = []
         db_mod = "quark.db.api"
-        with contextlib.nested(
-            mock.patch("%s.ip_policy_find" % db_mod),
-            mock.patch("%s.subnet_find" % db_mod),
-            mock.patch("%s.network_find" % db_mod),
-            mock.patch("%s.ip_policy_update" % db_mod),
-        ) as (ip_policy_find, subnet_find, network_find, ip_policy_update):
+        with mock.patch("%s.ip_policy_find" % db_mod) as ip_policy_find, \
+                mock.patch("%s.subnet_find" % db_mod) as subnet_find, \
+                mock.patch("%s.network_find" % db_mod) as network_find, \
+                mock.patch("%s.ip_policy_update" % db_mod) as \
+                ip_policy_update:
             ip_policy_find.return_value = ip_policy
             subnet_find.return_value = subnets
             network_find.return_value = networks
@@ -440,10 +438,8 @@ class TestQuarkDeleteIpPolicies(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, ip_policy):
         db_mod = "quark.db.api"
-        with contextlib.nested(
-            mock.patch("%s.ip_policy_find" % db_mod),
-            mock.patch("%s.ip_policy_delete" % db_mod),
-        ) as (ip_policy_find, ip_policy_delete):
+        with mock.patch("%s.ip_policy_find" % db_mod) as ip_policy_find, \
+                mock.patch("%s.ip_policy_delete" % db_mod) as ip_policy_delete:
             ip_policy_find.return_value = ip_policy
             yield ip_policy_find, ip_policy_delete
 
@@ -473,12 +469,10 @@ class TestQuarkUpdatePolicySubnetWithRoutes(test_quark_plugin.TestQuarkPlugin):
     def _stubs(self, ip_policy, subnets=None, routes=None):
         subnets = subnets or []
         db_mod = "quark.db.api"
-        with contextlib.nested(
-            mock.patch("%s.ip_policy_find" % db_mod),
-            mock.patch("%s.subnet_find" % db_mod),
-            mock.patch("%s.route_find" % db_mod),
-            mock.patch("%s.ip_policy_update" % db_mod),
-        ) as (ip_policy_find, subnet_find, route_find, ip_policy_update):
+        with mock.patch("%s.ip_policy_find" % db_mod) as ip_policy_find, \
+                mock.patch("%s.subnet_find" % db_mod) as subnet_find, \
+                mock.patch("%s.route_find" % db_mod) as route_find, \
+                mock.patch("%s.ip_policy_update" % db_mod) as ip_policy_update:
             ip_policy_find.return_value = ip_policy
             subnet_find.return_value = subnets
             route_find.return_value = routes

@@ -181,12 +181,10 @@ class TestQuarkCreateSubnetOverlapping(test_quark_plugin.TestQuarkPlugin):
             subnet_models.append(s)
         network = models.Network()
         network.update(dict(id=1, subnets=subnet_models))
-        with contextlib.nested(
-            mock.patch("quark.db.api.network_find"),
-            mock.patch("quark.db.api.subnet_find"),
-            mock.patch("quark.db.api.subnet_create"),
-            mock.patch("neutron.common.rpc.get_notifier")
-        ) as (net_find, subnet_find, subnet_create, get_notifier):
+        with mock.patch("quark.db.api.network_find") as net_find, \
+                mock.patch("quark.db.api.subnet_find") as subnet_find, \
+                mock.patch("quark.db.api.subnet_create") as subnet_create, \
+                mock.patch("neutron.common.rpc.get_notifier"):
             net_find.return_value = network
             subnet_find.return_value = subnet_models
             subnet_create.return_value = models.Subnet(
@@ -239,14 +237,11 @@ class TestQuarkCreateSubnetAllocationPools(test_quark_plugin.TestQuarkPlugin):
                 return mock.patch.object(models.Subnet, "allocation_pools")
             return mock.MagicMock()
 
-        with contextlib.nested(
-            mock.patch("quark.db.api.network_find"),
-            mock.patch("quark.db.api.subnet_find"),
-            mock.patch("quark.db.api.subnet_create"),
-            mock.patch("neutron.common.rpc.get_notifier"),
-            _allocation_pools_mock(),
-        ) as (net_find, subnet_find, subnet_create, get_notifier,
-              alloc_pools_method):
+        with mock.patch("quark.db.api.network_find") as net_find, \
+                mock.patch("quark.db.api.subnet_find") as subnet_find, \
+                mock.patch("quark.db.api.subnet_create") as subnet_create, \
+                mock.patch("neutron.common.rpc.get_notifier"), \
+                _allocation_pools_mock() as alloc_pools_method:
             net_find.return_value = s["network"]
             subnet_find.return_value = []
             subnet_create.return_value = s
@@ -401,19 +396,18 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
             if allocation_pools is not None:
                 return mock.patch.object(models.Subnet, "allocation_pools")
             return mock.MagicMock()
-        with contextlib.nested(
-            mock.patch("quark.db.api.subnet_create"),
-            mock.patch("quark.db.api.network_find"),
-            mock.patch("quark.db.api.dns_create"),
-            mock.patch("quark.db.api.route_create"),
-            mock.patch("quark.db.api.subnet_find"),
-            mock.patch("neutron.common.rpc.get_notifier"),
-            _allocation_pools_mock(),
-            mock.patch("sqlalchemy.orm.session.SessionTransaction.commit"),
-            mock.patch(
-                "sqlalchemy.orm.unitofwork.UOWTransaction.register_object")
-        ) as (subnet_create, net_find, dns_create, route_create, subnet_find,
-              get_notifier, alloc_pools_method, commit, register_object):
+        with mock.patch("quark.db.api.subnet_create") as subnet_create, \
+                mock.patch("quark.db.api.network_find") as net_find, \
+                mock.patch("quark.db.api.dns_create") as dns_create, \
+                mock.patch("quark.db.api.route_create") as route_create, \
+                mock.patch("quark.db.api.subnet_find"), \
+                mock.patch("neutron.common.rpc.get_notifier"), \
+                _allocation_pools_mock() as alloc_pools_method, \
+                mock.patch("sqlalchemy.orm.session."
+                           "SessionTransaction.commit"), \
+                mock.patch("sqlalchemy.orm.unitofwork."
+                           "UOWTransaction.register_object") as \
+                register_object:
             subnet_create.return_value = subnet_mod
             net_find.return_value = network
             route_create.side_effect = route_models
@@ -857,16 +851,13 @@ class TestQuarkAllocationPoolCache(test_quark_plugin.TestQuarkPlugin):
                                                  gateway=r["nexthop"],
                                                  subnet_id=subnet_mod["id"])
                                     for r in host_routes]
-        with contextlib.nested(
-            mock.patch("quark.db.api.subnet_find"),
-            mock.patch("quark.db.api.subnet_update"),
-            mock.patch("quark.db.api.dns_create"),
-            mock.patch("quark.db.api.route_find"),
-            mock.patch("quark.db.api.route_update"),
-            mock.patch("quark.db.api.route_create"),
-            mock.patch("sqlalchemy.orm.session.SessionTransaction.commit")
-        ) as (subnet_find, subnet_update, dns_create, route_find,
-              route_update, route_create, commit):
+        with mock.patch("quark.db.api.subnet_find") as subnet_find, \
+                mock.patch("quark.db.api.subnet_update") as subnet_update, \
+                mock.patch("quark.db.api.dns_create"), \
+                mock.patch("quark.db.api.route_find") as route_find, \
+                mock.patch("quark.db.api.route_update"), \
+                mock.patch("quark.db.api.route_create"), \
+                mock.patch("sqlalchemy.orm.session.SessionTransaction.commit"):
             subnet_find.return_value = subnet_mod
             if has_subnet:
                 route_find.return_value = (subnet_mod["routes"][0] if
@@ -963,19 +954,17 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
                                                  gateway=r["nexthop"],
                                                  subnet_id=subnet_mod["id"])
                                     for r in host_routes]
-        with contextlib.nested(
-            mock.patch("quark.db.api.subnet_find"),
-            mock.patch("quark.db.api.subnet_update"),
-            mock.patch("quark.db.api.dns_create"),
-            mock.patch("quark.db.api.route_find"),
-            mock.patch("quark.db.api.route_update"),
-            mock.patch("quark.db.api.route_create"),
-            mock.patch("sqlalchemy.orm.session.SessionTransaction.commit"),
-            mock.patch(
-                "sqlalchemy.orm.unitofwork.UOWTransaction.register_object")
-        ) as (subnet_find, subnet_update,
-              dns_create,
-              route_find, route_update, route_create, commit, register_object):
+        with mock.patch("quark.db.api.subnet_find") as subnet_find, \
+                mock.patch("quark.db.api.subnet_update") as subnet_update, \
+                mock.patch("quark.db.api.dns_create") as dns_create, \
+                mock.patch("quark.db.api.route_find") as route_find, \
+                mock.patch("quark.db.api.route_update") as route_update, \
+                mock.patch("quark.db.api.route_create") as route_create, \
+                mock.patch("sqlalchemy.orm.session."
+                           "SessionTransaction.commit"), \
+                mock.patch("sqlalchemy.orm.unitofwork."
+                           "UOWTransaction.register_object") as \
+                register_object:
             subnet_find.return_value = subnet_mod
             if has_subnet:
                 route_find.return_value = (subnet_mod["routes"][0] if
@@ -1216,12 +1205,11 @@ class TestQuarkDeleteSubnet(test_quark_plugin.TestQuarkPlugin):
             ip_mods.append(ip_mod)
 
         strategy_prefix = "quark.network_strategy.JSONStrategy"
-        with contextlib.nested(
-            mock.patch("quark.db.api.subnet_find"),
-            mock.patch("quark.db.api.subnet_delete"),
-            mock.patch("neutron.common.rpc.get_notifier"),
-            mock.patch("%s.is_provider_network" % strategy_prefix)
-        ) as (sub_find, sub_delete, get_notifier, is_provider_network):
+        with mock.patch("quark.db.api.subnet_find") as sub_find, \
+                mock.patch("quark.db.api.subnet_delete") as sub_delete, \
+                mock.patch("neutron.common.rpc.get_notifier"), \
+                mock.patch("%s.is_provider_network" % strategy_prefix) as \
+                is_provider_network:
             if subnet_mod:
                 subnet_mod.allocated_ips = ip_mods
             sub_find.return_value = subnet_mod
@@ -1288,17 +1276,16 @@ class TestSubnetsQuotas(test_quark_plugin.TestQuarkPlugin):
             s["_allocation_pool_cache"] = None
             subnet = models.Subnet(**s)
             subnets.append(subnet)
-        with contextlib.nested(
-            mock.patch("quark.plugin_modules.subnets.get_subnets"),
-            mock.patch("quark.db.api.subnet_find"),
-            mock.patch("quark.db.api.network_find"),
-            mock.patch("quark.db.api.subnet_create"),
-            mock.patch("quark.db.api.subnet_delete"),
-            mock.patch("neutron.common.rpc.get_notifier"),
-            mock.patch("oslo_utils.timeutils.utcnow"),
-            mock.patch("quark.plugin_modules.subnets._validate_subnet_cidr")
-        ) as (get_subnets, sub_find, net_find, sub_create, sub_del, notify,
-              time_func, sub_validate):
+        with mock.patch("quark.plugin_modules.subnets.get_subnets") as \
+                get_subnets, \
+                mock.patch("quark.db.api.subnet_find") as sub_find, \
+                mock.patch("quark.db.api.network_find"), \
+                mock.patch("quark.db.api.subnet_create") as sub_create, \
+                mock.patch("quark.db.api.subnet_delete"), \
+                mock.patch("neutron.common.rpc.get_notifier") as notify, \
+                mock.patch("oslo_utils.timeutils.utcnow") as time_func, \
+                mock.patch("quark.plugin_modules.subnets."
+                           "_validate_subnet_cidr"):
             sub_create.return_value = subnets[0]
             sub_find.return_value = subnets[0]
             retsubs = []
@@ -1473,17 +1460,14 @@ class TestQuarkDiagnoseSubnets(test_quark_plugin.TestQuarkPlugin):
 class TestQuarkCreateSubnetAttrFilters(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self):
-        with contextlib.nested(
-            mock.patch("quark.db.api.subnet_create"),
-            mock.patch("quark.db.api.network_find"),
-            mock.patch("quark.db.api.dns_create"),
-            mock.patch("quark.db.api.route_create"),
-            mock.patch("quark.plugin_views._make_subnet_dict"),
-            mock.patch("quark.db.api.subnet_find"),
-            mock.patch("neutron.common.rpc.get_notifier"),
-            mock.patch("sqlalchemy.orm.session.SessionTransaction.commit")
-        ) as (subnet_create, net_find, dns_create, route_create, sub_dict,
-              subnet_find, get_notifier, commit):
+        with mock.patch("quark.db.api.subnet_create") as subnet_create, \
+                mock.patch("quark.db.api.network_find") as net_find, \
+                mock.patch("quark.db.api.dns_create"), \
+                mock.patch("quark.db.api.route_create") as route_create, \
+                mock.patch("quark.plugin_views._make_subnet_dict"), \
+                mock.patch("quark.db.api.subnet_find"), \
+                mock.patch("neutron.common.rpc.get_notifier"), \
+                mock.patch("sqlalchemy.orm.session.SessionTransaction.commit"):
             route_create.return_value = models.Route()
             yield subnet_create, net_find
 
@@ -1534,17 +1518,14 @@ class TestQuarkUpdateSubnetAttrFilters(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self):
         pool_mod = "quark.allocation_pool.AllocationPools"
-        with contextlib.nested(
-            mock.patch("quark.db.api.subnet_find"),
-            mock.patch("quark.db.api.subnet_update"),
-            mock.patch("quark.db.api.dns_create"),
-            mock.patch("quark.db.api.route_find"),
-            mock.patch("quark.db.api.route_update"),
-            mock.patch("quark.db.api.route_create"),
-            mock.patch(pool_mod),
-            mock.patch("quark.plugin_views._make_subnet_dict")
-        ) as (subnet_find, subnet_update, dns_create, route_find,
-              route_update, route_create, make_subnet, gateway_exclude):
+        with mock.patch("quark.db.api.subnet_find") as subnet_find, \
+                mock.patch("quark.db.api.subnet_update") as subnet_update, \
+                mock.patch("quark.db.api.dns_create"), \
+                mock.patch("quark.db.api.route_find"), \
+                mock.patch("quark.db.api.route_update"), \
+                mock.patch("quark.db.api.route_create"), \
+                mock.patch(pool_mod), \
+                mock.patch("quark.plugin_views._make_subnet_dict"):
             yield subnet_update, subnet_find
 
     def test_update_subnet_attr_filters(self):

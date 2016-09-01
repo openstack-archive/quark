@@ -152,10 +152,8 @@ class TestQuarkUpdateSecurityGroup(test_quark_plugin.TestQuarkPlugin):
         updated_group = group.copy()
         updated_group["name"] = "bar"
 
-        with contextlib.nested(
-                mock.patch("quark.db.api.security_group_find"),
-                mock.patch("quark.db.api.security_group_update"),
-        ) as (db_find, db_update):
+        with mock.patch("quark.db.api.security_group_find") as db_find, \
+                mock.patch("quark.db.api.security_group_update") as db_update:
             db_find.return_value = group
             db_update.return_value = updated_group
             update = dict(security_group=dict(name="bar"))
@@ -179,10 +177,8 @@ class TestQuarkCreateSecurityGroup(test_quark_plugin.TestQuarkPlugin):
         dbgroup = models.SecurityGroup()
         dbgroup.update(security_group)
 
-        with contextlib.nested(
-                mock.patch("quark.db.api.security_group_find"),
-                mock.patch("quark.db.api.security_group_create"),
-        ) as (db_find, db_create):
+        with mock.patch("quark.db.api.security_group_find") as db_find, \
+                mock.patch("quark.db.api.security_group_create") as db_create:
             db_find.return_value.count.return_value = other
             db_create.return_value = dbgroup
             yield db_create
@@ -234,10 +230,9 @@ class TestQuarkDeleteSecurityGroup(test_quark_plugin.TestQuarkPlugin):
             dbgroup = models.SecurityGroup()
             dbgroup.update(security_group)
 
-        with contextlib.nested(
-            mock.patch("quark.db.api.security_group_find"),
-            mock.patch("quark.db.api.security_group_delete"),
-        ) as (group_find, db_group_delete):
+        with mock.patch("quark.db.api.security_group_find") as group_find, \
+                mock.patch("quark.db.api.security_group_delete") as \
+                db_group_delete:
             group_find.return_value = dbgroup
             db_group_delete.return_value = dbgroup
             yield db_group_delete
@@ -303,13 +298,15 @@ class TestQuarkCreateSecurityGroupRule(test_quark_plugin.TestQuarkPlugin):
             dbrule["group_id"] = rule['security_group_id']
             return dbrule
 
-        with contextlib.nested(
-            mock.patch("quark.db.api.security_group_find"),
-            mock.patch("quark.db.api.security_group_rule_find"),
-            mock.patch("quark.db.api.security_group_rule_create"),
-            mock.patch("quark.protocols.human_readable_protocol"),
-            mock.patch("neutron.quota.QuotaEngine.limit_check")
-        ) as (group_find, rule_find, rule_create, human, limit_check):
+        with mock.patch("quark.db.api.security_group_find") as group_find, \
+                mock.patch("quark.db.api.security_group_rule_find") as \
+                rule_find, \
+                mock.patch("quark.db.api.security_group_rule_create") as \
+                rule_create, \
+                mock.patch("quark.protocols.human_readable_protocol") as \
+                human, \
+                mock.patch("neutron.quota.QuotaEngine.limit_check") as \
+                limit_check:
             group_find.return_value = dbgroup
             rule_find.return_value.count.return_value = group.get(
                 'port_rules', None) if group else 0
@@ -435,11 +432,11 @@ class TestQuarkDeleteSecurityGroupRule(test_quark_plugin.TestQuarkPlugin):
             dbrule = models.SecurityGroupRule()
             dbrule.update(dict(rule, group=dbgroup))
 
-        with contextlib.nested(
-                mock.patch("quark.db.api.security_group_find"),
-                mock.patch("quark.db.api.security_group_rule_find"),
-                mock.patch("quark.db.api.security_group_rule_delete"),
-        ) as (group_find, rule_find, db_group_delete):
+        with mock.patch("quark.db.api.security_group_find") as group_find, \
+                mock.patch("quark.db.api.security_group_rule_find") as \
+                rule_find, \
+                mock.patch("quark.db.api.security_group_rule_delete") as \
+                db_group_delete:
             group_find.return_value = dbgroup
             rule_find.return_value = dbrule
             yield db_group_delete
@@ -545,16 +542,16 @@ class TestQuarkProtocolHandling(test_quark_plugin.TestQuarkPlugin):
 class TestSecurityGroupExceptions(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, finds_rule=True):
-        with contextlib.nested(
-            mock.patch("quark.db.api.security_group_find"),
-            mock.patch("quark.db.api.security_group_rule_find"),
-            mock.patch("neutron.extensions.securitygroup."
-                       "SecurityGroupNotFound.__init__"),
-            mock.patch("neutron.extensions.securitygroup."
-                       "SecurityGroupRuleNotFound.__init__"),
-            mock.patch("quark.plugin_modules.security_groups."
-                       "_validate_security_group_rule")
-        ) as (group_find, rule_find, group_exc, rule_exc, validate):
+        with mock.patch("quark.db.api.security_group_find") as group_find, \
+                mock.patch("quark.db.api.security_group_rule_find") as \
+                rule_find, \
+                mock.patch("neutron.extensions.securitygroup."
+                           "SecurityGroupNotFound.__init__") as group_exc, \
+                mock.patch("neutron.extensions.securitygroup."
+                           "SecurityGroupRuleNotFound.__init__") as \
+                rule_exc, \
+                mock.patch("quark.plugin_modules.security_groups."
+                           "_validate_security_group_rule"):
             group_find.return_value = None
             rule_find.return_value = None
             if finds_rule:

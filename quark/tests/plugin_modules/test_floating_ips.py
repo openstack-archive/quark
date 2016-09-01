@@ -18,7 +18,7 @@ import contextlib
 import datetime
 import mock
 import netaddr
-from neutron.common import exceptions as ex
+from neutron_lib import exceptions as n_exc
 
 from quark.billing import IP_ASSOC
 from quark.billing import IP_DISASSOC
@@ -36,18 +36,15 @@ class TestRemoveFloatingIPs(test_quark_plugin.TestQuarkPlugin):
             flip_model = models.IPAddress()
             flip_model.update(flip)
 
-        with contextlib.nested(
-            mock.patch("quark.db.api.floating_ip_find"),
-            mock.patch("quark.db.api.floating_ip_disassociate_fixed_ip"),
-            mock.patch("quark.db.api.port_disassociate_ip"),
-            mock.patch("quark.db.api.ip_address_deallocate"),
-            mock.patch("quark.ipam.QuarkIpam.deallocate_ip_address"),
-            mock.patch("quark.drivers.unicorn_driver.UnicornDriver"
-                       ".remove_floating_ip"),
-            mock.patch("quark.billing.notify"),
-            mock.patch("quark.billing.build_payload")
-        ) as (flip_find, db_fixed_ip_disassoc, db_port_disassoc, db_dealloc,
-              mock_dealloc, mock_remove_flip, notify, build_payload):
+        with mock.patch("quark.db.api.floating_ip_find") as flip_find, \
+                mock.patch("quark.db.api.floating_ip_disassociate_fixed_ip"), \
+                mock.patch("quark.db.api.port_disassociate_ip"), \
+                mock.patch("quark.db.api.ip_address_deallocate"), \
+                mock.patch("quark.ipam.QuarkIpam.deallocate_ip_address"), \
+                mock.patch("quark.drivers.unicorn_driver.UnicornDriver"
+                           ".remove_floating_ip"), \
+                mock.patch("quark.billing.notify"), \
+                mock.patch("quark.billing.build_payload") as build_payload:
             flip_find.return_value = flip_model
             build_payload.return_value = {'respek': '4reelz'}
             yield
@@ -230,19 +227,18 @@ class TestCreateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
             addr.fixed_ips.append(fixed_ip)
             return addr
 
-        with contextlib.nested(
-            mock.patch("quark.db.api.floating_ip_find"),
-            mock.patch("quark.db.api.network_find"),
-            mock.patch("quark.db.api.port_find"),
-            mock.patch("quark.ipam.QuarkIpam.allocate_ip_address"),
-            mock.patch("quark.drivers.unicorn_driver.UnicornDriver"
-                       ".register_floating_ip"),
-            mock.patch("quark.db.api.port_associate_ip"),
-            mock.patch("quark.db.api.floating_ip_associate_fixed_ip"),
-            mock.patch("quark.billing.notify"),
-            mock.patch("quark.billing.build_payload")
-        ) as (flip_find, net_find, port_find, alloc_ip, mock_reg_flip,
-              port_assoc, fixed_ip_assoc, notify, build_payload):
+        with mock.patch("quark.db.api.floating_ip_find") as flip_find, \
+                mock.patch("quark.db.api.network_find") as net_find, \
+                mock.patch("quark.db.api.port_find") as port_find, \
+                mock.patch("quark.ipam.QuarkIpam.allocate_ip_address") as \
+                alloc_ip, \
+                mock.patch("quark.drivers.unicorn_driver.UnicornDriver"
+                           ".register_floating_ip"), \
+                mock.patch("quark.db.api.port_associate_ip") as port_assoc, \
+                mock.patch("quark.db.api.floating_ip_associate_fixed_ip") as \
+                fixed_ip_assoc, \
+                mock.patch("quark.billing.notify"), \
+                mock.patch("quark.billing.build_payload") as build_payload:
             flip_find.return_value = flip_model
             net_find.return_value = net_model
             port_find.return_value = port_model
@@ -348,14 +344,14 @@ class TestCreateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
 
     def test_create_without_network_id_fails(self):
         with self._stubs():
-            with self.assertRaises(ex.BadRequest):
+            with self.assertRaises(n_exc.BadRequest):
                 request = dict(port_id=2, floating_ip_address="10.0.0.1")
                 self.plugin.create_floatingip(self.context,
                                               dict(floatingip=request))
 
     def test_create_with_invalid_network_fails(self):
         with self._stubs():
-            with self.assertRaises(ex.NetworkNotFound):
+            with self.assertRaises(n_exc.NetworkNotFound):
                 request = dict(floating_network_id=123,
                                port_id=2, floating_ip_address="10.0.0.1")
                 self.plugin.create_floatingip(self.context,
@@ -366,7 +362,7 @@ class TestCreateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
                        ipam_strategy="ANY")
 
         with self._stubs(network=network):
-            with self.assertRaises(ex.PortNotFound):
+            with self.assertRaises(n_exc.PortNotFound):
                 request = dict(floating_network_id=network["id"],
                                port_id=2, floating_ip_address="10.0.0.1")
                 self.plugin.create_floatingip(self.context,
@@ -565,25 +561,24 @@ class TestUpdateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
             """We don't want to notify from tests"""
             pass
 
-        with contextlib.nested(
-            mock.patch("quark.db.api.floating_ip_find"),
-            mock.patch("quark.db.api.network_find"),
-            mock.patch("quark.db.api.subnet_find"),
-            mock.patch("quark.db.api.port_find"),
-            mock.patch("quark.drivers.unicorn_driver.UnicornDriver"
-                       ".register_floating_ip"),
-            mock.patch("quark.drivers.unicorn_driver.UnicornDriver"
-                       ".update_floating_ip"),
-            mock.patch("quark.drivers.unicorn_driver.UnicornDriver"
-                       ".remove_floating_ip"),
-            mock.patch("quark.db.api.port_associate_ip"),
-            mock.patch("quark.db.api.port_disassociate_ip"),
-            mock.patch("quark.db.api.floating_ip_associate_fixed_ip"),
-            mock.patch("quark.db.api.floating_ip_disassociate_fixed_ip"),
-            mock.patch("quark.billing.notify")
-        ) as (flip_find, net_find, subnet_find, port_find, reg_flip,
-                update_flip, rem_flip, port_assoc, port_dessoc, flip_assoc,
-                flip_dessoc, notify):
+        with mock.patch("quark.db.api.floating_ip_find") as flip_find, \
+                mock.patch("quark.db.api.network_find") as net_find, \
+                mock.patch("quark.db.api.subnet_find") as subnet_find, \
+                mock.patch("quark.db.api.port_find") as port_find, \
+                mock.patch("quark.drivers.unicorn_driver.UnicornDriver"
+                           ".register_floating_ip"), \
+                mock.patch("quark.drivers.unicorn_driver.UnicornDriver"
+                           ".update_floating_ip"), \
+                mock.patch("quark.drivers.unicorn_driver.UnicornDriver"
+                           ".remove_floating_ip"), \
+                mock.patch("quark.db.api.port_associate_ip") as port_assoc, \
+                mock.patch("quark.db.api.port_disassociate_ip") as \
+                port_dessoc, \
+                mock.patch("quark.db.api.floating_ip_associate_fixed_ip") as \
+                flip_assoc, \
+                mock.patch("quark.db.api.floating_ip_disassociate_fixed_ip") \
+                as flip_dessoc, \
+                mock.patch("quark.billing.notify") as notify:
             flip_find.return_value = flip_model
             net_find.return_value = net_model
             subnet_find.return_value = subnet_model
@@ -698,7 +693,7 @@ class TestUpdateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
                     address_readable=str(addr))
 
         with self._stubs(flip=flip):
-            with self.assertRaises(ex.PortNotFound):
+            with self.assertRaises(n_exc.PortNotFound):
                 content = dict(port_id="123")
                 self.plugin.update_floatingip(self.context, flip["id"],
                                               dict(floatingip=content))
@@ -763,7 +758,7 @@ class TestUpdateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
 
     def test_update_with_missing_port_id_param_should_fail(self):
         with self._stubs():
-            with self.assertRaises(ex.BadRequest):
+            with self.assertRaises(n_exc.BadRequest):
                 content = {}
                 self.plugin.update_floatingip(self.context, "123",
                                               dict(floatingip=content))

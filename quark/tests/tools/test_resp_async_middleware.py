@@ -12,7 +12,6 @@
 # implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import contextlib
 import json
 import mock
 
@@ -57,10 +56,8 @@ class TestRespAsyncIDMiddleware(test_base.TestBase):
 
     def test_mw_none_context(self):
         mw = jobmw.filter_factory(self.conf)(self.app)
-        with contextlib.nested(
-                mock.patch('%s._get_resp' % mw_mock_path),
-                mock.patch('%s._get_ctx' % mw_mock_path)) as \
-                (get_resp, get_ctx):
+        with mock.patch('%s._get_resp' % mw_mock_path) as get_resp, \
+                mock.patch('%s._get_ctx' % mw_mock_path) as get_ctx:
             get_resp.return_value = self.resp_return
             get_ctx.return_value = self.none_ctx
             resp = mw.__call__.request('/', method='GET', body=self.body)
@@ -71,10 +68,8 @@ class TestRespAsyncIDMiddleware(test_base.TestBase):
 
     def test_mw_empty_context(self):
         mw = jobmw.filter_factory(self.conf)(self.app)
-        with contextlib.nested(
-                mock.patch('%s._get_resp' % mw_mock_path),
-                mock.patch('%s._get_ctx' % mw_mock_path)) as \
-                (get_resp, get_ctx):
+        with mock.patch('%s._get_resp' % mw_mock_path) as get_resp, \
+                mock.patch('%s._get_ctx' % mw_mock_path) as get_ctx:
             get_resp.return_value = self.resp_return
             get_ctx.return_value = self.no_ctx
             resp = mw.__call__.request('/', method='GET', body=self.body)
@@ -85,10 +80,8 @@ class TestRespAsyncIDMiddleware(test_base.TestBase):
 
     def test_mw_missing_context(self):
         mw = jobmw.filter_factory(self.conf)(self.app)
-        with contextlib.nested(
-                mock.patch('%s._get_resp' % mw_mock_path),
-                mock.patch('%s._get_ctx' % mw_mock_path)) as \
-                (get_resp, get_ctx):
+        with mock.patch('%s._get_resp' % mw_mock_path) as get_resp, \
+                mock.patch('%s._get_ctx' % mw_mock_path) as get_ctx:
             get_resp.return_value = self.resp_return
             get_ctx.return_value = self.random_ctx
             resp = mw.__call__.request('/', method='GET', body=self.body)
@@ -99,10 +92,8 @@ class TestRespAsyncIDMiddleware(test_base.TestBase):
 
     def test_mw_modify_resp(self):
         mw = jobmw.filter_factory(self.conf)(self.app)
-        with contextlib.nested(
-                mock.patch('%s._get_resp' % mw_mock_path),
-                mock.patch('%s._get_ctx' % mw_mock_path)) as \
-                (get_resp, get_ctx):
+        with mock.patch('%s._get_resp' % mw_mock_path) as get_resp, \
+                mock.patch('%s._get_ctx' % mw_mock_path) as get_ctx:
             get_resp.return_value = self.resp_return
             get_ctx.return_value = self.job_ctx
             resp = mw.__call__.request('/', method='GET', body=self.body)
@@ -116,10 +107,8 @@ class TestRespAsyncIDMiddleware(test_base.TestBase):
 
     def test_mw_error_resp(self):
         mw = jobmw.filter_factory(self.conf)(self.app)
-        with contextlib.nested(
-                mock.patch('%s._get_resp' % mw_mock_path),
-                mock.patch('%s._get_ctx' % mw_mock_path)) as \
-                (get_resp, get_ctx):
+        with mock.patch('%s._get_resp' % mw_mock_path) as get_resp, \
+                mock.patch('%s._get_ctx' % mw_mock_path) as get_ctx:
             get_resp.return_value = self.err_resp
             get_ctx.return_value = self.job_ctx
             resp = mw.__call__.request('/', method='GET', body=self.body)

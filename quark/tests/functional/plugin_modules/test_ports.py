@@ -19,6 +19,7 @@ import netaddr
 import contextlib
 
 from neutron.common import exceptions as q_exc
+from neutron_lib import exceptions as n_exc
 
 from quark.db import api as db_api
 import quark.plugin_modules.mac_address_ranges as macrng_api
@@ -53,9 +54,8 @@ class QuarkFindPortsSorted(BaseFunctionalTest):
 class QuarkCreatePortSatisfyIpam(BaseFunctionalTest):
     @contextlib.contextmanager
     def _stubs(self, network_info, subnet_v4_info, subnet_v6_info=None):
-        with contextlib.nested(
-                mock.patch("neutron.common.rpc.get_notifier"),
-                mock.patch("neutron.quota.QUOTAS.limit_check")):
+        with mock.patch("neutron.common.rpc.get_notifier"), \
+                mock.patch("neutron.quota.QUOTAS.limit_check"):
             self.context.is_admin = True
             net = network_api.create_network(self.context, network_info)
             mac = {'mac_address_range': dict(cidr="AA:BB:CC")}
@@ -130,16 +130,15 @@ class QuarkCreatePortSatisfyIpam(BaseFunctionalTest):
         with self._stubs(network, subnet_v4_info) as (
                 net, sub_v4, sub_v6):
             ip = "192.168.1.50"
-            with self.assertRaises(q_exc.IpAddressGenerationFailure):
+            with self.assertRaises(n_exc.IpAddressGenerationFailure):
                 port_api.create_port(self.context, _make_body_only_v4(ip))
 
 
 class QuarkCreatePortWithIpNotMandatory(BaseFunctionalTest):
     @contextlib.contextmanager
     def _stubs(self, network_info, subnet_v4_infos, subnet_v6_info=None):
-        with contextlib.nested(
-                mock.patch("neutron.common.rpc.get_notifier"),
-                mock.patch("neutron.quota.QUOTAS.limit_check")):
+        with mock.patch("neutron.common.rpc.get_notifier"), \
+                mock.patch("neutron.quota.QUOTAS.limit_check"):
             self.context.is_admin = True
             net = network_api.create_network(self.context, network_info)
             mac = {'mac_address_range': dict(cidr="AA:BB:CC")}
@@ -238,9 +237,8 @@ class QuarkCreatePortWithIpNotMandatory(BaseFunctionalTest):
 class QuarkCreatePortWithForbiddenMacRange(BaseFunctionalTest):
     @contextlib.contextmanager
     def _stubs(self, network_info, subnet_v4_infos, subnet_v6_info=None):
-        with contextlib.nested(
-                mock.patch("neutron.common.rpc.get_notifier"),
-                mock.patch("neutron.quota.QUOTAS.limit_check")):
+        with mock.patch("neutron.common.rpc.get_notifier"), \
+                mock.patch("neutron.quota.QUOTAS.limit_check"):
             self.context.is_admin = True
             net = network_api.create_network(self.context, network_info)
             mac = {'mac_address_range': dict(cidr="AA:BB:CC", do_not_use=True)}
@@ -353,9 +351,8 @@ class QuarkPortFixedIPOperations(BaseFunctionalTest):
 
     @contextlib.contextmanager
     def _stubs(self, network_info, subnet_info):
-        with contextlib.nested(
-                mock.patch("neutron.common.rpc.get_notifier"),
-                mock.patch("neutron.quota.QUOTAS.limit_check")):
+        with mock.patch("neutron.common.rpc.get_notifier"), \
+                mock.patch("neutron.quota.QUOTAS.limit_check"):
             mac = {'mac_address_range': dict(cidr="AA:BB:CC")}
             self.context.is_admin = True
             macrng_api.create_mac_address_range(self.context, mac)
@@ -516,9 +513,8 @@ class QuarkAdvancedServiceCreatePort(BaseFunctionalTest):
 
     @contextlib.contextmanager
     def _stubs(self, network_info, subnet_info):
-        with contextlib.nested(
-                mock.patch("neutron.common.rpc.get_notifier"),
-                mock.patch("neutron.quota.QUOTAS.limit_check")):
+        with mock.patch("neutron.common.rpc.get_notifier"), \
+                mock.patch("neutron.quota.QUOTAS.limit_check"):
             mac = {'mac_address_range': dict(cidr="AA:BB:CC")}
             self.context.is_admin = True
             macrng_api.create_mac_address_range(self.context, mac)
@@ -549,7 +545,7 @@ class QuarkAdvancedServiceCreatePort(BaseFunctionalTest):
                                   'tenant_id': 'someoneelse'}}
             self.context.is_admin = True
             self.context.is_advsvc = False
-            self.assertRaises(q_exc.NotAuthorized,
+            self.assertRaises(n_exc.NotAuthorized,
                               port_api.create_port, self.context, port_info)
 
     def test_cant_create_port_without_admin(self):
@@ -562,5 +558,5 @@ class QuarkAdvancedServiceCreatePort(BaseFunctionalTest):
             # check, quark will first attempt to retrieve the network but
             # since networks are scoped by tenant when it is not an admin,
             # it will not be found
-            self.assertRaises(q_exc.NetworkNotFound,
+            self.assertRaises(n_exc.NetworkNotFound,
                               port_api.create_port, self.context, port_info)

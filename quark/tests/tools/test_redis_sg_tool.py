@@ -152,11 +152,11 @@ class QuarkRedisSgToolPurgeOrphans(QuarkRedisSgToolBase):
     def _stubs(self):
         ports = [{"device_id": 1, "mac_address": 1}]
         vifs = ["1.1", "2.2", "3.3"]
-        with contextlib.nested(
-            mock.patch("neutron.context.get_admin_context"),
-            mock.patch("quark.db.api.ports_with_security_groups_find"),
-            mock.patch("%s._get_connection" % TOOL_MOD)
-        ) as (get_admin_ctxt, db_ports_groups, get_conn):
+        with mock.patch("neutron.context.get_admin_context") as \
+                get_admin_ctxt, \
+                mock.patch("quark.db.api.ports_with_security_groups_find") \
+                as db_ports_groups, \
+                mock.patch("%s._get_connection" % TOOL_MOD) as get_conn:
             connection_mock = mock.MagicMock()
             get_conn.return_value = connection_mock
             ports_with_groups_mock = mock.MagicMock()
@@ -216,12 +216,13 @@ class QuarkRedisSgToolWriteGroups(QuarkRedisSgToolBase):
         vifs = ["1.1", "2.2", "3.3"]
         security_groups = [{"id": 1, "name": "test_group"}]
 
-        with contextlib.nested(
-            mock.patch("neutron.context.get_admin_context"),
-            mock.patch("quark.db.api.security_group_rule_find"),
-            mock.patch("quark.db.api.ports_with_security_groups_find"),
-            mock.patch("%s._get_connection" % TOOL_MOD)
-        ) as (get_admin_ctxt, rule_find, db_ports_groups, get_conn):
+        with mock.patch("neutron.context.get_admin_context") as \
+                get_admin_ctxt, \
+                mock.patch("quark.db.api.security_group_rule_find") as \
+                rule_find, \
+                mock.patch("quark.db.api.ports_with_security_groups_find") \
+                as db_ports_groups, \
+                mock.patch("%s._get_connection" % TOOL_MOD) as get_conn:
             connection_mock = mock.MagicMock()
             get_conn.return_value = connection_mock
             ports_with_groups_mock = mock.MagicMock()

@@ -199,10 +199,8 @@ class TestQuarkUpdateNetwork(test_quark_plugin.TestQuarkPlugin):
             net_mod = net.copy()
 
         db_mod = "quark.db.api"
-        with contextlib.nested(
-            mock.patch("%s.network_find" % db_mod),
-            mock.patch("%s.network_update" % db_mod)
-        ) as (net_find, net_update):
+        with mock.patch("%s.network_find" % db_mod) as net_find, \
+                mock.patch("%s.network_update" % db_mod) as net_update:
             net_find.return_value = net_mod
             net_update.return_value = net_mod
             yield net_update
@@ -266,14 +264,12 @@ class TestQuarkDeleteNetwork(test_quark_plugin.TestQuarkPlugin):
 
         db_mod = "quark.db.api"
         strategy_prefix = "quark.network_strategy.JSONStrategy"
-        with contextlib.nested(
-            mock.patch("%s.network_find" % db_mod),
-            mock.patch("%s.network_delete" % db_mod),
-            mock.patch("quark.drivers.base.BaseDriver.delete_network"),
-            mock.patch("%s.subnet_delete" % db_mod),
-            mock.patch("%s.is_provider_network" % strategy_prefix)
-        ) as (net_find, net_delete, driver_net_delete, subnet_del,
-              is_provider_network):
+        with mock.patch("%s.network_find" % db_mod) as net_find, \
+                mock.patch("%s.network_delete" % db_mod) as net_delete, \
+                mock.patch("quark.drivers.base.BaseDriver.delete_network"), \
+                mock.patch("%s.subnet_delete" % db_mod), \
+                mock.patch("%s.is_provider_network" % strategy_prefix) as \
+                is_provider_network:
             net_find.return_value = net_mod
             is_provider_network.return_value = True
             yield net_delete
@@ -341,12 +337,10 @@ class TestQuarkCreateNetwork(test_quark_plugin.TestQuarkPlugin):
             found_net = models.Network()
 
         db_mod = "quark.db.api"
-        with contextlib.nested(
-            mock.patch("%s.network_create" % db_mod),
-            mock.patch("%s.subnet_create" % db_mod),
-            mock.patch("quark.drivers.base.BaseDriver.create_network"),
-            mock.patch("%s.network_find" % db_mod)
-        ) as (net_create, sub_create, driver_net_create, net_find):
+        with mock.patch("%s.network_create" % db_mod) as net_create, \
+                mock.patch("%s.subnet_create" % db_mod) as sub_create, \
+                mock.patch("quark.drivers.base.BaseDriver.create_network"), \
+                mock.patch("%s.network_find" % db_mod) as net_find:
             net_create.return_value = net_mod
             sub_create.return_value = subnet_mod
             net_find.return_value = found_net

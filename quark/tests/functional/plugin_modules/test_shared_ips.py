@@ -73,9 +73,8 @@ class QuarkSharedIPs(BaseFunctionalTest):
     @contextlib.contextmanager
     def _stubs(self, network_info, subnet_info, ports_info):
         self.ipam = quark.ipam.QuarkIpamANY()
-        with contextlib.nested(
-                mock.patch("neutron.common.rpc.get_notifier"),
-                mock.patch("neutron.quota.QUOTAS.limit_check")):
+        with mock.patch("neutron.common.rpc.get_notifier"), \
+                mock.patch("neutron.quota.QUOTAS.limit_check"):
             net = network_api.create_network(self.admin_context, network_info)
             mac = {'mac_address_range': dict(cidr="AA:BB:CC")}
             macrng_api.create_mac_address_range(self.admin_context, mac)
@@ -481,8 +480,7 @@ class QuarkSharedIPsQuotaCheck(BaseFunctionalTest):
     @contextlib.contextmanager
     def _stubs(self, network_info, subnet_info, ports_info):
         self.ipam = quark.ipam.QuarkIpamANY()
-        with contextlib.nested(
-                mock.patch("neutron.common.rpc.get_notifier")):
+        with mock.patch("neutron.common.rpc.get_notifier"):
             self.context.is_admin = True
             net = network_api.create_network(self.context, network_info)
             mac = {'mac_address_range': dict(cidr="AA:BB:CC")}
@@ -667,9 +665,8 @@ class QuarkTestSharedIpAddressesQuota(BaseFunctionalTest):
     @contextlib.contextmanager
     def _stubs(self, network_info, subnet_info, ports_info):
         self.ipam = quark.ipam.QuarkIpamANY()
-        with contextlib.nested(
-                mock.patch("neutron.common.rpc.get_notifier"),
-                mock.patch("neutron.quota.QUOTAS.limit_check")):
+        with mock.patch("neutron.common.rpc.get_notifier"), \
+                mock.patch("neutron.quota.QUOTAS.limit_check"):
             net = network_api.create_network(self.admin_context, network_info)
             mac = {'mac_address_range': dict(cidr="AA:BB:CC")}
             macrng_api.create_mac_address_range(self.admin_context, mac)

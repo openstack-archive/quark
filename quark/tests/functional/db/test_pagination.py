@@ -76,9 +76,8 @@ class QuarkSubnetsPaginationFunctionalTest(BaseFunctionalTest):
 class QuarkPortsPaginationFunctionalTest(BaseFunctionalTest):
     @contextlib.contextmanager
     def _stubs(self, network_info, subnet_info):
-        with contextlib.nested(
-                mock.patch("neutron.common.rpc.get_notifier"),
-                mock.patch("neutron.quota.QUOTAS.limit_check")):
+        with mock.patch("neutron.common.rpc.get_notifier"), \
+                mock.patch("neutron.quota.QUOTAS.limit_check"):
             self.context.is_admin = True
             net = network_api.create_network(self.context, network_info)
             mac = {'mac_address_range': dict(cidr="AA:BB:CC")}

@@ -142,9 +142,8 @@ class QuarkTestReserveIPAdminWithPorts(BaseFunctionalTest):
 
     @contextlib.contextmanager
     def _stubs(self):
-        with contextlib.nested(
-                mock.patch("neutron.common.rpc.get_notifier"),
-                mock.patch("neutron.quota.QUOTAS.limit_check")):
+        with mock.patch("neutron.common.rpc.get_notifier"), \
+                mock.patch("neutron.quota.QUOTAS.limit_check"):
             mac = {'mac_address_range': dict(cidr="AA:BB:CC")}
             self.context.is_admin = True
             macrng_api.create_mac_address_range(self.context, mac)

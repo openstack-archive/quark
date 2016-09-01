@@ -112,20 +112,24 @@ class QuarkMacAddressAllocateDeallocated(QuarkIpamBaseTest):
         mac_range = dict(id=1, first_address=0, last_address=255,
                          next_auto_assign_mac=0, do_not_use=do_not_use,
                          cidr="AA:BB:CC/24")
-        with contextlib.nested(
-            mock.patch("quark.db.api.mac_address_reallocate"),
-            mock.patch("quark.db.api.mac_address_reallocate_find"),
-            mock.patch("quark.db.api."
-                       "mac_address_range_find_allocation_counts"),
-            mock.patch("quark.db.api.mac_address_create"),
-            mock.patch("quark.db.api.mac_address_range_find"),
-            mock.patch("quark.db.api.mac_address_delete"),
-            mock.patch("quark.db.api.mac_range_update_next_auto_assign_mac"),
-            mock.patch("quark.db.api.mac_range_update_set_full"),
-            mock.patch("sqlalchemy.orm.session.Session.refresh")
-        ) as (addr_realloc, addr_realloc_find, mac_range_count,
-              mac_create, range_find, mac_delete, mac_auto_assign, set_full,
-              refresh):
+        with mock.patch("quark.db.api.mac_address_reallocate") as \
+                addr_realloc, \
+                mock.patch("quark.db.api.mac_address_reallocate_find") as \
+                addr_realloc_find, \
+                mock.patch("quark.db.api."
+                           "mac_address_range_find_allocation_counts") as \
+                mac_range_count, \
+                mock.patch("quark.db.api.mac_address_create") as mac_create, \
+                mock.patch("quark.db.api.mac_address_range_find") as \
+                range_find, \
+                mock.patch("quark.db.api.mac_address_delete") as mac_delete, \
+                mock.patch("quark.db.api."
+                           "mac_range_update_next_auto_assign_mac") as \
+                mac_auto_assign, \
+                mock.patch("quark.db.api.mac_range_update_set_full") as \
+                set_full, \
+                mock.patch("sqlalchemy.orm.session.Session.refresh") as \
+                refresh:
             address_mod = models.MacAddress(**address)
             range_mod = models.MacAddressRange(**mac_range)
             if mac_find:
@@ -174,14 +178,16 @@ class QuarkNewMacAddressAllocation(QuarkIpamBaseTest):
     def _stubs(self, addresses=None, ranges=None):
         if not addresses:
             addresses = [None]
-        with contextlib.nested(
-            mock.patch("quark.db.api.mac_address_find"),
-            mock.patch("quark.db.api."
-                       "mac_address_range_find_allocation_counts"),
-            mock.patch("quark.db.api.mac_range_update_next_auto_assign_mac"),
-            mock.patch("quark.db.api.mac_range_update_set_full"),
-            mock.patch("sqlalchemy.orm.session.Session.refresh")
-        ) as (mac_find, mac_range_count, mac_auto, mac_set_full, refresh):
+        with mock.patch("quark.db.api.mac_address_find") as mac_find, \
+                mock.patch("quark.db.api."
+                           "mac_address_range_find_allocation_counts") as \
+                mac_range_count, \
+                mock.patch("quark.db.api."
+                           "mac_range_update_next_auto_assign_mac"), \
+                mock.patch("quark.db.api.mac_range_update_set_full") as \
+                mac_set_full, \
+                mock.patch("sqlalchemy.orm.session.Session.refresh") as \
+                refresh:
             address_mod = [mac_helper(a) for a in addresses]
             range_mod = (range_helper(ranges[0]), ranges[1])
             mac_find.side_effect = address_mod
@@ -264,12 +270,12 @@ class QuarkNewMacAddressAllocationCreateConflict(QuarkIpamBaseTest):
     def _stubs(self, addresses=None, ranges=None):
         if not addresses:
             addresses = [None]
-        with contextlib.nested(
-            mock.patch("quark.db.api.mac_address_find"),
-            mock.patch("quark.db.api.mac_address_create"),
-            mock.patch("quark.db.api."
-                       "mac_address_range_find_allocation_counts"),
-        ) as (mac_find, mac_create, mac_range_count):
+        with mock.patch("quark.db.api.mac_address_find") as mac_find, \
+                mock.patch("quark.db.api.mac_address_create") as \
+                mac_create, \
+                mock.patch("quark.db.api."
+                           "mac_address_range_find_allocation_counts") as \
+                mac_range_count:
             mac_find.side_effect = [None, None]
             address_mod = [mac_helper(a) for a in addresses]
             mac_create.side_effect = address_mod
@@ -295,12 +301,13 @@ class QuarkNewMacAddressReallocationDeadlocks(QuarkIpamBaseTest):
             addresses = [None]
         old_override = cfg.CONF.QUARK.mac_address_retry_max
         cfg.CONF.set_override('mac_address_retry_max', 1, 'QUARK')
-        with contextlib.nested(
-            mock.patch("quark.db.api.mac_address_reallocate"),
-            mock.patch("quark.db.api.mac_address_create"),
-            mock.patch("quark.db.api."
-                       "mac_address_range_find_allocation_counts"),
-        ) as (mac_realloc, mac_create, mac_range_count):
+        with mock.patch("quark.db.api.mac_address_reallocate") as \
+                mac_realloc, \
+                mock.patch("quark.db.api.mac_address_create") as \
+                mac_create, \
+                mock.patch("quark.db.api."
+                           "mac_address_range_find_allocation_counts") as \
+                mac_range_count:
             mac_realloc.side_effect = [Exception, None]
             mac_create.side_effect = addresses
             mac_range_count.return_value = ranges
@@ -321,12 +328,11 @@ class QuarkNewMacAddressReallocationDeadlocks(QuarkIpamBaseTest):
 class QuarkMacAddressDeallocation(QuarkIpamBaseTest):
     @contextlib.contextmanager
     def _stubs(self, mac, mac_range):
-        with contextlib.nested(
-            mock.patch("quark.db.api.mac_address_find"),
-            mock.patch("quark.db.api.mac_address_update"),
-            mock.patch("quark.db.api.mac_address_range_find"),
-            mock.patch("quark.db.api.mac_address_delete")
-        ) as (mac_find, mac_update, range_find, mac_delete):
+        with mock.patch("quark.db.api.mac_address_find") as mac_find, \
+                mock.patch("quark.db.api.mac_address_update") as mac_update, \
+                mock.patch("quark.db.api.mac_address_range_find") as \
+                range_find, \
+                mock.patch("quark.db.api.mac_address_delete") as mac_delete:
             mac_update.return_value = mac
             mac_find.return_value = mac
             range_find.return_value = mac_range
@@ -478,18 +484,20 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
     def _stubs(self, addresses=None, subnets=None):
         if not addresses:
             addresses = [None, None]
-        with contextlib.nested(
-            mock.patch("quark.db.api.ip_address_reallocate"),
-            mock.patch("quark.db.api.ip_address_reallocate_find"),
-            mock.patch("quark.db.api.ip_address_find"),
-            mock.patch("quark.db.api.subnet_find_ordered_by_most_full"),
-            mock.patch("quark.db.api.subnet_find"),
-            mock.patch("quark.db.api.subnet_update_next_auto_assign_ip"),
-            mock.patch("quark.db.api.subnet_update_set_full"),
-            mock.patch("sqlalchemy.orm.session.Session.refresh")
-        ) as (addr_realloc, addr_realloc_find, addr_find,
-              subnet_alloc_find, subnet_find, subnet_update,
-              subnet_set_full, refresh):
+        with mock.patch("quark.db.api.ip_address_reallocate") as \
+                addr_realloc, \
+                mock.patch("quark.db.api.ip_address_reallocate_find") as \
+                addr_realloc_find, \
+                mock.patch("quark.db.api.ip_address_find") as addr_find, \
+                mock.patch("quark.db.api.subnet_find_ordered_by_most_full") \
+                as subnet_alloc_find, \
+                mock.patch("quark.db.api.subnet_find") as subnet_find, \
+                mock.patch("quark.db.api.subnet_update_next_auto_assign_ip") \
+                as subnet_update, \
+                mock.patch("quark.db.api.subnet_update_set_full") as \
+                subnet_set_full, \
+                mock.patch("sqlalchemy.orm.session.Session.refresh") as \
+                refresh:
             addr_mods = []
             sub_mods = []
             for a in addresses:
@@ -887,16 +895,19 @@ class QuarkIpamTestBothRequiredIpAllocation(QuarkIpamBaseTest):
         if not addresses:
             addresses = [None, None]
         self.context.session.add = mock.Mock()
-        with contextlib.nested(
-            mock.patch("quark.db.api.ip_address_reallocate"),
-            mock.patch("quark.db.api.ip_address_reallocate_find"),
-            mock.patch("quark.db.api.ip_address_find"),
-            mock.patch("quark.db.api.subnet_find_ordered_by_most_full"),
-            mock.patch("quark.db.api.subnet_update_next_auto_assign_ip"),
-            mock.patch("quark.db.api.subnet_update_set_full"),
-            mock.patch("sqlalchemy.orm.session.Session.refresh")
-        ) as (addr_realloc, addr_realloc_find, addr_find,
-              subnet_find, subnet_update, subnet_set_full, refresh):
+        with mock.patch("quark.db.api.ip_address_reallocate") as \
+                addr_realloc, \
+                mock.patch("quark.db.api.ip_address_reallocate_find") as \
+                addr_realloc_find, \
+                mock.patch("quark.db.api.ip_address_find") as addr_find, \
+                mock.patch("quark.db.api.subnet_find_ordered_by_most_full") \
+                as subnet_find, \
+                mock.patch("quark.db.api.subnet_update_next_auto_assign_ip") \
+                as subnet_update, \
+                mock.patch("quark.db.api.subnet_update_set_full") as \
+                subnet_set_full, \
+                mock.patch("sqlalchemy.orm.session.Session.refresh") as \
+                refresh:
             addrs = [ip_helper(a) for a in addresses]
             addr_realloc.side_effect = addrs[:1]
             addr_realloc_find.side_effect = addrs[:1]
@@ -1129,12 +1140,14 @@ class QuarkIpamAllocateFromV6Subnet(QuarkIpamBaseTest):
             ip_mod["allocated_at"] = timeutils.utcnow()
             ip_mod["version"] = ip_address.version
 
-        with contextlib.nested(
-            mock.patch("quark.db.models.IPPolicy.get_cidrs_ip_set"),
-            mock.patch("quark.db.api.ip_address_find"),
-            mock.patch("quark.db.api.ip_address_create"),
-            mock.patch("quark.db.api.ip_address_update")
-        ) as (policy_find, ip_address_find, ip_create, ip_update):
+        with mock.patch("quark.db.models.IPPolicy.get_cidrs_ip_set") as \
+                policy_find, \
+                mock.patch("quark.db.api.ip_address_find") as \
+                ip_address_find, \
+                mock.patch("quark.db.api.ip_address_create") as \
+                ip_create, \
+                mock.patch("quark.db.api.ip_address_update") as \
+                ip_update:
             policy_find.return_value = policies
             ip_address_find.return_value = ip_mod
             ip_create.return_value = ip_mod
@@ -1194,16 +1207,19 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
         if not addresses:
             addresses = [None]
         self.context.session.add = mock.Mock()
-        with contextlib.nested(
-            mock.patch("quark.db.api.ip_address_reallocate"),
-            mock.patch("quark.db.api.ip_address_reallocate_find"),
-            mock.patch("quark.db.api.ip_address_find"),
-            mock.patch("quark.db.api.subnet_find_ordered_by_most_full"),
-            mock.patch("quark.db.api.subnet_update_next_auto_assign_ip"),
-            mock.patch("quark.db.api.subnet_update_set_full"),
-            mock.patch("sqlalchemy.orm.session.Session.refresh")
-        ) as (addr_realloc, addr_realloc_find, addr_find,
-              subnet_find, subnet_update, subnet_set_full, refresh):
+        with mock.patch("quark.db.api.ip_address_reallocate") as \
+                addr_realloc, \
+                mock.patch("quark.db.api.ip_address_reallocate_find") as \
+                addr_realloc_find, \
+                mock.patch("quark.db.api.ip_address_find") as addr_find, \
+                mock.patch("quark.db.api.subnet_find_ordered_by_most_full") \
+                as subnet_find, \
+                mock.patch("quark.db.api.subnet_update_next_auto_assign_ip") \
+                as subnet_update, \
+                mock.patch("quark.db.api.subnet_update_set_full") as \
+                subnet_set_full, \
+                mock.patch("sqlalchemy.orm.session.Session.refresh") as \
+                refresh:
             addrs = [ip_helper(a) for a in addresses]
             addr_realloc.side_effect = addrs[:1]
             addr_realloc_find.side_effect = addrs[:1]
@@ -1496,15 +1512,16 @@ class QuarkIPAddressAllocationTestRetries(QuarkIpamBaseTest):
     @contextlib.contextmanager
     def _stubs(self, address=None, subnets=None):
         self.context.session.add = mock.Mock()
-        with contextlib.nested(
-            mock.patch("quark.db.api.ip_address_find"),
-            mock.patch("quark.db.api.ip_address_create"),
-            mock.patch("quark.db.api.subnet_find_ordered_by_most_full"),
-            mock.patch("quark.db.api.subnet_update_next_auto_assign_ip"),
-            mock.patch("quark.db.api.subnet_update_set_full"),
-            mock.patch("sqlalchemy.orm.session.Session.refresh")
-        ) as (addr_find, addr_create, subnet_find, subnet_update,
-              subnet_set_full, refresh):
+        with mock.patch("quark.db.api.ip_address_find") as addr_find, \
+                mock.patch("quark.db.api.ip_address_create") as addr_create, \
+                mock.patch("quark.db.api.subnet_find_ordered_by_most_full") \
+                as subnet_find, \
+                mock.patch("quark.db.api.subnet_update_next_auto_assign_ip") \
+                as subnet_update, \
+                mock.patch("quark.db.api.subnet_update_set_full") as \
+                subnet_set_full, \
+                mock.patch("sqlalchemy.orm.session.Session.refresh") as \
+                refresh:
             addr_find.side_effect = [None, None, None]
             addr_mods = []
             for a in address:
@@ -1635,14 +1652,14 @@ class QuarkIPAddressAllocateDeallocated(QuarkIpamBaseTest):
     @contextlib.contextmanager
     def _stubs(self, ip_find, subnet, address, addresses_found,
                sub_found=True):
-        with contextlib.nested(
-            mock.patch("quark.db.api.ip_address_reallocate"),
-            mock.patch("quark.db.api.ip_address_reallocate_find"),
-            mock.patch("quark.db.api.ip_address_find"),
-            mock.patch("quark.db.api.ip_address_update"),
-            mock.patch("quark.ipam.QuarkIpamANY._choose_available_subnet")
-        ) as (addr_realloc, addr_realloc_find, addr_find, addr_update,
-              choose_subnet):
+        with mock.patch("quark.db.api.ip_address_reallocate") as \
+                addr_realloc, \
+                mock.patch("quark.db.api.ip_address_reallocate_find") as \
+                addr_realloc_find, \
+                mock.patch("quark.db.api.ip_address_find") as addr_find, \
+                mock.patch("quark.db.api.ip_address_update") as addr_update, \
+                mock.patch("quark.ipam.QuarkIpamANY."
+                           "_choose_available_subnet") as choose_subnet:
             addr_mod = models.IPAddress(**address)
             subnet_mod = models.Subnet(**subnet)
             subnet_mod["next_auto_assign_ip"] = subnet["next_auto_assign_ip"]
@@ -1703,13 +1720,15 @@ class TestQuarkIpPoliciesIpAllocation(QuarkIpamBaseTest):
         if not addresses:
             addresses = [None]
         self.context.session.add = mock.Mock()
-        with contextlib.nested(
-            mock.patch("quark.db.api.ip_address_find"),
-            mock.patch("quark.db.api.subnet_find_ordered_by_most_full"),
-            mock.patch("quark.db.api.subnet_update_next_auto_assign_ip"),
-            mock.patch("quark.db.api.subnet_update_set_full"),
-            mock.patch("sqlalchemy.orm.session.Session.refresh")
-        ) as (addr_find, subnet_find, subnet_update, subnet_set_full, refresh):
+        with mock.patch("quark.db.api.ip_address_find") as addr_find, \
+                mock.patch("quark.db.api.subnet_find_ordered_by_most_full") \
+                as subnet_find, \
+                mock.patch("quark.db.api.subnet_update_next_auto_assign_ip") \
+                as subnet_update, \
+                mock.patch("quark.db.api.subnet_update_set_full") as \
+                subnet_set_full, \
+                mock.patch("sqlalchemy.orm.session.Session.refresh") as \
+                refresh:
             addr_find.side_effect = [ip_helper(a) for a in addresses]
             sub_mods = []
             if subnets:
@@ -1813,16 +1832,16 @@ class QuarkIPAddressAllocationNotifications(QuarkIpamBaseTest):
     def _stubs(self, address, addresses=None, subnets=None, deleted_at=None):
         if not addresses:
             addresses = [None]
-        with contextlib.nested(
-            mock.patch("quark.db.api.ip_address_find"),
-            mock.patch("quark.db.api.ip_address_create"),
-            mock.patch("quark.db.api.subnet_find_ordered_by_most_full"),
-            mock.patch("quark.db.api.subnet_update_next_auto_assign_ip"),
-            mock.patch("sqlalchemy.orm.session.Session.refresh"),
-            mock.patch("neutron.common.rpc.get_notifier"),
-            mock.patch("oslo_utils.timeutils.utcnow"),
-        ) as (addr_find, addr_create, subnet_find, subnet_update, refresh,
-              notify, timeutils):
+        with mock.patch("quark.db.api.ip_address_find") as addr_find, \
+                mock.patch("quark.db.api.ip_address_create") as addr_create, \
+                mock.patch("quark.db.api.subnet_find_ordered_by_most_full") \
+                as subnet_find, \
+                mock.patch("quark.db.api.subnet_update_next_auto_assign_ip") \
+                as subnet_update, \
+                mock.patch("sqlalchemy.orm.session.Session.refresh") as \
+                refresh, \
+                mock.patch("neutron.common.rpc.get_notifier") as notify, \
+                mock.patch("oslo_utils.timeutils.utcnow") as timeutils:
             addrs_found = []
             for a in addresses:
                 if a:
@@ -1952,12 +1971,14 @@ class QuarkIpamTestV6IpGeneration(QuarkIpamBaseTest):
 class QuarkIpamTestSelectSubnet(QuarkIpamBaseTest):
     @contextlib.contextmanager
     def _stubs(self, subnet, count, increments=True, marks_full=True):
-        with contextlib.nested(
-            mock.patch("quark.db.api.subnet_find_ordered_by_most_full"),
-            mock.patch("quark.db.api.subnet_update_next_auto_assign_ip"),
-            mock.patch("quark.db.api.subnet_update_set_full"),
-            mock.patch("sqlalchemy.orm.session.Session.refresh"),
-        ) as (subnet_find, subnet_incr, subnet_set_full, refresh):
+        with mock.patch("quark.db.api.subnet_find_ordered_by_most_full") \
+                as subnet_find, \
+                mock.patch("quark.db.api.subnet_update_next_auto_assign_ip") \
+                as subnet_incr, \
+                mock.patch("quark.db.api.subnet_update_set_full") as \
+                subnet_set_full, \
+                mock.patch("sqlalchemy.orm.session.Session.refresh") as \
+                refresh:
             sub_mods = []
             sub_mods.append((subnet_helper(subnet), count))
 
@@ -2049,12 +2070,13 @@ class QuarkIpamTestSelectSubnet(QuarkIpamBaseTest):
 class QuarkIpamTestSelectSubnetLocking(QuarkIpamBaseTest):
     @contextlib.contextmanager
     def _stubs(self, subnet, count, increments=True, marks_full=True):
-        with contextlib.nested(
-            mock.patch("quark.db.api.subnet_find_ordered_by_most_full"),
-            mock.patch("quark.db.api.subnet_update_next_auto_assign_ip"),
-            mock.patch("quark.db.api.subnet_update_set_full"),
-            mock.patch("sqlalchemy.orm.session.Session.refresh"),
-        ) as (subnet_find, subnet_incr, subnet_set_full, refresh):
+        with mock.patch("quark.db.api.subnet_find_ordered_by_most_full") as \
+                subnet_find, \
+                mock.patch("quark.db.api.subnet_update_next_auto_assign_ip") \
+                as subnet_incr, \
+                mock.patch("quark.db.api.subnet_update_set_full") as \
+                subnet_set_full, \
+                mock.patch("sqlalchemy.orm.session.Session.refresh"):
             sub_mods = []
             sub_mods.append((subnet_helper(subnet), count))
 
@@ -2228,12 +2250,13 @@ class IronicIpamTestSelectSubnet(QuarkIpamBaseTest):
 
     @contextlib.contextmanager
     def _stubs(self, subnet, count, increments=True, marks_full=True):
-        with contextlib.nested(
-            mock.patch("quark.db.api.subnet_find_unused"),
-            mock.patch("quark.db.api.subnet_update_next_auto_assign_ip"),
-            mock.patch("quark.db.api.subnet_update_set_full"),
-            mock.patch("sqlalchemy.orm.session.Session.refresh"),
-        ) as (subnet_find, subnet_incr, subnet_set_full, refresh):
+        with mock.patch("quark.db.api.subnet_find_unused") as subnet_find, \
+                mock.patch("quark.db.api.subnet_update_next_auto_assign_ip") \
+                as subnet_incr, \
+                mock.patch("quark.db.api.subnet_update_set_full") as \
+                subnet_set_full, \
+                mock.patch("sqlalchemy.orm.session.Session.refresh") as \
+                refresh:
             sub_mods = []
             sub_mods.append((subnet_helper(subnet), count))
 

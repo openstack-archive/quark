@@ -57,17 +57,16 @@ class TestQuarkCreateRoutes(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, create_route, find_routes, subnet):
         db_mod = "quark.db.api"
-        with contextlib.nested(
-            mock.patch("%s.route_create" % db_mod),
-            mock.patch("%s.route_find" % db_mod),
-            mock.patch("%s.subnet_find" % db_mod),
-            # This module can't run independently otherwise, as the Quota
-            # model isn't defined in this test unit, and no clean way to
-            # use a model such that it would be defined. In other words,
-            # running the other tests still has side-effects, which should
-            # be investigated and cleaned up later.
-            mock.patch("neutron.quota.QuotaEngine.limit_check")
-        ) as (route_create, route_find, subnet_find, quota):
+        # QuotaEngine.limit_check must be mocked:
+        # This module can't run independently otherwise, as the Quota
+        # model isn't defined in this test unit, and no clean way to
+        # use a model such that it would be defined. In other words,
+        # running the other tests still has side-effects, which should
+        # be investigated and cleaned up later.
+        with mock.patch("%s.route_create" % db_mod) as route_create, \
+                mock.patch("%s.route_find" % db_mod) as route_find, \
+                mock.patch("%s.subnet_find" % db_mod) as subnet_find, \
+                mock.patch("neutron.quota.QuotaEngine.limit_check"):
             route_create.return_value = create_route
             route_find.return_value = find_routes
             subnet_find.return_value = subnet
@@ -117,10 +116,8 @@ class TestQuarkDeleteRoutes(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self, route):
         db_mod = "quark.db.api"
-        with contextlib.nested(
-            mock.patch("%s.route_delete" % db_mod),
-            mock.patch("%s.route_find" % db_mod),
-        ) as (route_delete, route_find):
+        with mock.patch("%s.route_delete" % db_mod) as route_delete, \
+                mock.patch("%s.route_find" % db_mod) as route_find:
             route_find.return_value = route
             yield route_delete, route_find
 

@@ -77,12 +77,10 @@ class SecurityGroupsAsyncUpdateTests(BaseFunctionalTest):
         cls = 'QuarkSGAsyncProcessClient'
         mod_path = 'quark.worker_plugins.sg_update_worker.%s' % cls
         job_path = 'quark.plugin_modules.jobs'
-        with contextlib.nested(
-                mock.patch("neutron.common.rpc.get_notifier"),
-                mock.patch("neutron.quota.QUOTAS.limit_check"),
-                mock.patch("%s.add_job_to_context" % job_path),
-                mock.patch("%s.start_update" % mod_path)) as \
-                (notifier, limit_check, addjob, update):
+        with mock.patch("neutron.common.rpc.get_notifier"), \
+                mock.patch("neutron.quota.QUOTAS.limit_check"), \
+                mock.patch("%s.add_job_to_context" % job_path), \
+                mock.patch("%s.start_update" % mod_path) as update:
             self.context.is_admin = True
             net = network_api.create_network(self.context, network_info)
             mac = {'mac_address_range': dict(cidr="AA:BB:CC")}

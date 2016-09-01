@@ -62,7 +62,7 @@ class QuarkGetSubnetsFromPlugin(BaseFunctionalTest):
     @contextlib.contextmanager
     def _stubs(self, network, subnet):
         self.ipam = quark.ipam.QuarkIpamANY()
-        with contextlib.nested(mock.patch("neutron.common.rpc.get_notifier")):
+        with mock.patch("neutron.common.rpc.get_notifier"):
             net = network_api.create_network(self.context, network)
             subnet['subnet']['network_id'] = net['id']
             sub1 = subnet_api.create_subnet(self.context, subnet)
@@ -93,7 +93,7 @@ class QuarkCreateSubnets(BaseFunctionalTest):
     @contextlib.contextmanager
     def _stubs(self, network, subnet):
         self.ipam = quark.ipam.QuarkIpamANY()
-        with contextlib.nested(mock.patch("neutron.common.rpc.get_notifier")):
+        with mock.patch("neutron.common.rpc.get_notifier"):
             net = network_api.create_network(self.context, network)
             subnet['subnet']['network_id'] = net['id']
             sub1 = subnet_api.create_subnet(self.context, subnet)
@@ -227,7 +227,7 @@ class QuarkUpdateSubnets(BaseFunctionalTest):
     @contextlib.contextmanager
     def _stubs(self, network, subnet):
         self.ipam = quark.ipam.QuarkIpamANY()
-        with contextlib.nested(mock.patch("neutron.common.rpc.get_notifier")):
+        with mock.patch("neutron.common.rpc.get_notifier"):
             net = network_api.create_network(self.context, network)
             subnet['subnet']['network_id'] = net['id']
             sub1 = subnet_api.create_subnet(self.context, subnet)

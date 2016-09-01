@@ -57,9 +57,7 @@ class TestQuarkGetPorts(test_quark_plugin.TestQuarkPlugin):
                 port_model.ip_addresses = addr_models
             port_models = port_model
 
-        with contextlib.nested(
-            mock.patch("quark.db.api.port_find")
-        ) as (port_find,):
+        with mock.patch("quark.db.api.port_find") as port_find:
             port_find.return_value = port_models
             yield
 
@@ -237,9 +235,7 @@ class TestQuarkGetPortsProviderSubnetIds(test_quark_plugin.TestQuarkPlugin):
                             port_model, addr_model)
             port_models = port_model
 
-        with contextlib.nested(
-            mock.patch("quark.db.api.port_find")
-        ) as (port_find,):
+        with mock.patch("quark.db.api.port_find") as port_find:
             port_find.return_value = port_models
             yield
 
@@ -308,9 +304,8 @@ class TestQuarkGetPortsByIPAddress(test_quark_plugin.TestQuarkPlugin):
             ip_mod.ports = [port_model]
             addr_models.append(ip_mod)
 
-        with contextlib.nested(
-            mock.patch("quark.db.api.port_find_by_ip_address")
-        ) as (port_find_by_addr,):
+        with mock.patch("quark.db.api.port_find_by_ip_address") as \
+                port_find_by_addr:
             port_find_by_addr.return_value = addr_models
             yield
 
@@ -354,15 +349,14 @@ class TestQuarkCreatePortFailure(test_quark_plugin.TestQuarkPlugin):
         port_model.update(port)
         port_models = port_model
 
-        with contextlib.nested(
-            mock.patch("quark.db.api.port_create"),
-            mock.patch("quark.db.api.network_find"),
-            mock.patch("quark.db.api.port_find"),
-            mock.patch("quark.ipam.QuarkIpam.allocate_ip_address"),
-            mock.patch("quark.ipam.QuarkIpam.allocate_mac_address"),
-            mock.patch("quark.db.api.port_count_all"),
-        ) as (port_create, net_find, port_find, alloc_ip, alloc_mac,
-              port_count):
+        with mock.patch("quark.db.api.port_create") as port_create, \
+                mock.patch("quark.db.api.network_find") as net_find, \
+                mock.patch("quark.db.api.port_find") as port_find, \
+                mock.patch("quark.ipam.QuarkIpam.allocate_ip_address") as \
+                alloc_ip, \
+                mock.patch("quark.ipam.QuarkIpam.allocate_mac_address") as \
+                alloc_mac, \
+                mock.patch("quark.db.api.port_count_all") as port_count:
             port_create.return_value = port_models
             net_find.return_value = network
             port_find.return_value = models.Port()
@@ -412,15 +406,12 @@ class TestQuarkCreatePortRM9305(test_quark_plugin.TestQuarkPlugin):
         port_models = port_model
         db_mod = "quark.db.api"
         ipam = "quark.ipam.QuarkIpam"
-        with contextlib.nested(
-            mock.patch("%s.port_create" % db_mod),
-            mock.patch("%s.network_find" % db_mod),
-            mock.patch("%s.port_find" % db_mod),
-            mock.patch("%s.allocate_ip_address" % ipam),
-            mock.patch("%s.allocate_mac_address" % ipam),
-            mock.patch("%s.port_count_all" % db_mod),
-        ) as (port_create, net_find, port_find, alloc_ip, alloc_mac,
-              port_count):
+        with mock.patch("%s.port_create" % db_mod) as port_create, \
+                mock.patch("%s.network_find" % db_mod) as net_find, \
+                mock.patch("%s.port_find" % db_mod) as port_find, \
+                mock.patch("%s.allocate_ip_address" % ipam) as alloc_ip, \
+                mock.patch("%s.allocate_mac_address" % ipam) as alloc_mac, \
+                mock.patch("%s.port_count_all" % db_mod) as port_count:
             port_create.return_value = port_models
             net_find.return_value = network
             port_find.return_value = None
@@ -515,16 +506,16 @@ class TestQuarkCreatePortsSameDevBadRequest(test_quark_plugin.TestQuarkPlugin):
             new_ips.extend([ip_mod])
             return mock.DEFAULT
 
-        with contextlib.nested(
-            mock.patch("quark.db.api.port_create"),
-            mock.patch("quark.db.api.network_find"),
-            mock.patch("quark.ipam.QuarkIpam.allocate_ip_address"),
-            mock.patch("quark.ipam.QuarkIpam.allocate_mac_address"),
-            mock.patch("quark.db.api.port_count_all"),
-            mock.patch("neutron.quota.QuotaEngine.limit_check"),
-            mock.patch("quark.db.api.subnet_find"),
-        ) as (port_create, net_find, alloc_ip, alloc_mac, port_count,
-              limit_check, subnet_find):
+        with mock.patch("quark.db.api.port_create") as port_create, \
+                mock.patch("quark.db.api.network_find") as net_find, \
+                mock.patch("quark.ipam.QuarkIpam.allocate_ip_address") as \
+                alloc_ip, \
+                mock.patch("quark.ipam.QuarkIpam.allocate_mac_address") as \
+                alloc_mac, \
+                mock.patch("quark.db.api.port_count_all") as port_count, \
+                mock.patch("neutron.quota.QuotaEngine.limit_check") as \
+                limit_check, \
+                mock.patch("quark.db.api.subnet_find") as subnet_find:
             port_create.side_effect = _create_db_port
             net_find.return_value = network
             alloc_ip.side_effect = _alloc_ip
@@ -741,15 +732,15 @@ class TestQuarkPortCreateQuota(test_quark_plugin.TestQuarkPlugin):
         port_model.update(port)
         port_models = port_model
 
-        with contextlib.nested(
-            mock.patch("quark.db.api.port_create"),
-            mock.patch("quark.db.api.network_find"),
-            mock.patch("quark.ipam.QuarkIpam.allocate_ip_address"),
-            mock.patch("quark.ipam.QuarkIpam.allocate_mac_address"),
-            mock.patch("quark.db.api.port_count_all"),
-            mock.patch("neutron.quota.QuotaEngine.limit_check")
-        ) as (port_create, net_find, alloc_ip, alloc_mac, port_count,
-              limit_check):
+        with mock.patch("quark.db.api.port_create") as port_create, \
+                mock.patch("quark.db.api.network_find") as net_find, \
+                mock.patch("quark.ipam.QuarkIpam.allocate_ip_address") as \
+                alloc_ip, \
+                mock.patch("quark.ipam.QuarkIpam.allocate_mac_address") as \
+                alloc_mac, \
+                mock.patch("quark.db.api.port_count_all") as port_count, \
+                mock.patch("neutron.quota.QuotaEngine.limit_check") as \
+                limit_check:
             port_create.return_value = port_models
             net_find.return_value = network
             alloc_ip.return_value = addr
@@ -804,12 +795,12 @@ class TestQuarkUpdatePort(test_quark_plugin.TestQuarkPlugin):
             port_model.network = net_model
             port_model.update(port)
 
-        with contextlib.nested(
-            mock.patch("quark.db.api.port_find"),
-            mock.patch("quark.db.api.port_update"),
-            mock.patch("quark.ipam.QuarkIpam.allocate_ip_address"),
-            mock.patch("quark.ipam.QuarkIpam.deallocate_ips_by_port"),
-        ) as (port_find, port_update, alloc_ip, dealloc_ip):
+        with mock.patch("quark.db.api.port_find") as port_find, \
+                mock.patch("quark.db.api.port_update") as port_update, \
+                mock.patch("quark.ipam.QuarkIpam.allocate_ip_address") as \
+                alloc_ip, \
+                mock.patch("quark.ipam.QuarkIpam.deallocate_ips_by_port") as \
+                dealloc_ip:
             port_find.return_value = port_model
             port_update.return_value = port_model
             if new_ips:
@@ -931,18 +922,18 @@ class TestQuarkUpdatePortSecurityGroups(test_quark_plugin.TestQuarkPlugin):
             port_model.update(port)
             port_model["security_groups"].append(sg_mod)
 
-        with contextlib.nested(
-            mock.patch("quark.db.api.port_find"),
-            mock.patch("quark.db.api.port_update"),
-            mock.patch("quark.ipam.QuarkIpam.allocate_ip_address"),
-            mock.patch("quark.ipam.QuarkIpam.deallocate_ips_by_port"),
-            mock.patch("neutron.quota.QuotaEngine.limit_check"),
-            mock.patch("quark.plugin_modules.ports.STRATEGY"
-                       ".is_provider_network"),
-            mock.patch("quark.db.api.security_group_find"),
-            mock.patch("quark.drivers.base.BaseDriver.update_port")
-        ) as (port_find, port_update, alloc_ip, dealloc_ip, limit_check,
-              net_strat, sg_find, driver_port_update):
+        with mock.patch("quark.db.api.port_find") as port_find, \
+                mock.patch("quark.db.api.port_update") as port_update, \
+                mock.patch("quark.ipam.QuarkIpam.allocate_ip_address") as \
+                alloc_ip, \
+                mock.patch("quark.ipam.QuarkIpam.deallocate_ips_by_port") as \
+                dealloc_ip, \
+                mock.patch("neutron.quota.QuotaEngine.limit_check"), \
+                mock.patch("quark.plugin_modules.ports.STRATEGY"
+                           ".is_provider_network") as net_strat, \
+                mock.patch("quark.db.api.security_group_find") as sg_find, \
+                mock.patch("quark.drivers.base.BaseDriver.update_port") as \
+                driver_port_update:
             port_find.return_value = port_model
 
             def _port_update(context, port_db, **kwargs):
@@ -1033,12 +1024,11 @@ class TestQuarkUpdatePortSetsIps(test_quark_plugin.TestQuarkPlugin):
             port_model = models.Port()
             port_model['network'] = net_model
             port_model.update(port)
-        with contextlib.nested(
-            mock.patch("quark.db.api.port_find"),
-            mock.patch("quark.db.api.port_update"),
-            mock.patch("quark.ipam.QuarkIpam.deallocate_ips_by_port"),
-            mock.patch("neutron.quota.QuotaEngine.limit_check")
-        ) as (port_find, port_update, dealloc_ip, limit_check):
+        with mock.patch("quark.db.api.port_find") as port_find, \
+                mock.patch("quark.db.api.port_update") as port_update, \
+                mock.patch("quark.ipam.QuarkIpam.deallocate_ips_by_port") as \
+                dealloc_ip, \
+                mock.patch("neutron.quota.QuotaEngine.limit_check"):
             port_find.return_value = port_model
             port_update.return_value = port_model
             alloc_ip = mock.patch("quark.ipam.QuarkIpam.allocate_ip_address",
@@ -1080,13 +1070,13 @@ class TestQuarkCreatePortOnSharedNetworks(test_quark_plugin.TestQuarkPlugin):
         port_model.update(port)
         port_models = port_model
 
-        with contextlib.nested(
-            mock.patch("quark.db.api.port_create"),
-            mock.patch("quark.db.api.network_find"),
-            mock.patch("quark.ipam.QuarkIpam.allocate_ip_address"),
-            mock.patch("quark.ipam.QuarkIpam.allocate_mac_address"),
-            mock.patch("neutron.quota.QuotaEngine.limit_check")
-        ) as (port_create, net_find, alloc_ip, alloc_mac, limit_check):
+        with mock.patch("quark.db.api.port_create") as port_create, \
+                mock.patch("quark.db.api.network_find") as net_find, \
+                mock.patch("quark.ipam.QuarkIpam.allocate_ip_address") as \
+                alloc_ip, \
+                mock.patch("quark.ipam.QuarkIpam.allocate_mac_address") as \
+                alloc_mac, \
+                mock.patch("neutron.quota.QuotaEngine.limit_check"):
             port_create.return_value = port_models
             net_find.return_value = network
             alloc_ip.return_value = addr
@@ -1145,14 +1135,14 @@ class TestQuarkDeletePort(test_quark_plugin.TestQuarkPlugin):
             port_model.network = net_model
             port_models = port_model
 
-        with contextlib.nested(
-            mock.patch("quark.db.api.port_find"),
-            mock.patch("quark.ipam.QuarkIpam.deallocate_ips_by_port"),
-            mock.patch("quark.ipam.QuarkIpam.deallocate_mac_address"),
-            mock.patch("quark.db.api.port_delete"),
-            mock.patch("quark.drivers.base.BaseDriver.delete_port")
-        ) as (port_find, dealloc_ip, dealloc_mac, db_port_del,
-              driver_port_del):
+        with mock.patch("quark.db.api.port_find") as port_find, \
+                mock.patch("quark.ipam.QuarkIpam.deallocate_ips_by_port") as \
+                dealloc_ip, \
+                mock.patch("quark.ipam.QuarkIpam.deallocate_mac_address") as \
+                dealloc_mac, \
+                mock.patch("quark.db.api.port_delete") as db_port_del, \
+                mock.patch("quark.drivers.base.BaseDriver.delete_port") as \
+                driver_port_del:
             port_find.return_value = port_models
             dealloc_ip.return_value = addr
             dealloc_mac.return_value = mac
@@ -1318,25 +1308,24 @@ class TestPortDriverSelection(test_quark_plugin.TestQuarkPlugin):
         bar_ipam.allocate_mac_address.return_value = mac
         ipam = {"FOO": foo_ipam, "BAR": bar_ipam}
 
-        with contextlib.nested(
-            mock.patch("quark.db.api.port_create"),
-            mock.patch("quark.db.api.network_find"),
-            mock.patch("oslo_utils.uuidutils.generate_uuid"),
-            mock.patch("quark.plugin_views._make_port_dict"),
-            mock.patch("quark.db.api.port_count_all"),
-            mock.patch("neutron.quota.QuotaEngine.limit_check"),
-            mock.patch("quark.plugin_modules.ports.registry."
-                       "DRIVER_REGISTRY.drivers",
-                       new_callable=mock.PropertyMock(return_value=drivers)),
-            mock.patch("quark.plugin_modules.ports.registry."
-                       "DRIVER_REGISTRY.port_driver_compat_map",
-                       new_callable=mock.PropertyMock(
-                           return_value=compat_map)),
-            mock.patch("quark.plugin_modules.ports.ipam."
-                       "IPAM_REGISTRY.strategies",
-                       new_callable=mock.PropertyMock(return_value=ipam))
-        ) as (port_create, net_find, gen_uuid, make_port,
-              port_count, limit_check, _, _, _):
+        with mock.patch("quark.db.api.port_create") as port_create, \
+                mock.patch("quark.db.api.network_find") as net_find, \
+                mock.patch("oslo_utils.uuidutils.generate_uuid") as gen_uuid, \
+                mock.patch("quark.plugin_views._make_port_dict"), \
+                mock.patch("quark.db.api.port_count_all") as port_count, \
+                mock.patch("neutron.quota.QuotaEngine.limit_check"), \
+                mock.patch("quark.plugin_modules.ports.registry."
+                           "DRIVER_REGISTRY.drivers",
+                           new_callable=mock.PropertyMock(
+                               return_value=drivers)), \
+                mock.patch("quark.plugin_modules.ports.registry."
+                           "DRIVER_REGISTRY.port_driver_compat_map",
+                           new_callable=mock.PropertyMock(
+                               return_value=compat_map)), \
+                mock.patch("quark.plugin_modules.ports.ipam."
+                           "IPAM_REGISTRY.strategies",
+                           new_callable=mock.PropertyMock(
+                               return_value=ipam)):
             net_find.return_value = network
             gen_uuid.return_value = 1
             port_count.return_value = 0
@@ -1770,17 +1759,16 @@ class TestQuarkPortCreateFiltering(test_quark_plugin.TestQuarkPlugin):
         network["network_plugin"] = "BASE"
         network["ipam_strategy"] = "ANY"
 
-        with contextlib.nested(
-            mock.patch("quark.db.api.port_create"),
-            mock.patch("quark.db.api.network_find"),
-            mock.patch("quark.ipam.QuarkIpam.allocate_ip_address"),
-            mock.patch("quark.ipam.QuarkIpam.allocate_mac_address"),
-            mock.patch("oslo_utils.uuidutils.generate_uuid"),
-            mock.patch("quark.plugin_views._make_port_dict"),
-            mock.patch("quark.db.api.port_count_all"),
-            mock.patch("neutron.quota.QuotaEngine.limit_check")
-        ) as (port_create, net_find, alloc_ip, alloc_mac, gen_uuid, make_port,
-              port_count, limit_check):
+        with mock.patch("quark.db.api.port_create") as port_create, \
+                mock.patch("quark.db.api.network_find") as net_find, \
+                mock.patch("quark.ipam.QuarkIpam.allocate_ip_address") as \
+                alloc_ip, \
+                mock.patch("quark.ipam.QuarkIpam.allocate_mac_address") as \
+                alloc_mac, \
+                mock.patch("oslo_utils.uuidutils.generate_uuid") as gen_uuid, \
+                mock.patch("quark.plugin_views._make_port_dict"), \
+                mock.patch("quark.db.api.port_count_all") as port_count, \
+                mock.patch("neutron.quota.QuotaEngine.limit_check"):
             net_find.return_value = network
             alloc_ip.return_value = addr
             alloc_mac.return_value = mac
@@ -1870,13 +1858,12 @@ class TestQuarkPortCreateFiltering(test_quark_plugin.TestQuarkPlugin):
 class TestQuarkPortUpdateFiltering(test_quark_plugin.TestQuarkPlugin):
     @contextlib.contextmanager
     def _stubs(self):
-        with contextlib.nested(
-            mock.patch("quark.db.api.port_find"),
-            mock.patch("quark.db.api.port_update"),
-            mock.patch("quark.drivers.registry.DriverRegistry.get_driver"),
-            mock.patch("quark.plugin_views._make_port_dict"),
-            mock.patch("neutron.quota.QuotaEngine.limit_check")
-        ) as (port_find, port_update, get_driver, make_port, limit_check):
+        with mock.patch("quark.db.api.port_find") as port_find, \
+                mock.patch("quark.db.api.port_update") as port_update, \
+                mock.patch("quark.drivers.registry."
+                           "DriverRegistry.get_driver"), \
+                mock.patch("quark.plugin_views._make_port_dict"), \
+                mock.patch("neutron.quota.QuotaEngine.limit_check"):
             yield port_find, port_update
 
     def test_update_port_attribute_filtering(self):
@@ -1930,15 +1917,12 @@ class TestQuarkPortCreateAsAdvancedService(test_quark_plugin.TestQuarkPlugin):
         port_models = port_model
         db_mod = "quark.db.api"
         ipam = "quark.ipam.QuarkIpam"
-        with contextlib.nested(
-            mock.patch("%s.port_create" % db_mod),
-            mock.patch("%s.network_find" % db_mod),
-            mock.patch("%s.port_find" % db_mod),
-            mock.patch("%s.allocate_ip_address" % ipam),
-            mock.patch("%s.allocate_mac_address" % ipam),
-            mock.patch("%s.port_count_all" % db_mod),
-        ) as (port_create, net_find, port_find, alloc_ip, alloc_mac,
-              port_count):
+        with mock.patch("%s.port_create" % db_mod) as port_create, \
+                mock.patch("%s.network_find" % db_mod) as net_find, \
+                mock.patch("%s.port_find" % db_mod) as port_find, \
+                mock.patch("%s.allocate_ip_address" % ipam) as alloc_ip, \
+                mock.patch("%s.allocate_mac_address" % ipam) as alloc_mac, \
+                mock.patch("%s.port_count_all" % db_mod) as port_count:
             port_create.return_value = port_models
             net_find.return_value = network
             port_find.return_value = None
