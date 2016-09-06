@@ -221,8 +221,13 @@ def _update_flip(context, flip_id, ip_type, requested_ports):
                 not curr_port_ids and not req_port_ids):
             raise q_exc.FloatingIpUpdateNoPortIdSupplied()
 
-        # Validate that GW IP is not in use on the NW.
+        # Validate that the GW IP exists and is not in use on the NW.
         flip_subnet = v._make_subnet_dict(flip.subnet)
+        gw_ip = flip_subnet.get('gateway_ip')
+        if gw_ip is None:
+            subnet_id = flip_subnet.get('id')
+            raise q_exc.GatewayIpDoesNotExistForSubnet(subnet_id=subnet_id)
+
         for added_port_id in added_port_ids:
             port = _get_port(context, added_port_id)
             nw = port.network
@@ -230,7 +235,6 @@ def _update_flip(context, flip_id, ip_type, requested_ports):
             fixed_ips = [ip.get('ip_address') for p in nw_ports
                          for ip in p.get('fixed_ips')]
 
-            gw_ip = flip_subnet.get('gateway_ip')
             if gw_ip in fixed_ips:
                 port_with_gateway_ip = None
                 for port in nw_ports:

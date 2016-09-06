@@ -214,6 +214,10 @@ class FixedIpAllocatedToGatewayIp(n_exc.Conflict):
                 "allocated to port %(port_id)s of network %(network_id)s.")
 
 
+class GatewayIpDoesNotExistForSubnet(n_exc.Conflict):
+    message = _("No Gateway IP exists for subnet id %(subnet_id)s.")
+
+
 class FixedIpDoesNotExistsForPort(n_exc.BadRequest):
     message = _("Fixed IP %(fixed_ip)s does not exist on Port %(port_id)s")
 

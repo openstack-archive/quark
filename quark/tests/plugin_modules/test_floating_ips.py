@@ -512,6 +512,8 @@ class TestUpdateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
         else:
             subnet_model = models.Subnet(id=1, network_id=1, name=1,
                                          tenant_id=1, ip_version=4,
+                                         routes=[models.Route(cidr='0.0.0.0',
+                                                 gateway='192.168.0.254')],
                                          dns_nameservers=[],
                                          cidr="192.168.0.0/24")
         flip_model = None
@@ -617,6 +619,33 @@ class TestUpdateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
                          ips=fixed_ips, subnet=subnet, network=network):
             with self.assertRaises(
                     q_ex.FixedIpAllocatedToGatewayIp):
+                content = dict(port_id=new_port["id"])
+                self.plugin.update_floatingip(self.context, flip["id"],
+                                              dict(floatingip=content))
+
+    def test_update_with_no_gateway_set(self):
+        floating_ip_addr = netaddr.IPAddress("10.0.0.1")
+        flip = dict(id=1, address=int(floating_ip_addr), version=4,
+                    address_readable=str(floating_ip_addr), subnet_id=1,
+                    network_id=2, used_by_tenant_id=1)
+        network = dict(id="00000000-0000-0000-0000-000000000000",
+                       ipam_strategy="ANY")
+        subnet = dict(id=1, network_id=1, name=1,
+                      tenant_id=1, ip_version=4,
+                      cidr="192.168.0.0/24",
+                      dns_nameservers=[],
+                      enable_dhcp=False)
+
+        fixed_ip_addr = netaddr.IPAddress("192.168.0.10")
+        fixed_ips = [dict(address_type="fixed", address=int(fixed_ip_addr),
+                          version=4, address_readable=str(fixed_ip_addr),
+                          allocated_at=datetime.datetime.now())]
+        new_port = dict(id="abcdefgh-1111-2222-3333-1234567890ab")
+
+        with self._stubs(flip=flip, new_port=new_port,
+                         ips=fixed_ips, subnet=subnet, network=network):
+            with self.assertRaises(
+                    q_ex.GatewayIpDoesNotExistForSubnet):
                 content = dict(port_id=new_port["id"])
                 self.plugin.update_floatingip(self.context, flip["id"],
                                               dict(floatingip=content))
