@@ -15,6 +15,7 @@
 import os
 import six
 
+from neutron._i18n import _
 from alembic import command as alembic_command
 from alembic import config as alembic_config
 from alembic import environment

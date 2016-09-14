@@ -403,6 +403,8 @@ class SecurityGroupRule(BASEV2, HasId, HasTenant):
     remote_group_id = sa.Column(sa.String(36),
                                 sa.ForeignKey("quark_security_groups.id"),
                                 nullable=True)
+    external_service = sa.Column(sa.String(255), nullable=True)
+    external_service_id = sa.Column(sa.String(255), nullable=True)
 
 
 class SecurityGroup(BASEV2, HasId, HasTenant):
@@ -414,6 +416,8 @@ class SecurityGroup(BASEV2, HasId, HasTenant):
     rules = orm.relationship(SecurityGroupRule, backref='group',
                              cascade='delete',
                              primaryjoin=join)
+    external_service = sa.Column(sa.String(255), nullable=True)
+    external_service_id = sa.Column(sa.String(255), nullable=True)
 
 
 class Port(BASEV2, HasTenant, HasId, IsHazTags):
