@@ -20,6 +20,7 @@ from alembic import config as alembic_config
 from alembic import environment
 from alembic import script as alembic_script
 from alembic import util as alembic_util
+from neutron._i18n import _
 from oslo_config import cfg
 
 HEAD_FILENAME = 'HEAD'
