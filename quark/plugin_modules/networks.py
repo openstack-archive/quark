@@ -97,7 +97,7 @@ def create_network(context, network):
         net_uuid = utils.pop_param(net_attrs, "id", None)
         net_type = None
         if net_uuid and context.is_admin:
-            net = db_api.network_find(context, None, None, None, False,
+            net = db_api.network_find(context, None, ['id'], None, False,
                                       id=net_uuid, scope=db_api.ONE)
             net_type = utils.pop_param(net_attrs, "network_plugin", None)
             if net:
@@ -187,14 +187,14 @@ def get_network(context, id, fields=None):
     LOG.info("get_network %s for tenant %s fields %s" %
              (id, context.tenant_id, fields))
 
-    network = db_api.network_find(context, None, None, None, False,
+    network = db_api.network_find(context, None, ['id'], None, False,
                                   id=id, join_subnets=True, scope=db_api.ONE)
     if not network:
         raise n_exc.NetworkNotFound(net_id=id)
     return v._make_network_dict(network, fields=fields)
 
 
-def get_networks(context, limit=None, sorts=None, marker=None,
+def get_networks(context, limit=None, sorts=['id'], marker=None,
                  page_reverse=False, filters=None, fields=None):
     """Retrieve a list of networks.
 
@@ -253,7 +253,7 @@ def delete_network(context, id):
     """
     LOG.info("delete_network %s for tenant %s" % (id, context.tenant_id))
     with context.session.begin():
-        net = db_api.network_find(context, None, None, None, False, id=id,
+        net = db_api.network_find(context, None, ['id'], None, False, id=id,
                                   scope=db_api.ONE)
         if not net:
             raise n_exc.NetworkNotFound(net_id=id)

@@ -41,10 +41,13 @@ class QuarkFindPortsSorted(BaseFunctionalTest):
         port_mod1 = db_api.port_create(self.context, **port1)
         port_mod2 = db_api.port_create(self.context, **port2)
         port_mod3 = db_api.port_create(self.context, **port3)
-        res = db_api.port_find(self.context, None, None, None, None,
+        res = db_api.port_find(self.context, None, ['created_at'], None, None,
                                scope=db_api.ALL)
         self.assertTrue(res[0]["created_at"] < res[1]["created_at"] <
                         res[2]['created_at'])
+        self.assertTrue(res[0]['id'] == port_mod1['id'])
+        self.assertTrue(res[1]['id'] == port_mod2['id'])
+        self.assertTrue(res[2]['id'] == port_mod3['id'])
         db_api.network_delete(self.context, net_mod)
         db_api.port_delete(self.context, port_mod1)
         db_api.port_delete(self.context, port_mod2)
@@ -308,12 +311,12 @@ class QuarkFindPortsFilterByDeviceOwner(BaseFunctionalTest):
         port_mod1 = db_api.port_create(self.context, **port1)
         port_mod2 = db_api.port_create(self.context, **port2)
         port_mod3 = db_api.port_create(self.context, **port3)
-        res = db_api.port_find(self.context, None, None, None,
+        res = db_api.port_find(self.context, None, ['id'], None,
                                scope=db_api.ALL,
                                device_owner=port3["device_owner"])
         self.assertTrue(len(res) == 1)
         self.assertTrue(res[0]["device_owner"] == port3["device_owner"])
-        res = db_api.port_find(self.context, None, None, None,
+        res = db_api.port_find(self.context, None, ['id'], None,
                                scope=db_api.ALL,
                                device_owner=port1["device_owner"])
         self.assertTrue(len(res) == 2)

@@ -18,8 +18,8 @@ import inspect
 
 import json
 import netaddr
-from neutron.db.sqlalchemyutils import paginate_query
 from oslo_config import cfg
+from oslo_db.sqlalchemy.utils import paginate_query
 from oslo_log import log as logging
 from oslo_utils import timeutils
 from oslo_utils import uuidutils
@@ -200,7 +200,7 @@ def scoped(f):
 
 
 @scoped
-def port_find(context, limit=None, sorts=None, marker_obj=None, fields=None,
+def port_find(context, limit=None, sorts=['id'], marker_obj=None, fields=None,
               **filters):
     query = context.session.query(models.Port).options(
         orm.joinedload(models.Port.ip_addresses))
@@ -571,7 +571,7 @@ INVERT_DEFAULTS = 'invert_defaults'
 
 
 @scoped
-def network_find(context, limit=None, sorts=None, marker=None,
+def network_find(context, limit=None, sorts=['id'], marker=None,
                  page_reverse=False, fields=None, **filters):
     ids = []
     defaults = []
@@ -748,7 +748,7 @@ def subnet_update_set_alloc_pool_cache(context, subnet, cache_data=None):
 
 
 @scoped
-def subnet_find(context, limit=None, page_reverse=False, sorts=None,
+def subnet_find(context, limit=None, page_reverse=False, sorts=['id'],
                 marker_obj=None, fields=None, **filters):
     ids = []
     defaults = []
@@ -1025,7 +1025,7 @@ def transaction_create(context):
 
 
 @scoped
-def floating_ip_find(context, lock_mode=False, limit=None, sorts=None,
+def floating_ip_find(context, lock_mode=False, limit=None, sorts=['id'],
                      marker=None, page_reverse=False, fields=None, **filters):
     query = context.session.query(models.IPAddress)
 

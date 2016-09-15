@@ -109,7 +109,7 @@ def create_subnet(context, subnet):
     net_id = subnet["subnet"]["network_id"]
 
     with context.session.begin():
-        net = db_api.network_find(context, None, None, None, False,
+        net = db_api.network_find(context, None, ['id'], None, None,
                                   id=net_id, scope=db_api.ONE)
         if not net:
             raise n_exc.NetworkNotFound(net_id=net_id)
@@ -259,8 +259,8 @@ def update_subnet(context, id, subnet):
              (id, context.tenant_id))
 
     with context.session.begin():
-        subnet_db = db_api.subnet_find(context, None, None, None, False, id=id,
-                                       scope=db_api.ONE)
+        subnet_db = db_api.subnet_find(context, None, None, ['id'], None,
+                                       id=id, scope=db_api.ONE)
         if not subnet_db:
             raise n_exc.SubnetNotFound(subnet_id=id)
 
@@ -370,7 +370,7 @@ def get_subnet(context, id, fields=None):
     """
     LOG.info("get_subnet %s for tenant %s with fields %s" %
              (id, context.tenant_id, fields))
-    subnet = db_api.subnet_find(context, None, None, None, False, id=id,
+    subnet = db_api.subnet_find(context, None, None, ['id'], None, id=id,
                                 join_dns=True, join_routes=True,
                                 scope=db_api.ONE)
     if not subnet:
@@ -383,7 +383,7 @@ def get_subnet(context, id, fields=None):
     return v._make_subnet_dict(subnet)
 
 
-def get_subnets(context, limit=None, page_reverse=False, sorts=None,
+def get_subnets(context, limit=None, page_reverse=False, sorts=['id'],
                 marker=None, filters=None, fields=None):
     """Retrieve a list of subnets.
 
