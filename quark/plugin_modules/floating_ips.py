@@ -459,8 +459,8 @@ def get_floatingip(context, id, fields=None):
     return v._make_floating_ip_dict(floating_ip)
 
 
-def get_floatingips(context, filters=None, fields=None, sorts=None, limit=None,
-                    marker=None, page_reverse=False):
+def get_floatingips(context, filters=None, fields=None, sorts=['id'],
+                    limit=None, marker=None, page_reverse=False):
     """Retrieve a list of floating ips.
 
     :param context: neutron api request context.
@@ -607,8 +607,8 @@ def get_scalingip(context, id, fields=None):
     return v._make_scaling_ip_dict(scaling_ip)
 
 
-def get_scalingips(context, filters=None, fields=None, sorts=None, limit=None,
-                   marker=None, page_reverse=False):
+def get_scalingips(context, filters=None, fields=None, sorts=['id'],
+                   limit=None, marker=None, page_reverse=False):
     """Retrieve a list of scaling ips.
 
     :param context: neutron api request context.

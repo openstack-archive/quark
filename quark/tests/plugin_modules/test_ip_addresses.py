@@ -686,7 +686,8 @@ class TestQuarkGetIpAddressPort(test_quark_plugin.TestQuarkPlugin):
             self._alloc_stub(ip_model))
 
         res = self.plugin.get_ports_for_ip_address(self.context, 1)[0]
-        mock_dbapi.port_find.assert_called_with(self.context, None, None, None,
+        mock_dbapi.port_find.assert_called_with(self.context, None, ['id'],
+                                                None,
                                                 join_security_groups=True,
                                                 fields=None,
                                                 ip_address_id=[1])

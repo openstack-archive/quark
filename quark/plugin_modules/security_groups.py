@@ -148,7 +148,7 @@ def get_security_group(context, id, fields=None):
 
 
 def get_security_groups(context, filters=None, fields=None,
-                        sorts=None, limit=None, marker=None,
+                        sorts=['id'], limit=None, marker=None,
                         page_reverse=False):
     LOG.info("get_security_groups for tenant %s" %
              (context.tenant_id))
@@ -233,7 +233,7 @@ def delete_security_group_rule(context, id):
 
 
 def get_security_group_rules(context, filters=None, fields=None,
-                             sorts=None, limit=None, marker=None,
+                             sorts=['id'], limit=None, marker=None,
                              page_reverse=False):
     LOG.info("get_security_group_rules for tenant %s" %
              (context.tenant_id))

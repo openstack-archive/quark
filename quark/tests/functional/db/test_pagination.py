@@ -36,8 +36,7 @@ class QuarkNetworksPaginationFunctionalTest(BaseFunctionalTest):
         db_api.network_create(self.context, **networkA)
         db_api.network_create(self.context, **networkB)
         res = network_api.get_networks(self.context, networks_per_page,
-                                       [('id', 'asc')], None, False,
-                                       None)
+                                       ['id'], None, False)
         self.assertEqual(len(res), networks_per_page)
         res = network_api.get_networks(self.context)
         self.assertNotEqual(len(res), networks_per_page)
@@ -67,7 +66,7 @@ class QuarkSubnetsPaginationFunctionalTest(BaseFunctionalTest):
             subnets_unpaged = subnet_api.get_subnets(self.context, filters={})
             subnets_paged = subnet_api.get_subnets(self.context,
                                                    subnets_per_page, False,
-                                                   [('id', 'asc')],
+                                                   ['id'],
                                                    filters={})
             self.assertEqual(len(subnets_paged), subnets_per_page)
             self.assertNotEqual(len(subnets_unpaged), subnets_per_page)
@@ -114,16 +113,19 @@ class QuarkPortsPaginationFunctionalTest(BaseFunctionalTest):
         ports_per_page = 1
         with self._stubs(network, subnet_info) as (
                 net, sub_ports):
-            port_api.create_port(self.context, _make_body())
-            port_api.create_port(self.context, _make_body())
+            port1 = port_api.create_port(self.context, _make_body())
+            port2 = port_api.create_port(self.context, _make_body())
             res_ports = port_api.get_ports(self.context, ports_per_page,
-                                           [('id', 'asc')], None)
+                                           ['id'], None)
             self.assertEqual(len(res_ports), ports_per_page)
             res_ports = port_api.get_ports(self.context)
             self.assertNotEqual(len(res_ports), ports_per_page)
             # Note (Perkins): Testing for a default sort on created_at,
             # but created_at is not available, so check that mac addresses,
             # which are created sequentially, are ordered correctly.
-            res_ports = port_api.get_ports(self.context, 2, None, None)
+            res_ports = port_api.get_ports(self.context, 2, ['mac_address'],
+                                           None)
             self.assertTrue(res_ports[0]['mac_address'] <
                             res_ports[1]['mac_address'])
+            self.assertTrue(port1['id'] == res_ports[0]['id'])
+            self.assertTrue(port2['id'] == res_ports[1]['id'])

@@ -220,8 +220,10 @@ class QuarkIPAddressAllocateWithFullSubnetsNotMarkedAsFull(
             self.assertEqual(ipaddress[0].address_readable, "2.2.2.1")
 
             with self.context.session.begin():
-                subnets = db_api.subnet_find(self.context, None, None, None,
-                                             False).all()
+                subnets = db_api.subnet_find(context=self.context, limit=None,
+                                             page_reverse=False, sorts=['id'],
+                                             marker_obj=None,
+                                             fields=None).all()
                 self.assertEqual(len(subnets), 3)
 
                 full_subnets = [s for s in subnets

@@ -196,7 +196,8 @@ def create_ip_address(context, body):
                                msg="network_id is required.")
     if network_id == "":
         raise n_exc.NetworkNotFound(net_id=network_id)
-    net = db_api.network_find(context, None, None, None, False,
+    net = db_api.network_find(context=context, limit=None, sorts=['id'],
+                              marker=None, page_reverse=False,
                               id=network_id, scope=db_api.ONE)
     if not net:
         raise n_exc.NetworkNotFound(net_id=network_id)
@@ -395,7 +396,7 @@ def delete_ip_address(context, id):
         ipam_driver.deallocate_ip_address(context, ip_address)
 
 
-def get_ports_for_ip_address(context, ip_id, limit=None, sorts=None,
+def get_ports_for_ip_address(context, ip_id, limit=None, sorts=['id'],
                              marker=None, page_reverse=False, filters=None,
                              fields=None):
     """Retrieve a list of ports.
