@@ -133,7 +133,9 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
                                    "networks_quark", "router",
                                    "ip_availabilities", "ports_quark",
                                    "floatingip", "segment_allocation_ranges",
-                                   "scalingip", "jobs"]
+                                   "scalingip", "jobs",
+                                   "faws-security-group-ext",
+                                   "faws-security-group-rule-ext"]
 
     def __init__(self):
         LOG.info("Starting quark plugin")
