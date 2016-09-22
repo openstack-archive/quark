@@ -35,7 +35,7 @@ class QuarkPluginTenantlessNegativeTests(QuarkPluginNegativeTest):
     def test_tenant_check_no_raise(self):
         ret = self.plugin._fix_missing_tenant_id(
             self.blank_context, self.with_tenant_id, "thing")
-        self.assertEqual(None, ret)
+        self.assertIsNone(ret)
 
     def test_tenant_check_raises_if_no_tenant(self):
         with self.assertRaises(n_exc.BadRequest):
