@@ -39,7 +39,7 @@ class QuarkJobs(BaseFunctionalTest):
         self.assertFalse(job['completed'])
         self.assertEqual(self.tenant_id, job['tenant_id'])
         self.assertEqual(self.action, job['action'])
-        self.assertEqual(None, job['parent_id'])
+        self.assertIsNone(job['parent_id'])
         self.assertEqual(job['id'], job['transaction_id'])
         self.assertEqual(0, job['subtransactions'])
         self.assertEqual(0, job['completed_subtransactions'])
