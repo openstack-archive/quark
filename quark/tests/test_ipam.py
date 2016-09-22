@@ -2044,7 +2044,7 @@ class QuarkIpamTestSelectSubnet(QuarkIpamBaseTest):
                                                                  refresh):
             s = self.ipam.select_subnet(self.context, subnet["network_id"],
                                         None, None)
-            self.assertEqual(None, s)
+            self.assertIsNone(s)
             self.assertFalse(refresh.called)
 
     def test_select_subnet_set_subnet_full_because_policies(self):
@@ -2058,7 +2058,7 @@ class QuarkIpamTestSelectSubnet(QuarkIpamBaseTest):
         with self._stubs(subnet, net.size) as (subnets, refresh):
             s = self.ipam.select_subnet(self.context, subnet["network_id"],
                                         None, None)
-            self.assertEqual(None, s)
+            self.assertIsNone(s)
             # NCP-1480: refactoring combined some duplicate code into a path
             # that already refreshes. Some tests were seeing stale data when
             # the refresh wasn't always called, so I chose to always refresh
