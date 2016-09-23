@@ -78,7 +78,7 @@ class QuarkSGAsyncProcessCallback(object):
                             resource_id=rule_id,
                             tenant_id=db_sg['tenant_id'])
             job_body = dict(job=job_body)
-            job = job_api.create_job(context, job_body)
+            job = job_api.create_job(context.elevated(), job_body)
             rpc_client = QuarkSGAsyncProducerClient()
             try:
                 rpc_client.populate_subtasks(context, sg, job['id'])
@@ -135,7 +135,7 @@ class QuarkSGProducerCallback(object):
                             resource_id=port['id'],
                             parent_id=parent_job_id)
             job_body = dict(job=job_body)
-            job = job_api.create_job(context, job_body)
+            job = job_api.create_job(context.elevated(), job_body)
             rpc_consumer = QuarkSGAsyncConsumerClient()
             try:
                 rpc_consumer.update_port(context, port['id'], job['id'])
@@ -209,7 +209,7 @@ class QuarkSGConsumerCallback(object):
                 portid, retries, error)
         update_body = dict(completed=True, status=status_str)
         update_body = dict(job=update_body)
-        job_api.update_job(context, jobid, update_body)
+        job_api.update_job(context.elevated(), jobid, update_body)
 
 
 class QuarkSGAsyncConsumer(base_worker.QuarkAsyncPluginBase):
