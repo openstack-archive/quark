@@ -69,7 +69,9 @@ class QuarkFindSubnetAllocationCount(QuarkIpamBaseFunctionalTest):
 
     def _create_ip_address(self, ip_address, ip_version, subnet_cidr, net_id):
         with self.context.session.begin():
-            subnet = db_api.subnet_find(self.context, None, False, None, None,
+            subnet = db_api.subnet_find(context=self.context, limit=None,
+                                        page_reverse=False, sorts=['id'],
+                                        marker_obj=None,
                                         cidr=subnet_cidr).all()
             ip = dict(subnet_id=subnet[0].id,
                       network_id=net_id,

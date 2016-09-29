@@ -38,7 +38,7 @@ def get_router(context, id, fields):
     return _get_floating_ip_default_router(context.tenant_id)
 
 
-def get_routers(context, filters=None, fields=None, sorts=None, limit=None,
+def get_routers(context, filters=None, fields=None, sorts=['id'], limit=None,
                 marker=None, page_reverse=False):
     LOG.info("get_routers for tenant %s filters %s fields %s" %
              (context.tenant_id, filters, fields))

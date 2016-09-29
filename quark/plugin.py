@@ -207,7 +207,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
     @sessioned
     def get_security_groups(self, context, filters=None, fields=None,
-                            sorts=None, limit=None, marker=None,
+                            sorts=['id'], limit=None, marker=None,
                             page_reverse=False):
         return security_groups.get_security_groups(context, filters, fields,
                                                    sorts, limit, marker,
@@ -215,7 +215,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
     @sessioned
     def get_security_group_rules(self, context, filters=None, fields=None,
-                                 sorts=None, limit=None, marker=None,
+                                 sorts=['id'], limit=None, marker=None,
                                  page_reverse=False):
         return security_groups.get_security_group_rules(context, filters,
                                                         fields, sorts, limit,
@@ -287,14 +287,14 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
                                                        port)
 
     @sessioned
-    def get_ports(self, context, limit=None, page_reverse=False, sorts=None,
+    def get_ports(self, context, limit=None, page_reverse=False, sorts=['id'],
                   marker=None, filters=None, fields=None):
         return ports.get_ports(context, limit, sorts, marker, page_reverse,
                                filters, fields)
 
     @sessioned
     def get_ports_for_ip_address(self, context, ip, limit=None,
-                                 page_reverse=False, sorts=None, marker=None,
+                                 page_reverse=False, sorts=['id'], marker=None,
                                  filters=None, fields=None):
         return ip_addresses.get_ports_for_ip_address(context, ip, limit, sorts,
                                                      marker, page_reverse,
@@ -351,8 +351,8 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
         return subnets.get_subnet(context, id, fields)
 
     @sessioned
-    def get_subnets(self, context, limit=None, page_reverse=False, sorts=None,
-                    marker=None, filters=None, fields=None):
+    def get_subnets(self, context, limit=None, page_reverse=False,
+                    sorts=['id'], marker=None, filters=None, fields=None):
         return subnets.get_subnets(context, limit, page_reverse, sorts, marker,
                                    filters, fields)
 
@@ -382,7 +382,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
         return networks.get_network(context, id, fields)
 
     @sessioned
-    def get_networks(self, context, limit=None, sorts=None, marker=None,
+    def get_networks(self, context, limit=None, sorts=['id'], marker=None,
                      page_reverse=False, filters=None, fields=None):
         return networks.get_networks(context, limit, sorts, marker,
                                      page_reverse, filters, fields)
@@ -415,7 +415,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
         raise NotImplementedError()
 
     def get_routers(self, context, filters=None, fields=None,
-                    sorts=None, limit=None, marker=None, page_reverse=False):
+                    sorts=['id'], limit=None, marker=None, page_reverse=False):
         return router.get_routers(context, filters=filters, fields=fields,
                                   sorts=sorts, limit=limit, marker=marker,
                                   page_reverse=page_reverse)
@@ -447,7 +447,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
     @sessioned
     def get_floatingips(self, context, filters=None, fields=None,
-                        sorts=None, limit=None, marker=None,
+                        sorts=['id'], limit=None, marker=None,
                         page_reverse=False):
         return floating_ips.get_floatingips(context, filters=filters,
                                             fields=fields, sorts=sorts,
@@ -504,7 +504,7 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
 
     @sessioned
     def get_scalingips(self, context, filters=None, fields=None,
-                       sorts=None, limit=None, marker=None,
+                       sorts=['id'], limit=None, marker=None,
                        page_reverse=False):
         return floating_ips.get_scalingips(context, filters=filters,
                                            fields=fields, sorts=sorts,
