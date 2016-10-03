@@ -1,0 +1,9 @@
+Code-Review+2: Brian Stajkowski <brian.stajkowski@rackspace.com>
+Code-Review+2: alexander medvedev <xroot@yahoo.com>
+Workflow+1: alexander medvedev <xroot@yahoo.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Mon, 03 Oct 2016 17:00:25 +0000
+Reviewed-on: https://review.openstack.org/375622
+Project: openstack/quark
+Branch: refs/heads/master
