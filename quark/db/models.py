@@ -18,12 +18,11 @@ import json
 import netaddr
 # NOTE(asadoughi): noqa import lines fix neutron DB changes breaking tests
 from neutron.db import agentschedulers_db  # noqa
-import neutron.db.model_base
-from neutron.db import model_base as base_mod
-from neutron.db import models_v2 as models
 from neutron.db.qos import models as qos_models  # noqa
 from neutron.db import rbac_db_models  # noqa
 from neutron.db import segments_db  # noqa
+import neutron_lib.db.model_base
+from neutron_lib.db import model_base as base_mod
 from oslo_log import log as logging
 from oslo_utils import timeutils
 import sqlalchemy as sa
@@ -40,7 +39,7 @@ from quark.db import ip_types
 #                 DO NOT DELETE IT!!!
 from quark import quota_driver  # noqa
 
-HasId = models.HasId
+HasId = base_mod.HasId
 HasTenant = base_mod.HasProject
 
 LOG = logging.getLogger(__name__)
@@ -62,7 +61,7 @@ def _default_list_getset(collection_class, proxy):
     return getter, setter
 
 
-class QuarkBase(neutron.db.model_base.NeutronBaseV2):
+class QuarkBase(neutron_lib.db.model_base.NeutronBaseV2):
     created_at = sa.Column(sa.DateTime(), default=timeutils.utcnow)
     __table_args__ = TABLE_KWARGS
 
