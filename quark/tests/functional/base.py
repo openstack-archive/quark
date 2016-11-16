@@ -1,5 +1,5 @@
 from neutron import context
-from neutron.db import api as neutron_db_api
+from neutron.db import api
 from oslo_config import cfg
 from sqlalchemy.orm import configure_mappers
 
@@ -14,7 +14,7 @@ class BaseFunctionalTest(test_base.TestBase):
         self.context = context.Context('fake', 'fake', is_admin=False)
         cfg.CONF.set_override('connection', 'sqlite://', 'database')
         configure_mappers()
-        self.engine = neutron_db_api.get_engine()
+        self.engine = api.context_manager.get_legacy_facade().get_engine()
         models.BASEV2.metadata.create_all(self.engine)
         quota_driver.Quota.metadata.create_all(self.engine)
 

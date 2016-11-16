@@ -16,7 +16,8 @@ EPOCH = datetime.date(1970, 1, 1)
 class QuarkIpAvailabilityBaseFunctionalTest(BaseFunctionalTest):
     def setUp(self):
         super(QuarkIpAvailabilityBaseFunctionalTest, self).setUp()
-        self.connection = neutron_db_api.get_engine().connect()
+        context_manager = neutron_db_api.context_manager
+        self.connection = context_manager.get_legacy_facade().get_engine()
         self.networks = models.BASEV2.metadata.tables["quark_networks"]
         self.subnets = models.BASEV2.metadata.tables["quark_subnets"]
         self.ip_policy = models.BASEV2.metadata.tables[

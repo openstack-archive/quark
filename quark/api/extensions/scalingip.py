@@ -16,6 +16,7 @@
 from neutron.api import extensions
 from neutron.api.v2 import attributes as attr
 from neutron.api.v2 import resource_helper
+from neutron_lib.api import validators
 from oslo_log import log as logging
 
 
@@ -54,7 +55,7 @@ def _validate_port_dict(values):
     if msg:
         return msg
 
-attr.validators['type:validate_list_of_port_dicts'] = (
+validators.validators['type:validate_list_of_port_dicts'] = (
     _validate_list_of_port_dicts
 )
 
