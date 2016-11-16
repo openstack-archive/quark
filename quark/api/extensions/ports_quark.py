@@ -14,8 +14,9 @@
 # limitations under the License.
 
 from neutron.api import extensions
-from neutron.api.v2 import attributes as attrs
 from neutron.extensions import securitygroup
+from neutron_lib.api import converters as conv
+from neutron_lib import constants as const
 
 RESOURCE_NAME = "port"
 RESOURCE_COLLECTION = RESOURCE_NAME + "s"
@@ -34,7 +35,7 @@ EXTENDED_ATTRIBUTES_2_0 = {
                          'enforce_policy': True},
         'use_forbidden_mac_range': {'allow_post': True, 'allow_put': True,
                                     'default': False,
-                                    'convert_to': attrs.convert_to_boolean,
+                                    'convert_to': conv.convert_to_boolean,
                                     'enforce_policy': True,
                                     'is_visible': True},
         "security_groups": {
@@ -43,7 +44,7 @@ EXTENDED_ATTRIBUTES_2_0 = {
             "is_visible": True,
             "enforce_policy": True,
             "convert_to": securitygroup.convert_to_uuid_list_or_none,
-            "default": attrs.ATTR_NOT_SPECIFIED},
+            "default": const.ATTR_NOT_SPECIFIED},
         "vlan_id": {
             "allow_post": False,
             "allow_put": False,
