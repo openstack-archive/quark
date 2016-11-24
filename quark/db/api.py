@@ -966,6 +966,16 @@ def security_group_rule_create(context, **rule_dict):
     return new_rule
 
 
+def security_group_rule_update(context, rule, **kwargs):
+    '''Updates a security group rule.
+
+    NOTE(alexm) this is non-standard functionality.
+    '''
+    rule.update(kwargs)
+    context.session.add(rule)
+    return rule
+
+
 def security_group_rule_delete(context, rule):
     context.session.delete(rule)
 

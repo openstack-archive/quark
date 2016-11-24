@@ -76,6 +76,21 @@ def _validate_security_group_rule(context, rule):
     return rule
 
 
+def _filter_update_security_group_rule(rule):
+    '''Only two fields are allowed for modification:
+
+        external_service and external_service_id
+    '''
+    allowed = ['external_service', 'external_service_id']
+    filtered = {}
+    for k, val in rule.iteritems():
+        if k in allowed:
+            if isinstance(val, basestring) and \
+               len(val) <= GROUP_NAME_MAX_LENGTH:
+                filtered[k] = val
+    return filtered
+
+
 def _validate_security_group(security_group):
     if "name" in security_group:
         if len(security_group["name"]) > GROUP_NAME_MAX_LENGTH:
@@ -119,6 +134,19 @@ def update_security_group(context, id, security_group):
         db_group = db_api.security_group_update(context, group, **new_group)
 
     return v._make_security_group_dict(db_group)
+
+
+def update_security_group_rule(context, id, security_group_rule):
+    new_rule = security_group_rule["security_group_rule"]
+    # Only allow updatable fields
+    new_rule = _filter_update_security_group_rule(new_rule)
+
+    with context.session.begin():
+        rule = db_api.security_group_rule_find(context, id=id,
+                                               scope=db_api.ONE)
+        db_rule = db_api.security_group_rule_update(context, rule, **new_rule)
+
+    return v._make_security_group_rule_dict(db_rule)
 
 
 def delete_security_group(context, id):
