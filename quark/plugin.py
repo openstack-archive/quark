@@ -227,6 +227,11 @@ class Plugin(neutron_plugin_base_v2.NeutronPluginBaseV2,
                                                      security_group)
 
     @sessioned
+    def update_security_group_rule(self, context, id, security_group_rule):
+        return security_groups.update_security_group_rule(context, id,
+                                                          security_group_rule)
+
+    @sessioned
     def create_ip_policy(self, context, ip_policy):
         self._fix_missing_tenant_id(context, ip_policy, "ip_policy")
         return ip_policies.create_ip_policy(context, ip_policy)
