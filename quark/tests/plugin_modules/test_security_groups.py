@@ -140,6 +140,44 @@ class TestQuarkGetSecurityGroupRules(test_quark_plugin.TestQuarkPlugin):
                 self.plugin.get_security_group_rule(self.context, 1)
 
 
+class TestQuarkUpdateSecurityGroupRule(test_quark_plugin.TestQuarkPlugin):
+    def test_update_security_group_rule(self):
+        sg_dict = {"id": 0}
+        sg = models.SecurityGroup()
+        sg.update(sg_dict)
+
+        rule_dict = {"id": 1, "direction": "ingress",
+                     "port_range_min": 80, "port_range_max": 100,
+                     "remote_ip_prefix": None,
+                     "ethertype": protocols.translate_ethertype("IPv4"),
+                     "tenant_id": "foo", "protocol": "UDP", "group_id": 1,
+                     "external_service_id": None, "external_service": None}
+        rule = models.SecurityGroupRule()
+        rule.update(rule_dict)
+
+        updated_part = {'external_service_id': 'aaa',
+                        'external_service': 'bbb'}
+
+        with mock.patch('quark.db.api.security_group_rule_find') as db_find, \
+                mock.patch('quark.db.api.security_group_rule_update') \
+                as db_update, \
+                mock.patch('quark.db.api.security_group_find') as sg_find:
+            db_find.return_value = rule
+            rule_dict.update(updated_part)
+            new_rule = models.SecurityGroupRule()
+            new_rule.update(rule_dict)
+            db_update.return_value = new_rule
+            sg_find.return_value = sg
+
+            update = dict(security_group_rule=updated_part)
+            resp = self.plugin.update_security_group_rule(self.context, 1,
+                                                          update)
+            self.assertEqual(resp['external_service_id'],
+                             updated_part['external_service_id'])
+            self.assertEqual(resp['external_service'],
+                             updated_part['external_service'])
+
+
 class TestQuarkUpdateSecurityGroup(test_quark_plugin.TestQuarkPlugin):
     def test_update_security_group(self):
         v4_ethertype = protocols.ETHERTYPES["IPv4"]
