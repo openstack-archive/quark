@@ -35,6 +35,7 @@ DEFAULT_SG_UUID = "00000000-0000-0000-0000-000000000000"
 GROUP_NAME_MAX_LENGTH = 255
 GROUP_DESCRIPTION_MAX_LENGTH = 255
 RULE_CREATE = 'create'
+RULE_UPDATE = 'update'
 RULE_DELETE = 'delete'
 
 
@@ -74,6 +75,21 @@ def _validate_security_group_rule(context, rule):
                                         rule.get("remote_ip_prefix"))
 
     return rule
+
+
+def _filter_update_security_group_rule(rule):
+    '''Only two fields are allowed for modification:
+
+        external_service and external_service_id
+    '''
+    allowed = ['external_service', 'external_service_id']
+    filtered = {}
+    for k, val in rule.iteritems():
+        if k in allowed:
+            if isinstance(val, basestring) and \
+               len(val) <= GROUP_NAME_MAX_LENGTH:
+                filtered[k] = val
+    return filtered
 
 
 def _validate_security_group(security_group):
@@ -199,6 +215,35 @@ def create_security_group_rule(context, security_group_rule):
         _perform_async_update_rule(context, group_id, group, new_rule.id,
                                    RULE_CREATE)
     return v._make_security_group_rule_dict(new_rule)
+
+
+def update_security_group_rule(context, id, security_group_rule):
+    '''Updates a rule and updates the ports'''
+    LOG.info("update_security_group_rule for tenant %s" %
+             (context.tenant_id))
+    new_rule = security_group_rule["security_group_rule"]
+    # Only allow updatable fields
+    new_rule = _filter_update_security_group_rule(new_rule)
+
+    with context.session.begin():
+        group_id = rule["security_group_id"]
+        group = db_api.security_group_find(context, id=group_id,
+                                           scope=db_api.ONE)
+        if not group:
+            raise sg_ext.SecurityGroupNotFound(id=group_id)
+
+        rule = db_api.security_group_rule_find(context, id=id,
+                                               scope=db_api.ONE)
+        if not rule:
+            raise sg_ext.SecurityGroupRuleNotFound(id=id)
+
+        db_rule = db_api.security_group_rule_update(context, rule, **new_rule)
+
+    if group:
+        _perform_async_update_rule(context, group_id, group, rule.id,
+                                   RULE_UPDATE)
+
+    return v._make_security_group_rule_dict(db_rule)
 
 
 def get_security_group_rule(context, id, fields=None):
