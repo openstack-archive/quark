@@ -14,8 +14,8 @@
 #    under the License.
 
 import netaddr
-from neutron.extensions import providernet as pnet
 from neutron import quota
+from neutron_lib.api.definitions import provider_net as pnet
 from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
 from oslo_log import log as logging
