@@ -97,7 +97,7 @@ def create_segment_allocation_range(context, sa_range):
     with context.session.begin():
         new_range = strategy.create_range(context, sa_range)
 
-    # Bulk-populate the range, this could take a while for huge ranges
+    # Bulk-populate the range, this could take awhile for huge ranges
     # (millions) so we do this in chunks outside the transaction. That
     # means we need to rollback the range creation if it fails for
     # whatever reason (and it will cascade delete any added allocations)

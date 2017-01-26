@@ -471,7 +471,7 @@ class TestUpdateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
     def setUp(self):
         super(TestUpdateFloatingIPs, self).setUp()
         # NOTE(blogan): yuck yuck yuck, but since the models are being mocked
-        # and not attached to the session, the refresh call will fail.
+        # and not attached to the session, the refreshing call will fail.
         old_refresh = self.context.session.refresh
 
         def reset_refresh(context):
@@ -588,7 +588,7 @@ class TestUpdateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
             flip_assoc.side_effect = _flip_assoc
             flip_dessoc.side_effect = _flip_disassoc
             notify.side_effect = mock_notify
-            # We'll yield a notify to check how many times and with which
+            # We'll yield a notification to check how many times and with which
             # arguments it was called.
             yield notify
 

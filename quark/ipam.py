@@ -316,7 +316,7 @@ class QuarkIpam(object):
                     continue
 
             # Based on the above, this should only fail if a MAC was
-            # was explicitly chosen at some point. As such, fall through
+            # explicitly chosen at some point. As such, fall through
             # here and get in line for a new MAC address to try
             try:
                 mac_readable = str(netaddr.EUI(next_address))
@@ -821,7 +821,7 @@ class QuarkIpam(object):
         # NCP-1480: Don't need to lock V6 subnets, since we don't use
         # next_auto_assign_ip for them. We already uniquely identified
         # the V6 we're going to get by generating a MAC in a previous step.
-        # Also note that this only works under BOTH or BOTH_REQUIRED. ANY
+        # Also, notes that this only works under BOTH or BOTH_REQUIRED. ANY
         # does not pass an ip_version
         lock_subnets = True
         if (not CONF.QUARK.ipam_select_subnet_v6_locking and
@@ -894,7 +894,7 @@ class QuarkIpam(object):
 
         # TODO(mdietz): Invert the iterator and the session, should only be
         #               one subnet per attempt. We should also only be fetching
-        #               the subnet and usage when we need to. Otherwise
+        #               the subnet and usage when we need to. Otherwise,
         #               we're locking every subnet for a segment, and once
         #               we stop locking, we're looking at stale data.
         with context.session.begin():

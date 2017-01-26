@@ -145,7 +145,7 @@ class QuarkTestVXLANSegmentAllocation(QuarkSegmentAllocationTest):
         return sa_range, alloc
 
     def test_segment_deallocation(self):
-        # We call the allocate test to set up an initial allocation
+        # We call the allocating test to set up an initial allocation
         # and assert that it actually worked.
         sa_range, alloc = self.test_segment_allocation()
 
@@ -424,7 +424,7 @@ class QuarkTestDeleteSegmentAllocationRange(QuarkSegmentAllocationTest):
         sa_ranges_api.delete_segment_allocation_range(
             self.context, sa_range_id)
 
-        # assert that the range and it's unused allocations are deleted
+        # assert that the range and it is unused allocations are deleted
         sa_range = db_api.segment_allocation_range_find(
             self.context, id=sa_range_id, scope=db_api.ALL)
         allocs = db_api.segment_allocation_find(

@@ -213,7 +213,7 @@ def create_port(context, port):
 
     ipam_driver = _get_ipam_driver(net, port=port_attrs)
     net_driver = _get_net_driver(net, port=port_attrs)
-    # NOTE(morgabra) It's possible that we select a driver different than
+    # NOTE(morgabra) It's possible that we select a driver different from
     # the one specified by the network. However, we still might need to use
     # this for some operations, so we also fetch it and pass it along to
     # the backend driver we are actually using.
@@ -472,7 +472,7 @@ def update_port(context, id, port):
     net_driver = _get_net_driver(port_db.network, port=port_db)
     base_net_driver = _get_net_driver(port_db.network)
 
-    # TODO(anyone): What do we want to have happen here if this fails? Is it
+    # TODO(anyone): What do we want to happen here if this fails? Is it
     #               ok to continue to keep the IPs but fail to apply security
     #               groups? Is there a clean way to have a multi-status? Since
     #               we're in a beta-y status, I'm going to let this sit for

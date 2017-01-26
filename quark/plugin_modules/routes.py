@@ -78,7 +78,7 @@ def create_route(context, route):
             LOG.exception(str(e))
             raise n_exc.BadRequest(resource="routes", msg=str(e))
 
-        # TODO(anyone): May want to denormalize the cidr values into columns
+        # TODO(anyone): May wants to denormalize the cidr values into columns
         #               to achieve single db lookup on conflict check
         route_cidr = netaddr.IPNetwork(route["cidr"])
         subnet_routes = db_api.route_find(context, subnet_id=subnet_id,

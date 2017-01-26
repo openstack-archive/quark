@@ -135,7 +135,7 @@ def notify(context, event_type, ipaddress, send_usage=False, *args, **kwargs):
     # In other words when we supply end_time we must send USAGE to billing
     # immediately.
     # Our billing period is 24 hrs. If the address was allocated after midnight
-    # send the start_time as as. If the address was allocated yesterday, then
+    # send the start_time as. If the address was allocated yesterday, then
     # send midnight as the start_time.
     # Note: if allocated_at is empty we assume today's midnight.
     if send_usage:

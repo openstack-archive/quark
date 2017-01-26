@@ -1542,7 +1542,7 @@ class TestQuarkUpdateSubnetAttrFilters(test_quark_plugin.TestQuarkPlugin):
             self.plugin.update_subnet(self.context, 1, subnet)
 
             # NOTE(mdietz): the assertion here shows that, without admin,
-            #               all of the attributes passed above are stripped
+            #               all the attributes passed above are stripped
             #               from the request body. Otherwise, the attributes
             #               above would be passed as keyword arguments to the
             #               subnet_update db api call.

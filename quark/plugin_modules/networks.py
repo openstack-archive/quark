@@ -108,7 +108,7 @@ def create_network(context, network):
             net_uuid = uuidutils.generate_uuid()
 
         # TODO(mdietz) this will be the first component registry hook, but
-        #             lets make it work first
+        #             let's make it work first
         pnet_type, phys_net, seg_id = _adapt_provider_nets(context, network)
 
         ipam_strategy = utils.pop_param(net_attrs, "ipam_strategy", None)
