@@ -75,7 +75,10 @@ class Neutron(base.Application):
                                                    '"%(f)s"',
                                                    '"%(a)s"',
                                                    '%(T)s',
-                                                   '%(D)s',)),
+                                                   '%(D)s',
+                                                   '"%({X_USER_ID}i)s"',
+                                                   '"%({X_TENANT_ID}i)s"',
+                                                   '%({X-Forward-For}i)s',)),
                     }
 
         for k, v in settings.iteritems():
