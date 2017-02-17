@@ -14,8 +14,9 @@
 # limitations under the License.
 
 from neutron.api import extensions
-from neutron import manager
 from neutron import wsgi
+from neutron_lib.api import extensions as nl_extensions
+from neutron_lib.plugins import directory
 from oslo_log import log as logging
 import quark.utils as utils
 
@@ -67,7 +68,7 @@ class RoutesController(wsgi.Controller):
         self._plugin.delete_route(context, id)
 
 
-class Routes(extensions.ExtensionDescriptor):
+class Routes(nl_extensions.ExtensionDescriptor):
     """Routes support."""
     @classmethod
     def get_name(cls):
@@ -98,7 +99,7 @@ class Routes(extensions.ExtensionDescriptor):
     @classmethod
     def get_resources(cls):
         """Returns Ext Resources."""
-        controller = RoutesController(manager.NeutronManager.get_plugin())
+        controller = RoutesController(directory.get_plugin())
         return [extensions.ResourceExtension(
             Routes.get_alias(),
             controller)]

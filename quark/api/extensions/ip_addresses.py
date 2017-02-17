@@ -14,8 +14,9 @@
 # limitations under the License.
 
 from neutron.api import extensions
-from neutron import manager
 from neutron import wsgi
+from neutron_lib.api import extensions as nl_extensions
+from neutron_lib.plugins import directory
 from oslo_log import log as logging
 import quark.utils as utils
 import webob
@@ -119,7 +120,7 @@ class IpAddressPortController(wsgi.Controller):
         raise webob.exc.HTTPNotImplemented()
 
 
-class Ip_addresses(extensions.ExtensionDescriptor):
+class Ip_addresses(nl_extensions.ExtensionDescriptor):
     """IP Addresses support."""
     @classmethod
     def get_name(cls):
@@ -152,9 +153,9 @@ class Ip_addresses(extensions.ExtensionDescriptor):
     def get_resources(cls):
         """Returns Ext Resources."""
         ip_controller = IpAddressesController(
-            manager.NeutronManager.get_plugin())
+            directory.get_plugin())
         ip_port_controller = IpAddressPortController(
-            manager.NeutronManager.get_plugin())
+            directory.get_plugin())
         resources = []
         resources.append(extensions.ResourceExtension(
                          Ip_addresses.get_alias(),

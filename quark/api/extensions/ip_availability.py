@@ -14,9 +14,10 @@
 # limitations under the License.
 
 from neutron.api import extensions
-from neutron import manager
 from neutron import wsgi
+from neutron_lib.api import extensions as nl_extensions
 from neutron_lib import exceptions as n_exc
+from neutron_lib.plugins import directory
 from oslo_log import log as logging
 
 RESOURCE_NAME = "ip_availability"
@@ -45,7 +46,7 @@ class IPAvailabilityController(wsgi.Controller):
         return self._plugin.get_ip_availability(**request.GET)
 
 
-class Ip_availability(extensions.ExtensionDescriptor):
+class Ip_availability(nl_extensions.ExtensionDescriptor):
     """IP Availability support."""
     @classmethod
     def get_name(cls):
@@ -77,7 +78,7 @@ class Ip_availability(extensions.ExtensionDescriptor):
     @classmethod
     def get_resources(cls):
         """Returns Ext Resources."""
-        plugin = manager.NeutronManager.get_plugin()
+        plugin = directory.get_plugin()
         controller = IPAvailabilityController(plugin)
         return [extensions.ResourceExtension(Ip_availability.get_alias(),
                                              controller)]

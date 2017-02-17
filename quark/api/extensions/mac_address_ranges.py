@@ -14,8 +14,9 @@
 # limitations under the License.
 
 from neutron.api import extensions
-from neutron import manager
 from neutron import wsgi
+from neutron_lib.api import extensions as nl_extensions
+from neutron_lib.plugins import directory
 from oslo_log import log as logging
 import quark.utils as utils
 
@@ -68,7 +69,7 @@ class MacAddressRangesController(wsgi.Controller):
         return self._plugin.delete_mac_address_range(context, id)
 
 
-class Mac_address_ranges(extensions.ExtensionDescriptor):
+class Mac_address_ranges(nl_extensions.ExtensionDescriptor):
     """Mac Address Range support."""
     @classmethod
     def get_name(cls):
@@ -101,7 +102,7 @@ class Mac_address_ranges(extensions.ExtensionDescriptor):
     @classmethod
     def get_resources(cls):
         """Returns Ext Resources."""
-        plugin = manager.NeutronManager.get_plugin()
+        plugin = directory.get_plugin()
         controller = MacAddressRangesController(plugin)
         return [extensions.ResourceExtension(Mac_address_ranges.get_alias(),
                                              controller)]

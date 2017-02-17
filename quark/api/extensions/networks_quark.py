@@ -14,7 +14,7 @@
 # limitations under the License.
 
 
-from neutron.api import extensions
+from neutron_lib.api import extensions
 
 RESOURCE_NAME = "network"
 RESOURCE_COLLECTION = RESOURCE_NAME + "s"

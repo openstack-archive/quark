@@ -14,8 +14,9 @@
 # limitations under the License.
 
 from neutron.api import extensions
-from neutron import manager
 from neutron import wsgi
+from neutron_lib.api import extensions as nl_extensions
+from neutron_lib.plugins import directory
 from oslo_log import log as logging
 import quark.utils as utils
 
@@ -65,7 +66,7 @@ class SegmentAllocationRangesController(wsgi.Controller):
         return self._plugin.delete_segment_allocation_range(context, id)
 
 
-class Segment_allocation_ranges(extensions.ExtensionDescriptor):
+class Segment_allocation_ranges(nl_extensions.ExtensionDescriptor):
     """Segment Allocation Range support."""
     @classmethod
     def get_name(cls):
@@ -98,7 +99,7 @@ class Segment_allocation_ranges(extensions.ExtensionDescriptor):
     @classmethod
     def get_resources(cls):
         """Returns Ext Resources."""
-        plugin = manager.NeutronManager.get_plugin()
+        plugin = directory.get_plugin()
         controller = SegmentAllocationRangesController(plugin)
         return [extensions.ResourceExtension(
             Segment_allocation_ranges.get_alias(),

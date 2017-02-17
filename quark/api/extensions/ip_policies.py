@@ -14,8 +14,9 @@
 # limitations under the License.
 
 from neutron.api import extensions
-from neutron import manager
 from neutron import wsgi
+from neutron_lib.api import extensions as nl_extensions
+from neutron_lib.plugins import directory
 from oslo_log import log as logging
 import quark.utils as utils
 
@@ -67,7 +68,7 @@ class IPPoliciesController(wsgi.Controller):
         return self._plugin.delete_ip_policy(context, id)
 
 
-class Ip_policies(extensions.ExtensionDescriptor):
+class Ip_policies(nl_extensions.ExtensionDescriptor):
     """IP Policies support."""
     @classmethod
     def get_name(cls):
@@ -100,7 +101,7 @@ class Ip_policies(extensions.ExtensionDescriptor):
     @classmethod
     def get_resources(cls):
         """Returns Ext Resources."""
-        plugin = manager.NeutronManager.get_plugin()
+        plugin = directory.get_plugin()
         controller = IPPoliciesController(plugin)
         return [extensions.ResourceExtension(Ip_policies.get_alias(),
                                              controller)]
