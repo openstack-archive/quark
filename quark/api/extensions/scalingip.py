@@ -13,9 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from neutron.api import extensions
+from neutron._i18n import _
 from neutron.api.v2 import attributes as attr
 from neutron.api.v2 import resource_helper
+from neutron_lib.api import extensions
 from neutron_lib.api import validators
 from oslo_log import log as logging
 
@@ -79,7 +80,7 @@ RESOURCE_ATTRIBUTE_MAP = {
         "tenant_id": {
             'allow_post': True, 'allow_put': False,
             'required_by_policy': True,
-            'validate': {'type:string': attr.TENANT_ID_MAX_LEN},
+            'validate': {'type:string': None},
             'is_visible': True
         },
         "scaling_network_id": {
@@ -127,7 +128,7 @@ class Scalingip(extensions.ExtensionDescriptor):
         """Returns Ext Resources."""
         plural_mappings = resource_helper.build_plural_mappings(
             {}, RESOURCE_ATTRIBUTE_MAP)
-        attr.PLURALS.update(plural_mappings)
+        # attr.PLURALS.update(plural_mappings)
         return resource_helper.build_resource_info(plural_mappings,
                                                    RESOURCE_ATTRIBUTE_MAP,
                                                    None,

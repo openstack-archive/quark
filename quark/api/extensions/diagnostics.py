@@ -16,7 +16,8 @@
 import functools
 
 from neutron.api import extensions
-from neutron import manager
+from neutron_lib.api import extensions as nl_extensions
+from neutron_lib.plugins import directory
 from neutron_lib import exceptions as n_exc
 from oslo_log import log as logging
 LOG = logging.getLogger(__name__)
@@ -39,7 +40,7 @@ class Diagnostician(object):
                 req.context, id, input['diag'])
 
 
-class Diagnostics(extensions.ExtensionDescriptor):
+class Diagnostics(nl_extensions.ExtensionDescriptor):
     def get_name(self):
         return "Diagnostics"
 
@@ -56,7 +57,7 @@ class Diagnostics(extensions.ExtensionDescriptor):
         return "never"
 
     def get_actions(self):
-        diagnose = Diagnostician(manager.NeutronManager.get_plugin()).diagnose
+        diagnose = Diagnostician(directory.get_plugin()).diagnose
         resources = ['port', 'subnet', 'network']
         return (extensions.ActionExtension('%ss' % res, 'diag',
                 functools.partial(diagnose, res)) for res in resources)

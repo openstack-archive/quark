@@ -14,8 +14,9 @@
 # limitations under the License.
 
 from neutron.api import extensions
-from neutron import manager
 from neutron import wsgi
+from neutron_lib.api import extensions as nl_extensions
+from neutron_lib.plugins import directory
 from oslo_log import log as logging
 import quark.utils as utils
 
@@ -69,7 +70,7 @@ class JobsController(wsgi.Controller):
         return self._plugin.delete_job(context, id)
 
 
-class Jobs(extensions.ExtensionDescriptor):
+class Jobs(nl_extensions.ExtensionDescriptor):
     """Jobs support."""
     @classmethod
     def get_name(cls):
@@ -102,7 +103,7 @@ class Jobs(extensions.ExtensionDescriptor):
     def get_resources(cls):
         """Returns Ext Resources."""
         job_controller = JobsController(
-            manager.NeutronManager.get_plugin())
+            directory.get_plugin())
         resources = []
         resources.append(extensions.ResourceExtension(
                          Jobs.get_alias(),
