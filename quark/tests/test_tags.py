@@ -137,7 +137,7 @@ class TestTagBase(test_base.TestBase):
         model = self._create_test_model(1, tags=tags)
         self._assert_tags(model, tags=tags)
 
-        self.assertEqual(self.tag.get(model), None)
+        self.assertIsNone(self.tag.get(model))
         self._assert_tags(model, tags=tags)
 
     def test_tag_set(self):
@@ -185,7 +185,7 @@ class TestTagBase(test_base.TestBase):
         self.assertEqual(self.tag.pop(model), str(self.value))
         self._assert_tags(model, tags=[])
 
-        self.assertEqual(self.tag.pop(model), None)
+        self.assertIsNone(self.tag.pop(model))
         self._assert_tags(model, tags=[])
 
     def test_pop_invalid(self):
@@ -201,7 +201,7 @@ class TestTagBase(test_base.TestBase):
                         [str(self.value), str(self.value2)])
         self._assert_tags(model, tags=[])
 
-        self.assertEqual(self.tag.pop(model), None)
+        self.assertIsNone(self.tag.pop(model))
         self._assert_tags(model, tags=[])
 
 
