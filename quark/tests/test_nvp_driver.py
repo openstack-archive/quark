@@ -657,7 +657,7 @@ class TestSwitchCopying(TestNVPDriver):
         switches = dict(results=[switch])
         args = self.driver._get_network_details(None, 1, switches)
         self.assertEqual(args["network_name"], "public")
-        self.assertEqual(args["phys_net"], None)
+        self.assertIsNone(args["phys_net"])
 
     def test_has_switches_and_transport_zones(self):
         transport_zones = [dict(zone_uuid="zone_uuid",
@@ -1068,7 +1068,7 @@ class TestNVPDriverLoadConfig(TestNVPDriver):
         self.assertEqual(conn["redirects"], '2')
         self.assertEqual(conn["http_timeout"], 10)
         self.assertEqual(conn["req_timeout"], "30")
-        self.assertEqual(conn["default_tz"], None)
+        self.assertIsNone(conn["default_tz"])
         self.assertEqual(conn["password"], "admin")
         self.assertEqual(conn["ip_address"], "192.168.221.139")
         self.assertEqual(conn["port"], "443")
