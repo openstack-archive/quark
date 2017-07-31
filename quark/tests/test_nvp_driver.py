@@ -400,7 +400,7 @@ class TestNVPDriverDeleteNetworkWithExceptions(TestNVPDriver):
                     self.driver.delete_network(self.context, "test")
                 self.fail("AssertionError should have been raised.")
             except AssertionError as ae:
-                self.assertEqual(ae.args[0], "AICException not raised")
+                self.assertEqual("AICException not raised", ae.args[0])
                 self.assertFalse(connection.lswitch().delete.called)
 
     def test_delete_network_with_500_aicexception(self):
@@ -411,7 +411,7 @@ class TestNVPDriverDeleteNetworkWithExceptions(TestNVPDriver):
                     self.driver.delete_network(self.context, "test")
                 self.fail("AssertionError should have been raised.")
             except AssertionError as ae:
-                self.assertEqual(ae.args[0], "AICException not raised")
+                self.assertEqual("AICException not raised", ae.args[0])
                 self.assertFalse(connection.lswitch().delete.called)
 
     def test_delete_network_with_normal_exception(self):
@@ -422,7 +422,7 @@ class TestNVPDriverDeleteNetworkWithExceptions(TestNVPDriver):
                     self.driver.delete_network(self.context, "test")
                 self.fail("AssertionError should have been raised.")
             except AssertionError as ae:
-                self.assertEqual(ae.args[0], "StandardError not raised")
+                self.assertEqual("StandardError not raised", ae.args[0])
                 self.assertFalse(connection.lswitch().delete.called)
 
 
@@ -445,7 +445,7 @@ class TestNVPDriverCreatePort(TestNVPDriver):
 
     def test_select_ipam_strategy(self):
         strategy = self.driver.select_ipam_strategy(1, "ANY")
-        self.assertEqual(strategy, "ANY")
+        self.assertEqual("ANY", strategy)
 
     def test_create_port_switch_exists(self):
         with self._stubs(net_details=dict(foo=3)) as (connection):
@@ -643,7 +643,7 @@ class TestNVPDriverLswitchesForNetwork(TestNVPDriver):
             connection.query = mock.Mock(return_value=query_mock)
             lswitch_ids = self.driver.get_lswitch_ids_for_network(
                 self.context, "net_uuid")
-            self.assertEqual(lswitch_ids, ['abcd'])
+            self.assertEqual(['abcd'], lswitch_ids)
 
 
 class TestSwitchCopying(TestNVPDriver):
@@ -656,8 +656,8 @@ class TestSwitchCopying(TestNVPDriver):
         switch = dict(display_name="public", transport_zones=[])
         switches = dict(results=[switch])
         args = self.driver._get_network_details(None, 1, switches)
-        self.assertEqual(args["network_name"], "public")
-        self.assertEqual(args["phys_net"], None)
+        self.assertEqual("public", args["network_name"])
+        self.assertEqual(None, args["phys_net"])
 
     def test_has_switches_and_transport_zones(self):
         transport_zones = [dict(zone_uuid="zone_uuid",
@@ -665,9 +665,9 @@ class TestSwitchCopying(TestNVPDriver):
         switch = dict(display_name="public", transport_zones=transport_zones)
         switches = dict(results=[switch])
         args = self.driver._get_network_details(None, 1, switches)
-        self.assertEqual(args["network_name"], "public")
-        self.assertEqual(args["phys_net"], "zone_uuid")
-        self.assertEqual(args["phys_type"], "bridge")
+        self.assertEqual("public", args["network_name"])
+        self.assertEqual("zone_uuid", args["phys_net"])
+        self.assertEqual("bridge", args["phys_type"])
 
     def test_has_switches_tz_and_vlan(self):
         binding = dict(vlan_translation=[dict(transport=10)])
@@ -677,9 +677,9 @@ class TestSwitchCopying(TestNVPDriver):
         switch = dict(display_name="public", transport_zones=transport_zones)
         switches = dict(results=[switch])
         args = self.driver._get_network_details(None, 1, switches)
-        self.assertEqual(args["network_name"], "public")
-        self.assertEqual(args["phys_net"], "zone_uuid")
-        self.assertEqual(args["phys_type"], "bridge")
+        self.assertEqual("public", args["network_name"])
+        self.assertEqual("zone_uuid", args["phys_net"])
+        self.assertEqual("bridge", args["phys_type"])
 
 
 class TestNVPDriverDeletePort(TestNVPDriver):
@@ -709,7 +709,7 @@ class TestNVPDriverDeletePort(TestNVPDriver):
                 with self.assertRaises(Exception):  # noqa
                     self.driver.delete_port(self.context, self.port_id)
             except AssertionError as ae:
-                self.assertEqual(ae.args[0], "Exception not raised")
+                self.assertEqual("Exception not raised", ae.args[0])
 
     def test_delete_port_no_switch_bad_data(self):
         with self._stubs(switch_count=0):
@@ -717,7 +717,7 @@ class TestNVPDriverDeletePort(TestNVPDriver):
                 with self.assertRaises(Exception):  # noqa
                     self.driver.delete_port(self.context, self.port_id)
             except AssertionError as ae:
-                self.assertEqual(ae.args[0], "Exception not raised")
+                self.assertEqual("Exception not raised", ae.args[0])
 
 
 class TestNVPDriverDeletePortWithExceptions(TestNVPDriver):
@@ -743,7 +743,7 @@ class TestNVPDriverDeletePortWithExceptions(TestNVPDriver):
                     self.driver.delete_port(self.context, 'test')
                 self.fail("AssertionError should have been raised.")
             except AssertionError as ae:
-                self.assertEqual(ae.args[0], "Exception not raised")
+                self.assertEqual("Exception not raised", ae.args[0])
                 self.assertFalse(connection.lswitch_port().delete.called)
 
     def test_delete_port_with_switch_query_404_aic_exception(self):
@@ -754,7 +754,7 @@ class TestNVPDriverDeletePortWithExceptions(TestNVPDriver):
                     self.driver.delete_port(self.context, 'test')
                 self.fail("AssertionError should have been raised.")
             except AssertionError as ae:
-                self.assertEqual(ae.args[0], "AICException not raised")
+                self.assertEqual("AICException not raised", ae.args[0])
                 self.assertFalse(connection.lswitch_port().delete.called)
 
     def test_delete_port_with_switch_query_500_aic_exception(self):
@@ -765,7 +765,7 @@ class TestNVPDriverDeletePortWithExceptions(TestNVPDriver):
                     self.driver.delete_port(self.context, 'test')
                 self.fail("AssertionError should have been raised.")
             except AssertionError as ae:
-                self.assertEqual(ae.args[0], "AICException not raised")
+                self.assertEqual("AICException not raised", ae.args[0])
                 self.assertFalse(connection.lswitch_port().delete.called)
 
     def test_delete_port_with_delete_general_exception(self):
@@ -776,7 +776,7 @@ class TestNVPDriverDeletePortWithExceptions(TestNVPDriver):
                     self.driver.delete_port(self.context, 'test')
                 self.fail("AssertionError should have been raised.")
             except AssertionError as ae:
-                self.assertEqual(ae.args[0], "Exception not raised")
+                self.assertEqual("Exception not raised", ae.args[0])
                 self.assertTrue(connection.lswitch_port().delete.called)
 
     def test_delete_port_with_delete_404_aic_exception(self):
@@ -787,7 +787,7 @@ class TestNVPDriverDeletePortWithExceptions(TestNVPDriver):
                     self.driver.delete_port(self.context, 'test')
                 self.fail("AssertionError should have been raised.")
             except AssertionError as ae:
-                self.assertEqual(ae.args[0], "AICException not raised")
+                self.assertEqual("AICException not raised", ae.args[0])
                 self.assertTrue(connection.lswitch_port().delete.called)
 
     def test_delete_port_with_delete_500_aic_exception(self):
@@ -798,7 +798,7 @@ class TestNVPDriverDeletePortWithExceptions(TestNVPDriver):
                     self.driver.delete_port(self.context, 'test')
                 self.fail("AssertionError should have been raised.")
             except AssertionError as ae:
-                self.assertEqual(ae.args[0], "AICException not raised")
+                self.assertEqual("AICException not raised", ae.args[0])
                 self.assertTrue(connection.lswitch_port().delete.called)
 
 
@@ -1063,20 +1063,20 @@ class TestNVPDriverLoadConfig(TestNVPDriver):
         cfg.CONF.set_override("controller_connection", [controllers], "NVP")
         self.driver.load_config()
         conn = self.driver.nvp_connections[0]
-        self.assertEqual(conn["username"], "admin")
-        self.assertEqual(conn["retries"], 2)
-        self.assertEqual(conn["redirects"], '2')
-        self.assertEqual(conn["http_timeout"], 10)
-        self.assertEqual(conn["req_timeout"], "30")
-        self.assertEqual(conn["default_tz"], None)
-        self.assertEqual(conn["password"], "admin")
-        self.assertEqual(conn["ip_address"], "192.168.221.139")
-        self.assertEqual(conn["port"], "443")
+        self.assertEqual("admin", conn["username"])
+        self.assertEqual(2, conn["retries"])
+        self.assertEqual('2', conn["redirects"])
+        self.assertEqual(10, conn["http_timeout"])
+        self.assertEqual("30", conn["req_timeout"])
+        self.assertEqual(None, conn["default_tz"])
+        self.assertEqual("admin", conn["password"])
+        self.assertEqual("192.168.221.139", conn["ip_address"])
+        self.assertEqual("443", conn["port"])
         cfg.CONF.clear_override("controller_connection", "NVP")
 
     def test_load_config_no_connections(self):
         self.driver.load_config()
-        self.assertEqual(len(self.driver.nvp_connections), 0)
+        self.assertEqual(0, len(self.driver.nvp_connections))
 
 
 class TestNVPDriverLoadConfigRandomController(TestNVPDriver):

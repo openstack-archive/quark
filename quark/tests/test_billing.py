@@ -89,17 +89,17 @@ class QuarkBillingPayloadTest(QuarkBillingBaseTest):
         payload = billing.build_payload(ipaddress, billing.IP_EXISTS,
                                         start_time=start_time,
                                         end_time=end_time)
-        self.assertEqual(payload['event_type'], billing.IP_EXISTS,
-                         'event_type is wrong')
-        self.assertEqual(payload['tenant_id'], TENANT_ID,
-                         'tenant_id is wrong')
-        self.assertEqual(payload['ip_address'], IP_READABLE,
-                         'ip_address is wrong')
+        self.assertEqual('event_type is wrong',
+                         payload['event_type'], billing.IP_EXISTS)
+        self.assertEqual('tenant_id is wrong',
+                         payload['tenant_id'], TENANT_ID)
+        self.assertEqual('ip_address is wrong',
+                         payload['ip_address'], IP_READABLE)
         self.assertEqual(payload['ip_version'], 4,
                          'ip_version should be 4')
         self.assertEqual(payload['ip_type'], 'fixed',
                          'ip_type should be fixed')
-        self.assertEqual(payload['id'], IP_ID, 'ip_id is wrong')
+        self.assertEqual('ip_id is wrong', payload['id'], IP_ID)
         self.assertEqual(payload['startTime'],
                          billing.convert_timestamp(start_time),
                          'startTime is wrong')

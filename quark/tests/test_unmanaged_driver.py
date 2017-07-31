@@ -38,14 +38,14 @@ class TestUnmanagedDriver(test_base.TestBase):
         self.driver.load_config()
 
     def test_get_name(self):
-        self.assertEqual(self.driver.get_name(), "UNMANAGED")
+        self.assertEqual("UNMANAGED", self.driver.get_name())
 
     def test_get_connection(self):
         self.driver.get_connection()
 
     def test_select_ipam_strategy(self):
         strategy = self.driver.select_ipam_strategy(1, "ANY")
-        self.assertEqual(strategy, "ANY")
+        self.assertEqual("ANY", strategy)
 
     def test_create_network(self):
         self.driver.create_network(context=self.context,
@@ -55,12 +55,12 @@ class TestUnmanagedDriver(test_base.TestBase):
         self.driver.delete_network(context=self.context, network_id=1)
 
     def test_diag_network(self):
-        self.assertEqual(self.driver.diag_network(context=self.context,
-                                                  network_id=2), {})
+        self.assertEqual({}, self.driver.diag_network(context=self.context,
+                                                      network_id=2))
 
     def test_diag_port(self):
-        self.assertEqual(self.driver.diag_port(context=self.context,
-                                               network_id=2), {})
+        self.assertEqual({}, self.driver.diag_port(context=self.context,
+                                                   network_id=2))
 
     def test_create_port(self):
         self.driver.create_port(context=self.context,
@@ -88,7 +88,7 @@ class TestUnmanagedDriver(test_base.TestBase):
             context=self.context, network_id="public_network", port_id=port_id,
             device_id=device_id, mac_address=mac_address,
             security_groups=security_groups)
-        self.assertEqual(mock_client.serialize_groups.call_count, 0)
+        self.assertEqual(0, mock_client.serialize_groups.call_count)
         mock_client.delete_vif_rules.assert_called_once_with(
             device_id, mac_address)
 

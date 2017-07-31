@@ -103,7 +103,7 @@ class QuarkSegmentAllocationTest(BaseFunctionalTest):
                     self.context, alloc, **update)
             )
             self.context.session.flush()
-        self.assertEqual(len(allocs), count)
+        self.assertEqual(count, len(allocs))
         return allocs
 
     def _sa_range_to_dict(self, sa_range, allocations=None):
@@ -131,15 +131,15 @@ class QuarkTestVXLANSegmentAllocation(QuarkSegmentAllocationTest):
         # assert we allocate and update correctly
         alloc = self.driver.allocate(
             self.context, sa_range['segment_id'], 'network_id_1')
-        self.assertEqual(alloc['segment_type'], sa_range['segment_type'])
-        self.assertEqual(alloc['segment_id'], sa_range['segment_id'])
-        self.assertEqual(alloc['network_id'], 'network_id_1')
+        self.assertEqual(sa_range['segment_type'], alloc['segment_type'])
+        self.assertEqual(sa_range['segment_type'], alloc['segment_id'])
+        self.assertEqual('network_id_1', alloc['network_id'])
 
         # assert the remaining allocations remain unallocated
         allocs = db_api.segment_allocation_find(
             self.context).all()
         allocs.remove(alloc)
-        self.assertEqual(len(allocs), 4)
+        self.assertEqual(4, len(allocs))
         self.assertTrue(all([a["deallocated"] for a in allocs]))
 
         return sa_range, alloc
@@ -157,9 +157,9 @@ class QuarkTestVXLANSegmentAllocation(QuarkSegmentAllocationTest):
             self.context, id=alloc['id'],
             segment_id=sa_range['segment_id']).all()
 
-        self.assertEqual(len(allocs), 1)
+        self.assertEqual(1, len(allocs))
         self.assertTrue(allocs[0]["deallocated"])
-        self.assertEqual(allocs[0]["network_id"], None)
+        self.assertEqual(None, allocs[0]["network_id"])
 
     def test_allocation_segment_full(self):
         # create a range, and allocate everything
@@ -201,7 +201,7 @@ class QuarkTestCreateSegmentAllocationRange(QuarkSegmentAllocationTest):
 
         # Assert we actually added the range to the db with correct
         # values and returned the correct response.
-        self.assertEqual(len(sa_range_models), 1)
+        self.assertEqual(1, len(sa_range_models))
         self.assertEqual(self._sa_range_to_dict(sa_range_models[0]),
                          sa_range)
 
@@ -257,7 +257,7 @@ class QuarkTestCreateSegmentAllocationRange(QuarkSegmentAllocationTest):
 
             # Assert we actually added the range to the db with correct
             # values and returned the correct response.
-            self.assertEqual(len(sa_range_models), 1)
+            self.assertEqual(1, len(sa_range_models))
             self.assertEqual(self._sa_range_to_dict(sa_range_models[0]),
                              sa_range)
 
@@ -284,7 +284,7 @@ class QuarkTestCreateSegmentAllocationRange(QuarkSegmentAllocationTest):
 
             # Assert we actually added the range to the db with correct
             # values and returned the correct response.
-            self.assertEqual(len(sa_range_models), 1)
+            self.assertEqual(1, len(sa_range_models))
             self.assertEqual(self._sa_range_to_dict(sa_range_models[0]),
                              sa_range)
 
@@ -429,5 +429,5 @@ class QuarkTestDeleteSegmentAllocationRange(QuarkSegmentAllocationTest):
             self.context, id=sa_range_id, scope=db_api.ALL)
         allocs = db_api.segment_allocation_find(
             self.context, segment_allocation_range_id=sa_range_id).all()
-        self.assertEqual(sa_range, [])
-        self.assertEqual(allocs, [])
+        self.assertEqual([], sa_range)
+        self.assertEqual([], allocs)

@@ -35,7 +35,7 @@ class TestQuarkAPIExtensions(TestQuarkPlugin):
         conf = mock.MagicMock()
         conf.__contains__.return_value = False
         quark.plugin.append_quark_extensions(conf)
-        self.assertEqual(conf.set_override.call_count, 0)
+        self.assertEqual(0, conf.set_override.call_count)
 
     def test_append_no_extension_path(self):
         conf = mock.MagicMock()

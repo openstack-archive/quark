@@ -13,7 +13,7 @@ class TestRetryLoop(test_base.TestBase):
         g = r(c)
         ret = g()
         c.assert_called_once_with()
-        self.assertEqual(ret, c.return_value)
+        self.assertEqual(c.return_value, ret)
 
     def test_retry_3_times_exception(self):
         r = utils.retry_loop(3)
@@ -22,7 +22,7 @@ class TestRetryLoop(test_base.TestBase):
         c.side_effect = ValueError()
         with self.assertRaises(ValueError):
             g()
-        self.assertEqual(c.call_count, 3)
+        self.assertEqual(3, c.call_count)
 
     def test_retry_3_times_exception_pass(self):
         r = utils.retry_loop(3)
@@ -31,8 +31,8 @@ class TestRetryLoop(test_base.TestBase):
         expected_ret = mock.MagicMock()
         c.side_effect = (ValueError(), expected_ret)
         ret = g()
-        self.assertEqual(c.call_count, 2)
-        self.assertEqual(ret, expected_ret)
+        self.assertEqual(2, c.call_count)
+        self.assertEqual(expected_ret, ret)
 
 
 class TestExcWrapper(test_base.TestBase):

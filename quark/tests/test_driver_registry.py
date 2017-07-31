@@ -62,10 +62,10 @@ class TestRegistryBase(test_base.TestBase):
 
     def test_get_valid(self):
         driver = self.registry.get_driver("test_driver_1")
-        self.assertEqual(driver, 1)
+        self.assertEqual(1, driver)
 
         driver = self.registry.get_driver("test_driver_2")
-        self.assertEqual(driver, 2)
+        self.assertEqual(2, driver)
 
     def test_get_invalid(self):
         with self.assertRaises(n_exc.BadRequest):
@@ -92,11 +92,11 @@ class TestDriverRegistry(TestRegistryBase):
     def test_get_port_driver(self):
         driver = self.registry.get_driver(
             "test_driver_1", port_driver="test_driver_1")
-        self.assertEqual(driver, 1)
+        self.assertEqual(1, driver)
 
         driver = self.registry.get_driver(
             "test_driver_2", port_driver="test_driver_2")
-        self.assertEqual(driver, 2)
+        self.assertEqual(2, driver)
 
     def test_get_invalid_port_driver(self):
         with self.assertRaises(n_exc.BadRequest):
@@ -106,15 +106,15 @@ class TestDriverRegistry(TestRegistryBase):
     def test_get_compatable_port_driver(self):
         driver = self.registry.get_driver(
             "test_driver_1", port_driver="test_driver_2")
-        self.assertEqual(driver, 2)
+        self.assertEqual(2, driver)
 
         driver = self.registry.get_driver(
             "test_driver_1", port_driver="test_driver_3")
-        self.assertEqual(driver, 3)
+        self.assertEqual(3, driver)
 
         driver = self.registry.get_driver(
             "test_driver_2", port_driver="test_driver_3")
-        self.assertEqual(driver, 3)
+        self.assertEqual(3, driver)
 
     def test_get_incompatable_port_driver(self):
         with self.assertRaises(n_exc.BadRequest):

@@ -189,52 +189,52 @@ class QuarkIpAvailabilityBaseFunctionalTest(BaseFunctionalTest):
 class QuarkIpAvailabilityFunctionalTest(QuarkIpAvailabilityBaseFunctionalTest):
     def test_empty(self):
         output = ip_avail.get_ip_availability(**self.default_kwargs)
-        self.assertEqual(output["used"], {})
-        self.assertEqual(output["unused"], {})
+        self.assertEqual({}, output["used"])
+        self.assertEqual({}, output["unused"])
 
     def test_default(self):
         self._default()
         output = ip_avail.get_ip_availability(**self.default_kwargs)
-        self.assertEqual(output["used"], {"region-cell": 1})
-        self.assertEqual(output["unused"], {"region-cell": 253})
+        self.assertEqual({"region-cell": 1}, output["used"])
+        self.assertEqual({"region-cell": 253}, output["unused"])
 
     def test_do_not_use_None(self):
         self._do_not_use_None()
         output = ip_avail.get_ip_availability(**self.default_kwargs)
-        self.assertEqual(output["used"], {"region-cell": 1})
-        self.assertEqual(output["unused"], {"region-cell": 253})
+        self.assertEqual({"region-cell": 1}, output["used"])
+        self.assertEqual({"region-cell": 253}, output["unused"])
 
     def test_do_not_use_1(self):
         self._do_not_use_1()
         output = ip_avail.get_ip_availability(**self.default_kwargs)
-        self.assertEqual(output["used"], dict())
-        self.assertEqual(output["unused"], dict())
+        self.assertEqual(dict(), output["used"])
+        self.assertEqual(dict(), output["unused"])
 
     def test_no_ip_addresses(self):
         self._no_ip_addresses()
         output = ip_avail.get_ip_availability(**self.default_kwargs)
-        self.assertEqual(output["used"], {"region-cell": 0})
-        self.assertEqual(output["unused"], {"region-cell": 254})
+        self.assertEqual({"region-cell": 0}, output["used"])
+        self.assertEqual({"region-cell": 254}, output["unused"])
 
     def test_no_ip_addresses_no_ip_policy(self):
         self._no_ip_addresses_no_ip_policy()
         output = ip_avail.get_ip_availability(**self.default_kwargs)
-        self.assertEqual(output["used"], {"region-cell": 0})
-        self.assertEqual(output["unused"], {"region-cell": 256})
+        self.assertEqual({"region-cell": 0}, output["used"])
+        self.assertEqual({"region-cell": 256}, output["unused"])
 
     @mock.patch("quark.ip_availability.timeutils.utcnow")
     def test_no_ip_policy(self, utcnow_patch):
         self._no_ip_policy(utcnow_patch)
         output = ip_avail.get_ip_availability(**self.default_kwargs)
-        self.assertEqual(output["used"], {"region-cell": 63})
-        self.assertEqual(output["unused"], {"region-cell": 256 * 72 - 63})
+        self.assertEqual({"region-cell": 63}, output["used"])
+        self.assertEqual({"region-cell": 256 * 72 - 63}, output["unused"])
 
     @mock.patch("quark.ip_availability.timeutils.utcnow")
     def test_with_ip_policy(self, utcnow_patch):
         self._with_ip_policy(utcnow_patch)
         output = ip_avail.get_ip_availability(**self.default_kwargs)
-        self.assertEqual(output["used"], {"region-cell": 50})
-        self.assertEqual(output["unused"], {"region-cell": 254 * 72 - 50})
+        self.assertEqual({"region-cell": 50}, output["used"])
+        self.assertEqual({"region-cell": 354 * 72 - 50}, output["unused"])
 
 
 class QuarkIpAvailabilityFilterTest(QuarkIpAvailabilityBaseFunctionalTest):
@@ -276,59 +276,59 @@ class QuarkIpAvailabilityFilterTest(QuarkIpAvailabilityBaseFunctionalTest):
     def test_all_None(self):
         kwargs = {}
         output = ip_avail.get_ip_availability(**kwargs)
-        self.assertEqual(output["used"], {"0": 4, "1": 4})
-        self.assertEqual(output["unused"], {"0": 253 * 4, "1": 253 * 4})
+        self.assertEqual({"0": 4, "1": 4}, output["used"])
+        self.assertEqual({"0": 253 * 4, "1": 253 * 4}, output["unused"])
 
     def test_network_id_specific(self):
         kwargs = {"network_id": 0}
         output = ip_avail.get_ip_availability(**kwargs)
-        self.assertEqual(output["used"], {"0": 2, "1": 2})
-        self.assertEqual(output["unused"], {"0": 253 * 2, "1": 253 * 2})
+        self.assertEqual({"0": 2, "1": 2}, output["used"])
+        self.assertEqual({"0": 253 * 2, "1": 253 * 2}, output["unused"])
 
     def test_network_id_many(self):
         kwargs = {"network_id": [0, 1]}
         output = ip_avail.get_ip_availability(**kwargs)
-        self.assertEqual(output["used"], {"0": 4, "1": 4})
-        self.assertEqual(output["unused"], {"0": 253 * 4, "1": 253 * 4})
+        self.assertEqual({"0": 4, "1": 4}, output["used"])
+        self.assertEqual({"0": 253 * 4, "1": 253 * 4}, output["unused"])
 
     def test_segment_id_specific(self):
         kwargs = {"segment_id": 0}
         output = ip_avail.get_ip_availability(**kwargs)
-        self.assertEqual(output["used"], {"0": 4})
-        self.assertEqual(output["unused"], {"0": 253 * 4})
+        self.assertEqual({"0": 4}, output["used"])
+        self.assertEqual({"0": 253 * 4}, output["unused"])
 
     def test_segment_id_many(self):
         kwargs = {"segment_id": [0, 1]}
         output = ip_avail.get_ip_availability(**kwargs)
-        self.assertEqual(output["used"], {"0": 4, "1": 4})
-        self.assertEqual(output["unused"], {"0": 253 * 4, "1": 253 * 4})
+        self.assertEqual({"0": 4, "1": 4}, output["used"])
+        self.assertEqual({"0": 253 * 4, "1": 253 * 4}, output["unused"])
 
     def test_ip_version_4(self):
         kwargs = {"ip_version": 4}
         output = ip_avail.get_ip_availability(**kwargs)
-        self.assertEqual(output["used"], {"0": 2, "1": 2})
-        self.assertEqual(output["unused"], {"0": 253 * 2, "1": 253 * 2})
+        self.assertEqual({"0": 2, "1": 2}, output["used"])
+        self.assertEqual({"0": 253 * 2, "1": 253 * 2}, output["unused"])
 
     def test_ip_version_6(self):
         kwargs = {"ip_version": 6}
         output = ip_avail.get_ip_availability(**kwargs)
-        self.assertEqual(output["used"], {"0": 2, "1": 2})
-        self.assertEqual(output["unused"], {"0": 253 * 2, "1": 253 * 2})
+        self.assertEqual({"0": 2, "1": 2}, output["used"])
+        self.assertEqual({"0": 253 * 2, "1": 253 * 2}, output["unused"])
 
     def test_ip_version_many(self):
         kwargs = {"ip_version": [4, 6]}
         output = ip_avail.get_ip_availability(**kwargs)
-        self.assertEqual(output["used"], {"0": 4, "1": 4})
-        self.assertEqual(output["unused"], {"0": 253 * 4, "1": 253 * 4})
+        self.assertEqual({"0": 4, "1": 4}, output["used"])
+        self.assertEqual({"0": 253 * 4, "1": 253 * 4}), output["unused"]
 
     def test_subnet_id_specific(self):
         kwargs = {"subnet_id": 3}
         output = ip_avail.get_ip_availability(**kwargs)
-        self.assertEqual(output["used"], {"1": 1})
-        self.assertEqual(output["unused"], {"1": 253})
+        self.assertEqual({"1": 1}, output["used"])
+        self.assertEqual({"1": 253}, output["unused"])
 
     def test_subnet_id_many(self):
         kwargs = {"subnet_id": [3, 4, 5]}
         output = ip_avail.get_ip_availability(**kwargs)
-        self.assertEqual(output["used"], {"0": 2, "1": 1})
-        self.assertEqual(output["unused"], {"0": 253 * 2, "1": 253})
+        self.assertEqual({"0": 2, "1": 1}, output["used"])
+        self.assertEqual({"0": 253 * 2, "1": 253}, output["unused"])

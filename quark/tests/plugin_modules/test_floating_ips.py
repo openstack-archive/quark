@@ -77,7 +77,7 @@ class TestFloatingIPUtilityMethods(test_quark_plugin.TestQuarkPlugin):
 
         next_fixed_ip = floating_ips._get_next_available_fixed_ip(port)
 
-        self.assertEqual(next_fixed_ip["address_readable"], '192.168.0.1')
+        self.assertEqual('192.168.0.1', next_fixed_ip["address_readable"])
 
     def test_get_next_available_fixed_ip_with_mult_fixed_ips(self):
         port = models.Port()
@@ -96,7 +96,7 @@ class TestFloatingIPUtilityMethods(test_quark_plugin.TestQuarkPlugin):
 
         next_fixed_ip = floating_ips._get_next_available_fixed_ip(port)
 
-        self.assertEqual(next_fixed_ip["address_readable"], '192.168.0.1')
+        self.assertEqual('192.168.0.1', next_fixed_ip["address_readable"])
 
     def test_get_next_available_fixed_ip_with_no_avail_fixed_ips(self):
         port = models.Port()
@@ -144,7 +144,7 @@ class TestFloatingIPUtilityMethods(test_quark_plugin.TestQuarkPlugin):
 
         next_fixed_ip = floating_ips._get_next_available_fixed_ip(port)
 
-        self.assertEqual(next_fixed_ip, None)
+        self.assertEqual(None, next_fixed_ip)
 
     def test_get_next_available_fixed_ip_with_avail_fixed_ips(self):
         port = models.Port()
@@ -183,7 +183,7 @@ class TestFloatingIPUtilityMethods(test_quark_plugin.TestQuarkPlugin):
 
         next_fixed_ip = floating_ips._get_next_available_fixed_ip(port)
 
-        self.assertEqual(next_fixed_ip["address_readable"], "192.168.0.2")
+        self.assertEqual('192.168.0.2', next_fixed_ip["address_readable"])
 
 
 class TestCreateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
@@ -268,8 +268,8 @@ class TestCreateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
                            port_id=port["id"])
             flip = self.plugin.create_floatingip(self.context,
                                                  dict(floatingip=request))
-            self.assertEqual(flip["floating_ip_address"], "10.0.0.1")
-            self.assertEqual(flip["fixed_ip_address"], "192.168.0.1")
+            self.assertEqual("10.0.0.1", flip["floating_ip_address"])
+            self.assertEqual("192.168.0.1", flip["fixed_ip_address"])
 
     def test_create_without_a_port(self):
         floating_ip_addr = netaddr.IPAddress("10.0.0.1")
@@ -289,8 +289,8 @@ class TestCreateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
             request = dict(floating_network_id=network["id"], port_id=None)
             flip = self.plugin.create_floatingip(self.context,
                                                  dict(floatingip=request))
-            self.assertEqual(flip["floating_ip_address"], "10.0.0.1")
-            self.assertEqual(flip.get("fixed_ip_address"), None)
+            self.assertEqual("10.0.0.1", flip["floating_ip_address"])
+            self.assertEqual(None, flip.get("fixed_ip_address"))
 
     def test_create_with_fixed_ip_specified(self):
         floating_ip_addr = netaddr.IPAddress("10.0.0.1")
@@ -316,8 +316,8 @@ class TestCreateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
                            port_id=port["id"], fixed_ip_address="192.168.0.2")
             flip = self.plugin.create_floatingip(self.context,
                                                  dict(floatingip=request))
-            self.assertEqual(flip["floating_ip_address"], "10.0.0.1")
-            self.assertEqual(flip["fixed_ip_address"], "192.168.0.2")
+            self.assertEqual("10.0.0.1", flip["floating_ip_address"])
+            self.assertEqual("192.168.0.2", flip["fixed_ip_address"])
 
     def test_create_with_floating_ip_specified(self):
         floating_ip_addr = netaddr.IPAddress("10.0.0.1")
@@ -339,8 +339,8 @@ class TestCreateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
                            port_id=port["id"], floating_ip_address="10.0.0.1")
             flip = self.plugin.create_floatingip(self.context,
                                                  dict(floatingip=request))
-            self.assertEqual(flip["floating_ip_address"], "10.0.0.1")
-            self.assertEqual(flip["fixed_ip_address"], "192.168.0.1")
+            self.assertEqual("10.0.0.1", flip["floating_ip_address"])
+            self.assertEqual("192.168.0.1", flip["fixed_ip_address"])
 
     def test_create_without_network_id_fails(self):
         with self._stubs():
@@ -388,9 +388,9 @@ class TestCreateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
                                fixed_ip_address="192.168.0.2")
                 flip = self.plugin.create_floatingip(self.context,
                                                      dict(floatingip=request))
-                self.assertEqual(flip["address_readable"], "10.0.0.1")
-                self.assertEqual(flip.fixed_ip["address_readable"],
-                                 "192.168.0.2")
+                self.assertEqual("10.0.0.1", flip["address_readable"])
+                self.assertEqual("192.168.0.2",
+                                 flip.fixed_ip["address_readable"])
 
     def test_create_with_port_and_fixed_ip_with_existing_flip_fails(self):
         network = dict(id="00000000-0000-0000-0000-000000000000",
@@ -640,8 +640,8 @@ class TestUpdateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
             content = dict(port_id=new_port["id"])
             ret = self.plugin.update_floatingip(self.context, flip["id"],
                                                 dict(floatingip=content))
-            self.assertEqual(ret["fixed_ip_address"], "192.168.0.1")
-            self.assertEqual(ret["port_id"], new_port["id"])
+            self.assertEqual("192.168.0.1", ret["fixed_ip_address"])
+            self.assertEqual(new_port["id"], ret["port_id"])
             notify.assert_called_once_with(self.context, IP_ASSOC,
                                            mock.ANY)
 
@@ -665,8 +665,8 @@ class TestUpdateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
             content = dict(port_id=new_port["id"])
             ret = self.plugin.update_floatingip(self.context, flip["id"],
                                                 dict(floatingip=content))
-            self.assertEqual(ret["fixed_ip_address"], "192.168.0.1")
-            self.assertEqual(ret["port_id"], new_port["id"])
+            self.assertEqual("192.168.0.1", ret["fixed_ip_address"])
+            self.assertEqual(new_port["id"], ret["port_id"])
             self.assertEqual(notify.call_count, 2, 'Should notify twice here')
             call_list = [mock.call(self.context, IP_DISASSOC, mock.ANY),
                          mock.call(self.context, IP_ASSOC, mock.ANY)]
@@ -682,8 +682,8 @@ class TestUpdateFloatingIPs(test_quark_plugin.TestQuarkPlugin):
             content = dict(port_id=None)
             ret = self.plugin.update_floatingip(self.context, flip["id"],
                                                 dict(floatingip=content))
-            self.assertEqual(ret.get("fixed_ip_address"), None)
-            self.assertEqual(ret.get("port_id"), None)
+            self.assertEqual(None, ret.get("fixed_ip_address"))
+            self.assertEqual(None, ret.get("port_id"))
             notify.assert_called_once_with(self.context, IP_DISASSOC,
                                            mock.ANY)
 

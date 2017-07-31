@@ -87,8 +87,8 @@ class TestQuarkGetSubnets(test_quark_plugin.TestQuarkPlugin):
             # Compare routes separately
             routes = res[0].pop("host_routes")
             for key in subnet.keys():
-                self.assertEqual(res[0][key], subnet[key])
-            self.assertEqual(len(routes), 0)
+                self.assertEqual(subnet[key], res[0][key])
+            self.assertEqual(0, len(routes))
 
     def test_subnets_list_two_default_routes_shows_last_one(self):
         subnet_id = str(uuid.uuid4())
@@ -108,8 +108,8 @@ class TestQuarkGetSubnets(test_quark_plugin.TestQuarkPlugin):
             # Don't want to test that LOG.info is called but we can
             # know the case is covered by checking the gateway is the one
             # we expect it to be
-            self.assertEqual(res[0]["gateway_ip"], "192.168.0.2")
-            self.assertEqual(len(res[0]["host_routes"]), 0)
+            self.assertEqual("192.168.0.2", res[0]["gateway_ip"])
+            self.assertEqual(0, len(res[0]["host_routes"]))
 
     def test_subnet_show_fail(self):
         with self._stubs():
@@ -133,8 +133,8 @@ class TestQuarkGetSubnets(test_quark_plugin.TestQuarkPlugin):
             # Compare routes separately
             routes = res.pop("host_routes")
             for key in subnet.keys():
-                self.assertEqual(res[key], subnet[key])
-            self.assertEqual(len(routes), 0)
+                self.assertEqual(subnet[key], res[key])
+            self.assertEqual(0, len(routes))
 
 
 class TestQuarkGetSubnetsHideAllocPools(test_quark_plugin.TestQuarkPlugin):
@@ -166,7 +166,7 @@ class TestQuarkGetSubnetsHideAllocPools(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(subnets=[subnet]):
             res = self.plugin.get_subnets(self.context, None, None, None, {},
                                           {})
-            self.assertEqual(res[0]["allocation_pools"], [])
+            self.assertEqual([], res[0]["allocation_pools"])
 
 
 class TestQuarkCreateSubnetOverlapping(test_quark_plugin.TestQuarkPlugin):
@@ -201,7 +201,7 @@ class TestQuarkCreateSubnetOverlapping(test_quark_plugin.TestQuarkPlugin):
                 cidr="192.168.1.1/8",
                 network_id=1))
             self.plugin.create_subnet(self.context, s)
-            self.assertEqual(subnet_create.call_count, 1)
+            self.assertEqual(1, subnet_create.call_count)
 
     def test_create_subnet_overlapping_false(self):
         cfg.CONF.set_override('allow_overlapping_ips', False)
@@ -212,7 +212,7 @@ class TestQuarkCreateSubnetOverlapping(test_quark_plugin.TestQuarkPlugin):
                 cidr="192.168.1.1/8",
                 network_id=1))
             self.plugin.create_subnet(self.context, s)
-            self.assertEqual(subnet_create.call_count, 1)
+            self.assertEqual(1, subnet_create.call_count)
 
     def test_create_subnet_overlapping_conflict(self):
         cfg.CONF.set_override('allow_overlapping_ips', False)
@@ -261,9 +261,9 @@ class TestQuarkCreateSubnetAllocationPools(test_quark_plugin.TestQuarkPlugin):
             network_id=1))
         with self._stubs(s["subnet"]) as (subnet_create):
             resp = self.plugin.create_subnet(self.context, s)
-            self.assertEqual(subnet_create.call_count, 1)
-            self.assertEqual(resp["allocation_pools"],
-                             [dict(start="192.168.1.1", end="192.168.1.254")])
+            self.assertEqual(1, subnet_create.call_count)
+            self.assertEqual([dict(start="192.168.1.1", end="192.168.1.254")],
+                             resp["allocation_pools"])
 
     def test_create_subnet_allocation_pools_zero_v6(self):
         s = dict(subnet=dict(
@@ -271,11 +271,11 @@ class TestQuarkCreateSubnetAllocationPools(test_quark_plugin.TestQuarkPlugin):
             network_id=1))
         with self._stubs(s["subnet"]) as (subnet_create):
             resp = self.plugin.create_subnet(self.context, s)
-            self.assertEqual(subnet_create.call_count, 1)
+            self.assertEqual(1, subnet_create.call_count)
             self.assertEqual(
-                resp["allocation_pools"],
                 [dict(start="2607:f0d0:1002:51::1",
-                      end="2607:f0d0:1002:51:ffff:ffff:ffff:fffe")])
+                 end="2607:f0d0:1002:51:ffff:ffff:ffff:fffe")],
+                resp["allocation_pools"])
 
     def test_create_subnet_allocation_pools_one(self):
         pools = [dict(start="192.168.1.10", end="192.168.1.20")]
@@ -285,8 +285,8 @@ class TestQuarkCreateSubnetAllocationPools(test_quark_plugin.TestQuarkPlugin):
             network_id=1))
         with self._stubs(s["subnet"]) as (subnet_create):
             resp = self.plugin.create_subnet(self.context, s)
-            self.assertEqual(subnet_create.call_count, 1)
-            self.assertEqual(resp["allocation_pools"], pools)
+            self.assertEqual(1, subnet_create.call_count)
+            self.assertEqual(pools, resp["allocation_pools"])
 
     def test_create_subnet_allocation_pools_gateway_conflict(self):
         pools = [dict(start="192.168.1.1", end="192.168.1.20")]
@@ -328,8 +328,8 @@ class TestQuarkCreateSubnetAllocationPools(test_quark_plugin.TestQuarkPlugin):
             network_id=1))
         with self._stubs(s["subnet"]) as (subnet_create):
             resp = self.plugin.create_subnet(self.context, s)
-            self.assertEqual(subnet_create.call_count, 1)
-            self.assertEqual(resp["allocation_pools"], pools)
+            self.assertEqual(1, subnet_create.call_count)
+            self.assertEqual(pools, resp["allocation_pools"])
 
     def test_create_subnet_allocation_pools_three(self):
         pools = [dict(start="192.168.1.5", end="192.168.1.254")]
@@ -340,8 +340,8 @@ class TestQuarkCreateSubnetAllocationPools(test_quark_plugin.TestQuarkPlugin):
             network_id=1))
         with self._stubs(s["subnet"]) as (subnet_create):
             resp = self.plugin.create_subnet(self.context, s)
-            self.assertEqual(subnet_create.call_count, 1)
-            self.assertEqual(resp["allocation_pools"], pools)
+            self.assertEqual(1, subnet_create.call_count)
+            self.assertEqual(pools, resp["allocation_pools"])
 
     def test_create_subnet_allocation_pools_four(self):
         pools = [dict(start="2607:f0d0:1002:51::a",
@@ -353,8 +353,8 @@ class TestQuarkCreateSubnetAllocationPools(test_quark_plugin.TestQuarkPlugin):
             network_id=1))
         with self._stubs(s["subnet"]) as (subnet_create):
             resp = self.plugin.create_subnet(self.context, s)
-            self.assertEqual(subnet_create.call_count, 1)
-            self.assertEqual(resp["allocation_pools"], pools)
+            self.assertEqual(1, subnet_create.call_count)
+            self.assertEqual(pools, resp["allocation_pools"])
 
     def test_create_subnet_allocation_pools_empty_list(self):
         # Empty allocation_pools list yields subnet completely blocked out.
@@ -365,9 +365,9 @@ class TestQuarkCreateSubnetAllocationPools(test_quark_plugin.TestQuarkPlugin):
             network_id=1))
         with self._stubs(s["subnet"]) as (subnet_create):
             resp = self.plugin.create_subnet(self.context, s)
-            self.assertEqual(subnet_create.call_count, 1)
+            self.assertEqual(1, subnet_create.call_count)
             expected_pools = []
-            self.assertEqual(resp["allocation_pools"], expected_pools)
+            self.assertEqual(expected_pools, resp["allocation_pools"])
 
 
 # TODO(amir): Refactor the tests to test individual subnet attributes.
@@ -437,18 +437,18 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
             subnet_request["subnet"]["host_routes"] = host_routes
             res = self.plugin.create_subnet(self.context,
                                             subnet_request)
-            self.assertEqual(subnet_create.call_count, 1)
-            self.assertEqual(dns_create.call_count, 0)
-            self.assertEqual(route_create.call_count, 1)
+            self.assertEqual(1, subnet_create.call_count)
+            self.assertEqual(0, dns_create.call_count)
+            self.assertEqual(1, route_create.call_count)
             for key in subnet["subnet"].keys():
                 if key == "host_routes":
-                    self.assertEqual(res[key][0]["destination"], "0.0.0.0/0")
-                    self.assertEqual(res[key][0]["nexthop"], "0.0.0.0")
+                    self.assertEqual("0.0.0.0/0", res[key][0]["destination"])
+                    self.assertEqual("0.0.0.0", res[key][0]["nexthop"])
                 else:
-                    self.assertEqual(res[key], subnet["subnet"][key])
+                    self.assertEqual(subnet["subnet"][key], res[key])
             expected_pools = [{'start': '172.16.0.1',
                               'end': '172.16.0.254'}]
-            self.assertEqual(res["allocation_pools"], expected_pools)
+            self.assertEqual(expected_pools, res["allocation_pools"])
 
     def test_create_subnet_v6_too_small(self):
         routes = [dict(cidr="0.0.0.0/0", gateway="0.0.0.0")]
@@ -513,17 +513,17 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
             subnet_request["subnet"]["segment_id"] = "cell01"
             res = self.plugin.create_subnet(self.context,
                                             subnet_request)
-            self.assertEqual(subnet_create.call_count, 1)
+            self.assertEqual(1, subnet_create.call_count)
             self.assertTrue("segment_id" not in subnet_create.called_with)
 
-            self.assertEqual(dns_create.call_count, 0)
-            self.assertEqual(route_create.call_count, 1)
+            self.assertEqual(0, dns_create.call_count)
+            self.assertEqual(1, route_create.call_count)
             for key in subnet["subnet"].keys():
                 if key == "host_routes":
-                    self.assertEqual(res[key][0]["destination"], "0.0.0.0/0")
-                    self.assertEqual(res[key][0]["nexthop"], "0.0.0.0")
+                    self.assertEqual("0.0.0.0/0", res[key][0]["destination"])
+                    self.assertEqual("0.0.0.0", res[key][0]["nexthop"])
                 else:
-                    self.assertEqual(res[key], subnet["subnet"][key])
+                    self.assertEqual(subnet["subnet"][key], res[key])
 
     def test_create_subnet_no_network_fails(self):
         subnet = dict(subnet=dict(network_id=1))
@@ -549,16 +549,16 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
             subnet_request["subnet"]["dns_nameservers"] = dns_nameservers
             subnet_request["subnet"]["gateway_ip"] = gateway_ip
             res = self.plugin.create_subnet(self.context, subnet_request)
-            self.assertEqual(subnet_create.call_count, 1)
-            self.assertEqual(dns_create.call_count, 0)
-            self.assertEqual(route_create.call_count, 0)
+            self.assertEqual(1, subnet_create.call_count)
+            self.assertEqual(0, dns_create.call_count)
+            self.assertEqual(0, route_create.call_count)
             for key in subnet["subnet"].keys():
                 if key == "gateway_ip":
-                    self.assertEqual(res[key], "172.16.0.1")
+                    self.assertEqual("172.16.0.1", res[key])
                 elif key == "host_routes":
-                    self.assertEqual(len(res[key]), 0)
+                    self.assertEqual(0, len(res[key]))
                 else:
-                    self.assertEqual(res[key], subnet["subnet"][key])
+                    self.assertEqual(subnet["subnet"][key], res[key])
 
     def test_create_subnet_dns_nameservers(self):
         routes = [dict(cidr="0.0.0.0/0", gateway="0.0.0.0")]
@@ -575,14 +575,14 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
         ) as (subnet_create, dns_create, route_create):
             res = self.plugin.create_subnet(self.context,
                                             copy.deepcopy(subnet))
-            self.assertEqual(subnet_create.call_count, 1)
-            self.assertEqual(dns_create.call_count, 2)
-            self.assertEqual(route_create.call_count, 1)
+            self.assertEqual(1, subnet_create.call_count)
+            self.assertEqual(2, dns_create.call_count)
+            self.assertEqual(1, route_create.call_count)
             for key in subnet["subnet"].keys():
                 if key == "host_routes":
-                    self.assertEqual(len(res[key]), 0)
+                    self.assertEqual(0, len(res[key]))
                 else:
-                    self.assertEqual(res[key], subnet["subnet"][key])
+                    self.assertEqual(subnet["subnet"][key], res[key])
 
     def test_create_subnet_routes(self):
         routes = [dict(cidr="1.1.1.1/8", gateway="172.16.0.4"),
@@ -605,9 +605,9 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
             subnet_request = copy.deepcopy(subnet)
             subnet_request["subnet"]["dns_nameservers"] = dns_nameservers
             res = self.plugin.create_subnet(self.context, subnet_request)
-            self.assertEqual(subnet_create.call_count, 1)
-            self.assertEqual(dns_create.call_count, 0)
-            self.assertEqual(route_create.call_count, 2)
+            self.assertEqual(1, subnet_create.call_count)
+            self.assertEqual(0, dns_create.call_count)
+            self.assertEqual(2, route_create.call_count)
             for key in subnet["subnet"].keys():
                 if key == "host_routes":
                     res_tuples = [(r["destination"], r["nexthop"])
@@ -615,7 +615,7 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
                     self.assertIn(("1.1.1.1/8", "172.16.0.4"), res_tuples)
                     self.assertEqual(1, len(res_tuples))
                 else:
-                    self.assertEqual(res[key], subnet["subnet"][key])
+                    self.assertEqual(subnet["subnet"][key], res[key])
 
     def test_create_subnet_default_route(self):
         routes = [dict(cidr="0.0.0.0/0", gateway="172.16.0.4")]
@@ -640,16 +640,16 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
             subnet_request["subnet"]["dns_nameservers"] = dns_nameservers
             subnet_request["subnet"]["gateway_ip"] = gateway_ip
             res = self.plugin.create_subnet(self.context, subnet_request)
-            self.assertEqual(subnet_create.call_count, 1)
-            self.assertEqual(dns_create.call_count, 0)
-            self.assertEqual(route_create.call_count, 1)
+            self.assertEqual(1, subnet_create.call_count)
+            self.assertEqual(0, dns_create.call_count)
+            self.assertEqual(1, route_create.call_count)
             for key in subnet["subnet"].keys():
                 if key == "gateway_ip":
-                    self.assertEqual(res[key], "172.16.0.4")
+                    self.assertEqual("172.16.0.4", res[key])
                 elif key == "host_routes":
-                    self.assertEqual(len(res[key]), 0)
+                    self.assertEqual(0, len(res[key]))
                 else:
-                    self.assertEqual(res[key], subnet["subnet"][key])
+                    self.assertEqual(subnet["subnet"][key], res[key])
 
     def test_create_subnet_two_default_routes_fails(self):
         routes = [dict(cidr="0.0.0.0/0", gateway="172.16.0.4"),
@@ -707,17 +707,17 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
             subnet_request = copy.deepcopy(subnet)
             subnet_request["subnet"]["dns_nameservers"] = dns_nameservers
             res = self.plugin.create_subnet(self.context, subnet_request)
-            self.assertEqual(subnet_create.call_count, 1)
-            self.assertEqual(dns_create.call_count, 0)
-            self.assertEqual(route_create.call_count, 1)
-            self.assertEqual(res["gateway_ip"], "172.16.0.4")
+            self.assertEqual(1, subnet_create.call_count)
+            self.assertEqual(0, dns_create.call_count)
+            self.assertEqual(1, route_create.call_count)
+            self.assertEqual("172.16.0.4", res["gateway_ip"])
             for key in subnet["subnet"].keys():
                 if key == "gateway_ip":
-                    self.assertEqual(res[key], "172.16.0.4")
+                    self.assertEqual("172.16.0.4", res[key])
                 elif key == "host_routes":
-                    self.assertEqual(len(res[key]), 0)
+                    self.assertEqual(0, len(res[key]))
                 else:
-                    self.assertEqual(res[key], subnet["subnet"][key])
+                    self.assertEqual(subnet["subnet"][key], res[key])
 
     def test_create_subnet_null_gateway_no_routes(self):
         """A subnet with a NULL gateway IP shouldn't create routes."""
@@ -738,14 +738,14 @@ class TestQuarkCreateSubnet(test_quark_plugin.TestQuarkPlugin):
             subnet_request = copy.deepcopy(subnet)
             subnet_request["subnet"]["dns_nameservers"] = dns_nameservers
             res = self.plugin.create_subnet(self.context, subnet_request)
-            self.assertEqual(subnet_create.call_count, 1)
-            self.assertEqual(dns_create.call_count, 0)
-            self.assertEqual(route_create.call_count, 0)
+            self.assertEqual(1, subnet_create.call_count)
+            self.assertEqual(0, dns_create.call_count)
+            self.assertEqual(0, route_create.call_count)
             for key in subnet["subnet"].keys():
                 if key == "gateway_ip":
                     self.assertIsNone(res[key])
                 else:
-                    self.assertEqual(res[key], subnet["subnet"][key])
+                    self.assertEqual(subnet["subnet"][key], res[key])
 
     def test_create_subnet_routes_quota_pass(self):
         routes = (("0.0.0.0/0", "127.0.0.1"),
@@ -883,7 +883,7 @@ class TestQuarkAllocationPoolCache(test_quark_plugin.TestQuarkPlugin):
             pools = [dict(start="172.16.0.1", end="172.16.0.12")]
             s = dict(subnet=dict(allocation_pools=pools))
             self.plugin.update_subnet(self.context, 1, s)
-            self.assertEqual(set_cache.call_count, 1)
+            self.assertEqual(1, set_cache.call_count)
             set_cache.assert_called_with(self.context, subnet_found)
         cfg.CONF.set_override('allow_allocation_pool_update', og, 'QUARK')
 
@@ -891,7 +891,7 @@ class TestQuarkAllocationPoolCache(test_quark_plugin.TestQuarkPlugin):
     def test_get_subnet_set_alloc_cache_if_cache_is_none(self, set_cache):
         with self._stubs() as subnet_found:
             self.plugin.get_subnet(self.context, 1)
-            self.assertEqual(set_cache.call_count, 1)
+            self.assertEqual(1, set_cache.call_count)
             set_cache.assert_called_with(self.context, subnet_found,
                                          [dict(start="172.16.0.1",
                                                end="172.16.0.254")])
@@ -998,8 +998,8 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
             res = self.plugin.update_subnet(self.context,
                                             1,
                                             req)
-            self.assertEqual(dns_create.call_count, 1)
-            self.assertEqual(route_create.call_count, 0)
+            self.assertEqual(1, dns_create.call_count)
+            self.assertEqual(0, route_create.call_count)
             self.assertEqual(res["dns_nameservers"], new_dns_servers)
 
     def test_update_subnet_routes(self):
@@ -1012,13 +1012,12 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
             req = dict(subnet=dict(
                 host_routes=new_routes))
             res = self.plugin.update_subnet(self.context, 1, req)
-            self.assertEqual(dns_create.call_count, 0)
-            self.assertEqual(route_create.call_count, 1)
-            self.assertEqual(len(res["host_routes"]), 1)
-            self.assertEqual(res["host_routes"][0]["destination"],
-                             "10.0.0.0/24")
-            self.assertEqual(res["host_routes"][0]["nexthop"],
-                             "1.1.1.1")
+            self.assertEqual(0, dns_create.call_count)
+            self.assertEqual(1, route_create.call_count)
+            self.assertEqual(1, len(res["host_routes"]))
+            self.assertEqual("10.0.0.0/24",
+                             res["host_routes"][0]["destination"])
+            self.assertEqual("1.1.1.1", res["host_routes"][0]["nexthop"])
             self.assertIsNone(res["gateway_ip"])
 
     def test_update_subnet_gateway_ip_with_default_route_in_db(self):
@@ -1028,11 +1027,11 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
         ) as (dns_create, route_update, route_create):
             req = dict(subnet=dict(gateway_ip="1.2.3.4"))
             res = self.plugin.update_subnet(self.context, 1, req)
-            self.assertEqual(dns_create.call_count, 0)
-            self.assertEqual(route_create.call_count, 0)
-            self.assertEqual(route_update.call_count, 1)
-            self.assertEqual(len(res["host_routes"]), 0)
-            self.assertEqual(res["gateway_ip"], "1.2.3.4")
+            self.assertEqual(0, dns_create.call_count)
+            self.assertEqual(0, route_create.call_count)
+            self.assertEqual(1, route_update.call_count)
+            self.assertEqual(0, len(res["host_routes"]))
+            self.assertEqual("1.2.3.4", res["gateway_ip"])
 
     def test_update_subnet_gateway_ip_with_non_default_route_in_db(self):
         with self._stubs(
@@ -1043,12 +1042,12 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
         ) as (dns_create, route_update, route_create):
             req = dict(subnet=dict(gateway_ip="1.2.3.4"))
             res = self.plugin.update_subnet(self.context, 1, req)
-            self.assertEqual(dns_create.call_count, 0)
-            self.assertEqual(route_create.call_count, 1)
+            self.assertEqual(0, dns_create.call_count)
+            self.assertEqual(1, route_create.call_count)
 
-            self.assertEqual(res["gateway_ip"], "1.2.3.4")
+            self.assertEqual("1.2.3.4", res["gateway_ip"])
 
-            self.assertEqual(len(res["host_routes"]), 1)
+            self.assertEqual(1, len(res["host_routes"]))
             res_tuples = [(r["destination"], r["nexthop"])
                           for r in res["host_routes"]]
             self.assertIn(("1.1.1.1/8", "9.9.9.9"), res_tuples)
@@ -1060,10 +1059,10 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
         ) as (dns_create, route_update, route_create):
             req = dict(subnet=dict(gateway_ip="1.2.3.4"))
             res = self.plugin.update_subnet(self.context, 1, req)
-            self.assertEqual(dns_create.call_count, 0)
-            self.assertEqual(route_create.call_count, 1)
-            self.assertEqual(len(res["host_routes"]), 0)
-            self.assertEqual(res["gateway_ip"], "1.2.3.4")
+            self.assertEqual(0, dns_create.call_count)
+            self.assertEqual(1, route_create.call_count)
+            self.assertEqual(0, len(res["host_routes"]))
+            self.assertEqual("1.2.3.4", res["gateway_ip"])
 
     def test_update_subnet_gateway_ip_with_default_route_in_args(self):
         new_routes = [dict(destination="0.0.0.0/0",
@@ -1076,10 +1075,10 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
                 host_routes=new_routes,
                 gateway_ip="1.2.3.4"))
             res = self.plugin.update_subnet(self.context, 1, req)
-            self.assertEqual(dns_create.call_count, 0)
-            self.assertEqual(route_create.call_count, 1)
-            self.assertEqual(len(res["host_routes"]), 0)
-            self.assertEqual(res["gateway_ip"], "4.3.2.1")
+            self.assertEqual(0, dns_create.call_count)
+            self.assertEqual(1, route_create.call_count)
+            self.assertEqual(0, len(res["host_routes"]))
+            self.assertEqual("4.3.2.1", res["gateway_ip"])
 
     def test_update_subnet_allocation_pools_invalid_outside(self):
         og = cfg.CONF.QUARK.allow_allocation_pool_update
@@ -1100,8 +1099,8 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
         with self._stubs() as (dns_create, route_update, route_create):
             resp = self.plugin.update_subnet(self.context, 1,
                                              dict(subnet=dict()))
-            self.assertEqual(resp["allocation_pools"],
-                             [dict(start="172.16.0.1", end="172.16.0.254")])
+            self.assertEqual([dict(start="172.16.0.1", end="172.16.0.254")],
+                             resp["allocation_pools"])
 
     def test_update_subnet_allocation_pools_one(self):
         og = cfg.CONF.QUARK.allow_allocation_pool_update
@@ -1115,7 +1114,7 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
                 '172.16.0.64/26', '172.16.0.128/25']
         ) as (dns_create, route_update, route_create):
             resp = self.plugin.update_subnet(self.context, 1, s)
-            self.assertEqual(resp["allocation_pools"], pools)
+            self.assertEqual(pools, resp["allocation_pools"])
         cfg.CONF.set_override('allow_allocation_pool_update', og, 'QUARK')
 
     def test_update_subnet_allocation_pools_two(self):
@@ -1132,7 +1131,7 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
                 '172.16.0.64/26', '172.16.0.128/25']
         ) as (dns_create, route_update, route_create):
             resp = self.plugin.update_subnet(self.context, 1, s)
-            self.assertEqual(resp["allocation_pools"], pools)
+            self.assertEqual(pools, resp["allocation_pools"])
         cfg.CONF.set_override('allow_allocation_pool_update', og, 'QUARK')
 
     def test_update_subnet_allocation_pools_three(self):
@@ -1144,7 +1143,7 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
             new_ip_policy=['172.16.0.0/30', '172.16.0.4/32', '172.16.0.255/32']
         ) as (dns_create, route_update, route_create):
             resp = self.plugin.update_subnet(self.context, 1, s)
-            self.assertEqual(resp["allocation_pools"], pools)
+            self.assertEqual(pools, resp["allocation_pools"])
         cfg.CONF.set_override('allow_allocation_pool_update', og, 'QUARK')
 
     def test_update_subnet_allocation_pools_four(self):
@@ -1160,7 +1159,7 @@ class TestQuarkUpdateSubnet(test_quark_plugin.TestQuarkPlugin):
                 '2607:f0d0:1002:51:ffff:ffff:ffff:ffff/128']
         ) as (dns_create, route_update, route_create):
             resp = self.plugin.update_subnet(self.context, 1, s)
-            self.assertEqual(resp["allocation_pools"], pools)
+            self.assertEqual(pools, resp["allocation_pools"])
         cfg.CONF.set_override('allow_allocation_pool_update', og, 'QUARK')
 
     def test_update_subnet_allocation_pools_invalid(self):
@@ -1485,7 +1484,7 @@ class TestQuarkCreateSubnetAttrFilters(test_quark_plugin.TestQuarkPlugin):
             subnet_create.return_value = models.Subnet(
                 cidr=subnet["subnet"]["cidr"])
             self.plugin.create_subnet(self.context, subnet)
-            self.assertEqual(subnet_create.call_count, 1)
+            self.assertEqual(1, subnet_create.call_count)
             subnet_create.assert_called_once_with(
                 self.context, network_id=subnet["subnet"]["network_id"],
                 tenant_id=subnet["subnet"]["tenant_id"],
@@ -1506,7 +1505,7 @@ class TestQuarkCreateSubnetAttrFilters(test_quark_plugin.TestQuarkPlugin):
             subnet_create.return_value = models.Subnet(
                 cidr=subnet["subnet"]["cidr"])
             self.plugin.create_subnet(admin_ctx, subnet)
-            self.assertEqual(subnet_create.call_count, 1)
+            self.assertEqual(1, subnet_create.call_count)
             subnet_create.assert_called_once_with(
                 admin_ctx, network_id=subnet["subnet"]["network_id"],
                 tenant_id=subnet["subnet"]["tenant_id"],

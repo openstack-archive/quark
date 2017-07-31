@@ -73,9 +73,9 @@ class QuarkIPAddressAllocate(QuarkIpamBaseFunctionalTest):
             self.ipam.allocate_ip_address(self.context, ipaddress,
                                           net["id"], 0, 0)
             self.assertIsNotNone(ipaddress[0]['id'])
-            self.assertEqual(ipaddress[0]['address'], 281470681743362)
-            self.assertEqual(ipaddress[0]['version'], 4)
-            self.assertEqual(ipaddress[0]['used_by_tenant_id'], "fake")
+            self.assertEqual(281470681743362, ipaddress[0]['address'])
+            self.assertEqual(4, ipaddress[0]['version'])
+            self.assertEqual("fake", ipaddress[0]['used_by_tenant_id'])
 
 
 class TestQuarkIpamAllocateFromV6Subnet(QuarkIpamBaseFunctionalTest):
@@ -216,24 +216,24 @@ class QuarkIPAddressAllocateWithFullSubnetsNotMarkedAsFull(
             ipaddress = []
             self.ipam.allocate_ip_address(self.context, ipaddress,
                                           net['id'], 0, 0)
-            self.assertEqual(ipaddress[0].version, 4)
-            self.assertEqual(ipaddress[0].address_readable, "2.2.2.1")
+            self.assertEqual(4, ipaddress[0].version)
+            self.assertEqual("2.2.2.1", ipaddress[0].address_readable)
 
             with self.context.session.begin():
                 subnets = db_api.subnet_find(context=self.context, limit=None,
                                              page_reverse=False, sorts=['id'],
                                              marker_obj=None,
                                              fields=None).all()
-                self.assertEqual(len(subnets), 3)
+                self.assertEqual(3, len(subnets))
 
                 full_subnets = [s for s in subnets
                                 if s.next_auto_assign_ip == -1]
-                self.assertEqual(len(full_subnets), 2)
+                self.assertEqual(2, len(full_subnets))
                 available_subnets = list(set(full_subnets) ^ set(subnets))
-                self.assertEqual(len(available_subnets), 1)
-                self.assertEqual(available_subnets[0].cidr, "2.2.2.0/30")
-                self.assertEqual(available_subnets[0].next_auto_assign_ip,
-                                 netaddr.IPAddress("2.2.2.2").ipv6().value)
+                self.assertEqual(1, len(available_subnets))
+                self.assertEqual("2.2.2.0/30", available_subnets[0].cidr)
+                self.assertEqual(netaddr.IPAddress("2.2.2.2").ipv6().value,
+                                 available_subnets[0].next_auto_assign_ip)
 
 
 class QuarkIPAddressReallocateAllocated(QuarkIpamBaseFunctionalTest):
@@ -273,9 +273,9 @@ class QuarkIPAddressReallocateAllocated(QuarkIpamBaseFunctionalTest):
             self.ipam.allocate_ip_address(self.context, ipaddress,
                                           net["id"], 0, 0)
             self.assertIsNotNone(ipaddress[0]['id'])
-            self.assertEqual(ipaddress[0]['address'], 281470681743362)
-            self.assertEqual(ipaddress[0]['version'], 4)
-            self.assertEqual(ipaddress[0]['used_by_tenant_id'], "fake")
+            self.assertEqual(281470681743362, ipaddress[0]['address'])
+            self.assertEqual(4, ipaddress[0]['version'])
+            self.assertEqual("fake", ipaddress[0]['used_by_tenant_id'])
             # Attempt to allocate the same IP
             with self.assertRaises(n_exc.IpAddressInUse):
                 allocated_ip = [ipaddress[0]['address']]
@@ -297,8 +297,8 @@ class QuarkIPAddressReallocateAllocated(QuarkIpamBaseFunctionalTest):
             self.ipam.allocate_ip_address(self.context, ipaddress,
                                           net["id"], 0, 0, version=6)
             self.assertIsNotNone(ipaddress[0]['id'])
-            self.assertEqual(ipaddress[0]['version'], 6)
-            self.assertEqual(ipaddress[0]['used_by_tenant_id'], "fake")
+            self.assertEqual(6, ipaddress[0]['version'])
+            self.assertEqual("fake", ipaddress[0]['used_by_tenant_id'])
             # Attempt to allocate the same IP
             with self.assertRaises(n_exc.IpAddressInUse):
                 allocated_ip = [ipaddress[0]['address']]
@@ -321,11 +321,11 @@ class QuarkIPAddressReallocateAllocated(QuarkIpamBaseFunctionalTest):
             ipaddress = []
             self.ipam.allocate_ip_address(self.context, ipaddress,
                                           net["id"], 0, 0, subnets=[1, 2])
-            self.assertEqual(len(ipaddress), 2)
+            self.assertEqual(2, len(ipaddress))
             for ip in ipaddress:
                 self.assertTrue(ip['version'] in [4, 6])
                 self.assertIsNotNone(ip['id'])
-                self.assertEqual(ip['used_by_tenant_id'], 'fake')
+                self.assertEqual('fake', ip['used_by_tenant_id'])
             # Attempt to allocate the same IP
             with self.assertRaises(n_exc.IpAddressInUse):
                 allocated_ip = [ip['address_readable'] for ip in ipaddress]
@@ -374,11 +374,11 @@ class QuarkIPAddressReallocateDeallocated(QuarkIpamBaseFunctionalTest):
             ipaddress = []
             self.ipam.allocate_ip_address(self.context, ipaddress,
                                           net["id"], 0, 0, subnets=[1, 2])
-            self.assertEqual(len(ipaddress), 2)
+            self.assertEqual(2, len(ipaddress))
             for ip in ipaddress:
                 self.assertTrue(ip['version'] in [4, 6])
                 self.assertIsNotNone(ip['id'])
-                self.assertEqual(ip['used_by_tenant_id'], 'fake')
+                self.assertEqual('fake', ip['used_by_tenant_id'])
             # Deallocate both given ip's
             for ip in ipaddress:
                 self.ipam.deallocate_ip_address(self.context, ip)

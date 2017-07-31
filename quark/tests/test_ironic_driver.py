@@ -155,17 +155,17 @@ class TestIronicDriverIPAMStrategies(TestIronicDriverBase):
     def test_ipam_strategy_provider_overrides(self):
         with self._stubs() as (driver, _, _, _):
             strategy = driver.select_ipam_strategy("1", "BOTH")
-            self.assertEqual(strategy, "IRONIC_BOTH")
+            self.assertEqual("IRONIC_BOTH", strategy)
 
     def test_ipam_strategy_provider_returns_default(self):
         with self._stubs() as (driver, _, _, _):
             strategy = driver.select_ipam_strategy("1", "WTF")
-            self.assertEqual(strategy, "IRONIC_ANY")
+            self.assertEqual("IRONIC_ANY", strategy)
 
     def test_ipam_strategy_tenant_returns_network_strategy(self):
         with self._stubs() as (driver, _, _, _):
             strategy = driver.select_ipam_strategy("3", "WTF")
-            self.assertEqual(strategy, "WTF")
+            self.assertEqual("WTF", strategy)
 
 
 class TestIronicDriverCreatePort(TestIronicDriverBase):
@@ -216,8 +216,8 @@ class TestIronicDriverCreatePort(TestIronicDriverBase):
             }
 
             self.assertEqual(
-                res, {"uuid": create_response["port"]["id"],
-                      "vlan_id": create_response["port"]["vlan_id"]})
+                {"uuid": create_response["port"]["id"],
+                 "vlan_id": create_response["port"]["vlan_id"]}, res)
             create.assert_called_once_with(body=expected_call)
 
     def test_create_port_includes_lswitch_ids(self):
@@ -267,8 +267,8 @@ class TestIronicDriverCreatePort(TestIronicDriverBase):
             }
 
             self.assertEqual(
-                res, {"uuid": create_response["port"]["id"],
-                      "vlan_id": create_response["port"]["vlan_id"]})
+                {"uuid": create_response["port"]["id"],
+                 "vlan_id": create_response["port"]["vlan_id"]}, res)
             create.assert_called_once_with(body=expected_call)
 
     def test_create_port_includes_roles(self):
@@ -319,8 +319,8 @@ class TestIronicDriverCreatePort(TestIronicDriverBase):
             }
 
             self.assertEqual(
-                res, {"uuid": create_response["port"]["id"],
-                      "vlan_id": create_response["port"]["vlan_id"]})
+                {"uuid": create_response["port"]["id"],
+                 "vlan_id": create_response["port"]["vlan_id"]}, res)
             create.assert_called_once_with(body=expected_call)
 
     def test_create_port_retries(self):
@@ -367,9 +367,8 @@ class TestIronicDriverCreatePort(TestIronicDriverBase):
             }
 
             self.assertEqual(
-                res,
                 {"uuid": create_response[1]["port"]["id"],
-                 "vlan_id": create_response[1]["port"]["vlan_id"]})
+                 "vlan_id": create_response[1]["port"]["vlan_id"]}, res)
 
             self.assertEqual(
                 create.call_args_list,
@@ -421,7 +420,7 @@ class TestIronicDriverCreatePort(TestIronicDriverBase):
                 }
             }
 
-            self.assertEqual(create.call_count, 3)
+            self.assertEqual(3, create.call_count)
 
             self.assertEqual(
                 create.call_args_list,
@@ -562,8 +561,8 @@ class TestIronicDriverCreatePort(TestIronicDriverBase):
             }
 
             self.assertEqual(
-                res, {"uuid": create_response["port"]["id"],
-                      "vlan_id": create_response["port"]["vlan_id"]})
+                {"uuid": create_response["port"]["id"],
+                 "vlan_id": create_response["port"]["vlan_id"]}, res)
             create.assert_called_once_with(body=expected_call)
 
 
@@ -581,7 +580,7 @@ class TestIronicDriverDeletePort(TestIronicDriverBase):
                                                       client, _,
                                                       delete):
             driver.delete_port(self.context, "foo")
-            self.assertEqual(delete.call_count, 2)
+            self.assertEqual(2, delete.call_count)
             self.assertEqual(
                 delete.call_args_list,
                 [mock.call("foo"), mock.call("foo")])
@@ -594,7 +593,7 @@ class TestIronicDriverDeletePort(TestIronicDriverBase):
                                                       client, _,
                                                       delete):
             driver.delete_port(self.context, "foo")
-            self.assertEqual(delete.call_count, 3)
+            self.assertEqual(3, delete.call_count)
             self.assertEqual(
                 delete.call_args_list,
                 [mock.call("foo"), mock.call("foo"),
@@ -616,7 +615,7 @@ class TestIronicDriverUpdatePort(TestIronicDriverBase):
                                _, delete):
             res = driver.update_port(self.context, "foo", **{})
             client.update_port.assert_not_called()
-            self.assertEqual(res, {"uuid": "foo"})
+            self.assertEqual({"uuid": "foo"}, res)
 
     def test_update_with_sg_raises(self):
         with self._stubs() as (driver, client,

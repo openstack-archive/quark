@@ -54,8 +54,8 @@ class QuarkGetSubnets(BaseFunctionalTest):
         with self._stubs(network, subnet) as (net, sub1, sub2):
             subnets = db_api.subnet_find_ordered_by_most_full(self.context,
                                                               net["id"]).all()
-            self.assertEqual(len(subnets), 1)
-            self.assertEqual(subnets[0][0]["id"], "1")
+            self.assertEqual(1, len(subnets))
+            self.assertEqual("1", subnets[0][0]["id"])
 
 
 class QuarkGetSubnetsFromPlugin(BaseFunctionalTest):
@@ -149,7 +149,7 @@ class QuarkCreateSubnets(BaseFunctionalTest):
                       tenant_id="fake", allocation_pools=pools)
         subnet = {"subnet": subnet}
         with self._stubs(network, subnet) as (net, sub1):
-            self.assertEqual(sub1["allocation_pools"], [])
+            self.assertEqual([], sub1["allocation_pools"])
 
     def test_create_allocation_pools_none(self):
         cidr = "192.168.1.0/24"
@@ -163,8 +163,8 @@ class QuarkCreateSubnets(BaseFunctionalTest):
                       tenant_id="fake", allocation_pools=pools)
         subnet = {"subnet": subnet}
         with self._stubs(network, subnet) as (net, sub1):
-            self.assertEqual(sub1["allocation_pools"],
-                             [dict(start="192.168.1.1", end="192.168.1.254")])
+            self.assertEqual([dict(start="192.168.1.1", end="192.168.1.254")],
+                             sub1["allocation_pools"])
 
     def test_create_allocation_pools_full(self):
         cidr = "192.168.1.0/24"
@@ -178,8 +178,8 @@ class QuarkCreateSubnets(BaseFunctionalTest):
                       tenant_id="fake", allocation_pools=pools)
         subnet = {"subnet": subnet}
         with self._stubs(network, subnet) as (net, sub1):
-            self.assertEqual(sub1["allocation_pools"],
-                             [dict(start="192.168.1.1", end="192.168.1.254")])
+            self.assertEqual([dict(start="192.168.1.1", end="192.168.1.254")],
+                             sub1["allocation_pools"])
 
     def test_create_ipv6_subnet_with_multiple_allocation_pools(self):
         cidr = "fd00:243:e319::/64"
@@ -197,7 +197,7 @@ class QuarkCreateSubnets(BaseFunctionalTest):
                       tenant_id="fake", allocation_pools=pools)
         subnet = {"subnet": subnet}
         with self._stubs(network, subnet) as (net, sub1):
-            self.assertEqual(sub1["allocation_pools"], pools)
+            self.assertEqual(pools, sub1["allocation_pools"])
 
     def test_create_cidr_not_specified_raises(self):
         cidr = neutron_attrs.ATTR_NOT_SPECIFIED

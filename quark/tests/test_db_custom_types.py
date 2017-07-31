@@ -40,11 +40,11 @@ class TestDBCustomTypesINET(test_base.TestBase):
 
     def test_process_bind_param_with_value(self):
         bind = self.inet.process_bind_param("foo", sqlite.dialect())
-        self.assertEqual(bind, "foo")
+        self.assertEqual("foo", bind)
 
     def test_process_bind_param_with_value_not_sqlite(self):
         bind = self.inet.process_bind_param("foo", mysql.dialect())
-        self.assertEqual(bind, "foo")
+        self.assertEqual("foo", bind)
 
     def test_process_result_value(self):
         bind = self.inet.process_result_value(None, mysql.dialect())
@@ -52,11 +52,11 @@ class TestDBCustomTypesINET(test_base.TestBase):
 
     def test_process_result_value_with_value(self):
         bind = self.inet.process_result_value(1.0, sqlite.dialect())
-        self.assertEqual(bind, 1.0)
+        self.assertEqual(1.0, bind)
 
     def test_process_result_value_with_value_not_sqlite(self):
         bind = self.inet.process_result_value(1.0, mysql.dialect())
-        self.assertEqual(bind, 1.0)
+        self.assertEqual(1.0, bind)
 
 
 class TestDBCustomTypesMACAddress(test_base.TestBase):

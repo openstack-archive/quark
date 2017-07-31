@@ -87,9 +87,9 @@ class QuarkFindPorts(MySqlBaseFunctionalTest):
         ports = ip_api.get_ports_for_ip_address(
             self.context, ip_address["id"],
             filters={"service": "not-foobar"})
-        self.assertEqual(len(ports), 0)
+        self.assertEqual(0, len(ports))
 
         ports = ip_api.get_ports_for_ip_address(
             self.context, ip_address["id"],
             filters={"service": "foobar"})
-        self.assertEqual(len(ports), 1)
+        self.assertEqual(1, len(ports))

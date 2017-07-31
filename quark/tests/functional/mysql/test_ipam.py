@@ -71,9 +71,9 @@ class QuarkIPAddressReallocate(QuarkIpamBaseFunctionalTest):
                                           net["id"], 0, 0)
             self.assertIsNotNone(ipaddress[0]['id'])
             expected = netaddr.IPAddress("0.0.0.2").ipv6().value
-            self.assertEqual(ipaddress[0]['address'], expected)
-            self.assertEqual(ipaddress[0]['version'], 4)
-            self.assertEqual(ipaddress[0]['used_by_tenant_id'], "fake")
+            self.assertEqual(expected, ipaddress[0]['address'])
+            self.assertEqual(4, ipaddress[0]['version'])
+            self.assertEqual("fake", ipaddress[0]['used_by_tenant_id'])
 
     def test_allocate_finds_ip_in_do_not_use_subnet_raises(self):
         network = dict(name="public", tenant_id="fake")
@@ -114,9 +114,9 @@ class QuarkIPAddressReallocate(QuarkIpamBaseFunctionalTest):
             self.ipam.allocate_ip_address(self.context, ipaddress,
                                           net["id"], 0, 0)
             self.assertIsNotNone(ipaddress[0]['id'])
-            self.assertEqual(ipaddress[0]['address'], next_ip)
-            self.assertEqual(ipaddress[0]['version'], 4)
-            self.assertEqual(ipaddress[0]['used_by_tenant_id'], "fake")
+            self.assertEqual(next_ip, ipaddress[0]['address'])
+            self.assertEqual(4, ipaddress[0]['version'])
+            self.assertEqual("fake", ipaddress[0]['used_by_tenant_id'])
 
 
 class MacAddressReallocate(QuarkIpamBaseFunctionalTest):
@@ -143,7 +143,7 @@ class MacAddressReallocate(QuarkIpamBaseFunctionalTest):
     def test_reallocate_mac(self):
         with self._stubs(do_not_use=False):
             realloc_mac = self.ipam.allocate_mac_address(self.context, 0, 0, 0)
-            self.assertEqual(realloc_mac["address"], 1)
+            self.assertEqual(1, realloc_mac["address"])
 
     def test_delete_mac_with_mac_range_do_not_use(self):
         macs = lambda mar: db_api.mac_address_find(
@@ -151,7 +151,7 @@ class MacAddressReallocate(QuarkIpamBaseFunctionalTest):
             mac_address_range_id=mar["id"],
             scope=db_api.ALL)
         with self._stubs(do_not_use=True) as mar:
-            self.assertEqual(len(macs(mar)), 1)
+            self.assertEqual(1, len(macs(mar)))
             with self.assertRaises(n_exc_ext.MacAddressGenerationFailure):
                 self.ipam.allocate_mac_address(self.context, 0, 0, 0)
-            self.assertEqual(len(macs(mar)), 0)
+            self.assertEqual(0, len(macs(mar)))
