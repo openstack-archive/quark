@@ -273,7 +273,7 @@ class TestRedisForAgent(test_base.TestBase):
         group_states = rc.get_security_group_states([])
         mock_get_fields.assert_called_once_with([],
                                                 sg_client.SECURITY_GROUP_ACK)
-        self.assertEqual(group_states, {})
+        self.assertEqual({}, group_states)
 
     @mock.patch(
         "quark.cache.security_groups_client.SecurityGroupsClient.get_fields")
@@ -299,5 +299,5 @@ class TestRedisForAgent(test_base.TestBase):
              "7.000000000008", "9.000000000000"],
             sg_client.SECURITY_GROUP_ACK)
 
-        self.assertEqual(group_states, {new_interfaces[2]: False,
-                                        new_interfaces[3]: True})
+        self.assertEqual({new_interfaces[2]: False, new_interfaces[3]: True},
+                         group_states)

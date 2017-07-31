@@ -139,4 +139,4 @@ class TestNullRoutes(MySqlBaseFunctionalTest):
             lock_id=address_model.lock_id,
             name=null_routes.LOCK_NAME,
             scope=db_api.ALL)
-        self.assertEqual(len(lock_holders), 1)
+        self.assertEqual(1, len(lock_holders))

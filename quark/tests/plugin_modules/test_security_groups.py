@@ -116,7 +116,7 @@ class TestQuarkGetSecurityGroupRules(test_quark_plugin.TestQuarkPlugin):
             resp = self.plugin.get_security_group_rules(self.context, {})
             for key in expected.keys():
                 self.assertTrue(key in resp[0])
-                self.assertEqual(resp[0][key], expected[key])
+                self.assertEqual(expected[key], resp[0][key])
 
     def test_get_security_group_rule(self):
         rule = {"id": 1, "remote_group_id": 2, "direction": "ingress",
@@ -132,7 +132,7 @@ class TestQuarkGetSecurityGroupRules(test_quark_plugin.TestQuarkPlugin):
             resp = self.plugin.get_security_group_rule(self.context, 1)
             for key in expected.keys():
                 self.assertTrue(key in resp)
-                self.assertEqual(resp[key], expected[key])
+                self.assertEqual(expected[key], resp[key])
 
     def test_get_security_group_rule_not_found(self):
         with self._stubs(None):
@@ -232,7 +232,7 @@ class TestQuarkCreateSecurityGroup(test_quark_plugin.TestQuarkPlugin):
                 self.context, {'security_group': group})
             self.assertTrue(group_create.called)
             for key in expected.keys():
-                self.assertEqual(result[key], expected[key])
+                self.assertEqual(expected[key], result[key])
 
     def test_create_default_security_group(self):
         group = {'name': 'default', 'description': 'bar',
@@ -510,39 +510,39 @@ class TestQuarkProtocolHandling(test_quark_plugin.TestQuarkPlugin):
 
     def test_translate_protocol_string(self):
         proto = protocols.translate_protocol("udp", "IPv4")
-        self.assertEqual(proto, 17)
+        self.assertEqual(17, proto)
 
     def test_translate_protocol_int(self):
         proto = protocols.translate_protocol(17, "IPv4")
-        self.assertEqual(proto, 17)
+        self.assertEqual(17, proto)
 
     def test_translate_protocol_icmpv4(self):
         proto = protocols.translate_protocol("icmp", "IPv4")
-        self.assertEqual(proto, 1)
+        self.assertEqual(1, proto)
 
     def test_translate_protocol_icmpv6(self):
         proto = protocols.translate_protocol("icmp", "IPv6")
-        self.assertEqual(proto, 58)
+        self.assertEqual(58, proto)
 
     def test_human_readable_protocol_string(self):
         proto = protocols.human_readable_protocol("UDP", "IPv4")
-        self.assertEqual(proto, "UDP")
+        self.assertEqual("UDP", proto)
 
     def test_human_readable_protocol_int(self):
         proto = protocols.human_readable_protocol(17, "IPv4")
-        self.assertEqual(proto, "UDP")
+        self.assertEqual("UDP", proto)
 
     def test_human_readable_protocol_icmpv4(self):
         proto = protocols.human_readable_protocol(1, "IPv4")
-        self.assertEqual(proto, "ICMP")
+        self.assertEqual("ICMP", proto)
 
     def test_human_readable_protocol_icmpv6(self):
         proto = protocols.human_readable_protocol(58, "IPv6")
-        self.assertEqual(proto, "ICMP")
+        self.assertEqual("ICMP", proto)
 
     def test_human_readable_protocol_string_as_int(self):
         proto = protocols.human_readable_protocol("17", "IPv4")
-        self.assertEqual(proto, "UDP")
+        self.assertEqual("UDP", proto)
 
     def test_invalid_protocol_string_fail(self):
         with self.assertRaises(sg_ext.SecurityGroupRuleInvalidProtocol):

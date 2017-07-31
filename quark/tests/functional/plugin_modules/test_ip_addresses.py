@@ -50,7 +50,7 @@ class QuarkGetIPAddresses(BaseFunctionalTest):
                 self.context,
                 ip_address=self.addr,
                 scope=db_api.ALL)
-            self.assertEqual(len(ip_addresses), 1)
+            self.assertEqual(1, len(ip_addresses))
             self.assertEqual(ip_addresses[0]["address"],
                              self.addr.ipv6().value)
 
@@ -60,7 +60,7 @@ class QuarkGetIPAddresses(BaseFunctionalTest):
                 self.context,
                 ip_address=netaddr.IPAddress("192.168.10.2"),
                 scope=db_api.ALL)
-            self.assertEqual(len(ip_addresses), 0)
+            self.assertEqual(0, len(ip_addresses))
 
     def test_ip_address_find_ip_address_list_filter(self):
         with self._stubs():
@@ -68,7 +68,7 @@ class QuarkGetIPAddresses(BaseFunctionalTest):
                 self.context,
                 ip_address=[self.addr],
                 scope=db_api.ALL)
-            self.assertEqual(len(ip_addresses), 1)
+            self.assertEqual(1, len(ip_addresses))
             self.assertEqual(ip_addresses[0]["address"],
                              self.addr.ipv6().value)
 
@@ -78,7 +78,7 @@ class QuarkGetIPAddresses(BaseFunctionalTest):
                 self.context,
                 ip_address=[netaddr.IPAddress("192.168.10.2")],
                 scope=db_api.ALL)
-            self.assertEqual(len(ip_addresses), 0)
+            self.assertEqual(0, len(ip_addresses))
 
 
 class QuarkTestReserveIPAdmin(BaseFunctionalTest):
@@ -106,14 +106,14 @@ class QuarkTestReserveIPAdmin(BaseFunctionalTest):
                 self.context,
                 id=deallocated_ip["id"],
                 scope=db_api.ONE)
-            self.assertEqual(ip_address["deallocated"], True)
+            self.assertTrue(ip_address["deallocated"])
             deallocated_ip = ip_addr.update_ip_address(self.context, ip["id"],
                                                        self.ip_address_reserve)
             ip_address = db_api.ip_address_find(
                 self.context,
                 id=deallocated_ip["id"],
                 scope=db_api.ONE)
-            self.assertEqual(ip_address["deallocated"], True)
+            self.assertTrue(ip_address["deallocated"])
 
     def test_reserve_ip_admin(self):
         self.context.is_admin = True
@@ -124,14 +124,14 @@ class QuarkTestReserveIPAdmin(BaseFunctionalTest):
                 self.context,
                 id=deallocated_ip["id"],
                 scope=db_api.ONE)
-            self.assertEqual(ip_address["deallocated"], True)
+            self.assertTrue(ip_address["deallocated"])
             deallocated_ip = ip_addr.update_ip_address(self.context, ip["id"],
                                                        self.ip_address_reserve)
             ip_address = db_api.ip_address_find(
                 self.context,
                 id=deallocated_ip["id"],
                 scope=db_api.ONE)
-            self.assertEqual(ip_address["deallocated"], False)
+            self.assertFalse(ip_address["deallocated"])
 
 
 class QuarkTestReserveIPAdminWithPorts(BaseFunctionalTest):
@@ -222,7 +222,7 @@ class QuarkTestGetDeallocatedIP(BaseFunctionalTest):
                 self.context,
                 id=reserved_ip["id"],
                 scope=db_api.ONE)
-            self.assertEqual(ip_address["deallocated"], True)
+            self.assertTrue(ip_address["deallocated"])
             with self.assertRaises(q_exc.IpAddressNotFound):
                 ip_addr.get_ip_address(self.context,
                                        ip_address['id'])
@@ -235,9 +235,9 @@ class QuarkTestGetDeallocatedIP(BaseFunctionalTest):
                 self.context,
                 id=reserved_ip["id"],
                 scope=db_api.ONE)
-            self.assertEqual(ip_address["deallocated"], True)
+            self.assertTrue(ip_address["deallocated"])
             deallocated_ips = ip_addr.get_ip_addresses(self.context)
-            self.assertEqual(len(deallocated_ips), 0)
+            self.assertEqual(0, len(deallocated_ips))
 
     def test_get_single_deallocated_ip_admin(self):
         self.context.is_admin = True
@@ -248,11 +248,11 @@ class QuarkTestGetDeallocatedIP(BaseFunctionalTest):
                 self.context,
                 id=reserved_ip["id"],
                 scope=db_api.ONE)
-            self.assertEqual(ip_address["deallocated"], True)
+            self.assertTrue(ip_address["deallocated"])
             deallocated_ip = ip_addr.get_ip_address(self.context,
                                                     ip_address['id'])
             self.assertEqual(reserved_ip['id'], deallocated_ip['id'])
-            self.assertEqual(deallocated_ip['_deallocated'], True)
+            self.assertTrue(deallocated_ip['_deallocated'])
 
     def test_get_deallocated_ips_admin(self):
         self.context.is_admin = True
@@ -263,12 +263,12 @@ class QuarkTestGetDeallocatedIP(BaseFunctionalTest):
                 self.context,
                 id=reserved_ip["id"],
                 scope=db_api.ONE)
-            self.assertEqual(ip_address["deallocated"], True)
+            self.assertTrue(ip_address["deallocated"])
             filters = {'deallocated': 'True'}
             deallocated_ips = ip_addr.get_ip_addresses(self.context, **filters)
-            self.assertEqual(len(deallocated_ips), 1)
+            self.assertEqual(1, len(deallocated_ips))
             self.assertEqual(reserved_ip['id'], deallocated_ips[0]['id'])
-            self.assertEqual(deallocated_ips[0]['_deallocated'], True)
+            self.assertTrue(deallocated_ips[0]['_deallocated'])
 
 
 class QuarkTestGetMultipleDeallocatedIPs(BaseFunctionalTest):
@@ -296,33 +296,33 @@ class QuarkTestGetMultipleDeallocatedIPs(BaseFunctionalTest):
         with self._stubs() as (ip1, ip2):
             reserved_ip = ip_addr.update_ip_address(self.context, ip2["id"],
                                                     self.ip_address_dealloc)
-            self.assertEqual(reserved_ip["_deallocated"], True)
+            self.assertTrue(reserved_ip["_deallocated"])
 
             deallocated_ips = ip_addr.get_ip_addresses(self.context)
-            self.assertEqual(len(deallocated_ips), 1)
+            self.assertEqual(1, len(deallocated_ips))
             self.assertEqual(ip1['id'], deallocated_ips[0]['id'])
-            self.assertEqual(deallocated_ips[0]['_deallocated'], False)
+            self.assertFalse(deallocated_ips[0]['_deallocated'])
 
             filters = {'deallocated': 'True'}
             deallocated_ips = ip_addr.get_ip_addresses(self.context, **filters)
-            self.assertEqual(len(deallocated_ips), 1)
+            self.assertEqual(1, len(deallocated_ips))
             self.assertEqual(reserved_ip['id'], deallocated_ips[0]['id'])
-            self.assertEqual(deallocated_ips[0]['_deallocated'], True)
+            self.assertTrue(deallocated_ips[0]['_deallocated'])
 
             filters = {'deallocated': 'False'}
             deallocated_ips = ip_addr.get_ip_addresses(self.context, **filters)
-            self.assertEqual(len(deallocated_ips), 1)
+            self.assertEqual(1, len(deallocated_ips))
             self.assertEqual(ip1['id'], deallocated_ips[0]['id'])
-            self.assertEqual(deallocated_ips[0]['_deallocated'], False)
+            self.assertFalse(deallocated_ips[0]['_deallocated'])
 
             filters = {'deallocated': 'both'}
             deallocated_ips = ip_addr.get_ip_addresses(self.context, **filters)
-            self.assertEqual(len(deallocated_ips), 2)
+            self.assertEqual(2, len(deallocated_ips))
             for ip in deallocated_ips:
                 if ip["id"] == ip1["id"]:
-                    self.assertEqual(ip["_deallocated"], False)
+                    self.assertFalse(ip["_deallocated"])
                 elif ip["id"] == ip2["id"]:
-                    self.assertEqual(ip["_deallocated"], True)
+                    self.assertTrue(ip["_deallocated"])
 
     def test_get_deallocated_ips_non_admin_both(self):
         with self._stubs() as (ip1, ip2):
@@ -333,30 +333,30 @@ class QuarkTestGetMultipleDeallocatedIPs(BaseFunctionalTest):
             ip_addresses = db_api.ip_address_find(
                 self.context,
                 scope=db_api.ALL)
-            self.assertEqual(len(ip_addresses), 2)
+            self.assertEqual(2, len(ip_addresses))
             for ip in ip_addresses:
                 if ip["id"] == ip1["id"]:
-                    self.assertEqual(ip["_deallocated"], False)
+                    self.assertFalse(ip["_deallocated"])
                 elif ip["id"] == ip2["id"]:
-                    self.assertEqual(ip["_deallocated"], True)
+                    self.assertTrue(ip["_deallocated"])
 
             deallocated_ips = ip_addr.get_ip_addresses(self.context)
-            self.assertEqual(len(deallocated_ips), 1)
+            self.assertEqual(1, len(deallocated_ips))
             self.assertEqual(ip1['id'], deallocated_ips[0]['id'])
             self.assertNotIn('_deallocated', deallocated_ips[0])
 
             filters = {'deallocated': 'True'}
             deallocated_ips1 = ip_addr.get_ip_addresses(self.context,
                                                         **filters)
-            self.assertEqual(len(deallocated_ips1), 1)
+            self.assertEqual(1, len(deallocated_ips1))
 
             filters = {'deallocated': 'False'}
             deallocated_ips1 = ip_addr.get_ip_addresses(self.context,
                                                         **filters)
-            self.assertEqual(len(deallocated_ips1), 1)
+            self.assertEqual(1, len(deallocated_ips1))
 
             filters = {'deallocated': 'both'}
             deallocated_ips = ip_addr.get_ip_addresses(self.context, **filters)
-            self.assertEqual(len(deallocated_ips), 1)
+            self.assertEqual(1, len(deallocated_ips))
             self.assertEqual(ip1['id'], deallocated_ips[0]['id'])
             self.assertNotIn('_deallocated', deallocated_ips[0])

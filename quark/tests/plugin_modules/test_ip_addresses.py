@@ -94,13 +94,13 @@ class TestIpAddresses(test_quark_plugin.TestQuarkPlugin):
             response = self.plugin.create_ip_address(
                 self.context, dict(ip_address=ip_address))
             self.assertIsNotNone(response["id"])
-            self.assertEqual(response["network_id"], ip_address["network_id"])
-            self.assertEqual(response["port_ids"], [port["id"]])
-            self.assertEqual(response["subnet_id"], ip["subnet_id"])
-            self.assertEqual(response['type'], None)
-            self.assertEqual(response["version"], 4)
-            self.assertEqual(response["ip_address"], "192.168.1.100")
-            self.assertEqual(response["tenant_id"], 1)
+            self.assertEqual(ip_address["network_id"], response["network_id"])
+            self.assertEqual([port["id"]], response["port_ids"])
+            self.assertEqual(ip["subnet_id"], response["subnet_id"])
+            self.assertEqual(None, response['type'])
+            self.assertEqual(4, response["version"])
+            self.assertEqual("192.168.1.100", response["ip_address"])
+            self.assertEqual(1, response["tenant_id"])
         cfg.CONF.set_override('ipaddr_allow_fixed_ip', old_cfg, "QUARK")
 
     def test_create_ip_address_with_port(self):
@@ -117,9 +117,9 @@ class TestIpAddresses(test_quark_plugin.TestQuarkPlugin):
                 self.context, dict(ip_address=ip_address))
 
             self.assertIsNotNone(response['id'])
-            self.assertEqual(response['network_id'], ip["network_id"])
-            self.assertEqual(response['port_ids'], [port["id"]])
-            self.assertEqual(response['subnet_id'], ip['id'])
+            self.assertEqual(ip["network_id"], response['network_id'])
+            self.assertEqual([port["id"]], response['port_ids'])
+            self.assertEqual(ip['id'], response['subnet_id'], ip['id'])
         cfg.CONF.set_override('ipaddr_allow_fixed_ip', old_cfg, "QUARK")
 
     def test_fail_create_ip_address_with_port_when_disallowed(self):
@@ -325,7 +325,7 @@ class TestQuarkSharedIPAddressPortsValid(test_quark_plugin.TestQuarkPlugin):
 
         r = ip_addresses.validate_and_fetch_segment(
             mock_ports, "2")
-        self.assertEqual(r, "1")
+        self.assertEqual("1", r)
 
 
 class TestQuarkSharedIPAddress(test_quark_plugin.TestQuarkPlugin):
@@ -387,7 +387,7 @@ class TestQuarkSharedIPAddress(test_quark_plugin.TestQuarkPlugin):
         shared_ip_request_mock.return_value = True
         obj = mock.MagicMock()
         r = ip_addresses._raise_if_shared_and_enabled(obj, obj)
-        self.assertEqual(r, None)
+        self.assertEqual(None, r)
 
     @mock.patch("quark.plugin_modules.ip_addresses._shared_ip_request")
     @mock.patch("quark.plugin_modules.ip_addresses._can_be_shared")
@@ -398,7 +398,7 @@ class TestQuarkSharedIPAddress(test_quark_plugin.TestQuarkPlugin):
         shared_ip_request_mock.return_value = False
         obj = mock.MagicMock()
         r = ip_addresses._raise_if_shared_and_enabled(obj, obj)
-        self.assertEqual(r, None)
+        self.assertEqual(None, r)
 
     @mock.patch("quark.plugin_modules.ip_addresses._shared_ip_request")
     @mock.patch("quark.plugin_modules.ip_addresses._can_be_shared")
@@ -408,7 +408,7 @@ class TestQuarkSharedIPAddress(test_quark_plugin.TestQuarkPlugin):
         shared_ip_request_mock.return_value = False
         obj = mock.MagicMock()
         r = ip_addresses._raise_if_shared_and_enabled(obj, obj)
-        self.assertEqual(r, None)
+        self.assertEqual(None, r)
 
 
 class TestQuarkUpdateIPAddress(test_quark_plugin.TestQuarkPlugin):
@@ -547,7 +547,7 @@ class TestQuarkUpdateIPAddress(test_quark_plugin.TestQuarkPlugin):
             response = self.plugin.update_ip_address(self.context,
                                                      ip['id'],
                                                      ip_address)
-            self.assertEqual(response['port_ids'], [])
+            self.assertEqual([], response['port_ids'])
 
     def test_update_ip_address_empty_ports_does_not_delete_but_errors(self):
         port = dict(id=1, network_id=2, ip_addresses=[])
@@ -652,7 +652,7 @@ class TestQuarkGetIpAddresses(test_quark_plugin.TestQuarkPlugin):
                     subnet_id=1, network_id=2, version=4)]
         with self._stubs(ips=ips, ports=[port]):
             res = self.plugin.get_ip_addresses(self.context)
-            self.assertEqual(len(res), 2)
+            self.assertEqual(2, len(res))
             for i, addr in enumerate(sorted(res, key=lambda x: x['id'])):
                 self.assertEqual(ips[i]["id"], addr["id"])
                 self.assertEqual(ips[i]["subnet_id"], addr["subnet_id"])

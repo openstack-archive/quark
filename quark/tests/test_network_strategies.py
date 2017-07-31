@@ -32,7 +32,7 @@ class TestJSONStrategy(test_base.TestBase):
     def test_get_network(self):
         json_strategy = network_strategy.JSONStrategy()
         net = json_strategy.get_network("public_network")
-        self.assertEqual(net["bridge"], "xenbr0")
+        self.assertEqual("xenbr0", net["bridge"])
 
     def test_split_network_ids(self):
         json_strategy = network_strategy.JSONStrategy()
@@ -111,7 +111,7 @@ class TestJSONStrategy(test_base.TestBase):
         net_id = "public_network"
         ip_version = 4
         sub = json_strategy.get_provider_subnet_id(net_id, ip_version)
-        self.assertEqual(sub, "public_v4")
+        self.assertEqual("public_v4", sub)
 
     def test_get_provider_subnet_id_matches_none(self):
         json_strategy = network_strategy.JSONStrategy()

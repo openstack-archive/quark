@@ -6,10 +6,10 @@ class QuarkTransactionFunctionalTest(MySqlBaseFunctionalTest):
     def test_transaction_id(self):
         with self.context.session.begin():
             transaction = quark_db_api.transaction_create(self.context)
-        self.assertEqual(transaction.id, 1)
+        self.assertEqual(1, transaction.id)
         with self.context.session.begin():
             transaction = quark_db_api.transaction_create(self.context)
-        self.assertEqual(transaction.id, 2)
+        self.assertEqual(2, transaction.id)
         with self.context.session.begin():
             transaction = quark_db_api.transaction_create(self.context)
-        self.assertEqual(transaction.id, 3)
+        self.assertEqual(3, transaction.id)

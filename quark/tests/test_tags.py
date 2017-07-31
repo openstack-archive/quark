@@ -76,8 +76,8 @@ class TestTagBase(test_base.TestBase):
         """Assert given tags and already existing tags are present."""
         tags = tags if tags else []
         expected_tags = (self.existing_tags + tags)
-        self.assertEqual(sorted(model.tags),
-                         sorted(expected_tags))
+        self.assertEqual(sorted(expected_tags),
+                         sorted(model.tags))
 
     def test_tag_registry_get_all(self):
         model = self._create_test_model(1, tags=[])
@@ -137,7 +137,7 @@ class TestTagBase(test_base.TestBase):
         model = self._create_test_model(1, tags=tags)
         self._assert_tags(model, tags=tags)
 
-        self.assertEqual(self.tag.get(model), None)
+        self.assertEqual(None, self.tag.get(model))
         self._assert_tags(model, tags=tags)
 
     def test_tag_set(self):
@@ -182,10 +182,10 @@ class TestTagBase(test_base.TestBase):
         model = self._create_test_model(1, tags=tags)
         self._assert_tags(model, tags=tags)
 
-        self.assertEqual(self.tag.pop(model), str(self.value))
+        self.assertEqual(str(self.value), self.tag.pop(model))
         self._assert_tags(model, tags=[])
 
-        self.assertEqual(self.tag.pop(model), None)
+        self.assertEqual(None, self.tag.pop(model))
         self._assert_tags(model, tags=[])
 
     def test_pop_invalid(self):
@@ -201,7 +201,7 @@ class TestTagBase(test_base.TestBase):
                         [str(self.value), str(self.value2)])
         self._assert_tags(model, tags=[])
 
-        self.assertEqual(self.tag.pop(model), None)
+        self.assertEqual(None, self.tag.pop(model))
         self._assert_tags(model, tags=[])
 
 

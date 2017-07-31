@@ -9,7 +9,7 @@ class QuarkIPPoliciesSizeTest(BaseFunctionalTest):
         ip_policy_dict = dict(
             exclude=["192.168.10.0/32", "192.168.10.255/32"])
         ip_policy = db_api.ip_policy_create(self.context, **ip_policy_dict)
-        self.assertEqual(ip_policy["size"], 2)
+        self.assertEqual(2, ip_policy["size"])
 
     def test_ip_policies_update(self):
         ip_policy_dict = dict(
@@ -20,7 +20,7 @@ class QuarkIPPoliciesSizeTest(BaseFunctionalTest):
                      "192.168.10.255/32"])
         updated_ip_policy = db_api.ip_policy_update(
             self.context, ip_policy, **ip_policy_update_dict)
-        self.assertEqual(updated_ip_policy["size"], 3)
+        self.assertEqual(3, updated_ip_policy["size"])
 
 
 class QuarkIPPoliciesFirstLastIPTest(BaseFunctionalTest):
@@ -30,7 +30,7 @@ class QuarkIPPoliciesFirstLastIPTest(BaseFunctionalTest):
             exclude_first_last[cidr] = netaddr.IPNetwork(cidr).ipv6().first
         ip_policy = db_api.ip_policy_create(
             self.context, exclude=exclude_first_last)
-        self.assertEqual(len(ip_policy["exclude"]), 2)
+        self.assertEqual(2, len(ip_policy["exclude"]))
         for ippc in ip_policy["exclude"]:
             self.assertEqual(exclude_first_last[ippc["cidr"]],
                              ippc["first_ip"])
@@ -47,7 +47,7 @@ class QuarkIPPoliciesFirstLastIPTest(BaseFunctionalTest):
             new_exclude_first_last[cidr] = netaddr.IPNetwork(cidr).ipv6().first
         updated_ip_policy = db_api.ip_policy_update(
             self.context, ip_policy, exclude=new_exclude_first_last.keys())
-        self.assertEqual(len(updated_ip_policy["exclude"]), 3)
+        self.assertEqual(3, len(updated_ip_policy["exclude"]))
         for ippc in updated_ip_policy["exclude"]:
             self.assertEqual(new_exclude_first_last[ippc["cidr"]],
                              ippc["first_ip"])

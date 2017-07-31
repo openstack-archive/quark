@@ -31,5 +31,5 @@ class TestSubnetsAllocationPoolCache(MySqlBaseFunctionalTest):
             self.context.session.flush()
         except exc.StaleDataError as e:
             self.fail("Did not expect StaleDataError exception: {0}".format(e))
-        self.assertEqual(subnet_db["_allocation_pool_cache"],
-                         "{\"foo\": \"bar\"}")
+        self.assertEqual("{\"foo\": \"bar\"}",
+                         subnet_db["_allocation_pool_cache"])

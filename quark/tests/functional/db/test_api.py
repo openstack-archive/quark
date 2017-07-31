@@ -90,14 +90,14 @@ class QuarkFindSubnetAllocationCount(QuarkIpamBaseFunctionalTest):
             subnets = db_api.subnet_find_ordered_by_most_full(
                 self.context, net['id'], segment_id=None,
                 scope=db_api.ALL).all()
-            self.assertEqual(len(subnets), 3)
+            self.assertEqual(3, len(subnets))
             for subnet in subnets:
                 self.assertIn(subnet[0]["cidr"], cidrs)
 
             subnets = db_api.subnet_find_ordered_by_least_full(
                 self.context, net['id'], segment_id=None,
                 scope=db_api.ALL).all()
-            self.assertEqual(len(subnets), 3)
+            self.assertEqual(3, len(subnets))
             for subnet in subnets:
                 self.assertIn(subnet[0]["cidr"], cidrs)
 
@@ -115,24 +115,24 @@ class QuarkFindSubnetAllocationCount(QuarkIpamBaseFunctionalTest):
             subnets = db_api.subnet_find_ordered_by_most_full(
                 self.context, net['id'], segment_id=None,
                 scope=db_api.ALL).all()
-            self.assertEqual(len(subnets), 3)
+            self.assertEqual(3, len(subnets))
             self.assertIn(subnets[0][0].cidr, subnets_with_same_ips_used)
-            self.assertEqual(subnets[0][1], 0)
+            self.assertEqual(0, subnets[0][1])
             self.assertIn(subnets[1][0].cidr, subnets_with_same_ips_used)
-            self.assertEqual(subnets[1][1], 0)
-            self.assertEqual(subnets[2][0].cidr, "2.2.2.0/30")
-            self.assertEqual(subnets[2][1], 1)
+            self.assertEqual(0, subnets[1][1])
+            self.assertEqual("2.2.2.0/30", subnets[2][0].cidr)
+            self.assertEqual(1, subnets[2][1])
 
             subnets = db_api.subnet_find_ordered_by_least_full(
                 self.context, net['id'], segment_id=None,
                 scope=db_api.ALL).all()
-            self.assertEqual(len(subnets), 3)
-            self.assertEqual(subnets[0][0].cidr, "2.2.2.0/30")
-            self.assertEqual(subnets[0][1], 1)
+            self.assertEqual(3, len(subnets))
+            self.assertEqual("2.2.2.0/30", subnets[0][0].cidr)
+            self.assertEqual(1, subnets[0][1])
             self.assertIn(subnets[1][0].cidr, subnets_with_same_ips_used)
-            self.assertEqual(subnets[1][1], 0)
+            self.assertEqual(0, subnets[1][1])
             self.assertIn(subnets[2][0].cidr, subnets_with_same_ips_used)
-            self.assertEqual(subnets[2][1], 0)
+            self.assertEqual(0, subnets[2][1])
 
     def test_ordering_subnets_find_allocc_when_counts_unequal_size_equal(self):
         models = []
@@ -149,24 +149,24 @@ class QuarkFindSubnetAllocationCount(QuarkIpamBaseFunctionalTest):
             subnets = db_api.subnet_find_ordered_by_most_full(
                 self.context, net['id'], segment_id=None,
                 scope=db_api.ALL).all()
-            self.assertEqual(len(subnets), 3)
-            self.assertEqual(subnets[0][0].cidr, "2.2.2.0/31")
-            self.assertEqual(subnets[0][1], 2)
-            self.assertEqual(subnets[1][0].cidr, "1.1.1.0/31")
-            self.assertEqual(subnets[1][1], 1)
-            self.assertEqual(subnets[2][0].cidr, "0.0.0.0/31")
-            self.assertEqual(subnets[2][1], 0)
+            self.assertEqual(3, len(subnets))
+            self.assertEqual("2.2.2.0/31", subnets[0][0].cidr)
+            self.assertEqual(2, subnets[0][1])
+            self.assertEqual("1.1.1.0/31", subnets[1][0].cidr)
+            self.assertEqual(1, subnets[1][1])
+            self.assertEqual("0.0.0.0/31", subnets[2][0].cidr)
+            self.assertEqual(0, subnets[2][1])
 
             subnets = db_api.subnet_find_ordered_by_least_full(
                 self.context, net['id'], segment_id=None,
                 scope=db_api.ALL).all()
-            self.assertEqual(len(subnets), 3)
-            self.assertEqual(subnets[0][0].cidr, "0.0.0.0/31")
-            self.assertEqual(subnets[0][1], 0)
-            self.assertEqual(subnets[1][0].cidr, "1.1.1.0/31")
-            self.assertEqual(subnets[1][1], 1)
-            self.assertEqual(subnets[2][0].cidr, "2.2.2.0/31")
-            self.assertEqual(subnets[2][1], 2)
+            self.assertEqual(3, len(subnets))
+            self.assertEqual("0.0.0.0/31", subnets[0][0].cidr)
+            self.assertEqual(0, subnets[0][1])
+            self.assertEqual("1.1.1.0/31", subnets[1][0].cidr)
+            self.assertEqual(1, subnets[1][1])
+            self.assertEqual("2.2.2.0/31", subnets[2][0].cidr)
+            self.assertEqual(2, subnets[2][1])
 
     def test_ordering_subnets_ip_version(self):
         """Order by ip_version primarily.
@@ -185,14 +185,14 @@ class QuarkFindSubnetAllocationCount(QuarkIpamBaseFunctionalTest):
             subnets = db_api.subnet_find_ordered_by_most_full(
                 self.context, net['id'], segment_id=None,
                 scope=db_api.ALL).all()
-            self.assertEqual(subnets[0][0].ip_version, 4)
-            self.assertEqual(subnets[1][0].ip_version, 6)
+            self.assertEqual(4, subnets[0][0].ip_version)
+            self.assertEqual(6, subnets[1][0].ip_version)
 
             subnets = db_api.subnet_find_ordered_by_least_full(
                 self.context, net['id'], segment_id=None,
                 scope=db_api.ALL).all()
-            self.assertEqual(subnets[0][0].ip_version, 4)
-            self.assertEqual(subnets[1][0].ip_version, 6)
+            self.assertEqual(4, subnets[0][0].ip_version)
+            self.assertEqual(6, subnets[1][0].ip_version)
 
     def test_ordering_subnets_find_unused(self):
         models = []
@@ -213,11 +213,11 @@ class QuarkFindSubnetAllocationCount(QuarkIpamBaseFunctionalTest):
             subnets = db_api.subnet_find_unused(
                 self.context, net['id'], segment_id=None,
                 scope=db_api.ALL).all()
-            self.assertEqual(len(subnets), 2)
-            self.assertEqual(subnets[0][0].cidr, "0.0.0.0/31")
-            self.assertEqual(subnets[0][1], 0)
-            self.assertEqual(subnets[1][0].cidr, "fffd::/127")
-            self.assertEqual(subnets[1][1], 0)
+            self.assertEqual(2, len(subnets))
+            self.assertEqual("0.0.0.0/31", subnets[0][0].cidr)
+            self.assertEqual(0, subnets[0][1])
+            self.assertEqual("fffd::/127", subnets[1][0].cidr)
+            self.assertEqual(0, subnets[1][1])
 
     def test_subnet_set_full(self):
         cidr4 = "0.0.0.0/30"  # 2 bits
@@ -231,7 +231,7 @@ class QuarkFindSubnetAllocationCount(QuarkIpamBaseFunctionalTest):
                 updated = db_api.subnet_update_set_full(self.context, subnet)
                 self.context.session.refresh(subnet)
                 self.assertTrue(updated)
-                self.assertEqual(subnet["next_auto_assign_ip"], -1)
+                self.assertEqual(-1, subnet["next_auto_assign_ip"])
 
     def test_subnet_update_next_auto_assign_ip(self):
         cidr4 = "0.0.0.0/30"  # 2 bits

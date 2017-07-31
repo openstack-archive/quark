@@ -78,41 +78,41 @@ class TestQuarkCreateMacAddressRanges(test_quark_plugin.TestQuarkPlugin):
         cidr, first, last = mac_address_ranges._to_mac_range("AA:BB:CC/24")
         first_mac = str(netaddr.EUI(first, dialect=netaddr.mac_unix))
         last_mac = str(netaddr.EUI(last, dialect=netaddr.mac_unix))
-        self.assertEqual(cidr, "AA:BB:CC:00:00:00/24")
-        self.assertEqual(first_mac, "aa:bb:cc:0:0:0")
-        self.assertEqual(last_mac, "aa:bb:cd:0:0:0")
+        self.assertEqual("AA:BB:CC:00:00:00/24", cidr)
+        self.assertEqual("aa:bb:cc:0:0:0", first_mac)
+        self.assertEqual("aa:bb:cd:0:0:0", last_mac)
 
     def test_to_mac_range_just_prefix(self):
         cidr, first, last = mac_address_ranges._to_mac_range("AA:BB:CC")
         first_mac = str(netaddr.EUI(first, dialect=netaddr.mac_unix))
         last_mac = str(netaddr.EUI(last, dialect=netaddr.mac_unix))
-        self.assertEqual(cidr, "AA:BB:CC:00:00:00/24")
-        self.assertEqual(first_mac, "aa:bb:cc:0:0:0")
-        self.assertEqual(last_mac, "aa:bb:cd:0:0:0")
+        self.assertEqual("AA:BB:CC:00:00:00/24", cidr)
+        self.assertEqual("aa:bb:cc:0:0:0", first_mac)
+        self.assertEqual("aa:bb:cd:0:0:0", last_mac)
 
     def test_to_mac_range_unix_format(self):
         cidr, first, last = mac_address_ranges._to_mac_range("AA-BB-CC")
         first_mac = str(netaddr.EUI(first, dialect=netaddr.mac_unix))
         last_mac = str(netaddr.EUI(last, dialect=netaddr.mac_unix))
-        self.assertEqual(cidr, "AA:BB:CC:00:00:00/24")
-        self.assertEqual(first_mac, "aa:bb:cc:0:0:0")
-        self.assertEqual(last_mac, "aa:bb:cd:0:0:0")
+        self.assertEqual("AA:BB:CC:00:00:00/24", cidr)
+        self.assertEqual("aa:bb:cc:0:0:0", first_mac)
+        self.assertEqual("aa:bb:cd:0:0:0", last_mac)
 
     def test_to_mac_range_unix_cidr_format(self):
         cidr, first, last = mac_address_ranges._to_mac_range("AA-BB-CC/24")
         first_mac = str(netaddr.EUI(first, dialect=netaddr.mac_unix))
         last_mac = str(netaddr.EUI(last, dialect=netaddr.mac_unix))
-        self.assertEqual(cidr, "AA:BB:CC:00:00:00/24")
-        self.assertEqual(first_mac, "aa:bb:cc:0:0:0")
-        self.assertEqual(last_mac, "aa:bb:cd:0:0:0")
+        self.assertEqual("AA:BB:CC:00:00:00/24", cidr)
+        self.assertEqual("aa:bb:cc:0:0:0", first_mac)
+        self.assertEqual("aa:bb:cd:0:0:0", last_mac)
 
     def test_to_mac_range_unix_cidr_format_normal_length(self):
         cidr, first, last = mac_address_ranges._to_mac_range("aabbcc000000/29")
         first_mac = str(netaddr.EUI(first, dialect=netaddr.mac_unix))
         last_mac = str(netaddr.EUI(last, dialect=netaddr.mac_unix))
-        self.assertEqual(cidr, "AA:BB:CC:00:00:00/29")
-        self.assertEqual(first_mac, "aa:bb:cc:0:0:0")
-        self.assertEqual(last_mac, "aa:bb:cc:8:0:0")
+        self.assertEqual("AA:BB:CC:00:00:00/29", cidr)
+        self.assertEqual("aa:bb:cc:0:0:0", first_mac)
+        self.assertEqual("aa:bb:cc:8:0:0", last_mac)
 
     def test_to_mac_prefix_too_short_fails(self):
         with self.assertRaises(q_exc.InvalidMacAddressRange):
@@ -132,7 +132,7 @@ class TestQuarkCreateMacAddressRanges(test_quark_plugin.TestQuarkPlugin):
                                           do_not_use=True))
         admin_ctxt = self.context.elevated()
         res = self.plugin.create_mac_address_range(admin_ctxt, mar)
-        self.assertEqual(res["cidr"], "AA:BB:CC:00:00:00/24")
+        self.assertEqual("AA:BB:CC:00:00:00/24", res["cidr"])
         mac_range = db_api.mac_address_range_find(admin_ctxt,
                                                   id=res["id"]).first()
         self.assertTrue(mac_range["do_not_use"])

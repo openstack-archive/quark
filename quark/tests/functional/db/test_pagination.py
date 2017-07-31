@@ -37,9 +37,9 @@ class QuarkNetworksPaginationFunctionalTest(BaseFunctionalTest):
         db_api.network_create(self.context, **networkB)
         res = network_api.get_networks(self.context, networks_per_page,
                                        ['id'], None, False)
-        self.assertEqual(len(res), networks_per_page)
+        self.assertEqual(networks_per_page, len(res))
         res = network_api.get_networks(self.context)
-        self.assertNotEqual(len(res), networks_per_page)
+        self.assertNotEqual(networks_per_page, len(res))
 
 
 class QuarkSubnetsPaginationFunctionalTest(BaseFunctionalTest):
@@ -68,7 +68,7 @@ class QuarkSubnetsPaginationFunctionalTest(BaseFunctionalTest):
                                                    subnets_per_page, False,
                                                    ['id'],
                                                    filters={})
-            self.assertEqual(len(subnets_paged), subnets_per_page)
+            self.assertEqual(subnets_per_page, len(subnets_paged))
             self.assertNotEqual(len(subnets_unpaged), subnets_per_page)
 
 
@@ -117,7 +117,7 @@ class QuarkPortsPaginationFunctionalTest(BaseFunctionalTest):
             port2 = port_api.create_port(self.context, _make_body())
             res_ports = port_api.get_ports(self.context, ports_per_page,
                                            ['id'], None)
-            self.assertEqual(len(res_ports), ports_per_page)
+            self.assertEqual(ports_per_page, len(res_ports))
             res_ports = port_api.get_ports(self.context)
             self.assertNotEqual(len(res_ports), ports_per_page)
             # Note (Perkins): Testing for a default sort on created_at,

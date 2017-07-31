@@ -30,7 +30,7 @@ class TestBaseDriver(test_base.TestBase):
 
     def test_select_ipam_strategy(self):
         strategy = self.driver.select_ipam_strategy(1, "ANY")
-        self.assertEqual(strategy, "ANY")
+        self.assertEqual("ANY", strategy)
 
     def test_create_network(self):
         self.driver.create_network(context=self.context, network_name="public")
@@ -49,11 +49,11 @@ class TestBaseDriver(test_base.TestBase):
 
     def test_diag_network(self):
         diag = self.driver.diag_network(self.context, network_id=1)
-        self.assertEqual(diag, {})
+        self.assertEqual({}, diag)
 
     def test_diag_port(self):
         diag = self.driver.diag_port(self.context, network_id=1)
-        self.assertEqual(diag, {})
+        self.assertEqual({}, diag)
 
     def test_create_security_group(self):
         self.driver.create_security_group(context=self.context,

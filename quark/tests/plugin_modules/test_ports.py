@@ -65,7 +65,7 @@ class TestQuarkGetPorts(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(ports=[]):
             ports = self.plugin.get_ports(self.context, filters=None,
                                           fields=None)
-            self.assertEqual(ports, [])
+            self.assertEqual([], ports)
 
     def test_port_list_with_device_owner_dhcp(self):
         ip = dict(id=1, address=netaddr.IPAddress("192.168.1.100").value,
@@ -79,8 +79,8 @@ class TestQuarkGetPorts(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(ports=[port], addrs=[ip]):
             ports = self.plugin.get_ports(self.context, filters=filters,
                                           fields=None)
-            self.assertEqual(len(ports), 1)
-            self.assertEqual(ports[0]["device_owner"], "network:dhcp")
+            self.assertEqual(1, len(ports))
+            self.assertEqual("network:dhcp", ports[0]["device_owner"])
 
     def test_port_list_with_ports(self):
         ip = dict(id=1, address=netaddr.IPAddress("192.168.1.100").value,
@@ -100,10 +100,10 @@ class TestQuarkGetPorts(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(ports=[port], addrs=[ip]):
             ports = self.plugin.get_ports(self.context, filters=None,
                                           fields=None)
-            self.assertEqual(len(ports), 1)
+            self.assertEqual(1, len(ports))
             fixed_ips = ports[0].pop("fixed_ips")
             for key in expected.keys():
-                self.assertEqual(ports[0][key], expected[key])
+                self.assertEqual(expected[key], ports[0][key])
             self.assertEqual(fixed_ips[0]["subnet_id"], ip["subnet_id"])
             self.assertEqual(fixed_ips[0]["ip_address"],
                              ip["address_readable"])
@@ -122,7 +122,7 @@ class TestQuarkGetPorts(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(ports=port):
             result = self.plugin.get_port(self.context, 1)
             for key in expected.keys():
-                self.assertEqual(result[key], expected[key])
+                self.assertEqual(expected[key], result[key])
 
     def test_port_show_not_found(self):
         with self._stubs(ports=None):
@@ -147,7 +147,7 @@ class TestQuarkGetPorts(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(ports=port):
             result = self.plugin.get_port(self.context, 1)
             for key in expected.keys():
-                self.assertEqual(result[key], expected[key])
+                self.assertEqual(expected[key], result[key])
 
     def test_port_show_invalid_vlan_id(self):
         """Prove VLAN IDs are included in port information when available."""
@@ -166,7 +166,7 @@ class TestQuarkGetPorts(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(ports=port):
             result = self.plugin.get_port(self.context, 1)
             for key in expected.keys():
-                self.assertEqual(result[key], expected[key])
+                self.assertEqual(expected[key], result[key])
 
 
 class TestQuarkGetPortsProviderSubnetIds(test_quark_plugin.TestQuarkPlugin):
@@ -260,7 +260,7 @@ class TestQuarkGetPortsProviderSubnetIds(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(ports=port, addrs=[ip]):
             result = self.plugin.get_port(self.context, 1)
             for key in expected.keys():
-                self.assertEqual(result[key], expected[key])
+                self.assertEqual(expected[key], result[key])
 
     def test_port_show_without_provider_subnet_ids(self):
         """Prove provider subnets ids are shown on the port object."""
@@ -287,7 +287,7 @@ class TestQuarkGetPortsProviderSubnetIds(test_quark_plugin.TestQuarkPlugin):
         with self._stubs(ports=port, addrs=[ip]):
             result = self.plugin.get_port(self.context, 1)
             for key in expected.keys():
-                self.assertEqual(result[key], expected[key])
+                self.assertEqual(expected[key], result[key])
 
 
 class TestQuarkGetPortsByIPAddress(test_quark_plugin.TestQuarkPlugin):
@@ -321,8 +321,8 @@ class TestQuarkGetPortsByIPAddress(test_quark_plugin.TestQuarkPlugin):
             filters = {"ip_address": ["192.168.0.1"]}
             ports = self.plugin.get_ports(admin_ctx, filters=filters,
                                           fields=None)
-            self.assertEqual(len(ports), 1)
-            self.assertEqual(ports[0]["device_owner"], "network:dhcp")
+            self.assertEqual(1, len(ports))
+            self.assertEqual("network:dhcp", ports[0]["device_owner"])
 
     def test_port_list_by_ip_not_admin_raises(self):
         with self._stubs(ports=[]):
@@ -550,7 +550,7 @@ class TestQuarkCreatePortsSameDevBadRequest(test_quark_plugin.TestQuarkPlugin):
             result = self.plugin.create_port(self.context, port)
             self.assertTrue(port_create.called)
             for key in expected.keys():
-                self.assertEqual(result[key], expected[key])
+                self.assertEqual(expected[key], result[key])
 
     def test_create_port_segment_id_on_unshared_net_ignored(self):
         network = dict(id=1, tenant_id=self.context.tenant_id)
@@ -574,7 +574,7 @@ class TestQuarkCreatePortsSameDevBadRequest(test_quark_plugin.TestQuarkPlugin):
             result = self.plugin.create_port(self.context, port)
             self.assertTrue(port_create.called)
             for key in expected.keys():
-                self.assertEqual(result[key], expected[key])
+                self.assertEqual(expected[key], result[key])
 
     def test_create_port_mac_address_not_specified(self):
         network = dict(id=1, tenant_id=self.context.tenant_id)
@@ -596,7 +596,7 @@ class TestQuarkCreatePortsSameDevBadRequest(test_quark_plugin.TestQuarkPlugin):
             result = self.plugin.create_port(self.context, port)
             self.assertTrue(port_create.called)
             for key in expected.keys():
-                self.assertEqual(result[key], expected[key])
+                self.assertEqual(expected[key], result[key])
 
     @mock.patch("quark.network_strategy.JSONStrategy.is_provider_network")
     def test_create_providernet_port_fixed_ip_not_authorized(self, is_parent):
@@ -818,7 +818,7 @@ class TestQuarkUpdatePort(test_quark_plugin.TestQuarkPlugin):
         ) as (port_find, port_update, alloc_ip, dealloc_ip):
             new_port = dict(port=dict(name="ourport"))
             self.plugin.update_port(self.context, 1, new_port)
-            self.assertEqual(port_find.call_count, 2)
+            self.assertEqual(2, port_find.call_count)
             port_update.assert_called_once_with(
                 self.context,
                 port_find(),
@@ -853,7 +853,7 @@ class TestQuarkUpdatePort(test_quark_plugin.TestQuarkPlugin):
                 fixed_ips=[dict(subnet_id=1,
                                 ip_address="1.1.1.1")]))
             self.plugin.update_port(self.context, 1, new_port)
-            self.assertEqual(alloc_ip.call_count, 1)
+            self.assertEqual(1, alloc_ip.call_count)
 
     def test_update_port_fixed_ip_no_subnet_raises(self):
         with self._stubs(
@@ -871,7 +871,7 @@ class TestQuarkUpdatePort(test_quark_plugin.TestQuarkPlugin):
             new_port = dict(port=dict(
                 fixed_ips=[dict(subnet_id=1)]))
             self.plugin.update_port(self.context, 1, new_port)
-            self.assertEqual(alloc_ip.call_count, 1)
+            self.assertEqual(1, alloc_ip.call_count)
 
     def test_update_port_fixed_ip_allocs_new_deallocs_existing(self):
         addr_dict = {"address": 0, "address_readable": "0.0.0.0"}
@@ -891,7 +891,7 @@ class TestQuarkUpdatePort(test_quark_plugin.TestQuarkPlugin):
                 fixed_ips=[dict(subnet_id=1,
                                 ip_address=new_addr["address_readable"])]))
             self.plugin.update_port(self.context, 1, new_port)
-            self.assertEqual(alloc_ip.call_count, 1)
+            self.assertEqual(1, alloc_ip.call_count)
 
     def test_update_port_goes_over_quota(self):
         fixed_ips = {"fixed_ips": [{"subnet_id": 1},
@@ -971,7 +971,7 @@ class TestQuarkUpdatePortSecurityGroups(test_quark_plugin.TestQuarkPlugin):
             new_port = dict(port=dict(name="ourport",
                                       security_groups=[]))
             port = self.plugin.update_port(self.context, 1, new_port)
-            self.assertEqual(port["security_groups"], [])
+            self.assertEqual([], port["security_groups"])
             port_update.assert_called_once_with(
                 self.context,
                 port_find(),
@@ -1201,15 +1201,15 @@ class TestPortDiagnose(test_quark_plugin.TestQuarkPlugin):
             ports = diag["ports"]
             # All none because we're using the unmanaged driver, which
             # doesn't do anything with these
-            self.assertEqual(ports["status"], "ACTIVE")
-            self.assertEqual(ports["device_owner"], None)
-            self.assertEqual(ports["fixed_ips"], [])
-            self.assertEqual(ports["security_groups"], [])
-            self.assertEqual(ports["device_id"], None)
-            self.assertEqual(ports["admin_state_up"], None)
-            self.assertEqual(ports["network_id"], None)
-            self.assertEqual(ports["tenant_id"], None)
-            self.assertEqual(ports["mac_address"], None)
+            self.assertEqual("ACTIVE", ports["status"])
+            self.assertEqual(None, ports["device_owner"])
+            self.assertEqual([], ports["fixed_ips"])
+            self.assertEqual([], ports["security_groups"])
+            self.assertEqual(None, ports["device_id"])
+            self.assertEqual(None, ports["admin_state_up"])
+            self.assertEqual(None, ports["network_id"])
+            self.assertEqual(None, ports["tenant_id"])
+            self.assertEqual(None, ports["mac_address"])
 
     def test_port_diagnose_with_wildcard(self):
         ip = dict(id=1, address=netaddr.IPAddress("192.168.1.100"),
@@ -1226,15 +1226,15 @@ class TestPortDiagnose(test_quark_plugin.TestQuarkPlugin):
             ports = diag["ports"]
             # All none because we're using the unmanaged driver, which
             # doesn't do anything with these
-            self.assertEqual(ports[0]["status"], "ACTIVE")
-            self.assertEqual(ports[0]["device_owner"], None)
-            self.assertEqual(ports[0]["fixed_ips"], [])
-            self.assertEqual(ports[0]["security_groups"], [])
-            self.assertEqual(ports[0]["device_id"], None)
-            self.assertEqual(ports[0]["admin_state_up"], None)
-            self.assertEqual(ports[0]["network_id"], None)
-            self.assertEqual(ports[0]["tenant_id"], None)
-            self.assertEqual(ports[0]["mac_address"], None)
+            self.assertEqual("ACTIVE", ports[0]["status"])
+            self.assertEqual(None, ports[0]["device_owner"])
+            self.assertEqual([], ports[0]["fixed_ips"])
+            self.assertEqual([], ports[0]["security_groups"])
+            self.assertEqual(None, ports[0]["device_id"])
+            self.assertEqual(None, ports[0]["admin_state_up"])
+            self.assertEqual(None, ports[0]["network_id"])
+            self.assertEqual(None, ports[0]["tenant_id"])
+            self.assertEqual(None, ports[0]["mac_address"])
 
     def test_port_diagnose_with_config_field(self):
         ip = dict(id=1, address=netaddr.IPAddress("192.168.1.100"),
@@ -1252,15 +1252,15 @@ class TestPortDiagnose(test_quark_plugin.TestQuarkPlugin):
             ports = diag["ports"]
             # All none because we're using the unmanaged driver, which
             # doesn't do anything with these
-            self.assertEqual(ports[0]["status"], "ACTIVE")
-            self.assertEqual(ports[0]["device_owner"], None)
-            self.assertEqual(ports[0]["fixed_ips"], [])
-            self.assertEqual(ports[0]["security_groups"], [])
-            self.assertEqual(ports[0]["device_id"], None)
-            self.assertEqual(ports[0]["admin_state_up"], None)
-            self.assertEqual(ports[0]["network_id"], None)
-            self.assertEqual(ports[0]["tenant_id"], None)
-            self.assertEqual(ports[0]["mac_address"], None)
+            self.assertEqual("ACTIVE", ports[0]["status"])
+            self.assertEqual(None, ports[0]["device_owner"])
+            self.assertEqual([], ports[0]["fixed_ips"])
+            self.assertEqual([], ports[0]["security_groups"])
+            self.assertEqual(None, ports[0]["device_id"])
+            self.assertEqual(None, ports[0]["admin_state_up"])
+            self.assertEqual(None, ports[0]["network_id"])
+            self.assertEqual(None, ports[0]["tenant_id"])
+            self.assertEqual(None, ports[0]["mac_address"])
 
     def test_port_diagnose_no_port_raises(self):
         with self._stubs(port=None):

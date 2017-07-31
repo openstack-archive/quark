@@ -371,4 +371,4 @@ class QuarkJobs(BaseFunctionalTest):
         self.assertEqual(100, parent_job['transaction_percent'])
         self.assertEqual(2, parent_job['subtransactions'])
         self.assertEqual(2, parent_job['completed_subtransactions'])
-        self.assertEqual(True, parent_job['completed'])
+        self.assertTrue(parent_job['completed'])

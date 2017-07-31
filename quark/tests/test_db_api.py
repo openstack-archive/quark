@@ -34,7 +34,7 @@ class TestDBAPI(BaseFunctionalTest):
         db_api.port_find(self.context, ip_address_id="fake")
         query_obj = self.context.session.query.return_value
         filter_fn = query_obj.options.return_value.filter
-        self.assertEqual(filter_fn.call_count, 1)
+        self.assertEqual(1, filter_fn.call_count)
 
     def test_ip_address_find_device_id(self):
         query_mock = mock.Mock()
@@ -44,7 +44,7 @@ class TestDBAPI(BaseFunctionalTest):
         query_mock.return_value = filter_mock
 
         db_api.ip_address_find(self.context, device_id="foo")
-        self.assertEqual(filter_mock.filter.call_count, 1)
+        self.assertEqual(1, filter_mock.filter.call_count)
 
     def test_ip_address_find_address_type(self):
         self.context.session.query = mock.MagicMock()
@@ -56,7 +56,7 @@ class TestDBAPI(BaseFunctionalTest):
         tenant_filter = (models.IPAddress.used_by_tenant_id.in_(
                          [self.context.tenant_id]))
         type_filter = models.IPAddress.address_type == "foo"
-        self.assertEqual(len(filter_mock.filter.call_args[0]), 2)
+        self.assertEqual(2, len(filter_mock.filter.call_args[0]))
         # NOTE(thomasem): Unfortunately BinaryExpression.compare isn't
         # showing to be a reliable comparison, so using the string
         # representation which dumps the associated SQL for the filter.
@@ -80,7 +80,7 @@ class TestDBAPI(BaseFunctionalTest):
         tenant_filter = (models.IPAddress.used_by_tenant_id.in_(
                          [self.context.tenant_id]))
         port_filter = models.IPAddress.ports.any(models.Port.id == "foo")
-        self.assertEqual(len(final_query_mock.filter.call_args[0]), 2)
+        self.assertEqual(2, len(final_query_mock.filter.call_args[0]))
         port_found = False
         tenant_found = False
         for model_filter in list(final_query_mock.filter.call_args[0]):
@@ -99,7 +99,7 @@ class TestDBAPI(BaseFunctionalTest):
         # NOTE(thomasem): Creates sqlalchemy.sql.elements.BinaryExpression
         # when using SQLAlchemy models in expressions.
         expected_filter = models.IPAddress.address_type == "foo"
-        self.assertEqual(len(filter_mock.filter.call_args[0]), 1)
+        self.assertEqual(1, len(filter_mock.filter.call_args[0]))
         # NOTE(thomasem): Unfortunately BinaryExpression.compare isn't
         # showing to be a reliable comparison, so using the string
         # representation which dumps the associated SQL for the filter.
@@ -114,7 +114,7 @@ class TestDBAPI(BaseFunctionalTest):
         # NOTE(thomasem): Creates sqlalchemy.sql.elements.BinaryExpression
         # when using SQLAlchemy models in expressions.
         expected_filter = models.IPAddress.ports.any(models.Port.id == "foo")
-        self.assertEqual(len(final_query_mock.filter.call_args[0]), 1)
+        self.assertEqual(1, len(final_query_mock.filter.call_args[0]))
         self.assertEqual(str(expected_filter), str(
             final_query_mock.filter.call_args[0][0]))
 
@@ -139,64 +139,64 @@ class TestDBAPI(BaseFunctionalTest):
         test_model = models.IPAddress
         good_filter = {"network_id": [2]}
         result = db_api._model_query(self.context, test_model, good_filter)
-        self.assertEqual(len(result), 2)
+        self.assertEqual(2, len(result))
         bad_filter = {"ethertype": "IPv4"}
         result = db_api._model_query(self.context, test_model, bad_filter)
-        self.assertEqual(len(result), 1)
+        self.assertEqual(1, len(result))
 
     def test_model_query_with_MacAddress(self):
         test_model = models.MacAddress
         good_filter = {"deallocated": True}
         result = db_api._model_query(self.context, test_model, good_filter)
-        self.assertEqual(len(result), 2)
+        self.assertEqual(2, len(result))
         bad_filter = {"protocol": "ICMP"}
         result = db_api._model_query(self.context, test_model, bad_filter)
-        self.assertEqual(len(result), 1)
+        self.assertEqual(1, len(result))
 
     def test_model_query_with_Network(self):
         test_model = models.Network
         good_filter = {"name": ["BOB"]}
         result = db_api._model_query(self.context, test_model, good_filter)
-        self.assertEqual(len(result), 2)
+        self.assertEqual(2, len(result))
         bad_filter = {"deallocated": True}
         result = db_api._model_query(self.context, test_model, bad_filter)
-        self.assertEqual(len(result), 1)
+        self.assertEqual(1, len(result))
 
     def test_model_query_with_Port(self):
         test_model = models.Port
         good_filter = {"device_id": [123]}
         result = db_api._model_query(self.context, test_model, good_filter)
-        self.assertEqual(len(result), 2)
+        self.assertEqual(2, len(result))
         bad_filter = {"not_real": "BANANAS"}
         result = db_api._model_query(self.context, test_model, bad_filter)
-        self.assertEqual(len(result), 1)
+        self.assertEqual(1, len(result))
 
     def test_model_query_with_SecurityGroup(self):
         test_model = models.SecurityGroup
         good_filter = {"name": ["Abraham Lincoln"]}
         result = db_api._model_query(self.context, test_model, good_filter)
-        self.assertEqual(len(result), 2)
+        self.assertEqual(2, len(result))
         bad_filter = {"segment_id": [123]}
         result = db_api._model_query(self.context, test_model, bad_filter)
-        self.assertEqual(len(result), 1)
+        self.assertEqual(1, len(result))
 
     def test_model_query_with_SecurityGroupRule(self):
         test_model = models.SecurityGroupRule
         good_filter = {"ethertype": ["IPv4"]}
         result = db_api._model_query(self.context, test_model, good_filter)
-        self.assertEqual(len(result), 2)
+        self.assertEqual(2, len(result))
         bad_filter = {"made_up": "Moon Landing"}
         result = db_api._model_query(self.context, test_model, bad_filter)
-        self.assertEqual(len(result), 1)
+        self.assertEqual(1, len(result))
 
     def test_model_query_with_Subnet(self):
         test_model = models.Subnet
         good_filter = {"network_id": [42]}
         result = db_api._model_query(self.context, test_model, good_filter)
-        self.assertEqual(len(result), 2)
+        self.assertEqual(2, len(result))
         bad_filter = {"subnet_id": [123]}
         result = db_api._model_query(self.context, test_model, bad_filter)
-        self.assertEqual(len(result), 1)
+        self.assertEqual(1, len(result))
 
     def test_port_associate_ip(self):
         self.context.session.add = mock.Mock()
@@ -211,7 +211,7 @@ class TestDBAPI(BaseFunctionalTest):
         for assoc, port in zip(r.associations, mock_ports):
             self.assertEqual(assoc.port, port)
             self.assertEqual(assoc.ip_address, mock_address)
-            self.assertEqual(assoc.enabled, False)
+            self.assertFalse(assoc.enabled)
 
     def test_port_associate_ip_enable_port(self):
         self.context.session.add = mock.Mock()
@@ -222,11 +222,11 @@ class TestDBAPI(BaseFunctionalTest):
                                         version=4, used_by_tenant_id="1")
         r = db_api.port_associate_ip(self.context, [mock_port], mock_address,
                                      enable_port="1")
-        self.assertEqual(len(r.associations), 1)
+        self.assertEqual(1, len(r.associations))
         assoc = r.associations[0]
         self.assertEqual(assoc.port, mock_port)
         self.assertEqual(assoc.ip_address, mock_address)
-        self.assertEqual(assoc.enabled, True)
+        self.assertTrue(assoc.enabled)
         self.context.session.add.assert_called_once_with(assoc)
 
     def test_port_disassociate_ip(self):
@@ -250,7 +250,7 @@ class TestDBAPI(BaseFunctionalTest):
         r = db_api.port_disassociate_ip(self.context, mock_ports[1:3],
                                         mock_address)
 
-        self.assertEqual(len(r.associations), 2)
+        self.assertEqual(2, len(r.associations))
         self.assertEqual(r.associations[0], mock_assocs[0])
         self.assertEqual(r.associations[1], mock_assocs[3])
         self.context.session.add.assert_called_once_with(r)

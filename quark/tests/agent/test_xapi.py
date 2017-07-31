@@ -9,11 +9,11 @@ import mock
 class TestVIF(test_base.TestBase):
     def test_str(self):
         rec = {"MAC": 2}
-        self.assertEqual(str(xapi.VIF("1", rec, "3")), "1.2.3")
+        self.assertEqual("1.2.3", str(xapi.VIF("1", rec, "3")))
 
     def test_repr(self):
         rec = {"MAC": '2'}
-        self.assertEqual(repr(xapi.VIF("1", rec, "3")), "VIF('1', '2', '3')")
+        self.assertEqual("VIF('1', '2', '3')", repr(xapi.VIF("1", rec, "3")))
 
     def test_eq(self):
         rec = {"MAC": '2'}
@@ -57,7 +57,7 @@ class TestXapiClient(test_base.TestBase):
         instances = self.xclient.get_instances(self.session)
         vm = xapi.VM(ref="opaque1", uuid="uuid1",
                      dom_id="1", vifs=["opaque_vif1", "opaque_vif2"])
-        self.assertEqual(instances, {"opaque1": vm})
+        self.assertEqual({"opaque1": vm}, instances)
 
     @mock.patch("quark.agent.xapi.XapiClient.get_instances")
     def test_get_interfaces(self, get_instances):
@@ -73,7 +73,7 @@ class TestXapiClient(test_base.TestBase):
         interfaces = self.xclient.get_interfaces()
         rec = {"MAC": "00:11:22:33:44:55", "VM": "opaque1"}
         expected = set([xapi.VIF("device_id1", rec, "opaque_vif1")])
-        self.assertEqual(interfaces, expected)
+        self.assertEqual(expected, interfaces)
 
     @mock.patch("quark.agent.xapi.XapiClient.get_instances")
     def test_update_interfaces_added(self, get_instances):
@@ -100,7 +100,7 @@ class TestXapiClient(test_base.TestBase):
         xenapi_VIF = self.session.xenapi.VIF
         xenapi_VIF.add_to_other_config.assert_called_once_with(
             "opaque_vif1", "security_groups", "enabled")
-        self.assertEqual(xenapi_VIF.remove_from_other_config.call_count, 0)
+        self.assertEqual(0, xenapi_VIF.remove_from_other_config.call_count)
 
         self.session.xenapi.host.call_plugin.assert_called_once_with(
             self.session.xenapi.session.get_this_host.return_value,
@@ -124,9 +124,9 @@ class TestXapiClient(test_base.TestBase):
         xenapi_VIF = self.session.xenapi.VIF
         xenapi_VIF.add_to_other_config.assert_called_once_with(
             "opaque_vif1", "security_groups", "enabled")
-        self.assertEqual(xenapi_VIF.remove_from_other_config.call_count, 0)
+        self.assertEqual(0, xenapi_VIF.remove_from_other_config.call_count)
 
-        self.assertEqual(self.session.xenapi.host.call_plugin.call_count, 0)
+        self.assertEqual(0, self.session.xenapi.host.call_plugin.call_count)
 
     def test_update_interfaces_updated(self):
         rec = {"MAC": "00:11:22:33:44:55"}
@@ -146,8 +146,8 @@ class TestXapiClient(test_base.TestBase):
         self.xclient.update_interfaces([], interfaces, [])
 
         xenapi_VIF = self.session.xenapi.VIF
-        self.assertEqual(xenapi_VIF.add_to_other_config.call_count, 0)
-        self.assertEqual(xenapi_VIF.remove_from_other_config.call_count, 0)
+        self.assertEqual(0, xenapi_VIF.add_to_other_config.call_count)
+        self.assertEqual(0, xenapi_VIF.remove_from_other_config.call_count)
 
         expected_args = dict(dom_id="1", vif_index="0")
         self.session.xenapi.host.call_plugin.assert_called_once_with(
@@ -172,7 +172,7 @@ class TestXapiClient(test_base.TestBase):
         self.xclient.update_interfaces([], [], interfaces)
 
         xenapi_VIF = self.session.xenapi.VIF
-        self.assertEqual(xenapi_VIF.add_to_other_config.call_count, 0)
+        self.assertEqual(0, xenapi_VIF.add_to_other_config.call_count)
         xenapi_VIF.remove_from_other_config.assert_called_once_with(
             "opaque_vif1", "security_groups")
 
@@ -193,20 +193,20 @@ class TestXapiClient(test_base.TestBase):
         self.xclient.update_interfaces([], [], interfaces)
 
         xenapi_VIF = self.session.xenapi.VIF
-        self.assertEqual(xenapi_VIF.add_to_other_config.call_count, 0)
+        self.assertEqual(0, xenapi_VIF.add_to_other_config.call_count)
         xenapi_VIF.remove_from_other_config.assert_called_once_with(
             "opaque_vif1", "security_groups")
 
-        self.assertEqual(self.session.xenapi.host.call_plugin.call_count, 0)
+        self.assertEqual(0, self.session.xenapi.host.call_plugin.call_count)
 
     def test_update_interfaces_none(self):
         self.xclient.update_interfaces([], [], [])
 
         xenapi_VIF = self.session.xenapi.VIF
-        self.assertEqual(xenapi_VIF.remove_from_other_config.call_count, 0)
-        self.assertEqual(xenapi_VIF.add_to_other_config.call_count, 0)
+        self.assertEqual(0, xenapi_VIF.remove_from_other_config.call_count)
+        self.assertEqual(0, xenapi_VIF.add_to_other_config.call_count)
 
-        self.assertEqual(self.session.xenapi.host.call_plugin.call_count, 0)
+        self.assertEqual(0, self.session.xenapi.host.call_plugin.call_count)
 
     def test_update_interfaces_removed_raises(self):
         rec = {"MAC": "00:11:22:33:44:55"}
@@ -230,7 +230,7 @@ class TestXapiClient(test_base.TestBase):
 
         self.xclient.update_interfaces([], [], interfaces)
 
-        self.assertEqual(xenapi_VIF.add_to_other_config.call_count, 0)
+        self.assertEqual(0, xenapi_VIF.add_to_other_config.call_count)
         xenapi_VIF.remove_from_other_config.assert_called_once_with(
             "opaque_vif1", "security_groups")
 

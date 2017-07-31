@@ -64,7 +64,7 @@ class Test2748e48cee3a(BaseMigrationTest):
         alembic_command.upgrade(self.config, '2748e48cee3a')
         results = self.connection.execute(
             select([self.ip_policy_cidrs])).fetchall()
-        self.assertEqual(len(results), 0)
+        self.assertEqual(0, len(results))
 
     def test_upgrade_ip_policy_cidr_inside(self):
         self.connection.execute(
@@ -79,12 +79,12 @@ class Test2748e48cee3a(BaseMigrationTest):
         alembic_command.upgrade(self.config, '2748e48cee3a')
         results = self.connection.execute(
             select([self.ip_policy_cidrs])).fetchall()
-        self.assertEqual(len(results), 1)
+        self.assertEqual(1, len(results))
         result = results[0]
-        self.assertEqual(result["id"], "222")
-        self.assertEqual(result["created_at"], dt)
-        self.assertEqual(result["ip_policy_id"], "111")
-        self.assertEqual(result["cidr"], "192.168.10.0/32")
+        self.assertEqual("222", result["id"])
+        self.assertEqual(dt, result["created_at"])
+        self.assertEqual("111", result["ip_policy_id"])
+        self.assertEqual("192.168.10.0/32", result["cidr"])
 
     def test_upgrade_ip_policy_cidr_overlaps(self):
         self.connection.execute(
@@ -102,12 +102,12 @@ class Test2748e48cee3a(BaseMigrationTest):
             alembic_command.upgrade(self.config, '2748e48cee3a')
             results = self.connection.execute(
                 select([self.ip_policy_cidrs])).fetchall()
-            self.assertEqual(len(results), 1)
+            self.assertEqual(1, len(results))
             result = results[0]
-            self.assertEqual(result["id"], uuid.generate_uuid.return_value)
-            self.assertEqual(result["created_at"], tu.utcnow.return_value)
-            self.assertEqual(result["ip_policy_id"], "111")
-            self.assertEqual(result["cidr"], "192.168.10.0/24")
+            self.assertEqual(uuid.generate_uuid.return_value, result["id"])
+            self.assertEqual(tu.utcnow.return_value, result["created_at"])
+            self.assertEqual("111", result["ip_policy_id"])
+            self.assertEqual("192.168.10.0/24", result["cidr"])
 
     def test_upgrade_ip_policy_cidr_overlaps_v6(self):
         self.connection.execute(
@@ -125,12 +125,12 @@ class Test2748e48cee3a(BaseMigrationTest):
             alembic_command.upgrade(self.config, '2748e48cee3a')
             results = self.connection.execute(
                 select([self.ip_policy_cidrs])).fetchall()
-            self.assertEqual(len(results), 1)
+            self.assertEqual(1, len(results))
             result = results[0]
-            self.assertEqual(result["id"], uuid.generate_uuid.return_value)
-            self.assertEqual(result["created_at"], tu.utcnow.return_value)
-            self.assertEqual(result["ip_policy_id"], "111")
-            self.assertEqual(result["cidr"], "fd00::/8")
+            self.assertEqual(uuid.generate_uuid.return_value, result["id"])
+            self.assertEqual(tu.utcnow.return_value, result["created_at"])
+            self.assertEqual("111", result["ip_policy_id"])
+            self.assertEqual("fd00::/8", result["cidr"])
 
     def test_upgrade_ip_policy_cidr_outside(self):
         self.connection.execute(
@@ -144,7 +144,7 @@ class Test2748e48cee3a(BaseMigrationTest):
         alembic_command.upgrade(self.config, '2748e48cee3a')
         results = self.connection.execute(
             select([self.ip_policy_cidrs])).fetchall()
-        self.assertEqual(len(results), 0)
+        self.assertEqual(0, len(results))
 
     def test_upgrade_bulk(self):
         self.connection.execute(
@@ -170,17 +170,17 @@ class Test2748e48cee3a(BaseMigrationTest):
             alembic_command.upgrade(self.config, '2748e48cee3a')
             results = self.connection.execute(
                 select([self.ip_policy_cidrs])).fetchall()
-            self.assertEqual(len(results), 2)
+            self.assertEqual(2, len(results))
             result = results[0] if results[0]["id"] == "foo" else results[1]
-            self.assertEqual(result["id"], uuid.generate_uuid.return_value)
-            self.assertEqual(result["created_at"], tu.utcnow.return_value)
-            self.assertEqual(result["ip_policy_id"], "112")
-            self.assertEqual(result["cidr"], "192.168.10.0/24")
+            self.assertEqual(uuid.generate_uuid.return_value, result["id"])
+            self.assertEqual(tu.utcnow.return_value, result["created_at"])
+            self.assertEqual("112", result["ip_policy_id"])
+            self.assertEqual("192.168.10.0/24", result["cidr"])
             result = results[0] if results[0]["id"] != "foo" else results[1]
-            self.assertEqual(result["id"], "221")
-            self.assertEqual(result["created_at"], dt)
-            self.assertEqual(result["ip_policy_id"], "111")
-            self.assertEqual(result["cidr"], "192.168.10.0/32")
+            self.assertEqual("221", result["id"])
+            self.assertEqual(dt, result["created_at"])
+            self.assertEqual("111", result["ip_policy_id"])
+            self.assertEqual("192.168.10.0/32", result["cidr"])
 
     def test_upgrade_multiple_ip_policy_cidrs(self):
         self.connection.execute(
@@ -202,12 +202,12 @@ class Test2748e48cee3a(BaseMigrationTest):
             alembic_command.upgrade(self.config, '2748e48cee3a')
             results = self.connection.execute(
                 select([self.ip_policy_cidrs])).fetchall()
-            self.assertEqual(len(results), 1)
+            self.assertEqual(1, len(results))
             result = results[0]
-            self.assertEqual(result["id"], uuid.generate_uuid.return_value)
-            self.assertEqual(result["created_at"], tu.utcnow.return_value)
-            self.assertEqual(result["ip_policy_id"], "111")
-            self.assertEqual(result["cidr"], "192.168.10.0/24")
+            self.assertEqual(uuid.generate_uuid.return_value, result["id"])
+            self.assertEqual(tu.utcnow.return_value, result["created_at"])
+            self.assertEqual("111", result["ip_policy_id"])
+            self.assertEqual("192.168.10.0/24", result["cidr"])
 
     def test_downgrade(self):
         alembic_command.upgrade(self.config, '2748e48cee3a')
@@ -235,7 +235,7 @@ class Test45a07fac3d38(BaseMigrationTest):
         alembic_command.upgrade(self.config, '45a07fac3d38')
         results = self.connection.execute(
             select([self.ip_policy_cidrs])).fetchall()
-        self.assertEqual(len(results), 0)
+        self.assertEqual(0, len(results))
 
     def test_upgrade_with_subnets_no_ip_policy(self):
         self.connection.execute(
@@ -244,7 +244,7 @@ class Test45a07fac3d38(BaseMigrationTest):
         alembic_command.upgrade(self.config, '45a07fac3d38')
         results = self.connection.execute(
             select([self.ip_policy_cidrs])).fetchall()
-        self.assertEqual(len(results), 0)
+        self.assertEqual(0, len(results))
 
     def test_upgrade_with_subnets_no_ip_policy_cidrs(self):
         self.connection.execute(
@@ -253,7 +253,7 @@ class Test45a07fac3d38(BaseMigrationTest):
         alembic_command.upgrade(self.config, '45a07fac3d38')
         results = self.connection.execute(
             select([self.ip_policy_cidrs])).fetchall()
-        self.assertEqual(len(results), 2)
+        self.assertEqual(2, len(results))
         default_cidrs = ["192.168.10.0/32", "192.168.10.255/32"]
         self.assertIn(results[0]["cidr"], default_cidrs)
         self.assertIn(results[1]["cidr"], default_cidrs)
@@ -274,14 +274,14 @@ class Test45a07fac3d38(BaseMigrationTest):
             alembic_command.upgrade(self.config, '45a07fac3d38')
             results = self.connection.execute(
                 select([self.ip_policy_cidrs])).fetchall()
-            self.assertEqual(len(results), 3)
+            self.assertEqual(3, len(results))
             default_cidrs = ["192.168.10.0/32", "192.168.10.255/32",
                              "192.168.10.13/32"]
             for result in results:
                 self.assertIn(result["cidr"], default_cidrs)
                 self.assertGreaterEqual(int(result["id"]), 1)
                 self.assertLessEqual(int(result["id"]), 3)
-                self.assertEqual(result["created_at"], tu.utcnow.return_value)
+                self.assertEqual(tu.utcnow.return_value, result["created_at"])
             self.assertNotEqual(results[0]["cidr"], results[1]["cidr"])
             self.assertNotEqual(results[0]["cidr"], results[2]["cidr"])
             self.assertNotEqual(results[1]["cidr"], results[2]["cidr"])
@@ -301,14 +301,14 @@ class Test45a07fac3d38(BaseMigrationTest):
             alembic_command.upgrade(self.config, '45a07fac3d38')
             results = self.connection.execute(
                 select([self.ip_policy_cidrs])).fetchall()
-            self.assertEqual(len(results), 3)
+            self.assertEqual(3, len(results))
             default_cidrs = ["fd00::/128", "fd00::3/128",
                              "fd00::ffff:ffff:ffff:ffff/128"]
             for result in results:
                 self.assertIn(result["cidr"], default_cidrs)
                 self.assertGreaterEqual(int(result["id"]), 1)
                 self.assertLessEqual(int(result["id"]), 3)
-                self.assertEqual(result["created_at"], tu.utcnow.return_value)
+                self.assertEqual(tu.utcnow.return_value, result["created_at"])
             self.assertNotEqual(results[0]["cidr"], results[1]["cidr"])
             self.assertNotEqual(results[0]["cidr"], results[2]["cidr"])
             self.assertNotEqual(results[1]["cidr"], results[2]["cidr"])
@@ -327,14 +327,14 @@ class Test45a07fac3d38(BaseMigrationTest):
         alembic_command.upgrade(self.config, '45a07fac3d38')
         results = self.connection.execute(
             select([self.ip_policy_cidrs])).fetchall()
-        self.assertEqual(len(results), 2)
+        self.assertEqual(2, len(results))
         default_cidrs = ["192.168.10.0/32", "192.168.10.255/32"]
         self.assertIn(results[0]["cidr"], default_cidrs)
         self.assertIn(results[1]["cidr"], default_cidrs)
         self.assertTrue(results[0]["id"] == "222" or results[0]["id"] == "223")
         self.assertTrue(results[1]["id"] == "222" or results[1]["id"] == "223")
-        self.assertEqual(results[0]["created_at"], dt)
-        self.assertEqual(results[1]["created_at"], dt)
+        self.assertEqual(dt, results[0]["created_at"])
+        self.assertEqual(dt, results[1]["created_at"])
 
     def test_upgrade_bulk(self):
         self.connection.execute(
@@ -358,12 +358,12 @@ class Test45a07fac3d38(BaseMigrationTest):
         results = self.connection.execute(
             select([self.ip_policy_cidrs]).where(
                 self.ip_policy_cidrs.c.ip_policy_id == None)).fetchall()  # noqa
-        self.assertEqual(len(results), 0)
+        self.assertEqual(0, len(results))
 
         results = self.connection.execute(
             select([self.ip_policy_cidrs]).where(
                 self.ip_policy_cidrs.c.ip_policy_id == "111")).fetchall()
-        self.assertEqual(len(results), 2)
+        self.assertEqual(2, len(results))
         default_cidrs = ["192.168.10.0/32", "192.168.10.255/32"]
         self.assertIn(results[0]["cidr"], default_cidrs)
         self.assertIn(results[1]["cidr"], default_cidrs)
@@ -372,7 +372,7 @@ class Test45a07fac3d38(BaseMigrationTest):
         results = self.connection.execute(
             select([self.ip_policy_cidrs]).where(
                 self.ip_policy_cidrs.c.ip_policy_id == "112")).fetchall()
-        self.assertEqual(len(results), 3)
+        self.assertEqual(3, len(results))
         default_cidrs = ["192.168.10.0/32", "192.168.10.255/32",
                          "192.168.10.13/32"]
         for result in results:
@@ -384,14 +384,14 @@ class Test45a07fac3d38(BaseMigrationTest):
         results = self.connection.execute(
             select([self.ip_policy_cidrs]).where(
                 self.ip_policy_cidrs.c.ip_policy_id == "113")).fetchall()
-        self.assertEqual(len(results), 2)
+        self.assertEqual(2, len(results))
         default_cidrs = ["192.168.10.0/32", "192.168.10.255/32"]
         self.assertIn(results[0]["cidr"], default_cidrs)
         self.assertIn(results[1]["cidr"], default_cidrs)
         self.assertTrue(results[0]["id"] == "222" or results[0]["id"] == "223")
         self.assertTrue(results[1]["id"] == "222" or results[1]["id"] == "223")
-        self.assertEqual(results[0]["created_at"], dt)
-        self.assertEqual(results[1]["created_at"], dt)
+        self.assertEqual(dt, results[0]["created_at"])
+        self.assertEqual(dt, results[1]["created_at"])
 
     def test_downgrade(self):
         alembic_command.upgrade(self.config, '45a07fac3d38')
@@ -425,7 +425,7 @@ class Test552b213c2b8c(BaseMigrationTest):
         alembic_command.upgrade(self.config, '552b213c2b8c')
         results = self.connection.execute(
             select([self.ip_policy_cidrs])).fetchall()
-        self.assertEqual(len(results), 0)
+        self.assertEqual(0, len(results))
 
     def test_upgrade_subnets_with_ip_policy(self):
         dt = datetime.datetime(1970, 1, 1)
@@ -443,23 +443,23 @@ class Test552b213c2b8c(BaseMigrationTest):
         alembic_command.upgrade(self.config, '552b213c2b8c')
         results = self.connection.execute(
             select([self.ip_policy])).fetchall()
-        self.assertEqual(len(results), 1)
+        self.assertEqual(1, len(results))
         result = results[0]
-        self.assertEqual(result["id"], "111")
-        self.assertEqual(result["tenant_id"], "foo")
-        self.assertEqual(result["created_at"], dt)
+        self.assertEqual("111", result["id"])
+        self.assertEqual("foo", result["tenant_id"])
+        self.assertEqual(dt, result["created_at"])
         results = self.connection.execute(
             select([self.ip_policy_cidrs])).fetchall()
-        self.assertEqual(len(results), 1)
+        self.assertEqual(1, len(results))
         result = results[0]
-        self.assertEqual(result["id"], "221")
-        self.assertEqual(result["created_at"], dt)
-        self.assertEqual(result["ip_policy_id"], "111")
-        self.assertEqual(result["cidr"], "192.168.10.13/32")
+        self.assertEqual("221", result["id"])
+        self.assertEqual(dt, result["created_at"])
+        self.assertEqual("111", result["ip_policy_id"])
+        self.assertEqual("192.168.10.13/32", result["cidr"])
         results = self.connection.execute(
             select([self.subnets])).fetchall()
-        self.assertEqual(len(results), 1)
-        self.assertEqual(results[0]["ip_policy_id"], "111")
+        self.assertEqual(1, len(results))
+        self.assertEqual("111", results[0]["ip_policy_id"])
 
     def test_upgrade_subnets_no_ip_policy(self):
         self.connection.execute(
@@ -474,25 +474,25 @@ class Test552b213c2b8c(BaseMigrationTest):
             alembic_command.upgrade(self.config, '552b213c2b8c')
         results = self.connection.execute(
             select([self.ip_policy])).fetchall()
-        self.assertEqual(len(results), 1)
+        self.assertEqual(1, len(results))
         result = results[0]
-        self.assertEqual(result["id"], "666")
-        self.assertEqual(result["tenant_id"], "foo")
-        self.assertEqual(result["created_at"], dt)
+        self.assertEqual("666", result["id"])
+        self.assertEqual("foo", result["tenant_id"])
+        self.assertEqual(dt, result["created_at"])
         results = self.connection.execute(
             select([self.ip_policy_cidrs])).fetchall()
-        self.assertEqual(len(results), 2)
+        self.assertEqual(2, len(results))
         for result in results:
             self.assertIn(result["id"], ("667", "668"))
-            self.assertEqual(result["created_at"], dt)
-            self.assertEqual(result["ip_policy_id"], "666")
+            self.assertEqual(dt, result["created_at"])
+            self.assertEqual("666", result["ip_policy_id"])
             self.assertIn(result["cidr"],
                           ("192.168.10.0/32", "192.168.10.255/32"))
         self.assertNotEqual(results[0]["cidr"], results[1]["cidr"])
         results = self.connection.execute(
             select([self.subnets])).fetchall()
-        self.assertEqual(len(results), 1)
-        self.assertEqual(results[0]["ip_policy_id"], "666")
+        self.assertEqual(1, len(results))
+        self.assertEqual("666", results[0]["ip_policy_id"])
 
     def test_upgrade_subnets_no_ip_policy_v6(self):
         self.connection.execute(
@@ -507,26 +507,26 @@ class Test552b213c2b8c(BaseMigrationTest):
             alembic_command.upgrade(self.config, '552b213c2b8c')
         results = self.connection.execute(
             select([self.ip_policy])).fetchall()
-        self.assertEqual(len(results), 1)
+        self.assertEqual(1, len(results))
         result = results[0]
-        self.assertEqual(result["id"], "666")
-        self.assertEqual(result["tenant_id"], "foo")
-        self.assertEqual(result["created_at"], dt)
+        self.assertEqual("666", result["id"])
+        self.assertEqual("foo", result["tenant_id"])
+        self.assertEqual(dt, result["created_at"])
         results = self.connection.execute(
             select([self.ip_policy_cidrs])).fetchall()
-        self.assertEqual(len(results), 2)
+        self.assertEqual(2, len(results))
         for result in results:
             self.assertIn(result["id"], ("667", "668"))
-            self.assertEqual(result["created_at"], dt)
-            self.assertEqual(result["ip_policy_id"], "666")
+            self.assertEqual(dt, result["created_at"])
+            self.assertEqual("666", result["ip_policy_id"])
             self.assertIn(result["cidr"],
                           ("fd00::/128",
                            "fd00::ffff:ffff:ffff:ffff/128"))
         self.assertNotEqual(results[0]["cidr"], results[1]["cidr"])
         results = self.connection.execute(
             select([self.subnets])).fetchall()
-        self.assertEqual(len(results), 1)
-        self.assertEqual(results[0]["ip_policy_id"], "666")
+        self.assertEqual(1, len(results))
+        self.assertEqual("666", results[0]["ip_policy_id"])
 
     def test_upgrade_bulk(self):
         dt = datetime.datetime(1970, 1, 1)
@@ -555,41 +555,41 @@ class Test552b213c2b8c(BaseMigrationTest):
         results = self.connection.execute(
             select([self.ip_policy]).where(
                 self.ip_policy.c.id == "111")).fetchall()
-        self.assertEqual(len(results), 1)
+        self.assertEqual(1, len(results))
         result = results[0]
-        self.assertEqual(result["id"], "111")
-        self.assertEqual(result["tenant_id"], "foo")
-        self.assertEqual(result["created_at"], dt)
+        self.assertEqual("111", result["id"])
+        self.assertEqual("foo", result["tenant_id"])
+        self.assertEqual(dt, result["created_at"])
         results = self.connection.execute(
             select([self.ip_policy_cidrs]).where(
                 self.ip_policy_cidrs.c.ip_policy_id == "111")).fetchall()
-        self.assertEqual(len(results), 1)
+        self.assertEqual(1, len(results))
         result = results[0]
-        self.assertEqual(result["id"], "221")
-        self.assertEqual(result["created_at"], dt)
-        self.assertEqual(result["ip_policy_id"], "111")
-        self.assertEqual(result["cidr"], "192.168.10.13/32")
+        self.assertEqual("221", result["id"])
+        self.assertEqual(dt, result["created_at"])
+        self.assertEqual("111", result["ip_policy_id"])
+        self.assertEqual("192.168.10.13/32", result["cidr"])
         results = self.connection.execute(
             select([self.subnets]).where(
                 self.subnets.c.ip_policy_id == "111")).fetchall()
-        self.assertEqual(len(results), 1)
-        self.assertEqual(results[0]["ip_policy_id"], "111")
+        self.assertEqual(1, len(results))
+        self.assertEqual("111", results[0]["ip_policy_id"])
 
         results = self.connection.execute(
             select([self.ip_policy]).where(
                 self.ip_policy.c.id != "111")).fetchall()
-        self.assertEqual(len(results), 2)
+        self.assertEqual(2, len(results))
         for result in results:
             self.assertIn(int(result["id"]), range(5, 11))
-            self.assertEqual(result["tenant_id"], "foo")
-            self.assertEqual(result["created_at"], dt)
+            self.assertEqual("foo", result["tenant_id"])
+            self.assertEqual(dt, result["created_at"])
         results = self.connection.execute(
             select([self.ip_policy_cidrs]).where(
                 self.ip_policy_cidrs.c.ip_policy_id != "111")).fetchall()
-        self.assertEqual(len(results), 4)
+        self.assertEqual(4, len(results))
         for result in results:
             self.assertIn(int(result["id"]), range(5, 11))
-            self.assertEqual(result["created_at"], dt)
+            self.assertEqual(dt, result["created_at"])
             self.assertIn(int(result["ip_policy_id"]), range(5, 11))
             self.assertIn(result["cidr"], (
                 "192.168.10.0/32", "192.168.10.255/32",
@@ -597,7 +597,7 @@ class Test552b213c2b8c(BaseMigrationTest):
         results = self.connection.execute(
             select([self.subnets]).where(
                 self.subnets.c.ip_policy_id != "111")).fetchall()
-        self.assertEqual(len(results), 2)
+        self.assertEqual(2, len(results))
         for subnet in results:
             self.assertIn(int(subnet["ip_policy_id"]), range(5, 11))
 
@@ -624,10 +624,10 @@ class Test28e55acaf366(BaseMigrationTest):
         alembic_command.upgrade(self.config, '28e55acaf366')
         results = self.connection.execute(select([
             self.ip_policy])).fetchall()
-        self.assertEqual(len(results), 0)
+        self.assertEqual(0, len(results))
         results = self.connection.execute(select([
             self.ip_policy_cidrs])).fetchall()
-        self.assertEqual(len(results), 0)
+        self.assertEqual(0, len(results))
 
     def test_upgrade_v4(self):
         self.connection.execute(
@@ -639,9 +639,9 @@ class Test28e55acaf366(BaseMigrationTest):
         alembic_command.upgrade(self.config, '28e55acaf366')
         results = self.connection.execute(select([
             self.ip_policy])).fetchall()
-        self.assertEqual(len(results), 1)
-        self.assertEqual(results[0]["id"], "1")
-        self.assertEqual(results[0]["size"], 3)
+        self.assertEqual(1, len(results))
+        self.assertEqual("1", results[0]["id"])
+        self.assertEqual(3, results[0]["size"])
 
     def test_upgrade_v6(self):
         self.connection.execute(
@@ -652,9 +652,9 @@ class Test28e55acaf366(BaseMigrationTest):
         alembic_command.upgrade(self.config, '28e55acaf366')
         results = self.connection.execute(select([
             self.ip_policy])).fetchall()
-        self.assertEqual(len(results), 1)
-        self.assertEqual(results[0]["id"], "1")
-        self.assertEqual(results[0]["size"], 2 ** 64)
+        self.assertEqual(1, len(results))
+        self.assertEqual("1", results[0]["id"])
+        self.assertEqual(2 ** 64, results[0]["size"])
 
     def test_upgrade_bulk(self):
         self.connection.execute(
@@ -669,13 +669,13 @@ class Test28e55acaf366(BaseMigrationTest):
         alembic_command.upgrade(self.config, '28e55acaf366')
         results = self.connection.execute(select([
             self.ip_policy])).fetchall()
-        self.assertEqual(len(results), 2)
+        self.assertEqual(2, len(results))
         for result in results:
             self.assertIn(result["id"], ("1", "2"))
             if result["id"] == "1":
-                self.assertEqual(result["size"], 3)
+                self.assertEqual(3, result["size"])
             elif result["id"] == "2":
-                self.assertEqual(result["size"], 2 ** 64)
+                self.assertEqual(2 ** 64, result["size"])
 
     def test_downgrade(self):
         alembic_command.upgrade(self.config, '28e55acaf366')
@@ -699,7 +699,7 @@ class Test1664300cb03a(BaseMigrationTest):
         alembic_command.upgrade(self.config, '1664300cb03a')
         results = self.connection.execute(select([
             self.ip_policy_cidrs])).fetchall()
-        self.assertEqual(len(results), 0)
+        self.assertEqual(0, len(results))
 
     def test_upgrade_ipv4(self):
         net = netaddr.IPNetwork("192.168.10.13/31")
@@ -709,12 +709,12 @@ class Test1664300cb03a(BaseMigrationTest):
         alembic_command.upgrade(self.config, '1664300cb03a')
         results = self.connection.execute(select([
             self.ip_policy_cidrs])).fetchall()
-        self.assertEqual(len(results), 1)
-        self.assertEqual(results[0]["id"], "1")
-        self.assertEqual(results[0]["ip_policy_id"], "1")
-        self.assertEqual(results[0]["cidr"], str(net))
-        self.assertEqual(results[0]["first_ip"], net.ipv6().first)
-        self.assertEqual(results[0]["last_ip"], net.ipv6().last)
+        self.assertEqual(1, len(results))
+        self.assertEqual("1", results[0]["id"])
+        self.assertEqual("1", results[0]["ip_policy_id"])
+        self.assertEqual(str(net), results[0]["cidr"])
+        self.assertEqual(net.ipv6().first, results[0]["first_ip"])
+        self.assertEqual(net.ipv6().last, results[0]["last_ip"])
 
     def test_upgrade_ipv6(self):
         net = netaddr.IPNetwork("fd00::/64")
@@ -724,12 +724,12 @@ class Test1664300cb03a(BaseMigrationTest):
         alembic_command.upgrade(self.config, '1664300cb03a')
         results = self.connection.execute(select([
             self.ip_policy_cidrs])).fetchall()
-        self.assertEqual(len(results), 1)
-        self.assertEqual(results[0]["id"], "1")
-        self.assertEqual(results[0]["ip_policy_id"], "1")
-        self.assertEqual(results[0]["cidr"], "fd00::/64")
-        self.assertEqual(results[0]["first_ip"], net.first)
-        self.assertEqual(results[0]["last_ip"], net.last)
+        self.assertEqual(1, len(results))
+        self.assertEqual("1", results[0]["id"])
+        self.assertEqual("1", results[0]["ip_policy_id"])
+        self.assertEqual("fd00::/64", results[0]["cidr"])
+        self.assertEqual(net.first, results[0]["first_ip"])
+        self.assertEqual(net.last, results[0]["last_ip"])
 
     def test_upgrade_bulk(self):
         netv4 = netaddr.IPNetwork("192.168.10.13/31")
@@ -741,15 +741,15 @@ class Test1664300cb03a(BaseMigrationTest):
         alembic_command.upgrade(self.config, '1664300cb03a')
         results = self.connection.execute(select([
             self.ip_policy_cidrs])).fetchall()
-        self.assertEqual(len(results), 2)
+        self.assertEqual(2, len(results))
         for result in results:
             self.assertIn(result["cidr"], (str(netv4), str(netv6)))
             if result["cidr"] == "192.168.10.13/31":
-                self.assertEqual(result["first_ip"], netv4.ipv6().first)
-                self.assertEqual(result["last_ip"], netv4.ipv6().last)
+                self.assertEqual(netv4.ipv6().first, result["first_ip"])
+                self.assertEqual(netv4.ipv6().last, result["last_ip"])
             else:
-                self.assertEqual(result["first_ip"], netv6.first)
-                self.assertEqual(result["last_ip"], netv6.last)
+                self.assertEqual(netv6.first, result["first_ip"])
+                self.assertEqual(netv6.last, result["last_ip"])
 
     def test_downgrade(self):
         alembic_command.upgrade(self.config, '1664300cb03a')
@@ -798,7 +798,7 @@ class Test4fc07b41d45c(BaseMigrationTest):
             (u'4', True, None),
             (u'5', False, u'fixed')
         ]
-        self.assertEqual(results, expected_results)
+        self.assertEqual(expected_results, results)
 
     def test_downgrade(self):
         self._mock_inserts()
@@ -814,7 +814,7 @@ class Test4fc07b41d45c(BaseMigrationTest):
             (u'4', True, None),
             (u'5', False, None)
         ]
-        self.assertEqual(results, expected_results)
+        self.assertEqual(expected_results, results)
 
     def test_upgrade_empty(self):
         alembic_command.upgrade(self.config, self.current_revision)
@@ -822,4 +822,4 @@ class Test4fc07b41d45c(BaseMigrationTest):
             select([self.ip_addresses_table]).order_by(
                 self.ip_addresses_table.c.id)).fetchall()
         expected_results = []
-        self.assertEqual(results, expected_results)
+        self.assertEqual(expected_results, results)

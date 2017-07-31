@@ -55,7 +55,7 @@ class QuarkLocks(MySqlBaseFunctionalTest):
             self.context,
             lock_id=ip_address.lock_id, name=kwargs["name"],
             scope=db_api.ALL)
-        self.assertEqual(len(lock_holders), 1)
+        self.assertEqual(1, len(lock_holders))
         self.assertEqual(lock_holders[0]["lock_id"], ip_address.lock_id)
         self.assertEqual(lock_holders[0]["name"], kwargs["name"])
 

@@ -199,7 +199,7 @@ class TestOptimizedNVPDriverDeletePortMultiSwitch(TestOptimizedNVPDriver):
                     self.driver.delete_port(self.context, self.port_id)
                 self.fail("AssertionError should have been raised.")
             except AssertionError as ae:
-                self.assertEqual(ae.args[0], "Exception not raised")
+                self.assertEqual("Exception not raised", ae.args[0])
                 self.assertEqual(1, context_delete.call_count)
                 self.assertEqual(0, context_add.call_count)
                 self.assertFalse(connection.lswitch_port().delete.called)
@@ -215,7 +215,7 @@ class TestOptimizedNVPDriverDeletePortMultiSwitch(TestOptimizedNVPDriver):
                     self.driver.delete_port(self.context, self.port_id)
                 self.fail("AssertionError should have been raised.")
             except AssertionError as ae:
-                self.assertEqual(ae.args[0], "AICException not raised")
+                self.assertEqual("AICException not raised", ae.args[0])
                 self.assertEqual(1, context_delete.call_count)
                 self.assertEqual(0, context_add.call_count)
                 self.assertFalse(connection.lswitch_port().delete.called)
@@ -231,7 +231,7 @@ class TestOptimizedNVPDriverDeletePortMultiSwitch(TestOptimizedNVPDriver):
                     self.driver.delete_port(self.context, self.port_id)
                 self.fail("AssertionError should have been raised.")
             except AssertionError as ae:
-                self.assertEqual(ae.args[0], "AICException not raised")
+                self.assertEqual("AICException not raised", ae.args[0])
                 self.assertEqual(1, context_delete.call_count)
                 self.assertEqual(1, context_add.call_count)
                 self.assertFalse(connection.lswitch_port().delete.called)
@@ -332,7 +332,7 @@ class TestOptimizedNVPDriverCreatePort(TestOptimizedNVPDriver):
 
     def test_select_ipam_strategy(self):
         strategy = self.driver.select_ipam_strategy(1, "ANY")
-        self.assertEqual(strategy, "ANY")
+        self.assertEqual("ANY", strategy)
 
     def test_create_port_and_maxed_switch_spanning(self):
         '''Testing to ensure a switch is made when maxed.'''
@@ -457,7 +457,7 @@ class TestOptimizedNVPDriverUpdatePort(TestOptimizedNVPDriver):
             port_find.return_value = ret_port
             update_port.return_value = dict(switch_id=2)
             self.driver.update_port(self.context, 1)
-            self.assertEqual(ret_port.switch_id, 2)
+            self.assertEqual(2, ret_port.switch_id)
 
 
 class TestCreateSecurityGroups(TestOptimizedNVPDriver):
@@ -562,7 +562,7 @@ class TestGetNetworkDetails(TestOptimizedNVPDriver):
             details = self.driver._get_network_details(self.context, 1,
                                                        switches)
             for key in expected.keys():
-                self.assertEqual(details[key], expected[key])
+                self.assertEqual(expected[key], details[key])
 
 
 class TestQueryMethods(TestOptimizedNVPDriver):
@@ -600,8 +600,8 @@ class TestQueryMethods(TestOptimizedNVPDriver):
             #               this patch going in without a test
             bin_expr = query_return.filter.__dict__["_mock_call_args"][0][0]
             children = bin_expr.get_children()
-            self.assertEqual(str(children[0]),
-                             "quark_nvp_driver_lswitch.network_id")
+            self.assertEqual("quark_nvp_driver_lswitch.network_id",
+                             str(children[0])
 
     def test_lswitch_select_free(self):
         with self._stubs() as query_return:
@@ -619,7 +619,7 @@ class TestQueryMethods(TestOptimizedNVPDriver):
             query_result.return_value = [{"nvp_id": "foo"}]
             ids = self.driver.get_lswitch_ids_for_network(self.context, 1)
             self.assertTrue(query_return.filter.called)
-            self.assertEqual(ids, ["foo"])
+            self.assertEqual(["foo"], ids)
 
     def test_lswitch_from_port(self):
         with self._stubs() as query_return:

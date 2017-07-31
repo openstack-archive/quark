@@ -213,21 +213,21 @@ class QuarkNewMacAddressAllocation(QuarkIpamBaseTest):
         with self._stubs(ranges=(mar, 0), addresses=[None, None]):
             address = self.ipam.allocate_mac_address(self.context, 0, 0, 0,
                                                      mac_address=254)
-            self.assertEqual(address["address"], 254)
+            self.assertEqual(254, address["address"])
 
     def test_allocate_new_mac_address_in_empty_range(self):
         mar = dict(id=1, first_address=0, last_address=255,
                    next_auto_assign_mac=0)
         with self._stubs(ranges=(mar, 0), addresses=[None, None]):
             address = self.ipam.allocate_mac_address(self.context, 0, 0, 0)
-            self.assertEqual(address["address"], 0)
+            self.assertEqual(0, address["address"])
 
     def test_allocate_new_mac_in_partially_allocated_range(self):
         mar = dict(id=1, first_address=0, last_address=255,
                    next_auto_assign_mac=1)
         with self._stubs(ranges=(mar, 0), addresses=[None, None]):
             address = self.ipam.allocate_mac_address(self.context, 0, 0, 0)
-            self.assertEqual(address["address"], 1)
+            self.assertEqual(1, address["address"])
 
     def test_allocate_mac_no_ranges_fails(self):
         with self._stubs(ranges=(None, 0)):
@@ -245,16 +245,16 @@ class QuarkNewMacAddressAllocation(QuarkIpamBaseTest):
                    next_auto_assign_mac=1)
         with self._stubs(ranges=(mar, 0), addresses=[None, None]) as mr:
             address = self.ipam.allocate_mac_address(self.context, 0, 0, 0)
-            self.assertEqual(address["address"], 1)
-            self.assertEqual(mr[0]["next_auto_assign_mac"], 2)
+            self.assertEqual(1, address["address"])
+            self.assertEqual(2, mr[0]["next_auto_assign_mac"])
 
     def test_allocate_mac_last_mac_in_range_closes_range(self):
         mar = dict(id=1, first_address=0, last_address=0,
                    next_auto_assign_mac=1)
         with self._stubs(ranges=(mar, 0), addresses=[None, None]) as mr:
             address = self.ipam.allocate_mac_address(self.context, 0, 0, 0)
-            self.assertEqual(address["address"], 1)
-            self.assertEqual(mr[0]["next_auto_assign_mac"], -1)
+            self.assertEqual(1, address["address"])
+            self.assertEqual(-1, mr[0]["next_auto_assign_mac"])
 
     def test_allocate_mac_range_unexpectedly_filled_closes(self):
         mar = dict(id=1, first_address=0, last_address=1,
@@ -262,7 +262,7 @@ class QuarkNewMacAddressAllocation(QuarkIpamBaseTest):
         with self._stubs(ranges=(mar, 4), addresses=[None, None]) as mr:
             with self.assertRaises(n_exc_ext.MacAddressGenerationFailure):
                 self.ipam.allocate_mac_address(self.context, 0, 0, 0)
-            self.assertEqual(mr[0]["next_auto_assign_mac"], -1)
+            self.assertEqual(-1, mr[0]["next_auto_assign_mac"])
 
 
 class QuarkNewMacAddressAllocationCreateConflict(QuarkIpamBaseTest):
@@ -291,7 +291,7 @@ class QuarkNewMacAddressAllocationCreateConflict(QuarkIpamBaseTest):
         with self._stubs(ranges=(mar, 0), addresses=[Exception, mac]):
             address = self.ipam.allocate_mac_address(self.context, 0, 0, 0,
                                                      mac_address=254)
-            self.assertEqual(address["address"], 254)
+            self.assertEqual(254, address["address"])
 
 
 class QuarkNewMacAddressReallocationDeadlocks(QuarkIpamBaseTest):
@@ -322,7 +322,7 @@ class QuarkNewMacAddressReallocationDeadlocks(QuarkIpamBaseTest):
                 mac_realloc):
             with self.assertRaises(n_exc_ext.MacAddressGenerationFailure):
                 self.ipam.allocate_mac_address(self.context, 0, 0, 0)
-            self.assertEqual(mac_realloc.call_count, 1)
+            self.assertEqual(1, mac_realloc.call_count)
 
 
 class QuarkMacAddressDeallocation(QuarkIpamBaseTest):
@@ -384,7 +384,7 @@ class QuarkIPAddressDeallocation(QuarkIpamBaseTest):
         self.assertTrue(len(addr["ports"]) == 0 or
                         len(port["ip_addresses"]) == 0)
         self.assertTrue(addr["deallocated"])
-        self.assertEqual(addr["address_type"], None)
+        self.assertEqual(None, addr["address_type"])
 
     def test_deallocate_ip_address_specific_ip(self):
         port_dict = dict(ip_addresses=[], device_id="foo")
@@ -406,7 +406,7 @@ class QuarkIPAddressDeallocation(QuarkIpamBaseTest):
         self.assertTrue(len(addr["ports"]) == 0 or
                         len(port["ip_addresses"]) == 0)
         self.assertTrue(addr["deallocated"])
-        self.assertEqual(addr["address_type"], None)
+        self.assertEqual(None, addr["address_type"])
 
     def test_deallocate_ip_address_specific_ip_not_on_port_noop(self):
         port_dict = dict(ip_addresses=[], device_id="foo")
@@ -428,7 +428,7 @@ class QuarkIPAddressDeallocation(QuarkIpamBaseTest):
         self.assertTrue(len(addr["ports"]) == 1 or
                         len(port["ip_addresses"]) == 1)
         self.assertFalse(addr["deallocated"])
-        self.assertEqual(addr["address_type"], None)
+        self.assertEqual(None, addr["address_type"])
 
     def test_deallocate_ip_address_multiple_ports_no_deallocation(self):
         port_dict = dict(ip_addresses=[])
@@ -448,7 +448,7 @@ class QuarkIPAddressDeallocation(QuarkIpamBaseTest):
         self.assertTrue(len(addr["ports"]) == 1 or
                         len(port["ip_addresses"]) == 0)
         self.assertFalse(addr["deallocated"])
-        self.assertEqual(addr["address_type"], None)
+        self.assertEqual(None, addr["address_type"])
 
     @mock.patch("quark.db.api.ip_address_delete")
     def test_deallocate_v6_ips_by_port(self, ip_delete):
@@ -469,7 +469,7 @@ class QuarkIPAddressDeallocation(QuarkIpamBaseTest):
         self.assertTrue(len(addr["ports"]) == 0 or
                         len(port["ip_addresses"]) == 0)
         ip_delete.assert_called_once_with(self.context, addr)
-        self.assertEqual(addr["address_type"], None)
+        self.assertEqual(None, addr["address_type"])
 
 
 class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
@@ -583,13 +583,13 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
             address = []
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
                                           mac_address=mac_address)
-            self.assertEqual(address[0]["address"],
-                             netaddr.IPAddress('::ffff:0.0.0.1').value)
-            self.assertEqual(address[0]["version"], 4)
-            self.assertEqual(address[0]['address_type'], 'fixed')
-            self.assertEqual(address[1]["address"], expected_v6.value)
-            self.assertEqual(address[1]["version"], 6)
-            self.assertEqual(address[1]['address_type'], 'fixed')
+            self.assertEqual(netaddr.IPAddress('::ffff:0.0.0.1').value,
+                             address[0]["address"])
+            self.assertEqual(4, address[0]["version"])
+            self.assertEqual('fixed', address[0]['address_type'])
+            self.assertEqual(expected_v6.value, address[1]["address"])
+            self.assertEqual(6, address[1]["version"])
+            self.assertEqual('fixed', address[1]['address_type'])
 
     def test_allocate_new_ip_address_one_v4_subnet_open(self):
         subnet4 = dict(id=1, first_ip=0, last_ip=255,
@@ -600,8 +600,8 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
                          addresses=[None, None, None, None]):
             address = []
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0)
-            self.assertEqual(len(address), 1)
-            self.assertEqual(address[0]["version"], 4)
+            self.assertEqual(1, len(address))
+            self.assertEqual(4, address[0]["version"])
 
     def test_allocate_new_ip_address_one_v6_subnet_open(self):
         mac_address = 0
@@ -614,9 +614,9 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
             address = []
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
                                           mac_address=mac_address)
-            self.assertEqual(len(address), 1)
-            self.assertEqual(address[0]["version"], 6)
-            self.assertEqual(address[0]['address_type'], 'fixed')
+            self.assertEqual(1, len(address))
+            self.assertEqual(6, address[0]["version"])
+            self.assertEqual('fixed', address[0]['address_type'])
 
     def test_allocate_fixed_ip_address_one_v6_subnet_open(self):
         mac_address = 0
@@ -631,8 +631,8 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
                                           ip_addresses=[ip_address],
                                           mac_address=mac_address)
-            self.assertEqual(len(address), 1)
-            self.assertEqual(address[0]['address_type'], 'fixed')
+            self.assertEqual(1, len(address))
+            self.assertEqual('fixed', address[0]['address_type'])
             self.assertEqual(ip_address,
                              netaddr.IPAddress(address[0]['address']))
 
@@ -669,15 +669,15 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
             address = []
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
                                           mac_address=mac_address)
-            self.assertEqual(len(address), 2)
-            self.assertEqual(address[0]["address"], target_ip)
-            self.assertEqual(address[0]["version"], 4)
+            self.assertEqual(2, len(address))
+            self.assertEqual(target_ip, address[0]["address"])
+            self.assertEqual(4, address[0]["version"])
             self.assertEqual(
-                addr_realloc.call_args[0][1][models.IPAddress.address_type],
-                "fixed")
-            self.assertEqual(address[1]["address"], expected_v6.value)
-            self.assertEqual(address[1]["version"], 6)
-            self.assertEqual(address[1]['address_type'], 'fixed')
+                "fixed",
+                addr_realloc.call_args[0][1][models.IPAddress.address_type])
+            self.assertEqual(expected_v6.value, address[1]["address"])
+            self.assertEqual(6, address[1]["version"])
+            self.assertEqual('fixed', address[1]['address_type'])
 
     def test_reallocate_deallocated_v4_ip_passed_subnets(self):
         mac_address = 0
@@ -703,15 +703,15 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
                                           subnets=[subnet4['id']],
                                           mac_address=mac_address)
-            self.assertEqual(len(address), 2)
-            self.assertEqual(address[0]["address"], self.v46_val)
-            self.assertEqual(address[0]["version"], 4)
+            self.assertEqual(2, len(address))
+            self.assertEqual(self.v46_val, address[0]["address"])
+            self.assertEqual(4, address[0]["version"])
             self.assertEqual(
-                addr_realloc.call_args[0][1][models.IPAddress.address_type],
-                "fixed")
-            self.assertEqual(address[1]["address"], expected_v6.value)
-            self.assertEqual(address[1]["version"], 6)
-            self.assertEqual(address[1]['address_type'], 'fixed')
+                "fixed",
+                addr_realloc.call_args[0][1][models.IPAddress.address_type])
+            self.assertEqual(expected_v6.value, address[1]["address"])
+            self.assertEqual(6, address[1]["version"])
+            self.assertEqual('fixed', address[1]['address_type'])
 
     def test_reallocate_deallocated_v4_ip_shared_net(self):
         mac_address = 0
@@ -731,15 +731,15 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
                                           segment_id="cell01",
                                           mac_address=mac_address)
-            self.assertEqual(len(address), 2)
-            self.assertEqual(address[0]["address"], self.v46_val)
-            self.assertEqual(address[0]["version"], 4)
+            self.assertEqual(2, len(address))
+            self.assertEqual(self.v46_val, address[0]["address"])
+            self.assertEqual(4, address[0]["version"])
             self.assertEqual(
-                addr_realloc.call_args[0][1][models.IPAddress.address_type],
-                "fixed")
-            self.assertEqual(address[1]["address"], expected_v6.value)
-            self.assertEqual(address[1]["version"], 6)
-            self.assertEqual(address[1]['address_type'], 'fixed')
+                "fixed",
+                addr_realloc.call_args[0][1][models.IPAddress.address_type])
+            self.assertEqual(expected_v6.value, address[1]["address"])
+            self.assertEqual(6, address[1]["version"])
+            self.assertEqual('fixed', address[1]['address_type'])
 
     def test_reallocate_deallocated_v4_ip_shared_net_no_subs_raises(self):
         with self._stubs(subnets=[], addresses=[None]):
@@ -758,12 +758,12 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
                          addresses=[address, None, None]) as addr_realloc:
             address = []
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0)
-            self.assertEqual(len(address), 1)
-            self.assertEqual(address[0]["address"], self.v46_val)
-            self.assertEqual(address[0]["version"], 4)
+            self.assertEqual(1, len(address))
+            self.assertEqual(self.v46_val, address[0]["address"])
+            self.assertEqual(4, address[0]["version"])
             self.assertEqual(
-                addr_realloc.call_args[0][1][models.IPAddress.address_type],
-                "fixed")
+                "fixed",
+                addr_realloc.call_args[0][1][models.IPAddress.address_type])
 
     def test_allocate_v6_with_mac_generates_rfc_address(self):
         subnet6 = dict(id=1, first_ip=self.v6_fip.value,
@@ -786,16 +786,16 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
                                           mac_address=mac)
             generated_v6 = netaddr.IPAddress("feed::a8bb:ccff:fedd:eeff")
-            self.assertEqual(len(address), 2)
-            self.assertEqual(address[0]["address"], self.v46_val)
-            self.assertEqual(address[0]["version"], 4)
+            self.assertEqual(2, len(address))
+            self.assertEqual(self.v46_val, address[0]["address"])
+            self.assertEqual(4, address[0]["version"])
             self.assertEqual(
-                addr_realloc.call_args[0][1][models.IPAddress.address_type],
-                "fixed")
+                "fixed",
+                addr_realloc.call_args[0][1][models.IPAddress.address_type])
 
-            self.assertEqual(address[1]["address"], generated_v6.value)
-            self.assertEqual(address[1]["version"], 6)
-            self.assertEqual(address[1]['address_type'], 'fixed')
+            self.assertEqual(generated_v6.value, address[1]["address"])
+            self.assertEqual(6, address[1]["version"])
+            self.assertEqual('fixed', address[1]['address_type'])
 
     def test_allocate_v6_with_mac_generates_exceeds_limit_raises(self):
         subnet6 = dict(cidr="feed::/104",
@@ -840,17 +840,17 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
                          addresses=[address, None, None]) as addr_realloc:
             addresses = []
             self.ipam.allocate_ip_address(self.context, addresses, 0, 0, 0)
-            self.assertEqual(len(addresses), 2)
-            self.assertEqual(addresses[0]["address"], str(self.v46_val))
-            self.assertEqual(addresses[0]["version"], 6)
+            self.assertEqual(2, len(addresses))
+            self.assertEqual(str(self.v46_val), addresses[0]["address"])
+            self.assertEqual(6, addresses[0]["version"])
             self.assertEqual(
-                addr_realloc.call_args[0][1][models.IPAddress.address_type],
-                "fixed")
+                "fixed",
+                addr_realloc.call_args[0][1][models.IPAddress.address_type])
 
-            self.assertEqual(addresses[1]["address"],
-                             netaddr.IPAddress("::ffff:0.0.0.1").value)
-            self.assertEqual(addresses[1]["version"], 4)
-            self.assertEqual(addresses[1]['address_type'], 'fixed')
+            self.assertEqual(netaddr.IPAddress("::ffff:0.0.0.1").value,
+                             addresses[1]["address"])
+            self.assertEqual(4, addresses[1]["version"])
+            self.assertEqual('fixed', addresses[1]['address_type'])
 
     def test_reallocate_deallocated_v4_with_v6(self):
         subnet6 = dict(cidr="feed::/104", first_ip=self.v6_fip.value,
@@ -869,17 +869,17 @@ class QuarkIpamTestBothIpAllocation(QuarkIpamBaseTest):
             address = []
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
                                           mac_address=mac_address)
-            self.assertEqual(len(address), 2)
-            self.assertEqual(address[0]["address"], self.v46_val)
-            self.assertEqual(address[0]["version"], 4)
+            self.assertEqual(2, len(address))
+            self.assertEqual(self.v46_val, address[0]["address"])
+            self.assertEqual(4, address[0]["version"])
             self.assertEqual(
-                addr_realloc.call_args[0][1][models.IPAddress.address_type],
-                "fixed")
+                "fixed",
+                addr_realloc.call_args[0][1][models.IPAddress.address_type])
 
             expected_v6 = netaddr.IPAddress("feed::200:ff:fe00:0")
-            self.assertEqual(address[1]["address"], expected_v6.value)
-            self.assertEqual(address[1]["version"], 6)
-            self.assertEqual(address[1]['address_type'], 'fixed')
+            self.assertEqual(expected_v6.value, address[1]["address"])
+            self.assertEqual(6, address[1]["version"])
+            self.assertEqual('fixed', address[1]['address_type'])
 
 
 class QuarkIpamTestBothRequiredIpAllocation(QuarkIpamBaseTest):
@@ -958,13 +958,13 @@ class QuarkIpamTestBothRequiredIpAllocation(QuarkIpamBaseTest):
             address = []
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
                                           mac_address=mac_address)
-            self.assertEqual(address[0]["address"],
-                             netaddr.IPAddress("::ffff:0.0.0.1").value)
-            self.assertEqual(address[0]["version"], 4)
-            self.assertEqual(address[0]['address_type'], 'fixed')
-            self.assertEqual(address[1]["address"], expected_v6.value)
-            self.assertEqual(address[1]["version"], 6)
-            self.assertEqual(address[1]['address_type'], 'fixed')
+            self.assertEqual(netaddr.IPAddress("::ffff:0.0.0.1").value,
+                             address[0]["address"])
+            self.assertEqual(4, address[0]["version"])
+            self.assertEqual('fixed', address[0]['address_type'])
+            self.assertEqual(expected_v6.value, address[1]["address"])
+            self.assertEqual(6, address[1]["version"])
+            self.assertEqual('fixed', address[1]['address_type'])
 
     def test_allocate_new_ip_address_one_v4_subnet_open(self):
         subnet4 = dict(id=1, first_ip=0, last_ip=255,
@@ -1012,15 +1012,15 @@ class QuarkIpamTestBothRequiredIpAllocation(QuarkIpamBaseTest):
             address = []
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
                                           mac_address=mac_address)
-            self.assertEqual(len(address), 2)
-            self.assertEqual(address[0]["address"], 4)
-            self.assertEqual(address[0]["version"], 4)
+            self.assertEqual(2, len(address))
+            self.assertEqual(4, address[0]["address"])
+            self.assertEqual(4, address[0]["version"])
             self.assertEqual(
-                addr_realloc.call_args[0][1][models.IPAddress.address_type],
-                "fixed")
-            self.assertEqual(address[1]["address"], expected_v6.value)
-            self.assertEqual(address[1]["version"], 6)
-            self.assertEqual(address[1]['address_type'], 'fixed')
+                "fixed",
+                addr_realloc.call_args[0][1][models.IPAddress.address_type])
+            self.assertEqual(expected_v6.value, address[1]["address"])
+            self.assertEqual(6, address[1]["version"])
+            self.assertEqual('fixed', address[1]['address_type'])
 
     def test_reallocate_deallocated_v4_with_new_v6(self):
         mac_address = 0
@@ -1039,17 +1039,17 @@ class QuarkIpamTestBothRequiredIpAllocation(QuarkIpamBaseTest):
             address = []
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
                                           mac_address=mac_address)
-            self.assertEqual(len(address), 2)
-            self.assertEqual(address[0]["address"], self.v46_val)
-            self.assertEqual(address[0]["version"], 4)
+            self.assertEqual(2, len(address))
+            self.assertEqual(self.v46_val, address[0]["address"])
+            self.assertEqual(4, address[0]["version"])
             self.assertEqual(
-                addr_realloc.call_args[0][1][models.IPAddress.address_type],
-                "fixed")
+                "fixed",
+                addr_realloc.call_args[0][1][models.IPAddress.address_type])
 
             expected_v6 = netaddr.IPAddress("feed::200:ff:fe00:0")
-            self.assertEqual(address[1]["address"], expected_v6.value)
-            self.assertEqual(address[1]["version"], 6)
-            self.assertEqual(address[1]['address_type'], 'fixed')
+            self.assertEqual(expected_v6.value, address[1]["address"])
+            self.assertEqual(6, address[1]["version"])
+            self.assertEqual('fixed', address[1]['address_type'])
 
     def test_allocate_gets_one_ip_but_unsatisfied_strategy_fails(self):
         port_id = "236a48ed-dca8-41a8-bb1a-6e3e8d8d687e"
@@ -1078,8 +1078,8 @@ class QuarkIpamTestBothRequiredIpAllocation(QuarkIpamBaseTest):
             with self.assertRaises(n_exc.IpAddressGenerationFailure):
                 self.ipam.allocate_ip_address(self.context, address, 0,
                                               port_id, 0, mac_address=0)
-            self.assertEqual(address[0]["address"],
-                             netaddr.IPAddress("::ffff:0.0.0.1").value)
+            self.assertEqual(netaddr.IPAddress("::ffff:0.0.0.1").value,
+                             address[0]["address"])
 
         cfg.CONF.set_override('ip_address_retry_max', old_override, 'QUARK')
 
@@ -1174,7 +1174,7 @@ class QuarkIpamAllocateFromV6Subnet(QuarkIpamBaseTest):
             a = self.ipam._allocate_from_v6_subnet(self.context, 0, subnet6,
                                                    port_id, self.reuse_after,
                                                    mac_address=mac)
-            self.assertEqual(ip_address.value, a["address"])
+            self.assertEqual(a["address"], ip_address.value)
 
             # NCP-1548 - leaving this test to show the change from sometimes
             # creating the IP address to always creating the IP address.
@@ -1267,8 +1267,8 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
             address = []
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
                                           version=4)
-            self.assertEqual(address[0]["address"],
-                             netaddr.IPAddress("::ffff:0.0.0.1").value)
+            self.assertEqual(netaddr.IPAddress("::ffff:0.0.0.1").value,
+                             address[0]["address"])
 
     def test_allocate_one_fixed_ipv4_address(self):
         fip = netaddr.IPAddress("10.0.0.1").value
@@ -1285,7 +1285,7 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
                                           ip_addresses=ip_address,
                                           subnets=[subnet])
-            self.assertEqual(len(address), 1)
+            self.assertEqual(1, len(address))
             self.assertEqual(netaddr.IPAddress(address[0]['address']),
                              netaddr.IPAddress('::ffff:10.0.0.17'))
             self.assertTrue(addr_realloc.called)
@@ -1313,13 +1313,13 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
                                           ip_addresses=ip_addresses,
                                           subnets=[subnet1, subnet2])
-            self.assertEqual(len(address), 2)
+            self.assertEqual(2, len(address))
             self.assertEqual(netaddr.IPAddress(address[0]['address']),
                              netaddr.IPAddress('::ffff:192.168.0.17'))
-            self.assertEqual(address[0]['version'], 4)
+            self.assertEqual(4, address[0]['version'])
             self.assertEqual(netaddr.IPAddress(address[1]['address']),
                              netaddr.IPAddress('::ffff:10.0.0.17'))
-            self.assertEqual(address[1]['version'], 4)
+            self.assertEqual(4, address[1]['version'])
             self.assertTrue(addr_realloc.called)
             args, kwargs = addr_realloc.call_args
             self.assertTrue("deallocated" not in kwargs)
@@ -1339,10 +1339,10 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
                                           ip_addresses=ip_address,
                                           subnets=[subnet])
-            self.assertEqual(len(address), 1)
+            self.assertEqual(1, len(address))
             self.assertEqual(netaddr.IPAddress(address[0]['address']),
                              netaddr.IPAddress('feed::13'))
-            self.assertEqual(address[0]["version"], 6)
+            self.assertEqual(6, address[0]["version"])
             self.assertTrue(addr_realloc.called)
             args, kwargs = addr_realloc.call_args
             self.assertTrue("deallocated" not in kwargs)
@@ -1368,13 +1368,13 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
                                           ip_addresses=ip_addresses,
                                           subnets=[subnet1, subnet2])
-            self.assertEqual(len(address), 2)
+            self.assertEqual(2, len(address))
             self.assertEqual(netaddr.IPAddress(address[0]['address']),
                              netaddr.IPAddress('feed::13'))
-            self.assertEqual(address[0]["version"], 6)
+            self.assertEqual(6, address[0]["version"])
             self.assertEqual(netaddr.IPAddress(address[1]['address']),
                              netaddr.IPAddress('feef::13'))
-            self.assertEqual(address[1]["version"], 6)
+            self.assertEqual(6, address[1]["version"])
             self.assertTrue(addr_realloc.called)
             args, kwargs = addr_realloc.call_args
             self.assertTrue("deallocated" not in kwargs)
@@ -1400,13 +1400,13 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
                                           ip_addresses=ip_addresses,
                                           subnets=[subnet1, subnet2])
-            self.assertEqual(len(address), 2)
+            self.assertEqual(2, len(address))
             self.assertEqual(netaddr.IPAddress(address[0]['address']),
                              netaddr.IPAddress('feed::13'))
-            self.assertEqual(address[0]["version"], 6)
+            self.assertEqual(6, address[0]["version"])
             self.assertEqual(netaddr.IPAddress(address[1]['address']),
                              netaddr.IPAddress('::ffff:10.0.0.17'))
-            self.assertEqual(address[1]["version"], 4)
+            self.assertEqual(4, address[1]["version"])
             self.assertTrue(addr_realloc.called)
             args, kwargs = addr_realloc.call_args
             self.assertTrue("deallocated" not in kwargs)
@@ -1428,10 +1428,10 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
                 addr_realloc):
             address = []
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0)
-            self.assertEqual(address[0]["address"],
-                             netaddr.IPAddress("::ffff:0.0.1.1").value)
-            self.assertEqual(address[0]["subnet_id"], 2)
-            self.assertEqual(address[0]['address_type'], 'fixed')
+            self.assertEqual(netaddr.IPAddress("::ffff:0.0.1.1").value,
+                             address[0]["address"])
+            self.assertEqual(2, address[0]["subnet_id"])
+            self.assertEqual('fixed', address[0]['address_type'])
             self.assertTrue(addr_realloc.called)
             args, kwargs = addr_realloc.call_args
             self.assertTrue("deallocated" in kwargs)
@@ -1466,10 +1466,10 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
         with self._stubs(subnets=subnets, addresses=[None, None]):
             address = []
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0)
-            self.assertEqual(address[0]["address"],
-                             netaddr.IPAddress("::ffff:0.0.0.1").value)
-            self.assertEqual(address[0]["subnet_id"], 1)
-            self.assertEqual(address[0]['address_type'], 'fixed')
+            self.assertEqual(netaddr.IPAddress("::ffff:0.0.0.1").value,
+                             address[0]["address"])
+            self.assertEqual(1, address[0]["subnet_id"])
+            self.assertEqual('fixed', address[0]['address_type'])
 
     def test_find_requested_ip_subnet(self):
         subnet1 = dict(id=1, first_ip=0, last_ip=255,
@@ -1480,10 +1480,10 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
             address = []
             self.ipam.allocate_ip_address(
                 self.context, address, 0, 0, 0, ip_addresses=["0.0.0.240"])
-            self.assertEqual(address[0]["address"],
-                             netaddr.IPAddress('::ffff:0.0.0.240').value)
-            self.assertEqual(address[0]["subnet_id"], 1)
-            self.assertEqual(address[0]['address_type'], 'fixed')
+            self.assertEqual(netaddr.IPAddress('::ffff:0.0.0.240').value,
+                             address[0]["address"])
+            self.assertEqual(1, address[0]["subnet_id"])
+            self.assertEqual('fixed', address[0]['address_type'])
 
     def test_no_valid_subnet_for_requested_ip_fails(self):
         subnet1 = dict(id=1, first_ip=0, last_ip=255, next_auto_assign_ip=1,
@@ -1505,7 +1505,7 @@ class QuarkNewIPAddressAllocation(QuarkIpamBaseTest):
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
                                           version=4,
                                           address_type='floating')
-            self.assertEqual(address[0]["address_type"], 'floating')
+            self.assertEqual('floating', address[0]["address_type"])
 
 
 class QuarkIPAddressAllocationTestRetries(QuarkIpamBaseTest):
@@ -1565,8 +1565,8 @@ class QuarkIPAddressAllocationTestRetries(QuarkIpamBaseTest):
             used_subnet = sub_mods[0][0]
             next_auto_v4 = netaddr.IPAddress(
                 used_subnet["next_auto_assign_ip"]).ipv4()
-            self.assertEqual(next_auto_v4.value, 3)
-            self.assertEqual(addr[0]["address"], 2)
+            self.assertEqual(3, next_auto_v4.value)
+            self.assertEqual(2, addr[0]["address"])
 
     def test_allocate_explicit_already_allocated_fails_and_retries(self):
         subnet1 = dict(id=1, first_ip=0, last_ip=255, next_auto_assign_ip=1,
@@ -1645,7 +1645,7 @@ class QuarkIPAddressAllocationTestRetries(QuarkIpamBaseTest):
                                                                     addr_mods):
             addr = []
             self.ipam.allocate_ip_address(self.context, addr, 0, 0, 0)
-            self.assertEqual(addr[0]["address"], 1)
+            self.assertEqual(1, addr[0]["address"])
 
 
 class QuarkIPAddressAllocateDeallocated(QuarkIpamBaseTest):
@@ -1709,8 +1709,8 @@ class QuarkIPAddressAllocateDeallocated(QuarkIpamBaseTest):
             ipaddress = []
             self.ipam.allocate_ip_address(self.context, ipaddress, 0, 0, 0)
             self.assertIsNotNone(ipaddress[0]['id'])
-            self.assertEqual(ipaddress[0]["address"],
-                             netaddr.IPAddress("::ffff:0.0.0.1").value)
+            self.assertEqual(netaddr.IPAddress("::ffff:0.0.0.1").value,
+                             ipaddress[0]["address"])
             self.assertTrue(choose_subnet.called)
 
 
@@ -1761,7 +1761,7 @@ class TestQuarkIpPoliciesIpAllocation(QuarkIpamBaseTest):
             address = []
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
                                           version=4)
-            self.assertEqual(address[0]["address"], first + 1)
+            self.assertEqual(first + 1, address[0]["address"])
 
     def test_subnet_full_based_on_ip_policy(self):
         subnet = dict(id=1, first_ip=0, last_ip=255,
@@ -1786,8 +1786,8 @@ class TestQuarkIpPoliciesIpAllocation(QuarkIpamBaseTest):
             address = []
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
                                           version=4)
-            self.assertEqual(address[0]["address"],
-                             netaddr.IPAddress("::ffff:0.0.0.2").value)
+            self.assertEqual(netaddr.IPAddress("::ffff:0.0.0.2").value,
+                             address[0]["address"])
         cfg.CONF.set_override('ip_address_retry_max', old_override, 'QUARK')
 
     def test_ip_policy_on_both_subnet_preferred(self):
@@ -1800,8 +1800,8 @@ class TestQuarkIpPoliciesIpAllocation(QuarkIpamBaseTest):
             address = []
             self.ipam.allocate_ip_address(self.context, address, 0, 0, 0,
                                           version=4)
-            self.assertEqual(address[0]["address"],
-                             netaddr.IPAddress("::ffff:0.0.0.1").value)
+            self.assertEqual(netaddr.IPAddress("::ffff:0.0.0.1").value,
+                             address[0]["address"])
 
     def test_ip_policy_allows_specified_ip(self):
         subnet1 = dict(id=1, first_ip=0, last_ip=255, next_auto_assign_ip=1,
@@ -1813,8 +1813,8 @@ class TestQuarkIpPoliciesIpAllocation(QuarkIpamBaseTest):
             address = []
             self.ipam.allocate_ip_address(
                 self.context, address, 0, 0, 0, ip_addresses=["0.0.0.240"])
-            self.assertEqual(address[0]["address"],
-                             netaddr.IPAddress('::ffff:0.0.0.240').value)
+            self.assertEqual(netaddr.IPAddress('::ffff:0.0.0.240').value,
+                             address[0]["address"])
 
 
 class QuarkIPAddressAllocationNotifications(QuarkIpamBaseTest):
@@ -2008,7 +2008,7 @@ class QuarkIpamTestSelectSubnet(QuarkIpamBaseTest):
             s = self.ipam.select_subnet(self.context, subnet["network_id"],
                                         None, None)
             self.assertEqual(subnets[0][0], s)
-            self.assertEqual(subnets[0][0]["next_auto_assign_ip"], 2)
+            self.assertEqual(2, subnets[0][0]["next_auto_assign_ip"])
 
     def test_select_subnet_increment_fails(self):
         subnet = dict(id=1, first_ip=0, last_ip=255,
@@ -2018,8 +2018,8 @@ class QuarkIpamTestSelectSubnet(QuarkIpamBaseTest):
         with self._stubs(subnet, 1, increments=False) as (subnets, refresh):
             s = self.ipam.select_subnet(self.context, subnet["network_id"],
                                         None, None)
-            self.assertEqual(s, None)
-            self.assertEqual(subnets[0][0]["next_auto_assign_ip"], 1)
+            self.assertEqual(None, s)
+            self.assertEqual(1, subnets[0][0]["next_auto_assign_ip"])
 
     def test_select_subnet_set_subnet_full(self):
         net = netaddr.IPNetwork("0.0.0.0/24")
@@ -2032,7 +2032,7 @@ class QuarkIpamTestSelectSubnet(QuarkIpamBaseTest):
             s = self.ipam.select_subnet(self.context, subnet["network_id"],
                                         None, None)
             self.assertIsNone(s)
-            self.assertEqual(subnets[0][0]["next_auto_assign_ip"], -1)
+            self.assertEqual(-1, subnets[0][0]["next_auto_assign_ip"])
 
     def test_select_subnet_set_full_already_full(self):
         net = netaddr.IPNetwork("0.0.0.0/24")
@@ -2064,7 +2064,7 @@ class QuarkIpamTestSelectSubnet(QuarkIpamBaseTest):
             # the refresh wasn't always called, so I chose to always refresh
             # rather than conditionally fix it.
             self.assertTrue(refresh.called)
-            self.assertEqual(subnets[0][0]["next_auto_assign_ip"], -1)
+            self.assertEqual(-1, subnets[0][0]["next_auto_assign_ip"])
 
 
 class QuarkIpamTestSelectSubnetLocking(QuarkIpamBaseTest):
@@ -2287,7 +2287,7 @@ class IronicIpamTestSelectSubnet(QuarkIpamBaseTest):
         with self._stubs(subnet, 0) as (subnets, subnet_find, refresh):
             s = self.ipam.select_subnet(self.context, subnet["network_id"],
                                         None, None)
-            self.assertEqual(s, subnets[0][0])
+            self.assertEqual(subnets[0][0], s)
 
     def test_select_subnet_does_not_return_used(self):
         subnet = dict(id=1, first_ip=2, last_ip=2, next_auto_assign_ip=2,
@@ -2299,7 +2299,7 @@ class IronicIpamTestSelectSubnet(QuarkIpamBaseTest):
         with self._stubs(subnet, 1) as (subnets, subnet_find, refresh):
             s = self.ipam.select_subnet(self.context, subnet["network_id"],
                                         None, None)
-            self.assertEqual(s, None)
+            self.assertEqual(None, s)
 
     def test_select_subnet_v4_locks(self):
         subnet = dict(id=1, first_ip=0, last_ip=18446744073709551615L,
