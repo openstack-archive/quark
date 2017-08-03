@@ -266,38 +266,44 @@ class TestRedisForAgent(test_base.TestBase):
         self.addCleanup(patch.stop)
 
     @mock.patch(
-        "quark.cache.security_groups_client.SecurityGroupsClient.get_fields")
-    def test_get_security_group_states_empty(self, mock_get_fields):
+        "quark.cache.security_groups_client."
+        "SecurityGroupsClient.get_fields_all")
+    def test_get_security_group_states_empty(self, get_fields_all):
         rc = sg_client.SecurityGroupsClient()
-        mock_get_fields.return_value = []
+        get_fields_all.return_value = []
         group_states = rc.get_security_group_states([])
-        mock_get_fields.assert_called_once_with([],
-                                                sg_client.SECURITY_GROUP_ACK)
         self.assertEqual(group_states, {})
 
     @mock.patch(
-        "quark.cache.security_groups_client.SecurityGroupsClient.get_fields")
+        "quark.cache.security_groups_client."
+        "SecurityGroupsClient.get_fields_all")
     def test_get_security_group_states_nonempty(self, mock_get_fields):
         rc = sg_client.SecurityGroupsClient()
 
         mock_get_fields.return_value = [
             None,
-            '{}',
-            '{"%s": False}' % sg_client.SECURITY_GROUP_ACK,
-            '{"%s": True}' % sg_client.SECURITY_GROUP_ACK,
-            '{"%s": "1-2-3"}' % sg_client.SECURITY_GROUP_ACK]
+            {},
+            {sg_client.SECURITY_GROUP_ACK: "False",
+                sg_client.SECURITY_GROUP_HASH_ATTR:
+                '{"rules":[{"direction": "up"}]}'},
+            {sg_client.SECURITY_GROUP_ACK: "True",
+                sg_client.SECURITY_GROUP_HASH_ATTR: []},
+            {sg_client.SECURITY_GROUP_ACK: '1-2-3',
+                sg_client.SECURITY_GROUP_HASH_ATTR: []}]
 
         recs = [{"MAC": 2}, {"MAC": 4}, {"MAC": 6}, {"MAC": 8}, {"MAC": 0}]
-        new_interfaces = ([VIF(1, recs[0], 9), VIF(3, recs[1], 0),
-                           VIF(5, recs[2], 1), VIF(7, recs[3], 2),
+        new_interfaces = ([VIF(1, recs[0], 9),
+                           VIF(3, recs[1], 0),
+                           VIF(5, recs[2], 1),
+                           VIF(7, recs[3], 2),
                            VIF(9, recs[4], 3)])
+        valid_response = {new_interfaces[2]:
+                          {sg_client.SECURITY_GROUP_ACK: False,
+                           sg_client.SECURITY_GROUP_HASH_ATTR:
+                           [{"direction": "up"}]},
+                          new_interfaces[3]:
+                          {sg_client.SECURITY_GROUP_ACK: True,
+                           sg_client.SECURITY_GROUP_HASH_ATTR: []}}
 
         group_states = rc.get_security_group_states(new_interfaces)
-
-        mock_get_fields.assert_called_once_with(
-            ["1.000000000002", "3.000000000004", "5.000000000006",
-             "7.000000000008", "9.000000000000"],
-            sg_client.SECURITY_GROUP_ACK)
-
-        self.assertEqual(group_states, {new_interfaces[2]: False,
-                                        new_interfaces[3]: True})
+        self.assertEqual(valid_response, group_states)

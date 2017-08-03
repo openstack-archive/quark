@@ -188,18 +188,29 @@ class SecurityGroupsClient(redis_base.ClientBase):
         vif_keys = [self.vif_key(vif.device_id, vif.mac_address)
                     for vif in interfaces]
 
-        security_groups = self.get_fields(vif_keys, SECURITY_GROUP_ACK)
+        # Retrieve all fields associated with this key, which should be
+        # 'security groups ack' and 'security group rules'.
+        sec_grp_all = self.get_fields_all(vif_keys)
 
         ret = {}
-        for vif, security_group_ack in zip(interfaces, security_groups):
-            if security_group_ack:
-                security_group_ack = security_group_ack.lower()
-                if "true" in security_group_ack:
-                    ret[vif] = True
-                elif "false" in security_group_ack:
-                    ret[vif] = False
+        # Associate the vif with the fields in a dictionary
+        for vif, group in zip(interfaces, sec_grp_all):
+            if group:
+                ret[vif] = {SECURITY_GROUP_ACK: None,
+                            SECURITY_GROUP_HASH_ATTR: []}
+                temp_ack = group[SECURITY_GROUP_ACK].lower()
+                temp_rules = group[SECURITY_GROUP_HASH_ATTR]
+                if temp_rules:
+                    temp_rules = json.loads(temp_rules)
+                    ret[vif][SECURITY_GROUP_HASH_ATTR] = temp_rules["rules"]
+                if "true" in temp_ack:
+                    ret[vif][SECURITY_GROUP_ACK] = True
+                elif "false" in temp_ack:
+                    ret[vif][SECURITY_GROUP_ACK] = False
                 else:
-                    LOG.debug("Skipping bad ack value %s" % security_group_ack)
+                    ret.pop(vif, None)
+                    LOG.debug("Skipping bad ack value %s" % temp_ack)
+
         return ret
 
     @utils.retry_loop(3)
