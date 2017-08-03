@@ -88,7 +88,8 @@ def partition_vifs(xapi_client, interfaces, security_group_states):
             continue
 
         vif_has_groups = vif in security_group_states
-        if vif.tagged and vif_has_groups and security_group_states[vif]:
+        if vif.tagged and vif_has_groups and\
+                security_group_states[vif][sg_cli.SECURITY_GROUP_ACK]:
             # Already ack'd these groups and VIF is tagged, reapply.
             # If it's not tagged, fall through and have it self-heal
             continue
@@ -106,9 +107,46 @@ def partition_vifs(xapi_client, interfaces, security_group_states):
     return added, updated, removed
 
 
-def ack_groups(client, groups):
+def ack_groups(client, groups, ack=True):
     if len(groups) > 0:
-        client.update_group_states_for_vifs(groups, True)
+        client.update_group_states_for_vifs(groups, ack)
+
+
+def get_groups_to_ack(groups_to_ack, init_sg_states, curr_sg_states):
+    """Compares initial security group rules with current sg rules.
+
+    Given the groups that were successfully returned from
+        xapi_client.update_interfaces call, compare initial and current
+        security group rules to determine if an update occurred during
+        the window that the xapi_client.update_interfaces was executing.
+        Return a list of vifs whose security group rules have not changed.
+    """
+    security_groups_changed = []
+    # Compare current security group rules with initial rules.
+    for vif in groups_to_ack:
+        initial_state = init_sg_states[vif][sg_cli.SECURITY_GROUP_HASH_ATTR]
+        current_state = curr_sg_states[vif][sg_cli.SECURITY_GROUP_HASH_ATTR]
+        bad_match_msg = ('security group rules were changed for vif "%s" while'
+                         ' executing xapi_client.update_interfaces.'
+                         ' Will not ack rule.' % vif)
+        # If lists are different lengths, they're automatically different.
+        if len(initial_state) != len(current_state):
+            security_groups_changed.append(vif)
+            LOG.info(bad_match_msg)
+        elif len(initial_state) > 0:
+            # Compare rules in equal length lists.
+            for rule in current_state:
+                if rule not in initial_state:
+                    security_groups_changed.append(vif)
+                    LOG.info(bad_match_msg)
+                    break
+
+    # Only ack groups whose rules have not changed since update. If
+    # rules do not match, do not add them to ret so the change
+    # can be picked up on the next cycle.
+    ret = [group for group in groups_to_ack
+           if group not in security_groups_changed]
+    return ret
 
 
 def run():
@@ -139,6 +177,16 @@ def run():
                                                             sg_states)
             xapi_client.update_interfaces(new_sg, updated_sg, removed_sg)
             groups_to_ack = [v for v in new_sg + updated_sg if v.success]
+            # NOTE(quade): This solves a race condition where a security group
+            # rule may have changed between the time the sg_states were called
+            # and when they were officially ack'd. It functions as a compare
+            # and set. This is a fix until we get onto a proper messaging
+            # queue. NCP-2287
+            sg_sts_curr = groups_client.get_security_group_states(interfaces)
+            groups_to_ack = get_groups_to_ack(groups_to_ack, sg_states,
+                                              sg_sts_curr)
+            # This list will contain all the security group rules that do not
+            # match
             ack_groups(groups_client, groups_to_ack)
 
         except Exception:

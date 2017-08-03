@@ -161,6 +161,14 @@ class ClientBase(object):
         return values
 
     @handle_connection_error
+    def get_fields_all(self, keys):
+        with self._client.slave.pipeline() as pipe:
+            for key in keys:
+                pipe.hgetall(key)
+            values = pipe.execute()
+        return values
+
+    @handle_connection_error
     def set_fields(self, keys, field, value):
         with self._client.master.pipeline() as pipe:
             for key in keys:
