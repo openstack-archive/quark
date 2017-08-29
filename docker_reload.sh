@@ -7,12 +7,14 @@ echo "Neutron/Quark: Complete"
 echo "-----------------------"
 echo "                       "
 
+# NOTE(alexm): there was a request not to remove these log files on reload
 rm -rf ./quark_container_logs/*
 rm -rf ./quark_container_venv/*
 
 echo "Neutron/Quark: Starting Container..."
-docker run -d -v $(pwd):/opt/quark -v ~/neutron:/opt/configs -v $(pwd)/quark_container_logs:/var/log/neutron -v $(pwd)/quark_container_venv:/opt/venv/lib/python2.7/site-packages/quark -p 9696:9696 --link mysql:docker-mysql --link kibana:docker-kibana --link rabbitmq:docker-rabbitmq --link redis-sentinel:docker-redis-sentinel --name quark stajkowski/quark
-# docker run --entrypoint /bin/bash -v $(pwd):/opt/quark -v ~/neutron:/opt/configs -v $(pwd)/quark_container_logs:/var/log/neutron -v $(pwd)/quark_container_venv:/opt/venv -p 9696:9696 --link mysql:docker-mysql --link kibana:docker-kibana --link rabbitmq:docker-rabbitmq --link redis-sentinel:docker-redis-sentinel --name quark stajkowski/quark
+# NOTE(alexm): may need to add -v ~/neutron:/opt/configs when quark is caught up with upstream neutron
+docker run -d -v $(pwd):/opt/quark -v $(pwd)/quark_container_logs:/var/log/neutron -v $(pwd)/quark_container_venv:/opt/venv/lib/python2.7/site-packages/quark -p 9696:9696 --link mysql:docker-mysql --link kibana:docker-kibana --link rabbitmq:docker-rabbitmq --link redis-sentinel:docker-redis-sentinel --name quark raxuser/neutron:quark
+
 echo "Neutron/Quark: Waiting for Neutron to Start..."
 # Need to wait for DB to standup
 sleep 5

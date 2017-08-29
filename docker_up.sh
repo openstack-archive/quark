@@ -41,8 +41,8 @@ echo "------------------------------------------"
 echo "                                          "
 
 echo "Neutron/Quark: Starting Container..."
-docker run -d -v $(pwd):/opt/quark -v ~/neutron:/opt/configs -v $(pwd)/quark_container_logs:/var/log/neutron -v $(pwd)/quark_container_venv:/opt/venv/lib/python2.7/site-packages/quark -p 9696:9696 --link mysql:docker-mysql --link kibana:docker-kibana --link rabbitmq:docker-rabbitmq --link redis-sentinel:docker-redis-sentinel --name quark stajkowski/quark
-# docker run --entrypoint /bin/bash -v $(pwd):/opt/quark -v ~/neutron:/opt/configs -v $(pwd)/quark_container_logs:/var/log/neutron -v $(pwd)/quark_container_venv:/opt/venv -p 9696:9696 --link mysql:docker-mysql --link kibana:docker-kibana --link rabbitmq:docker-rabbitmq --link redis-sentinel:docker-redis-sentinel --name quark stajkowski/quark
+# NOTE(alexm): add -v ~/neutron:/opt/configs after quark is caught up with upstream neutron
+docker run -t -d -v $(pwd):/opt/quark -v $(pwd)/quark_container_logs:/var/log/neutron -v $(pwd)/quark_container_venv:/opt/venv/lib/python2.7/site-packages/quark -p 9696:9696 --link mysql:docker-mysql --link kibana:docker-kibana --link rabbitmq:docker-rabbitmq --link redis-sentinel:docker-redis-sentinel --name quark raxuser/neutron:quark
 echo "Neutron/Quark: Waiting for Neutron to Start..."
 # Need to wait for DB to standup
 sleep 5
@@ -72,22 +72,22 @@ curl -X POST -H "Content-Type: application/json" -d '{"network": {"id": "0000000
 echo "                                          "
 echo "Creating Subnets..."
 echo "                                          "
-curl -X POST -H "Content-Type: application/json" -d '{"subnet": {"network_id": "00000000-0000-0000-0000-000000000000", "segment_id": "blah", "cidr": "10.1.0.0/16", "tenant_id": "derp", "ip_version": "4"}}'  http://localhost:9696/v2.0/subnets
+curl -X POST -H "Content-Type: application/json" -d '{"subnet": {"network_id": "00000000-0000-0000-0000-000000000000", "segment_id": "rax_segment_id", "cidr": "10.1.0.0/16", "tenant_id": "rax_tenant", "ip_version": "4"}}'  http://localhost:9696/v2.0/subnets
 echo "                                          "
-curl -X POST -H "Content-Type: application/json" -d '{"subnet": {"network_id": "00000000-0000-0000-0000-000000000000", "segment_id": "blah", "cidr": "10.2.0.0/16", "tenant_id": "derp", "ip_version": "4"}}'  http://localhost:9696/v2.0/subnets
+curl -X POST -H "Content-Type: application/json" -d '{"subnet": {"network_id": "00000000-0000-0000-0000-000000000000", "segment_id": "rax_segment_id", "cidr": "10.2.0.0/16", "tenant_id": "rax_tenant", "ip_version": "4"}}'  http://localhost:9696/v2.0/subnets
 echo "                                          "
-curl -X POST -H "Content-Type: application/json" -d '{"subnet": {"network_id": "00000000-0000-0000-0000-000000000000", "segment_id": "blah", "cidr": "10.3.0.0/16", "tenant_id": "derp", "ip_version": "4"}}'  http://localhost:9696/v2.0/subnets
+curl -X POST -H "Content-Type: application/json" -d '{"subnet": {"network_id": "00000000-0000-0000-0000-000000000000", "segment_id": "rax_segment_id", "cidr": "10.3.0.0/16", "tenant_id": "rax_tenant", "ip_version": "4"}}'  http://localhost:9696/v2.0/subnets
 echo "                                          "
-curl -X POST -H "Content-Type: application/json" -d '{"subnet": {"network_id": "00000000-0000-0000-0000-000000000000", "segment_id": "blah", "cidr": "10.4.0.0/16", "tenant_id": "derp", "ip_version": "4"}}'  http://localhost:9696/v2.0/subnets
+curl -X POST -H "Content-Type: application/json" -d '{"subnet": {"network_id": "00000000-0000-0000-0000-000000000000", "segment_id": "rax_segment_id", "cidr": "10.4.0.0/16", "tenant_id": "rax_tenant", "ip_version": "4"}}'  http://localhost:9696/v2.0/subnets
 echo "                                          "
 echo "Create Networks: Complete - http://localhost:9696"
 echo "------------------------------------------"
 echo " MAC Range: AA:BB:CC"
 echo " NETWORK: 00000000-0000-0000-0000-000000000000"
-echo " CIDR: 10.1.0.0/16  SEGMENT_ID: blah TENANT_ID: derp"
-echo " CIDR: 10.2.0.0/16  SEGMENT_ID: blah TENANT_ID: derp"
-echo " CIDR: 10.3.0.0/16  SEGMENT_ID: blah TENANT_ID: derp"
-echo " CIDR: 10.4.0.0/16  SEGMENT_ID: blah TENANT_ID: derp"
+echo " CIDR: 10.1.0.0/16  SEGMENT_ID: rax_segment_id TENANT_ID: rax_tenant"
+echo " CIDR: 10.2.0.0/16  SEGMENT_ID: rax_segment_id TENANT_ID: rax_tenant"
+echo " CIDR: 10.3.0.0/16  SEGMENT_ID: rax_segment_id TENANT_ID: rax_tenant"
+echo " CIDR: 10.4.0.0/16  SEGMENT_ID: rax_segment_id TENANT_ID: rax_tenant"
 echo "------------------------------------------"
 echo " COMPLETE!!"
 echo "------------------------------------------"
