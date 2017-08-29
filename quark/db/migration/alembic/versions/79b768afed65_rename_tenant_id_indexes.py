@@ -13,7 +13,7 @@ down_revision = '271cce54e15b'
 from alembic import op
 import sqlalchemy as sa
 
-from neutron.api.v2 import attributes as attr
+from neutron_lib.db import constants as db_const
 
 
 _INSPECTOR = None
@@ -116,7 +116,7 @@ def alter_column(table, column):
     old_name = 'tenant_id'
     new_name = 'project_id'
 
-    coltype = sa.String(attr.TENANT_ID_MAX_LEN)
+    coltype = sa.String(db_const.PROJECT_ID_FIELD_SIZE)
 
     op.alter_column(
         table_name=table,
