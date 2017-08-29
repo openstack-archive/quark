@@ -17,14 +17,20 @@ RUN mkdir /opt/configs /opt/neutron /opt/quark /opt/venv /opt/wafflehaus /opt/wa
 RUN cd /opt/venv && virtualenv . --distribute
 
 # Clone Neutron & Wafflehaus
-RUN git clone https://github.com/openstack/neutron /opt/neutron
+# NOTE(alexm): enable this after quark is up to date with upstream neutron
+# RUN git clone https://github.com/openstack/neutron /opt/neutron
 RUN git clone https://github.com/roaet/wafflehaus.git /opt/wafflehaus
 RUN git clone https://github.com/roaet/wafflehaus.neutron /opt/wafflehaus.neutron
 
+# NOTE(alexm): enable this when quark is caught up to upstream neutron
 # Pull Neutron and Install
-RUN echo "cd /opt/neutron && git pull" >> ~/entrypoint.sh
-RUN echo "source /opt/venv/bin/activate && pip install -U -r /opt/neutron/requirements.txt" >> ~/entrypoint.sh
-RUN echo "cd /opt/neutron && source /opt/venv/bin/activate && python setup.py develop" >> ~/entrypoint.sh
+# RUN echo "cd /opt/neutron && git pull" >> ~/entrypoint.sh
+# RUN echo "source /opt/venv/bin/activate && pip install -U -r /opt/neutron/requirements.txt" >> ~/entrypoint.sh
+# RUN echo "cd /opt/neutron && source /opt/venv/bin/activate && python setup.py develop" >> ~/entrypoint.sh
+
+# NOTE(alexm): remove this when quark is caught up to upstream neutron
+# Install Neutron
+RUN echo "source /opt/venv/bin/activate && pip install -U http://tarballs.openstack.org/neutron/neutron-10.0.1.tar.gz#egg=neutron" >> ~/entrypoint.sh
 
 # Install Quark
 RUN echo "source /opt/venv/bin/activate && pip install -U -r /opt/quark/requirements.txt" >> ~/entrypoint.sh
@@ -47,7 +53,8 @@ RUN echo "source /opt/venv/bin/activate && pip install -U ipdb" >> ~/entrypoint.
 RUN echo "cp /opt/quark/docker.neutron.conf ~/neutron.conf" >> ~/entrypoint.sh
 RUN echo "cp /opt/quark/docker.apipaste.ini ~/api-paste.ini" >> ~/entrypoint.sh
 RUN echo "cp /opt/quark/docker.policy.json ~/policy.json" >> ~/entrypoint.sh
-RUN echo "cp /opt/configs/* ~/" >> ~/entrypoint.sh
+# NOTE(alexm): enable this after quark is up to date with upstream neutron
+# RUN echo "cp /opt/configs/* ~/" >> ~/entrypoint.sh
 
 RUN echo "source /opt/venv/bin/activate && quark-db-manage --config-file ~/neutron.conf upgrade head"  >> ~/entrypoint.sh
 RUN echo "source /opt/venv/bin/activate && neutron-server --config-file ~/neutron.conf"  >> ~/entrypoint.sh
