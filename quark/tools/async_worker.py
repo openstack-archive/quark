@@ -28,7 +28,6 @@ from stevedore import extension
 from neutron._i18n import _
 from neutron._i18n import _LE
 from neutron.common import config
-from neutron.db import api as session
 from neutron import service
 
 from quark.worker_plugins import base_worker
@@ -104,7 +103,6 @@ class QuarkAsyncServer(object):
 
         try:
             rpc = service.RpcWorker(self.plugins)
-            session.dispose()  # probaby not needed, but maybe
             launcher = common_service.ProcessLauncher(CONF, wait_interval=1.0)
             launcher.launch_service(rpc, workers=CONF.QUARK_ASYNC.rpc_workers)
 
