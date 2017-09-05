@@ -13,8 +13,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 import eventlet
-eventlet.monkey_patch(socket=True, select=True, time=True)
-
 import inspect
 import itertools
 import sys
@@ -28,10 +26,11 @@ from stevedore import extension
 from neutron._i18n import _
 from neutron._i18n import _LE
 from neutron.common import config
-from neutron.db import api as session
 from neutron import service
 
 from quark.worker_plugins import base_worker
+
+eventlet.monkey_patch(socket=True, select=True, time=True)
 
 service_opts = [
     cfg.StrOpt('topic',
@@ -104,7 +103,6 @@ class QuarkAsyncServer(object):
 
         try:
             rpc = service.RpcWorker(self.plugins)
-            session.dispose()  # probaby not needed, but maybe
             launcher = common_service.ProcessLauncher(CONF, wait_interval=1.0)
             launcher.launch_service(rpc, workers=CONF.QUARK_ASYNC.rpc_workers)
 
