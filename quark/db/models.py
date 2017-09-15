@@ -62,7 +62,7 @@ def _default_list_getset(collection_class, proxy):
 
 
 class QuarkBase(neutron_lib.db.model_base.NeutronBaseV2):
-    created_at = sa.Column(sa.DateTime(), default=timeutils.utcnow)
+    created_at = sa.Column(sa.DateTime(), default=lambda: timeutils.utcnow())
     __table_args__ = TABLE_KWARGS
 
 
