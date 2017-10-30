@@ -5,4 +5,4 @@
 nosetests --exclude=mysql
 nosetests --where=quark/tests/functional/mysql
 nosetests --exclude=mysql --cover-package=quark --cover-erase
-flake8 --show-source --builtins=_ quark
+PYTHONUNBUFFERED=1 flake8 --show-source --builtins=_ quark
