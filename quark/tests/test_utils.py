@@ -53,6 +53,22 @@ class TestExcWrapper(test_base.TestBase):
     def raise_generic_exception(self):
         raise Exception()
 
+    @utils.exc_wrapper(internal=True)
+    def raise_generic_exception_internal(self):
+        raise n_exc.NeutronException()
+
+    @utils.exc_wrapper(internal=False)
+    def raise_generic_exception_internal_false(self):
+        raise Exception()
+
+    @utils.exc_wrapper(internal=True)
+    def raise_specific_exception_internal(self):
+        raise n_exc.Conflict()
+
+    @utils.exc_wrapper(internal=True)
+    def no_raise_internal(self):
+        return ""
+
     @utils.exc_wrapper
     def no_raise(self):
         return ""
@@ -73,5 +89,20 @@ class TestExcWrapper(test_base.TestBase):
         with self.assertRaises(webob.exc.HTTPInternalServerError):
             self.raise_generic_exception()
 
+    def test_generic_exception_internal(self):
+        with self.assertRaises(n_exc.NeutronException):
+            self.raise_generic_exception_internal()
+
+    def test_generic_exception_internal_false(self):
+        with self.assertRaises(webob.exc.HTTPInternalServerError):
+            self.raise_generic_exception_internal_false()
+
+    def test_specific_exception_internal(self):
+        with self.assertRaises(n_exc.Conflict):
+            self.raise_specific_exception_internal()
+
     def test_no_raise(self):
         self.assertEqual("", self.no_raise())
+
+    def test_no_raise_internal(self):
+        self.assertEqual("", self.no_raise_internal())

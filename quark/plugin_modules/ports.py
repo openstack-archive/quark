@@ -130,6 +130,7 @@ def split_and_validate_requested_subnets(context, net_id, segment_id,
     return ip_addresses, subnets
 
 
+@utils.exc_wrapper(internal=True)
 def create_port(context, port):
     """Create a port
 
@@ -352,6 +353,7 @@ def create_port(context, port):
     return v._make_port_dict(new_port)
 
 
+@utils.exc_wrapper(internal=True)
 def update_port(context, id, port):
     """Update values of a port.
 
@@ -503,6 +505,7 @@ def update_port(context, id, port):
     return v._make_port_dict(port_db)
 
 
+@utils.exc_wrapper(internal=True)
 def get_port(context, id, fields=None):
     """Retrieve a port.
 
@@ -524,6 +527,7 @@ def get_port(context, id, fields=None):
     return v._make_port_dict(results)
 
 
+@utils.exc_wrapper(internal=True)
 def get_ports(context, limit=None, sorts=['id'], marker=None,
               page_reverse=False, filters=None, fields=None):
     """Retrieve a list of ports.
@@ -570,6 +574,7 @@ def get_ports(context, limit=None, sorts=['id'], marker=None,
     return v._make_ports_list(ports, fields)
 
 
+@utils.exc_wrapper(internal=True)
 def get_ports_count(context, filters=None):
     """Return the number of ports.
 
@@ -592,6 +597,7 @@ def get_ports_count(context, filters=None):
     return db_api.port_count_all(context, join_security_groups=True, **filters)
 
 
+@utils.exc_wrapper(internal=True)
 def delete_port(context, id):
     """Delete a port.
 
@@ -634,6 +640,7 @@ def _diag_port(context, port, fields):
     return p
 
 
+@utils.exc_wrapper(internal=True)
 def diagnose_port(context, id, fields):
     if not context.is_admin:
         raise n_exc.NotAuthorized()

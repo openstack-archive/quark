@@ -13,7 +13,6 @@
 # License for the specific language governing permissions and limitations
 #  under the License.
 
-
 import contextlib
 import cProfile as profiler
 import gc
@@ -25,6 +24,7 @@ except Exception:
     # Don't want to force pstats into the venv if it's not always used
     pass
 
+from functools import wraps
 from neutron_lib import constants as attributes
 from neutron_lib import exceptions as n_exc
 from oslo_log import log as logging
@@ -79,22 +79,51 @@ def live_profile(fn):
     return _wrapped
 
 
-def exc_wrapper(func):
+def opt_args_decorator(func):
+    """A decorator to be used on another decorator
+
+    This is done to allow separate handling on the basis of argument values
+    """
+    @wraps(func)
+    def wrapped_dec(*args, **kwargs):
+        if len(args) == 1 and len(kwargs) == 0 and callable(args[0]):
+            # actual decorated function
+            return func(args[0])
+        else:
+            # decorator arguments
+            return lambda realf: func(realf, *args, **kwargs)
+
+    return wrapped_dec
+
+
+@opt_args_decorator
+def exc_wrapper(func, internal=False):
+    @wraps(func)
     def wrapped(*args, **kwargs):
         e = None
-        try:
-            return func(*args, **kwargs)
-        except n_exc.NotFound as e:
-            raise webob.exc.HTTPNotFound(e)
-        except n_exc.Conflict as e:
-            raise webob.exc.HTTPConflict(e)
-        except n_exc.BadRequest as e:
-            raise webob.exc.HTTPBadRequest(e)
-        except Exception as e:
-            raise webob.exc.HTTPInternalServerError(e)
-        finally:
-            if not e:
-                LOG.exception(str(e))
+        if internal:
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                # Re-raise the exception to make it pass through
+                raise e
+            finally:
+                if not e:
+                    LOG.exception(str(e))
+        else:
+            try:
+                return func(*args, **kwargs)
+            except n_exc.NotFound as e:
+                raise webob.exc.HTTPNotFound(e)
+            except n_exc.Conflict as e:
+                raise webob.exc.HTTPConflict(e)
+            except n_exc.BadRequest as e:
+                raise webob.exc.HTTPBadRequest(e)
+            except Exception as e:
+                raise webob.exc.HTTPInternalServerError(e)
+            finally:
+                if e:
+                    LOG.exception(str(e))
     return wrapped
 
 
