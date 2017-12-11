@@ -16,5 +16,8 @@ pymysql==0.6.6
 twiceredis>=2.0.0
 stevedore>=1.16.0 # Apache-2.0
 
+# client deps 
+python-neutronclient==6.5.0
+
 # agent deps
 xenapi==1.2
