@@ -576,6 +576,7 @@ class TestIronicDriverDeletePort(TestIronicDriverBase):
             delete.assert_called_once_with("foo")
 
     def test_delete_port_retries(self):
+
         delete_port = [Exception("uhoh"), None]
         with self._stubs(delete_port=delete_port) as (driver,
                                                       client, _,
@@ -585,6 +586,67 @@ class TestIronicDriverDeletePort(TestIronicDriverBase):
             self.assertEqual(
                 delete.call_args_list,
                 [mock.call("foo"), mock.call("foo")])
+
+    def test_delete_port_retries_with_none(self):
+
+        delete_port = [None]
+        with self._stubs(delete_port=delete_port) as (driver,
+                                                      client, _,
+                                                      delete):
+            driver.delete_port(self.context, "foo")
+            self.assertEqual(delete.call_count, 1)
+            self.assertEqual(
+                delete.call_args_list,
+                [mock.call("foo")])
+
+    def test_delete_port_no_retries_for_port_not_found(self):
+
+        '''In case of port not found exception there should be no retry
+
+        since the function returns None.
+        '''
+        delete_port = [Exception("neutron_client.PortNotFound"), None]
+        with self._stubs(delete_port=delete_port) as (driver,
+                                                      client, _,
+                                                      delete):
+            driver.delete_port(self.context, "foo")
+            self.assertEqual(delete.call_count, 2)
+            self.assertEqual(
+                delete.call_args_list,
+                [mock.call("foo"), mock.call("foo")])
+
+    def test_delete_port_retries_for_generic_exception(self):
+
+        '''In case of generic exception there should be retry
+
+        since the function raises exception
+        '''
+        delete_port = [Exception("uhoh"), None]
+        with self._stubs(delete_port=delete_port) as (driver,
+                                                      client, _,
+                                                      delete):
+            driver.delete_port(self.context, "foo")
+            self.assertEqual(delete.call_count, 2)
+            self.assertEqual(
+                delete.call_args_list,
+                [mock.call("foo"), mock.call("foo")])
+
+    def test_delete_port_n_retries_for_n_generic_exception(self):
+
+        '''In case of generic exception there should be retry
+
+        since the function raises exception
+        '''
+        delete_port = [Exception("uhoh"), Exception("uhoh"), None]
+        with self._stubs(delete_port=delete_port) as (driver,
+                                                      client, _,
+                                                      delete):
+            # Max retires decided by CONF.IRONIC.operation_retries
+            driver.delete_port(self.context, "foo")
+            self.assertEqual(delete.call_count, 3)
+            self.assertEqual(
+                delete.call_args_list,
+                [mock.call("foo"), mock.call("foo"), mock.call("foo")])
 
     def test_delete_port_fail_does_not_raise(self):
         delete_port = [Exception("uhoh"),
@@ -601,12 +663,18 @@ class TestIronicDriverDeletePort(TestIronicDriverBase):
                  mock.call("foo")])
 
     def test_delete_port_ignores_404(self):
+
+        '''Any exception other than neutronclient.PortNotFound would be
+
+        considered as generic exception, one retry for generic exception
+        '''
+
         delete_port = [Exception("404 not found"), None]
         with self._stubs(delete_port=delete_port) as (driver,
                                                       client, _,
                                                       delete):
             driver.delete_port(self.context, "foo")
-            delete.assert_called_once_with("foo")
+            self.assertEqual(delete.call_count, 2)
 
 
 class TestIronicDriverUpdatePort(TestIronicDriverBase):
