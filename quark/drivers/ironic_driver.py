@@ -20,6 +20,7 @@ import json
 import netaddr
 
 from neutron_lib import exceptions as n_exc
+from neutronclient.neutron import client as neutron_client
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_utils import importutils
@@ -397,13 +398,13 @@ class IronicDriver(base.BaseDriver):
     def _delete_port(self, context, port_id):
         try:
             return self._client.delete_port(port_id)
-        except Exception as e:
-            # This doesn't get wrapped by the client unfortunately.
-            if "404 not found" in str(e).lower():
-                LOG.error("port %s not found downstream. ignoring delete."
+        except neutron_client.PortNotFound:
+            # Port not found exception encountered, such as port deleted
+            LOG.error("port %s not found downstream. ignoring delete."
                           % (port_id))
-                return
-
+            return None
+        except Exception as e:
+            # Any generic exception (say 500 or others)
             msg = ("failed to delete downstream port. "
                    "exception: %s" % (e))
             LOG.exception(msg)
