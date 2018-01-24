@@ -46,7 +46,6 @@ Install with DevStack and Neutron
     LOGFILE=/opt/stack/logs/stack.sh.log
     VERBOSE=True
     LOG_COLOR=True
-    SCREEN_LOGDIR=/opt/stack/logs
     # Pre-requisite
     ENABLED_SERVICES=rabbit,mysql,key
     # Horizon (always use the trunk)
