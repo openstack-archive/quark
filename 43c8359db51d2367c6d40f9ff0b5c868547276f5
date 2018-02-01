@@ -1,0 +1,10 @@
+Code-Review+2: Kyle Haley <kyle.haley@rackspace.com>
+Workflow+1: alexander medvedev <xroot@yahoo.com>
+Workflow+1: Kyle Haley <kyle.haley@rackspace.com>
+Code-Review+2: alexander medvedev <xroot@yahoo.com>
+Verified+2: Zuul
+Submitted-by: Zuul
+Submitted-at: Thu, 01 Feb 2018 18:31:31 +0000
+Reviewed-on: https://review.openstack.org/527913
+Project: openstack/quark
+Branch: refs/heads/master
