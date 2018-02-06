@@ -115,12 +115,36 @@ class TestUnmanagedDriver(test_base.TestBase):
     def test_delete_port(self, sg_cli):
         device_id = str(uuid.uuid4())
         mac_address = netaddr.EUI("AA:BB:CC:DD:EE:FF").value
+        security_groups = [str(uuid.uuid4())]
+        mock_client = mock.MagicMock()
+        sg_cli.return_value = mock_client
+        self.driver.delete_port(context=self.context, port_id=2,
+                                mac_address=mac_address, device_id=device_id,
+                                security_groups=security_groups)
+        mock_client.delete_vif.assert_called_once_with(
+            device_id, mac_address)
+
+    @mock.patch("quark.cache.security_groups_client.SecurityGroupsClient")
+    def test_delete_port_empty_security_group(self, sg_cli):
+        device_id = str(uuid.uuid4())
+        mac_address = netaddr.EUI("AA:BB:CC:DD:EE:FF").value
+        security_groups = []
+        mock_client = mock.MagicMock()
+        sg_cli.return_value = mock_client
+        self.driver.delete_port(context=self.context, port_id=2,
+                                mac_address=mac_address, device_id=device_id,
+                                security_groups=security_groups)
+        mock_client.delete_vif.assert_not_called()
+
+    @mock.patch("quark.cache.security_groups_client.SecurityGroupsClient")
+    def test_delete_port_no_security_group(self, sg_cli):
+        device_id = str(uuid.uuid4())
+        mac_address = netaddr.EUI("AA:BB:CC:DD:EE:FF").value
         mock_client = mock.MagicMock()
         sg_cli.return_value = mock_client
         self.driver.delete_port(context=self.context, port_id=2,
                                 mac_address=mac_address, device_id=device_id)
-        mock_client.delete_vif.assert_called_once_with(
-            device_id, mac_address)
+        mock_client.delete_vif.assert_not_called()
 
     @mock.patch("quark.cache.security_groups_client.SecurityGroupsClient")
     def test_delete_port_redis_is_dead(self, sg_cli):
@@ -134,8 +158,7 @@ class TestUnmanagedDriver(test_base.TestBase):
             self.driver.delete_port(context=self.context, port_id=2,
                                     mac_address=mac_address,
                                     device_id=device_id)
-            mock_client.delete_vif.assert_called_once_with(
-                device_id, mac_address)
+            mock_client.delete_vif.assert_not_called()
         except Exception:
             # This test fails without the exception handling in
             # _delete_port_security_groups

@@ -42,11 +42,12 @@ class SecurityGroupDriver(object):
     def delete_port(self, **kwargs):
         client = sg_client.SecurityGroupsClient()
         try:
-            device_id = kwargs.get('device_id')
-            mac_address = kwargs.get('mac_address')
-            if not device_id or not mac_address:
-                LOG.warning('device_id or mac_address not given, ignored.')
-                return
-            client.delete_vif(device_id, mac_address)
+            if kwargs.get('security_groups'):
+                device_id = kwargs.get('device_id')
+                mac_address = kwargs.get('mac_address')
+                if not device_id or not mac_address:
+                    LOG.warning('device_id or mac_address not given, ignored.')
+                    return
+                client.delete_vif(device_id, mac_address)
         except Exception:
             LOG.exception("Failed to reach the security groups backend")
