@@ -1,0 +1,8 @@
+Code-Review+2: alexander medvedev <xroot@yahoo.com>
+Workflow+1: alexander medvedev <xroot@yahoo.com>
+Verified+2: Zuul
+Submitted-by: Zuul
+Submitted-at: Tue, 06 Feb 2018 18:03:10 +0000
+Reviewed-on: https://review.openstack.org/540896
+Project: openstack/quark
+Branch: refs/heads/master
