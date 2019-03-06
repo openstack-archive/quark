@@ -15,11 +15,11 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from neutron.db.quota.driver import DbQuotaDriver
 from neutron.db.quota.models import Quota
-from neutron.db import quota_db
 
 
-class QuarkQuotaDriver(quota_db.DbQuotaDriver):
+class QuarkQuotaDriver(DbQuotaDriver):
     """Driver to perform necessary checks to enforce and obtain quotas.
 
     The default driver utilizes the local database.
